@@ -33,15 +33,16 @@ def _settings(
 
 
 def test_schedule_rolls_monthly_day_31_and_month_end_holiday_within_month() -> None:
-    settings = _settings(
-        start=date(2024, 1, 1), end=date(2024, 3, 31), day=31
-    )
+    settings = _settings(start=date(2024, 1, 1), end=date(2024, 3, 31), day=31)
     calendar = ExchangeCalendar.from_dates(
         [
             date(2024, 1, 30),  # January 31 is a month-end holiday.
             date(2024, 2, 28),  # February 29 is absent in this fixture.
             date(2024, 3, 29),
-        ]
+        ],
+        as_of_date=date(2024, 3, 31),
+        latest_complete_date=date(2024, 3, 29),
+        calendar_coverage_end_date=date(2024, 3, 31),
     )
 
     result = schedule(settings, calendar)
@@ -59,11 +60,15 @@ def test_schedule_rolls_monthly_day_31_and_month_end_holiday_within_month() -> N
     assert result.total_amount == Decimal("300")
 
 
-def test_schedule_rolls_a_non_trading_day_to_the_next_trading_day_in_same_month() -> None:
-    settings = _settings(
-        start=date(2024, 1, 1), end=date(2024, 1, 31), day=15
+def test_schedule_rolls_a_non_trading_day_to_the_next_trading_day_in_same_month() -> (
+    None
+):
+    settings = _settings(start=date(2024, 1, 1), end=date(2024, 1, 31), day=15)
+    calendar = ExchangeCalendar.from_dates(
+        [date(2024, 1, 16), date(2024, 1, 31)],
+        as_of_date=date(2024, 1, 31),
+        latest_complete_date=date(2024, 1, 31),
     )
-    calendar = ExchangeCalendar.from_dates([date(2024, 1, 16), date(2024, 1, 31)])
 
     result = schedule(settings, calendar)
 
@@ -72,11 +77,11 @@ def test_schedule_rolls_a_non_trading_day_to_the_next_trading_day_in_same_month(
 
 
 def test_schedule_does_not_backfill_start_month_or_prepay_end_month() -> None:
-    settings = _settings(
-        start=date(2024, 1, 15), end=date(2024, 2, 15), day=1
-    )
+    settings = _settings(start=date(2024, 1, 15), end=date(2024, 2, 15), day=1)
     calendar = ExchangeCalendar.from_dates(
-        [date(2024, 1, 16), date(2024, 2, 1), date(2024, 2, 16)]
+        [date(2024, 1, 16), date(2024, 2, 1), date(2024, 2, 16)],
+        as_of_date=date(2024, 2, 16),
+        latest_complete_date=date(2024, 2, 16),
     )
 
     result = schedule(settings, calendar)
@@ -87,11 +92,11 @@ def test_schedule_does_not_backfill_start_month_or_prepay_end_month() -> None:
 
 
 def test_schedule_clamps_a_future_fixed_end_to_latest_complete_exchange_date() -> None:
-    settings = _settings(
-        start=date(2024, 1, 1), end=date(2024, 12, 31), day=1
-    )
+    settings = _settings(start=date(2024, 1, 1), end=date(2024, 12, 31), day=1)
     calendar = ExchangeCalendar.from_dates(
-        [date(2024, 1, 2), date(2024, 2, 1), date(2024, 3, 1)]
+        [date(2024, 1, 2), date(2024, 2, 1), date(2024, 3, 1)],
+        as_of_date=date(2024, 3, 1),
+        latest_complete_date=date(2024, 3, 1),
     )
 
     result = schedule(settings, calendar)
@@ -105,14 +110,18 @@ def test_schedule_clamps_a_future_fixed_end_to_latest_complete_exchange_date() -
     )
 
 
-def test_latest_end_mode_uses_latest_complete_exchange_date_and_exposes_actual_value() -> None:
+def test_latest_mode_uses_latest_complete_session() -> None:
     settings = _settings(
         start=date(2024, 1, 1),
         end=date(2024, 12, 31),
         day=1,
         end_mode=EndMode.LATEST,
     )
-    calendar = ExchangeCalendar.from_dates([date(2024, 1, 2), date(2024, 3, 1)])
+    calendar = ExchangeCalendar.from_dates(
+        [date(2024, 1, 2), date(2024, 3, 1)],
+        as_of_date=date(2024, 3, 1),
+        latest_complete_date=date(2024, 3, 1),
+    )
 
     result = schedule(settings, calendar)
 
@@ -120,12 +129,19 @@ def test_latest_end_mode_uses_latest_complete_exchange_date_and_exposes_actual_v
     assert result.contributions[-1].date == date(2024, 3, 1)
 
 
-def test_schedule_reports_no_valid_contribution_when_range_has_no_exchange_date() -> None:
-    settings = _settings(
-        start=date(2024, 4, 1), end=date(2024, 4, 30), day=1
-    )
+def test_schedule_reports_no_valid_contribution_when_range_has_no_exchange_date() -> (
+    None
+):
+    settings = _settings(start=date(2024, 4, 1), end=date(2024, 4, 30), day=1)
 
-    result = schedule(settings, ExchangeCalendar.from_dates([date(2024, 3, 29)]))
+    result = schedule(
+        settings,
+        ExchangeCalendar.from_dates(
+            [date(2024, 3, 29)],
+            as_of_date=date(2024, 3, 29),
+            latest_complete_date=date(2024, 3, 29),
+        ),
+    )
 
     assert isinstance(result, ScheduleResult)
     assert result.contributions == ()
@@ -142,7 +158,14 @@ def test_zero_amount_is_not_a_valid_contribution() -> None:
         start=date(2024, 1, 1), end=date(2024, 1, 31), day=1, amount="0"
     )
 
-    result = schedule(settings, ExchangeCalendar.from_dates([date(2024, 1, 2)]))
+    result = schedule(
+        settings,
+        ExchangeCalendar.from_dates(
+            [date(2024, 1, 2)],
+            as_of_date=date(2024, 1, 31),
+            latest_complete_date=date(2024, 1, 2),
+        ),
+    )
 
     assert result.contributions == ()
     assert result.total_amount == Decimal("0")
@@ -157,15 +180,17 @@ def test_upfront_plan_uses_the_same_total_and_first_backtest_trading_day() -> No
         start=date(2024, 1, 15), end=date(2024, 3, 31), day=1, amount="125"
     )
     calendar = ExchangeCalendar.from_dates(
-        [date(2024, 1, 16), date(2024, 2, 1), date(2024, 3, 1)]
+        [date(2024, 1, 16), date(2024, 2, 1), date(2024, 3, 1)],
+        as_of_date=date(2024, 3, 31),
+        latest_complete_date=date(2024, 3, 1),
     )
 
     result = schedule(settings, calendar)
 
     assert result.total_amount == Decimal("250")
     assert result.upfront_amount == result.total_amount
-    assert result.upfront_date == date(2024, 2, 1)
-    assert result.first_trading_date == date(2024, 2, 1)
+    assert result.upfront_date == date(2024, 1, 16)
+    assert result.first_trading_date == date(2024, 1, 16)
 
 
 @pytest.mark.parametrize(
@@ -178,6 +203,13 @@ def test_upfront_plan_uses_the_same_total_and_first_backtest_trading_day() -> No
 def test_exchange_calendar_normalizes_duplicate_and_unsorted_dates(
     dates: list[date],
 ) -> None:
-    calendar = ExchangeCalendar.from_dates(dates)
+    calendar = ExchangeCalendar.from_dates(
+        dates,
+        as_of_date=max(dates),
+        latest_complete_date=max(dates),
+    )
 
-    assert calendar.trading_dates == (date(2024, 1, 2), date(2024, 1, 3))[: len(set(dates))]
+    assert (
+        calendar.trading_dates
+        == (date(2024, 1, 2), date(2024, 1, 3))[: len(set(dates))]
+    )
