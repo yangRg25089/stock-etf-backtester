@@ -1,0 +1,303 @@
+{
+  "fixtureId": "task4-core",
+  "version": "1",
+  "market": {
+    "symbol": "QQQ",
+    "currency": "USD",
+    "source": "fixture:task4-core",
+    "bars": [
+      {
+        "date": "2024-01-30",
+        "symbol": "QQQ",
+        "simulationPrice": "395",
+        "valuationPrice": "395",
+        "currency": "USD",
+        "source": "fixture:task4-core",
+        "observedAt": "2024-01-30T21:00:00Z"
+      },
+      {
+        "date": "2024-01-31",
+        "symbol": "QQQ",
+        "simulationPrice": "200",
+        "valuationPrice": "400",
+        "currency": "USD",
+        "source": "fixture:task4-core",
+        "observedAt": "2024-01-31T21:00:00Z"
+      },
+      {
+        "date": "2024-02-01",
+        "symbol": "QQQ",
+        "simulationPrice": "202",
+        "valuationPrice": "404",
+        "currency": "USD",
+        "source": "fixture:task4-core",
+        "observedAt": "2024-02-01T21:00:00Z"
+      },
+      {
+        "date": "2024-02-02",
+        "symbol": "QQQ",
+        "simulationPrice": "198",
+        "valuationPrice": "396",
+        "currency": "USD",
+        "source": "fixture:task4-core",
+        "observedAt": "2024-02-02T21:00:00Z"
+      },
+      {
+        "date": "2024-02-28",
+        "symbol": "QQQ",
+        "simulationPrice": "210",
+        "valuationPrice": "420",
+        "currency": "USD",
+        "source": "fixture:task4-core",
+        "observedAt": "2024-02-28T21:00:00Z"
+      },
+      {
+        "date": "2024-02-29",
+        "symbol": "QQQ",
+        "simulationPrice": "212",
+        "valuationPrice": "424",
+        "currency": "USD",
+        "source": "fixture:task4-core",
+        "observedAt": "2024-02-29T21:00:00Z"
+      },
+      {
+        "date": "2024-03-01",
+        "symbol": "QQQ",
+        "simulationPrice": "215",
+        "valuationPrice": "430",
+        "currency": "USD",
+        "source": "fixture:task4-core",
+        "observedAt": "2024-03-01T21:00:00Z"
+      }
+    ]
+  },
+  "macro": [
+    {
+      "date": "2024-01-30",
+      "symbol": "^VIX",
+      "value": "24.9",
+      "unit": "index_points",
+      "source": "fixture:task4-core",
+      "observedAt": "2024-01-30T21:00:00Z"
+    },
+    {
+      "date": "2024-01-31",
+      "symbol": "^VIX",
+      "value": "25.0",
+      "unit": "index_points",
+      "source": "fixture:task4-core",
+      "observedAt": "2024-01-31T21:00:00Z"
+    },
+    {
+      "date": "2024-02-01",
+      "symbol": "^VIX",
+      "value": "26.1",
+      "unit": "index_points",
+      "source": "fixture:task4-core",
+      "observedAt": "2024-02-01T21:00:00Z"
+    },
+    {
+      "date": "2024-02-02",
+      "symbol": "^VIX",
+      "value": "19.5",
+      "unit": "index_points",
+      "source": "fixture:task4-core",
+      "observedAt": "2024-02-02T21:00:00Z"
+    },
+    {
+      "date": "2024-02-01",
+      "symbol": "^TNX",
+      "value": "2.50",
+      "unit": "percent_point",
+      "source": "fixture:task4-core",
+      "observedAt": "2024-02-02T12:00:00Z"
+    }
+  ],
+  "companyFacts": [
+    {
+      "fact": "EarningsPerShareDiluted",
+      "symbol": "QQQ",
+      "periodStart": "2023-10-01",
+      "periodEnd": "2023-12-31",
+      "filed": "2024-02-05",
+      "frame": "CY2023Q4",
+      "value": "10.1",
+      "unit": "USD/share",
+      "splitBasis": "post_split",
+      "accession": "fixture-000000-24-000001"
+    },
+    {
+      "fact": "EarningsPerShareDiluted",
+      "symbol": "QQQ",
+      "periodStart": "2023-10-01",
+      "periodEnd": "2023-12-31",
+      "filed": "2024-02-05",
+      "frame": "CY2023Q4",
+      "value": null,
+      "unit": "USD/share",
+      "splitBasis": "post_split",
+      "accession": "fixture-missing-eps"
+    }
+  ],
+  "valuation": {
+    "symbol": "QQQ",
+    "observations": [
+      {
+        "date": "2024-01-31",
+        "symbol": "QQQ",
+        "valuationPrice": "400",
+        "eps": "10",
+        "pe": "40",
+        "currency": "USD",
+        "method": "fixture_split_adjusted_eps",
+        "source": "fixture:task4-core",
+        "asOf": "2024-01-31"
+      },
+      {
+        "date": "2024-02-01",
+        "symbol": "QQQ",
+        "valuationPrice": "404",
+        "eps": "10.1",
+        "pe": "40",
+        "currency": "USD",
+        "method": "fixture_late_disclosure",
+        "source": "fixture:task4-core",
+        "asOf": "2024-02-05"
+      },
+      {
+        "date": "2024-02-02",
+        "symbol": "QQQ",
+        "valuationPrice": "396",
+        "eps": null,
+        "pe": null,
+        "currency": "USD",
+        "method": "fixture_missing_pe",
+        "source": "fixture:task4-core",
+        "asOf": "2024-02-02"
+      }
+    ]
+  },
+  "exchangeDates": [
+    "2024-01-30",
+    "2024-01-31",
+    "2024-02-01",
+    "2024-02-02",
+    "2024-02-28",
+    "2024-02-29",
+    "2024-03-01"
+  ],
+  "holidays": ["2024-02-19"],
+  "corporateActions": [
+    {
+      "date": "2024-01-31",
+      "symbol": "QQQ",
+      "type": "split",
+      "factor": "2",
+      "source": "fixture:task4-core"
+    }
+  ],
+  "holdings": [
+    {
+      "case": "coverage_exact",
+      "snapshotDate": "2024-01-31",
+      "fund": "QQQ",
+      "symbol": "AAA",
+      "weight": "0.50",
+      "eps": "10",
+      "valuationPrice": "100",
+      "identityMatched": true,
+      "financialsMatched": true,
+      "priceMatched": true
+    },
+    {
+      "case": "coverage_exact",
+      "snapshotDate": "2024-01-31",
+      "fund": "QQQ",
+      "symbol": "BBB",
+      "weight": "0.30",
+      "eps": "-2",
+      "valuationPrice": "50",
+      "identityMatched": true,
+      "financialsMatched": true,
+      "priceMatched": true
+    },
+    {
+      "case": "coverage_exact",
+      "snapshotDate": "2024-01-31",
+      "fund": "QQQ",
+      "symbol": "CCC",
+      "weight": "0.10",
+      "eps": "4",
+      "valuationPrice": "80",
+      "identityMatched": false,
+      "financialsMatched": true,
+      "priceMatched": true
+    },
+    {
+      "case": "coverage_exact",
+      "snapshotDate": "2024-01-31",
+      "fund": "QQQ",
+      "symbol": "DDD",
+      "weight": "0.10",
+      "eps": "5",
+      "valuationPrice": "70",
+      "identityMatched": true,
+      "financialsMatched": false,
+      "priceMatched": true
+    },
+    {
+      "case": "coverage_below",
+      "snapshotDate": "2024-02-29",
+      "fund": "QQQ",
+      "symbol": "AAA",
+      "weight": "0.49",
+      "eps": "10",
+      "valuationPrice": "100",
+      "identityMatched": true,
+      "financialsMatched": true,
+      "priceMatched": true
+    },
+    {
+      "case": "coverage_below",
+      "snapshotDate": "2024-02-29",
+      "fund": "QQQ",
+      "symbol": "BBB",
+      "weight": "0.30",
+      "eps": "-2",
+      "valuationPrice": "50",
+      "identityMatched": true,
+      "financialsMatched": true,
+      "priceMatched": true
+    },
+    {
+      "case": "coverage_below",
+      "snapshotDate": "2024-02-29",
+      "fund": "QQQ",
+      "symbol": "CCC",
+      "weight": "0.11",
+      "eps": "4",
+      "valuationPrice": "80",
+      "identityMatched": false,
+      "financialsMatched": true,
+      "priceMatched": true
+    },
+    {
+      "case": "coverage_below",
+      "snapshotDate": "2024-02-29",
+      "fund": "QQQ",
+      "symbol": "DDD",
+      "weight": "0.10",
+      "eps": "5",
+      "valuationPrice": "70",
+      "identityMatched": true,
+      "financialsMatched": false,
+      "priceMatched": true
+    }
+  ],
+  "notes": [
+    "simulationPrice and valuationPrice intentionally differ after the split",
+    "the 2024-02-01 valuation fact is not public until 2024-02-05",
+    "coverage_exact is exactly 0.80 before unknown holdings are excluded",
+    "coverage_below is 0.79 and must fail a default 0.80 minimum"
+  ]
+}

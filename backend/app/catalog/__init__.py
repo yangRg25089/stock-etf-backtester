@@ -1,0 +1,59 @@
+"""Stable strategy catalog and parameter metadata."""
+
+from .definitions import (
+    ALL_PARAMETER_DEFINITIONS,
+    PARAMETER_DEFINITIONS,
+    PARAMETER_REGISTRY,
+    ParameterDefinition,
+    ParameterLevel,
+    ParameterType,
+    ParameterValueType,
+    get_parameter_definition,
+    iter_parameter_definitions,
+)
+from .presets import (
+    EXECUTION_MODULES,
+    PRESET_DEFINITIONS,
+    STRATEGY_PRESETS,
+    ExecutionModule,
+    PresetDefinition,
+    SearchDimension,
+    get_preset_definition,
+)
+from .service import (
+    CATALOG,
+    CATALOG_VERSION,
+    Catalog,
+    catalog_as_dict,
+    get_catalog,
+    get_searchable_parameters,
+    parameter_keys_for_preset,
+    preset_defaults,
+)
+
+__all__ = [
+    "ALL_PARAMETER_DEFINITIONS",
+    "CATALOG",
+    "CATALOG_VERSION",
+    "EXECUTION_MODULES",
+    "PARAMETER_DEFINITIONS",
+    "PARAMETER_REGISTRY",
+    "PRESET_DEFINITIONS",
+    "STRATEGY_PRESETS",
+    "Catalog",
+    "ExecutionModule",
+    "ParameterDefinition",
+    "ParameterLevel",
+    "ParameterType",
+    "ParameterValueType",
+    "PresetDefinition",
+    "SearchDimension",
+    "catalog_as_dict",
+    "get_catalog",
+    "get_parameter_definition",
+    "get_preset_definition",
+    "get_searchable_parameters",
+    "iter_parameter_definitions",
+    "parameter_keys_for_preset",
+    "preset_defaults",
+]

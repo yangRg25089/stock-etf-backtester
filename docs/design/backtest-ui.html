@@ -1,0 +1,257 @@
+<div id="backtest-ui-preview" aria-label="株式とETFのバックテスト画面モックアップ">
+  <style>
+    #backtest-ui-preview {
+      --app-bg: light-dark(#f4f6f5, #171c1b);
+      --app-surface: light-dark(#ffffff, #202725);
+      --app-foreground: light-dark(#192321, #edf3f0);
+      --app-muted: light-dark(#65736f, #a6b2ad);
+      --app-border: light-dark(#dce3df, #394541);
+      --app-accent: light-dark(#147d68, #56c7a7);
+      --app-accent-soft: light-dark(#e5f3ef, #263d36);
+      --app-orange: light-dark(#c37534, #eda766);
+      --app-red: light-dark(#b54e50, #f08080);
+      color-scheme: light dark;
+      color: var(--app-foreground);
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      background: var(--app-bg);
+      border: 1px solid var(--app-border);
+      border-radius: 8px;
+      overflow: hidden;
+      width: 100%;
+    }
+    #backtest-ui-preview * { box-sizing: border-box; }
+    #backtest-ui-preview .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    #backtest-ui-preview button,
+    #backtest-ui-preview input,
+    #backtest-ui-preview select { font: inherit; }
+    #backtest-ui-preview .app-topbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 22px;
+      background: var(--app-surface);
+      border-bottom: 1px solid var(--app-border);
+    }
+    #backtest-ui-preview .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    #backtest-ui-preview .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      color: #fff;
+      background: #147d68;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    #backtest-ui-preview .brand-name { font-weight: 650; overflow-wrap: anywhere; }
+    #backtest-ui-preview .topbar-right { display: flex; align-items: center; gap: 14px; }
+    #backtest-ui-preview .local-tag { color: var(--app-muted); font-size: 12px; }
+    #backtest-ui-preview .locale-switch { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--app-border); border-radius: 6px; }
+    #backtest-ui-preview .locale-switch button,
+    #backtest-ui-preview .run-scope button { min-height: 32px; padding: 5px 8px; color: var(--app-muted); background: transparent; border: 0; border-radius: 4px; font-size: 12px; }
+    #backtest-ui-preview .locale-switch button[aria-pressed="true"],
+    #backtest-ui-preview .run-scope button[aria-pressed="true"] { color: var(--app-foreground); background: var(--app-accent-soft); }
+    #backtest-ui-preview main { max-width: 1180px; margin: 0 auto; padding: 24px 24px 30px; }
+    #backtest-ui-preview .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    #backtest-ui-preview h1,
+    #backtest-ui-preview h2,
+    #backtest-ui-preview h3,
+    #backtest-ui-preview p { margin: 0; }
+    #backtest-ui-preview h1 { font-size: 21px; line-height: 1.25; font-weight: 650; }
+    #backtest-ui-preview h2 { font-size: 15px; font-weight: 650; }
+    #backtest-ui-preview h3 { font-size: 14px; font-weight: 600; }
+    #backtest-ui-preview .subhead { margin-top: 5px; color: var(--app-muted); font-size: 12px; }
+    #backtest-ui-preview .global-settings {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1.2fr .85fr .85fr;
+      gap: 12px;
+      padding: 14px 0 18px;
+      border-bottom: 1px solid var(--app-border);
+    }
+    #backtest-ui-preview .field { display: grid; gap: 6px; min-width: 0; }
+    #backtest-ui-preview .field label { color: var(--app-muted); font-size: 12px; }
+    #backtest-ui-preview .field-label { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+    #backtest-ui-preview .field-label .end-mode { display: inline-flex; align-items: center; gap: 4px; color: var(--app-foreground); white-space: nowrap; }
+    #backtest-ui-preview .end-mode input { margin: 0; accent-color: var(--app-accent); }
+    #backtest-ui-preview .input {
+      width: 100%;
+      min-width: 0;
+      height: 36px;
+      padding: 0 10px;
+      color: var(--app-foreground);
+      background: var(--app-surface);
+      border: 1px solid var(--app-border);
+      border-radius: 5px;
+    }
+    #backtest-ui-preview .unit-field { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    #backtest-ui-preview .unit-field .input { flex: 1; }
+    #backtest-ui-preview .unit { color: var(--app-muted); font-size: 12px; white-space: nowrap; }
+    #backtest-ui-preview .input:disabled { color: var(--app-muted); background: var(--app-bg); }
+    #backtest-ui-preview .workspace-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(260px, .85fr);
+      gap: 30px;
+      padding: 20px 0 22px;
+      border-bottom: 1px solid var(--app-border);
+    }
+    #backtest-ui-preview .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
+    #backtest-ui-preview .strategy-title { display: flex; align-items: center; gap: 9px; }
+    #backtest-ui-preview .strategy-summary { margin: -7px 0 12px 29px; color: var(--app-muted); font-size: 12px; }
+    #backtest-ui-preview .strategy-index { color: var(--app-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    #backtest-ui-preview .switch-line { display: inline-flex; align-items: center; gap: 7px; color: var(--app-foreground); font-size: 13px; white-space: nowrap; }
+    #backtest-ui-preview .switch-line input { accent-color: var(--app-accent); width: 15px; height: 15px; margin: 0; }
+    #backtest-ui-preview .signal-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
+    #backtest-ui-preview .signal-fields .field { gap: 6px; }
+    #backtest-ui-preview .vix-line { display: flex; align-items: center; gap: 8px; margin: 14px 0 12px; }
+    #backtest-ui-preview .vix-line .signal-name { font-weight: 600; }
+    #backtest-ui-preview .vix-line .signal-code { color: var(--app-muted); font-size: 12px; }
+    #backtest-ui-preview .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 0 12px;
+      color: var(--app-foreground);
+      background: var(--app-surface);
+      border: 1px solid var(--app-border);
+      border-radius: 5px;
+      white-space: nowrap;
+    }
+    #backtest-ui-preview .button i { display: inline-flex; width: 15px; height: 15px; }
+    #backtest-ui-preview .button-primary { color: #fff; background: #147d68; border-color: #147d68; font-weight: 600; }
+    #backtest-ui-preview .button-small { padding: 0 9px; font-size: 12px; }
+    #backtest-ui-preview .strategy-rail { padding-left: 22px; border-left: 1px solid var(--app-border); }
+    #backtest-ui-preview .strategy-rail .section-heading { margin-bottom: 10px; }
+    #backtest-ui-preview .strategy-row { display: flex; align-items: center; gap: 9px; padding: 10px 0; border-bottom: 1px solid var(--app-border); }
+    #backtest-ui-preview .strategy-select { flex: 1; min-width: 0; padding: 3px 0; color: var(--app-accent); background: transparent; border: 0; text-align: left; font-weight: 600; }
+    #backtest-ui-preview .strategy-row .switch-line { margin-left: auto; }
+    #backtest-ui-preview .strategy-select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #backtest-ui-preview .icon-button { display: grid; place-items: center; flex: none; width: 32px; height: 32px; color: var(--app-muted); background: transparent; border: 0; border-radius: 5px; }
+    #backtest-ui-preview .icon-button i { width: 15px; height: 15px; }
+    #backtest-ui-preview .default-tag { padding: 2px 6px; color: var(--app-accent); background: var(--app-accent-soft); border-radius: 3px; font-size: 10px; white-space: nowrap; }
+    #backtest-ui-preview .add-row { display: flex; align-items: end; gap: 8px; margin-top: 13px; }
+    #backtest-ui-preview .add-row .field { flex: 1; }
+    #backtest-ui-preview .run-actions { display: grid; gap: 8px; margin-top: 18px; }
+    #backtest-ui-preview .run-actions .button { width: 100%; }
+    #backtest-ui-preview .run-scope { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; border: 1px solid var(--app-border); border-radius: 6px; }
+    #backtest-ui-preview .run-scope button { text-align: center; white-space: normal; }
+    #backtest-ui-preview .status-tag { color: var(--app-accent); background: var(--app-accent-soft); padding: 4px 7px; border-radius: 3px; font-size: 11px; }
+    #backtest-ui-preview .results { padding-top: 20px; }
+    #backtest-ui-preview .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 15px; }
+    #backtest-ui-preview .result-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    #backtest-ui-preview .result-actions .switch-line { color: var(--app-muted); }
+    #backtest-ui-preview button:disabled { opacity: .45; }
+    #backtest-ui-preview .empty-results { display: grid; place-items: center; min-height: 174px; color: var(--app-muted); border-top: 1px solid var(--app-border); text-align: center; }
+    #backtest-ui-preview .empty-results i { display: block; width: 23px; height: 23px; margin: 0 auto 10px; }
+    @media (max-width: 760px) {
+      #backtest-ui-preview .app-topbar { padding: 12px 15px; }
+      #backtest-ui-preview .local-tag { display: none; }
+      #backtest-ui-preview main { padding: 18px 15px 24px; }
+      #backtest-ui-preview .global-settings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      #backtest-ui-preview .workspace-grid { grid-template-columns: 1fr; gap: 22px; }
+      #backtest-ui-preview .strategy-rail { padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--app-border); }
+      #backtest-ui-preview .signal-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 420px) {
+      #backtest-ui-preview h1 { font-size: 18px; }
+      #backtest-ui-preview .page-heading { align-items: center; }
+      #backtest-ui-preview .global-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #backtest-ui-preview .global-settings .date-field { grid-column: span 2; }
+      #backtest-ui-preview .results-head { align-items: flex-start; flex-direction: column; }
+    }
+    @media (pointer: coarse) {
+      #backtest-ui-preview .input,
+      #backtest-ui-preview .button,
+      #backtest-ui-preview .locale-switch button,
+      #backtest-ui-preview .run-scope button,
+      #backtest-ui-preview .icon-button { min-height: 44px; }
+      #backtest-ui-preview .input { font-size: 16px; }
+    }
+  </style>
+  <div class="app-topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">B</div>
+      <div class="brand-name">株式・ETF バックテスター</div>
+    </div>
+    <div class="topbar-right">
+      <span class="local-tag">ローカル実行</span>
+      <div class="locale-switch" role="group" aria-label="表示言語">
+        <button type="button" aria-pressed="true">日本語</button>
+        <button type="button" aria-pressed="false">中文</button>
+      </div>
+    </div>
+  </div>
+  <main>
+    <div class="page-heading">
+      <div>
+        <h1>バックテスト</h1>
+        <p class="subhead">投資対象と期間を設定</p>
+      </div>
+    </div>
+    <section class="global-settings" aria-label="共通設定">
+      <div class="field"><label for="ticker">銘柄コード</label><input class="input" id="ticker" value="QQQ" /></div>
+      <div class="field date-field"><label for="date-start">開始日</label><input class="input" id="date-start" type="date" value="2020-01-01" /></div>
+      <div class="field date-field"><div class="field-label"><label for="date-end">終了日</label><label class="end-mode"><input type="checkbox" checked aria-label="最新の取引日を使用" />最新まで</label></div><input class="input" id="date-end" type="date" value="2026-09-25" disabled /></div>
+      <div class="field"><label for="monthly-cash">月次入金額</label><div class="unit-field"><input class="input" id="monthly-cash" type="number" min="0" value="100" /><span class="unit">USD</span></div></div>
+      <div class="field"><label for="deposit-day">毎月の入金日</label><div class="unit-field"><input class="input" id="deposit-day" type="number" min="1" max="31" value="1" /><span class="unit">日</span></div></div>
+    </section>
+    <div class="workspace-grid">
+      <section aria-labelledby="strategy-config-heading">
+        <div class="section-heading">
+          <div class="strategy-title"><span class="strategy-index">01</span><h2 id="strategy-config-heading">VIX シグナル積立</h2></div>
+          <span class="status-tag">有効</span>
+        </div>
+        <p class="strategy-summary">VIX: ^VIX ≥ 25、月間最大 1 回（条件は編集可能）</p>
+        <div class="vix-line">
+          <label class="switch-line"><input type="checkbox" checked />VIX シグナル</label>
+        </div>
+        <div class="signal-fields">
+          <div class="field"><label for="vix-threshold">買付しきい値</label><input class="input" id="vix-threshold" type="number" min="0" step="0.1" value="25" /></div>
+          <div class="field"><label for="vix-ticker">指数コード</label><input class="input" id="vix-ticker" value="^VIX" /></div>
+          <div class="field"><label for="max-buys">月間シグナル買付</label><div class="unit-field"><input class="input" id="max-buys" type="number" min="1" step="1" value="1" /><span class="unit">回</span></div></div>
+          <div class="field"><label for="cash-limit">現金上限</label><div class="unit-field"><input class="input" id="cash-limit" type="number" min="0" step="100" value="1200" /><span class="unit">USD</span></div></div>
+        </div>
+      </section>
+      <aside class="strategy-rail" aria-labelledby="strategy-list-heading">
+        <div class="section-heading"><h2 id="strategy-list-heading">実行する戦略</h2><span class="strategy-index">1 件</span></div>
+        <div class="strategy-row">
+          <button type="button" class="strategy-select" aria-current="true">VIX シグナル積立</button>
+          <span class="default-tag">初期設定</span>
+          <label class="switch-line"><input type="checkbox" checked /><span class="sr-only">VIX シグナル積立を有効にする</span></label>
+          <button type="button" class="icon-button" aria-label="VIX シグナル積立を削除" data-tooltip="VIX シグナル積立を削除"><i data-lucide="trash-2" aria-hidden="true"></i></button>
+        </div>
+        <div class="add-row">
+          <div class="field">
+            <label for="strategy-add">戦略を追加</label>
+            <select class="input" id="strategy-add"><option>戦略を選択...</option><option>VIX シグナル積立</option><option>複合シグナル積立</option><option>移動平均トレンド（売買）</option><option>移動平均トレンド（買付のみ）</option><option>毎月定額積立</option><option>一括投資</option><option>グリッド検索</option></select>
+          </div>
+          <button class="button button-small" type="button" disabled aria-label="選択した戦略を追加"><i data-lucide="plus" aria-hidden="true"></i>追加</button>
+        </div>
+        <div class="run-actions">
+          <div class="run-scope" role="group" aria-label="実行範囲">
+            <button type="button" aria-pressed="true">現在の戦略</button>
+            <button type="button" aria-pressed="false">有効な戦略すべて</button>
+          </div>
+          <button class="button button-primary" type="button"><i data-lucide="play" aria-hidden="true"></i>バックテストを実行</button>
+        </div>
+      </aside>
+    </div>
+    <section class="results" aria-labelledby="results-heading">
+      <div class="results-head">
+        <div><h2 id="results-heading">結果</h2><p class="subhead">実行後に比較を表示</p></div>
+        <div class="result-actions">
+          <label class="switch-line"><input type="checkbox" checked />チャート</label>
+          <label class="switch-line"><input type="checkbox" checked />取引記録</label>
+          <button class="button button-small" type="button" disabled aria-label="結果の CSV を書き出す"><i data-lucide="download" aria-hidden="true"></i>CSV</button>
+        </div>
+      </div>
+      <div class="empty-results" role="status">
+        <div><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>まだ結果がありません</div>
+      </div>
+    </section>
+  </main>
+</div>

@@ -1,0 +1,492 @@
+"""Serializable domain contracts for configurations, snapshots, and results.
+
+The models in this module contain stable machine keys only.  Display labels and
+localized messages belong to catalog/i18n layers and never enter a calculation
+contract.
+"""
+
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from datetime import date as Date
+from decimal import Decimal
+from enum import StrEnum
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
+
+from app.domain.immutability import FrozenMap, freeze_mapping, thaw_value
+from app.domain.status import (
+    Diagnostic,
+    DomainModel,
+    SignalState,
+    StrategyStatus,
+    transition_status,
+)
+
+
+class StrategyPresetId(StrEnum):
+    """The seven stable strategy catalog identifiers."""
+
+    VIX_DCA = "vix_dca"
+    COMPOSITE_DCA = "composite_dca"
+    MA_TREND = "ma_trend"
+    MA_BUY_ONLY = "ma_buy_only"
+    MONTHLY_DCA = "monthly_dca"
+    LUMP_SUM = "lump_sum"
+    GRID_SEARCH = "grid_search"
+
+
+class ResultRole(StrEnum):
+    """Whether a result is an automatic benchmark or a user strategy."""
+
+    BENCHMARK = "benchmark"
+    STRATEGY = "strategy"
+
+
+class RunScope(StrEnum):
+    ACTIVE = "active"
+    ALL_ENABLED = "all_enabled"
+
+
+class EndMode(StrEnum):
+    FIXED = "fixed"
+    LATEST = "latest"
+
+
+class ConditionLogic(StrEnum):
+    AND = "AND"
+    OR = "OR"
+
+
+class TradeSide(StrEnum):
+    BUY = "buy"
+    SELL = "sell"
+
+
+class TradeReason(StrEnum):
+    FIXED_DCA = "fixed_dca"
+    UPFRONT = "upfront"
+    SIGNAL_BUY = "signal_buy"
+    SIGNAL_SELL = "signal_sell"
+    SAFETY_VALVE = "safety_valve"
+
+
+class MutableDomainModel(BaseModel):
+    """Base for editable drafts; snapshots use the frozen models below."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=False,
+        populate_by_name=True,
+        str_strip_whitespace=True,
+        validate_assignment=True,
+    )
+
+
+class RunSettings(DomainModel):
+    symbol: str = Field(min_length=1)
+    start_date: Date = Field(alias="startDate")
+    end_date: Date = Field(alias="endDate")
+    end_mode: EndMode = Field(alias="endMode")
+
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "RunSettings":
+        if self.start_date > self.end_date:
+            raise ValueError("startDate must not be after endDate")
+        return self
+
+
+class ContributionSettings(DomainModel):
+    day: int = Field(ge=1, le=31)
+    amount: Decimal = Field(ge=0)
+
+
+class SharedSettings(DomainModel):
+    """Settings shared by every strategy and automatic benchmark."""
+
+    run: RunSettings
+    contribution: ContributionSettings
+
+
+class StrategyInstance(MutableDomainModel):
+    """Editable draft instance; its values are copied when a run is submitted."""
+
+    id: str = Field(min_length=1)
+    preset_id: StrategyPresetId = Field(alias="presetId")
+    enabled: bool
+    params: dict[str, object] = Field(default_factory=dict)
+
+    @field_validator("params", mode="before")
+    @classmethod
+    def copy_params(cls, value: object) -> dict[str, object]:
+        if not isinstance(value, Mapping):
+            raise ValueError("params must be a mapping")
+        return dict(value)
+
+
+class RunConfig(MutableDomainModel):
+    """Editable configuration before it is frozen into a ``RunSnapshot``."""
+
+    shared: SharedSettings
+    strategies: list[StrategyInstance] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_unique_strategy_ids(self) -> "RunConfig":
+        ids = [strategy.id for strategy in self.strategies]
+        if len(ids) != len(set(ids)):
+            raise ValueError("strategy instance ids must be unique")
+        return self
+
+
+class FrozenStrategyInstance(DomainModel):
+    """Immutable strategy copy stored inside a run snapshot."""
+
+    id: str = Field(min_length=1)
+    preset_id: StrategyPresetId = Field(alias="presetId")
+    enabled: bool
+    params: Mapping[str, object] = Field(default_factory=dict, validate_default=True)
+
+    @field_validator("params", mode="after")
+    @classmethod
+    def freeze_params(cls, value: Mapping[str, object]) -> FrozenMap:
+        return freeze_mapping(value)
+
+    @field_serializer("params")
+    def serialize_params(self, value: Mapping[str, object]) -> object:
+        return thaw_value(value)
+
+
+class FrozenRunConfig(DomainModel):
+    """Immutable copy of shared settings and all strategy drafts."""
+
+    shared: SharedSettings
+    strategies: tuple[FrozenStrategyInstance, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_unique_strategy_ids(self) -> "FrozenRunConfig":
+        ids = [strategy.id for strategy in self.strategies]
+        if len(ids) != len(set(ids)):
+            raise ValueError("strategy instance ids must be unique")
+        return self
+
+    @classmethod
+    def from_config(cls, config: RunConfig) -> "FrozenRunConfig":
+        return cls(
+            shared=config.shared.model_copy(deep=True),
+            strategies=tuple(
+                FrozenStrategyInstance(
+                    id=strategy.id,
+                    presetId=strategy.preset_id,
+                    enabled=strategy.enabled,
+                    params=strategy.params,
+                )
+                for strategy in config.strategies
+            ),
+        )
+
+
+class RunSnapshot(DomainModel):
+    """The immutable input boundary for one submitted run."""
+
+    run_id: str = Field(alias="runId", min_length=1)
+    config: FrozenRunConfig
+    catalog_version: str = Field(alias="catalogVersion", min_length=1)
+    data_fingerprint: str = Field(alias="dataFingerprint", min_length=1)
+    engine_version: str = Field(alias="engineVersion", min_length=1)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), alias="createdAt"
+    )
+
+    @field_validator("config", mode="before")
+    @classmethod
+    def freeze_config(
+        cls, value: FrozenRunConfig | RunConfig | Mapping[str, object]
+    ) -> FrozenRunConfig | Mapping[str, object]:
+        if isinstance(value, RunConfig):
+            return FrozenRunConfig.from_config(value)
+        return value
+
+    @field_validator("created_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("createdAt must include a timezone")
+        return value
+
+    @classmethod
+    def from_config(
+        cls,
+        *,
+        run_id: str,
+        config: RunConfig,
+        catalog_version: str,
+        data_fingerprint: str,
+        engine_version: str,
+        created_at: datetime | None = None,
+    ) -> "RunSnapshot":
+        values: dict[str, object] = {
+            "runId": run_id,
+            "config": FrozenRunConfig.from_config(config),
+            "catalogVersion": catalog_version,
+            "dataFingerprint": data_fingerprint,
+            "engineVersion": engine_version,
+        }
+        if created_at is not None:
+            values["createdAt"] = created_at
+        return cls.model_validate(values)
+
+
+class MarketBar(DomainModel):
+    """One normalized market observation with both price bases preserved."""
+
+    date: Date
+    symbol: str = Field(min_length=1)
+    simulation_price: Decimal = Field(alias="simulationPrice", gt=0)
+    valuation_price: Decimal = Field(alias="valuationPrice", gt=0)
+    currency: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    observed_at: datetime = Field(alias="observedAt")
+
+
+class MarketSnapshot(DomainModel):
+    symbol: str = Field(min_length=1)
+    currency: str = Field(min_length=1)
+    bars: tuple[MarketBar, ...] = ()
+    source: str = Field(min_length=1)
+    fingerprint: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_bar_identity(self) -> "MarketSnapshot":
+        if any(
+            bar.symbol != self.symbol or bar.currency != self.currency
+            for bar in self.bars
+        ):
+            raise ValueError("market bars must use the snapshot symbol and currency")
+        return self
+
+
+class MacroObservation(DomainModel):
+    date: Date
+    symbol: str = Field(min_length=1)
+    value: Decimal
+    unit: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    observed_at: datetime = Field(alias="observedAt")
+
+
+class ValuationObservation(DomainModel):
+    date: Date
+    symbol: str = Field(min_length=1)
+    valuation_price: Decimal = Field(alias="valuationPrice", gt=0)
+    eps: Decimal | None = None
+    pe: Decimal | None = Field(default=None, gt=0)
+    currency: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    as_of: Date = Field(alias="asOf")
+
+
+class ValuationSnapshot(DomainModel):
+    symbol: str = Field(min_length=1)
+    observations: tuple[ValuationObservation, ...] = ()
+    fingerprint: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_observation_identity(self) -> "ValuationSnapshot":
+        if any(observation.symbol != self.symbol for observation in self.observations):
+            raise ValueError("valuation observations must use the snapshot symbol")
+        return self
+
+
+class DataSnapshot(DomainModel):
+    """Provider-neutral data bundle consumed by signals and the ledger."""
+
+    market: MarketSnapshot
+    macro: tuple[MacroObservation, ...] = ()
+    valuation: ValuationSnapshot | None = None
+    fingerprint: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_valuation_identity(self) -> "DataSnapshot":
+        if self.valuation is not None and self.valuation.symbol != self.market.symbol:
+            raise ValueError("valuation must use the market snapshot symbol")
+        return self
+
+
+class SignalEvaluation(DomainModel):
+    date: Date
+    signal_id: str = Field(alias="signalId", min_length=1)
+    state: SignalState
+    diagnostics: tuple[Diagnostic, ...] = ()
+
+    @model_validator(mode="after")
+    def require_unavailable_reason(self) -> "SignalEvaluation":
+        if self.state is SignalState.UNAVAILABLE and not self.diagnostics:
+            raise ValueError("unavailable signals require a diagnostic")
+        return self
+
+
+class Trade(DomainModel):
+    date: Date
+    side: TradeSide
+    reason: TradeReason
+    quantity: Decimal = Field(gt=0)
+    price: Decimal = Field(gt=0)
+    cash_amount: Decimal = Field(alias="cashAmount", gt=0)
+    currency: str = Field(min_length=1)
+    signal_id: str | None = Field(default=None, alias="signalId")
+
+
+class DailyAsset(DomainModel):
+    date: Date
+    cash: Decimal = Field(ge=0)
+    timing_quantity: Decimal = Field(alias="timingQuantity", ge=0)
+    fixed_quantity: Decimal = Field(alias="fixedQuantity", ge=0)
+    simulation_price: Decimal = Field(alias="simulationPrice", gt=0)
+    total_asset: Decimal = Field(alias="totalAsset", ge=0)
+    currency: str = Field(min_length=1)
+
+
+class MetricSummary(DomainModel):
+    total_contributed: Decimal = Field(alias="totalContributed", ge=0)
+    ending_equity: Decimal = Field(alias="endingEquity", ge=0)
+    net_profit: Decimal = Field(alias="netProfit")
+    return_on_contributions: Decimal | None = Field(
+        default=None, alias="returnOnContributions"
+    )
+    capital_multiple: Decimal | None = Field(default=None, alias="capitalMultiple")
+    xirr: Decimal | None = None
+    maximum_drawdown: Decimal | None = Field(default=None, alias="maximumDrawdown")
+    relative_to_dca: Decimal | None = Field(default=None, alias="relativeToDca")
+    currency: str | None = Field(default=None, min_length=1)
+    diagnostics: tuple[Diagnostic, ...] = ()
+
+
+class StrategyRun(DomainModel):
+    """One strategy result; zero trades is valid when metrics are complete."""
+
+    id: str = Field(min_length=1)
+    preset_id: StrategyPresetId = Field(alias="presetId")
+    role: ResultRole
+    status: StrategyStatus = StrategyStatus.QUEUED
+    diagnostics: tuple[Diagnostic, ...] = ()
+    signals: tuple[SignalEvaluation, ...] = ()
+    trades: tuple[Trade, ...] = ()
+    daily_assets: tuple[DailyAsset, ...] = Field(default=(), alias="dailyAssets")
+    metrics: MetricSummary | None = None
+
+    @model_validator(mode="after")
+    def validate_terminal_result(self) -> "StrategyRun":
+        if (
+            self.status
+            in {
+                StrategyStatus.COMPLETED,
+                StrategyStatus.COMPLETED_WITH_WARNING,
+            }
+            and self.metrics is None
+        ):
+            raise ValueError("completed strategy runs require metrics")
+        if self.status in {StrategyStatus.UNAVAILABLE, StrategyStatus.FAILED} and not (
+            self.diagnostics
+        ):
+            raise ValueError("unavailable or failed runs require diagnostics")
+        return self
+
+    def with_status(
+        self,
+        target: StrategyStatus,
+        *,
+        diagnostics: tuple[Diagnostic, ...] | None = None,
+    ) -> "StrategyRun":
+        """Return a new result after validating the shared state transition."""
+
+        next_status = transition_status(self.status, target)
+        next_diagnostics = (
+            self.diagnostics if diagnostics is None else tuple(diagnostics)
+        )
+        if (
+            next_status
+            in {
+                StrategyStatus.COMPLETED,
+                StrategyStatus.COMPLETED_WITH_WARNING,
+            }
+            and self.metrics is None
+        ):
+            raise ValueError("completed strategy runs require metrics")
+        if next_status in {StrategyStatus.UNAVAILABLE, StrategyStatus.FAILED} and not (
+            next_diagnostics
+        ):
+            raise ValueError("unavailable or failed runs require diagnostics")
+        return self.model_copy(
+            update={"status": next_status, "diagnostics": next_diagnostics}
+        )
+
+    @property
+    def is_zero_trade_success(self) -> bool:
+        return (
+            self.status
+            in {
+                StrategyStatus.COMPLETED,
+                StrategyStatus.COMPLETED_WITH_WARNING,
+            }
+            and self.metrics is not None
+            and not self.trades
+        )
+
+
+class RunResult(DomainModel):
+    """Saved result collection, including partial success across strategies."""
+
+    run_id: str = Field(alias="runId", min_length=1)
+    strategy_runs: tuple[StrategyRun, ...] = Field(default=(), alias="strategyRuns")
+    status: StrategyStatus = StrategyStatus.QUEUED
+
+    @model_validator(mode="after")
+    def derive_status(self) -> "RunResult":
+        if self.strategy_runs:
+            object.__setattr__(self, "status", _aggregate_status(self.strategy_runs))
+        return self
+
+    @property
+    def is_partial_success(self) -> bool:
+        successes = [
+            run.status
+            in {StrategyStatus.COMPLETED, StrategyStatus.COMPLETED_WITH_WARNING}
+            for run in self.strategy_runs
+        ]
+        return any(successes) and not all(successes)
+
+
+# Stable descriptive aliases for consumers that use data/result terminology.
+StandardizedDataSnapshot = DataSnapshot
+PerformanceMetrics = MetricSummary
+
+
+def _aggregate_status(strategy_runs: tuple[StrategyRun, ...]) -> StrategyStatus:
+    statuses = {run.status for run in strategy_runs}
+    if StrategyStatus.RUNNING in statuses:
+        return StrategyStatus.RUNNING
+    if StrategyStatus.LOADING in statuses:
+        return StrategyStatus.LOADING
+    if StrategyStatus.QUEUED in statuses:
+        return StrategyStatus.QUEUED
+
+    successes = {
+        StrategyStatus.COMPLETED,
+        StrategyStatus.COMPLETED_WITH_WARNING,
+    }
+    if statuses <= {StrategyStatus.UNAVAILABLE}:
+        return StrategyStatus.UNAVAILABLE
+    if statuses <= {StrategyStatus.FAILED, StrategyStatus.UNAVAILABLE}:
+        return StrategyStatus.FAILED
+    if statuses & successes and statuses - successes:
+        return StrategyStatus.COMPLETED_WITH_WARNING
+    if StrategyStatus.COMPLETED_WITH_WARNING in statuses:
+        return StrategyStatus.COMPLETED_WITH_WARNING
+    return StrategyStatus.COMPLETED
