@@ -403,12 +403,12 @@
 
 **验收标准：**
 - [x] CSS 在窄屏使用单列、长名称/顶栏/控件组可换行、宽表格容器内滚动；用静态回归检查 320/768/1024px 断点规则。
-- [ ] 在真实浏览器 320/768/1024px 视口确认无横向裁切或核心操作隐藏。
+- [x] 在真实 Chromium 浏览器 320/768/1024px 视口确认无横向裁切或核心操作隐藏；日文与中文均检查核心控件边界。
 - [x] 触屏按钮/输入/复选标签目标至少 44px；静态检查键盘焦点样式、skip link、减少动态效果，SSR 检查 ARIA 状态与表格语义。
 - [x] 日文默认和中文切换的词典、标签和状态语义由双语组件测试覆盖。
-- [ ] 真实浏览器下完成日中视觉回归与 axe/DevTools 可访问性树复核。
+- [x] 真实 Chromium 下完成日中视觉回归、axe WCAG 2.1 A/AA 扫描及 DevTools accessibility tree 的 main/heading/button 语义检查。
 
-**验证：** `frontend/npm test`（51 项）包含 320/768/1024px CSS 结构回归、44px 触屏目标、表格滚动、对比度、焦点样式、减少动态效果及组件 SSR 语义；`npm run typecheck`、`npm run lint`、`npm run build`、`git diff --check` 通过。未运行真实浏览器 viewport/截图或 axe：当前没有 Playwright、浏览器二进制或 Chrome DevTools MCP；按用户告知的服务已停止状态，没有启动本地服务。
+**验证：** `frontend/npm run test`（52 项）、`npm run typecheck`、`npm run lint`、`npm run build`、`npm run test:e2e`（9 项）及 `git diff --check` 通过。Playwright 由测试配置分别启动临时 fixture API 与 Vite（`reuseExistingServer: false`），测量日中 320/768/1024px 页面溢出和核心控件边界，保存视口截图；axe 对 WCAG 2.1 A/AA 未报告违规，Chromium accessibility tree 含 main、页面标题和按钮。截图已人工检查；测试后确认 8000/5173 端口无监听进程。浏览器验证同时发现并修复未选中的运行范围按钮对比度不足，以及 catalog Decimal 字符串默认值未在前端入口恢复数值类型的问题。
 
 **依赖：** Task 16–18。
 
@@ -418,9 +418,9 @@
 
 ### 检查点 E：产品路径可操作
 
-- [ ] 从首屏默认 VIX 到运行、状态、聚焦结果、曲线/交易开关和 CSV 的路径可完成。
-- [ ] 七类目录、策略启停、语言切换和响应式布局通过测试。
-- [ ] UI 没有第二份业务默认值、边界或交易算法。
+- [x] 从首屏默认 VIX 到运行、状态、聚焦结果、曲线/交易开关和 CSV 的路径可完成。
+- [x] 七类目录可添加；策略启停、语言切换和日中 320/768/1024px 响应式布局通过浏览器测试。
+- [x] UI 没有第二份业务默认值、边界或交易算法。
 
 ### 阶段 5：集成验收与发布准备
 

@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const { isCatalog } = require("../.test-output/api/catalog.js");
+const { fetchCatalog, isCatalog } = require("../.test-output/api/catalog.js");
 const { translate } = require("../.test-output/i18n/messages.js");
 const backendCatalog = JSON.parse(
   readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"),
@@ -83,6 +83,23 @@ test("the backend catalog response satisfies the frontend contract", () => {
     for (const parameterKey of preset.parameterKeys) {
       assert.ok(backendCatalog.parameters.some(({ key }) => key === parameterKey));
     }
+  }
+});
+
+test("catalog decimals are decoded as numbers before strategy defaults enter a draft", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify(backendCatalog));
+  try {
+    const catalog = await fetchCatalog();
+    const cashSafetyDefinition = catalog.parameters.find(
+      ({ key }) => key === "accumulation.cashSafetyLimit",
+    );
+    const vixPreset = catalog.presets.find(({ id }) => id === "vix_dca");
+    assert.equal(typeof cashSafetyDefinition.default, "number");
+    assert.equal(typeof vixPreset.defaultParams["accumulation.cashSafetyLimit"], "number");
+    assert.equal(vixPreset.defaultParams["accumulation.cashSafetyLimit"], 1200);
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
 

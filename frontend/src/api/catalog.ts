@@ -36,6 +36,48 @@ function isPresetDefinition(value: unknown): value is PresetDefinition {
   );
 }
 
+function normalizeNumericValue(type: ParameterDefinition["type"], value: unknown): unknown {
+  const numericTypes = new Set(["integer", "decimal", "ratio", "percent_point"]);
+  if (numericTypes.has(type) && typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && (type !== "integer" || Number.isInteger(parsed))) {
+      return parsed;
+    }
+  }
+  if (type === "number_list" && Array.isArray(value)) {
+    return value.map((item) => {
+      if (typeof item !== "string" || item.trim() === "") return item;
+      const parsed = Number(item);
+      return Number.isFinite(parsed) ? parsed : item;
+    });
+  }
+  return value;
+}
+
+function normalizeCatalogNumericValues(catalog: Catalog): Catalog {
+  const definitions = new Map((catalog.parameters ?? []).map((item) => [item.key, item]));
+  const normalize = (key: string, value: unknown) => {
+    const definition = definitions.get(key);
+    return definition ? normalizeNumericValue(definition.type, value) : value;
+  };
+  return {
+    ...catalog,
+    parameters: catalog.parameters?.map((definition) => ({
+      ...definition,
+      default: normalize(definition.key, definition.default),
+    })),
+    presets: catalog.presets?.map((preset) => {
+      if (!isRecord(preset.defaultParams)) return preset;
+      return {
+        ...preset,
+        defaultParams: Object.fromEntries(
+          Object.entries(preset.defaultParams).map(([key, value]) => [key, normalize(key, value)]),
+        ),
+      };
+    }),
+  };
+}
+
 export function isCatalog(value: unknown): value is Catalog {
   if (
     !isRecord(value) ||
@@ -84,5 +126,5 @@ export async function fetchCatalog(signal?: AbortSignal): Promise<Catalog> {
   if (!isCatalog(payload)) {
     throw new CatalogApiError("catalog.contract_mismatch", response.status);
   }
-  return payload;
+  return normalizeCatalogNumericValues(payload);
 }
