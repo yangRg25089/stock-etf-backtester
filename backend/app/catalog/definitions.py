@@ -330,6 +330,24 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         step=1,
         level=ParameterLevel.SHARED,
     ),
+    _d(
+        "data.financialFactMaxAgeDays",
+        ParameterType.INTEGER,
+        550,
+        unit="calendar_day",
+        minimum=1,
+        step=1,
+        level=ParameterLevel.SHARED,
+    ),
+    _d(
+        "data.etfHoldingsMaxAgeDays",
+        ParameterType.INTEGER,
+        180,
+        unit="calendar_day",
+        minimum=1,
+        step=1,
+        level=ParameterLevel.SHARED,
+    ),
     # Shared accumulation settings.
     _d(
         "accumulation.cashSafetyLimit",

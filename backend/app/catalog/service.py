@@ -24,7 +24,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v2"
+CATALOG_VERSION: Final[str] = "catalog-v3"
 
 
 class Catalog(DomainModel):
@@ -141,12 +141,20 @@ def get_catalog() -> Catalog:
 def default_data_settings() -> DataSettings:
     """Materialize shared data-policy defaults from their catalog definition."""
 
-    definition = get_parameter_definition("data.macroStalenessSessions")
-    default = definition.default
-    if isinstance(default, bool) or not isinstance(default, int):
-        raise RuntimeError("macro staleness catalog default must be an integer")
-    validate_parameter_value(definition, default)
-    return DataSettings(macroStalenessSessions=default)
+    values: dict[str, int] = {}
+    setting_keys = {
+        "data.macroStalenessSessions": "macroStalenessSessions",
+        "data.financialFactMaxAgeDays": "financialFactMaxAgeDays",
+        "data.etfHoldingsMaxAgeDays": "etfHoldingsMaxAgeDays",
+    }
+    for key, setting_name in setting_keys.items():
+        definition = get_parameter_definition(key)
+        default = definition.default
+        if isinstance(default, bool) or not isinstance(default, int):
+            raise RuntimeError(f"{key} catalog default must be an integer")
+        validate_parameter_value(definition, default)
+        values[setting_name] = default
+    return DataSettings.model_validate(values)
 
 
 def parameter_keys_for_preset(

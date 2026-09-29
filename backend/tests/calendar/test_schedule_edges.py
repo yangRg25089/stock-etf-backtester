@@ -2,9 +2,9 @@ from datetime import date
 from decimal import Decimal
 
 from app.calendar import ExchangeCalendar, schedule
+from app.catalog.service import default_data_settings
 from app.domain.contracts import (
     ContributionSettings,
-    DataSettings,
     EndMode,
     RunSettings,
     SharedSettings,
@@ -21,7 +21,7 @@ def _settings(*, start: date, end: date, day: int = 1) -> SharedSettings:
             endMode=EndMode.FIXED,
         ),
         contribution=ContributionSettings(day=day, amount=Decimal("100")),
-        data=DataSettings(macroStalenessSessions=3),
+        data=default_data_settings(),
     )
 
 

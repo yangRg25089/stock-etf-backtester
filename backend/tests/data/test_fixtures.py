@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.catalog.service import default_data_settings
 from app.data.fixtures import load_fixture
 from app.domain.contracts import (
     ContributionSettings,
@@ -44,7 +45,7 @@ def test_fixture_fingerprint_can_be_frozen_into_a_run_snapshot() -> None:
                 endMode="fixed",
             ),
             contribution=ContributionSettings(day=1, amount=Decimal("100")),
-            data={"macroStalenessSessions": 3},
+            data=default_data_settings(),
         )
     )
 

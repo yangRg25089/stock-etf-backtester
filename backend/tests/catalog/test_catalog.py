@@ -46,6 +46,8 @@ EXPECTED_PARAMETER_KEYS = {
     "contribution.day",
     "contribution.amount",
     "data.macroStalenessSessions",
+    "data.financialFactMaxAgeDays",
+    "data.etfHoldingsMaxAgeDays",
     "accumulation.cashSafetyLimit",
     "accumulation.maxSignalBuysPerMonth",
     "accumulation.conditionLogic",
@@ -92,7 +94,7 @@ EXPECTED_PARAMETER_KEYS = {
 
 
 def test_catalog_version_advances_with_the_shared_data_policy_contract() -> None:
-    assert CATALOG_VERSION == "catalog-v2"
+    assert CATALOG_VERSION == "catalog-v3"
 
 
 def test_catalog_exposes_exactly_the_seven_stable_strategy_presets() -> None:
@@ -135,8 +137,12 @@ def test_every_parameter_has_complete_stable_metadata() -> None:
 def test_default_data_settings_materializes_the_registered_staleness_default() -> None:
     settings = default_data_settings()
     definition = get_parameter_definition("data.macroStalenessSessions")
+    fact_age = get_parameter_definition("data.financialFactMaxAgeDays")
+    holdings_age = get_parameter_definition("data.etfHoldingsMaxAgeDays")
 
     assert settings.macro_staleness_sessions == definition.default
+    assert settings.financial_fact_max_age_days == fact_age.default
+    assert settings.etf_holdings_max_age_days == holdings_age.default
 
 
 def test_macro_staleness_is_a_registered_shared_data_setting() -> None:
@@ -149,6 +155,31 @@ def test_macro_staleness_is_a_registered_shared_data_setting() -> None:
     assert staleness.step == Decimal("1")
     assert staleness.level is ParameterLevel.SHARED
     assert get_parameter_definition("rate.sourceUnit").default == "auto"
+
+
+def test_valuation_staleness_policies_are_registered_shared_data_settings() -> None:
+    fact_age = get_parameter_definition("data.financialFactMaxAgeDays")
+    holdings_age = get_parameter_definition("data.etfHoldingsMaxAgeDays")
+
+    assert (fact_age.type, fact_age.default, fact_age.unit, fact_age.minimum) == (
+        ParameterType.INTEGER,
+        550,
+        "calendar_day",
+        Decimal("1"),
+    )
+    assert (
+        holdings_age.type,
+        holdings_age.default,
+        holdings_age.unit,
+        holdings_age.minimum,
+    ) == (
+        ParameterType.INTEGER,
+        180,
+        "calendar_day",
+        Decimal("1"),
+    )
+    assert fact_age.level is ParameterLevel.SHARED
+    assert holdings_age.level is ParameterLevel.SHARED
 
 
 def test_ratio_and_percent_point_conventions_are_explicit() -> None:

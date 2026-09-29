@@ -26,7 +26,6 @@ from app.data.market_data import (
 from app.data.providers.yahoo import YahooFinanceAdapter
 from app.domain.contracts import (
     ContributionSettings,
-    DataSettings,
     MacroObservation,
     RunConfig,
     RunSettings,
@@ -144,7 +143,7 @@ def test_shared_macro_staleness_setting_uses_registry_default_and_is_adjustable(
     adjusted = SharedSettings(
         run=settings.run,
         contribution=settings.contribution,
-        data=DataSettings(macroStalenessSessions=7),
+        data=default_data_settings().model_copy(update={"macro_staleness_sessions": 7}),
     )
 
     assert settings.data.macro_staleness_sessions == 3

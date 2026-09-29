@@ -28,6 +28,7 @@ from app.domain.status import (
     StrategyStatus,
     transition_status,
 )
+from app.domain.valuation import ValuationObservation as ValuationObservation
 
 
 class StrategyPresetId(StrEnum):
@@ -118,6 +119,16 @@ class DataSettings(DomainModel):
         alias="macroStalenessSessions",
         strict=True,
         ge=0,
+    )
+    financial_fact_max_age_days: int = Field(
+        alias="financialFactMaxAgeDays",
+        strict=True,
+        ge=1,
+    )
+    etf_holdings_max_age_days: int = Field(
+        alias="etfHoldingsMaxAgeDays",
+        strict=True,
+        ge=1,
     )
 
 
@@ -303,18 +314,6 @@ class MacroObservation(DomainModel):
     published_at: datetime | None = Field(default=None, alias="publishedAt")
     source_unit: str | None = Field(default=None, alias="sourceUnit", min_length=1)
     aligned_session_date: Date | None = Field(default=None, alias="alignedSessionDate")
-
-
-class ValuationObservation(DomainModel):
-    date: Date
-    symbol: str = Field(min_length=1)
-    valuation_price: Decimal = Field(alias="valuationPrice", gt=0)
-    eps: Decimal | None = None
-    pe: Decimal | None = Field(default=None, gt=0)
-    currency: str = Field(min_length=1)
-    method: str = Field(min_length=1)
-    source: str = Field(min_length=1)
-    as_of: Date = Field(alias="asOf")
 
 
 class ValuationSnapshot(DomainModel):

@@ -4,9 +4,9 @@ from decimal import Decimal
 import pytest
 
 from app.calendar import ExchangeCalendar, ScheduleResult, schedule
+from app.catalog.service import default_data_settings
 from app.domain.contracts import (
     ContributionSettings,
-    DataSettings,
     EndMode,
     RunSettings,
     SharedSettings,
@@ -30,7 +30,7 @@ def _settings(
             endMode=end_mode,
         ),
         contribution=ContributionSettings(day=day, amount=Decimal(amount)),
-        data=DataSettings(macroStalenessSessions=3),
+        data=default_data_settings(),
     )
 
 
