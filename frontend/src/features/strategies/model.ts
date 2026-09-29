@@ -28,6 +28,9 @@ export interface WorkspaceState {
   runResponse: RunResponse | null;
   runRequestedEndMode: EndMode | null;
   focusedResultId: string | null;
+  showChart: boolean;
+  showTrades: boolean;
+  visibleSeriesIds: string[];
 }
 
 export type WorkspaceAction =
@@ -39,7 +42,10 @@ export type WorkspaceAction =
   | { type: "shared.change"; value: SharedDraft }
   | { type: "run.scope"; value: RunScope }
   | { type: "run.update"; value: RunResponse; requestedEndMode?: EndMode }
-  | { type: "result.focus"; id: string | null };
+  | { type: "result.focus"; id: string | null }
+  | { type: "display.chart"; value: boolean }
+  | { type: "display.trades"; value: boolean }
+  | { type: "chart.series"; id: string; visible: boolean };
 
 export interface RunAvailability {
   disabled: boolean;
@@ -68,6 +74,11 @@ function dataDefaults(catalog: Catalog): Record<string, unknown> {
       .filter((definition) => definition.level === "shared" && definition.key.startsWith("data."))
       .map((definition) => [definition.key.slice("data.".length), cloneValue(definition.default)]),
   );
+}
+
+function uiBooleanDefault(catalog: Catalog, key: string, fallback: boolean): boolean {
+  const value = catalog.parameters?.find((definition) => definition.key === key)?.default;
+  return typeof value === "boolean" ? value : fallback;
 }
 
 export function createStrategyDraft(
@@ -103,6 +114,9 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
     runResponse: null,
     runRequestedEndMode: null,
     focusedResultId: null,
+    showChart: uiBooleanDefault(catalog, "display.showChart", true),
+    showTrades: uiBooleanDefault(catalog, "display.showTrades", true),
+    visibleSeriesIds: ["totalAsset", "drawdown"],
   };
 }
 
@@ -168,13 +182,35 @@ export function workspaceReducer(
     case "run.scope":
       return { ...state, runScope: action.value };
     case "run.update":
+      {
+        const savedResults = action.value.result?.strategyRuns ?? [];
+        const focusIsAvailable = state.focusedResultId !== null &&
+          savedResults.some((result) => result.id === state.focusedResultId);
+        const focusedResultId = focusIsAvailable
+          ? state.focusedResultId
+          : action.value.selectedStrategyIds[0] ?? savedResults[0]?.id ?? null;
       return {
         ...state,
         runResponse: action.value,
         runRequestedEndMode: action.requestedEndMode ?? state.runRequestedEndMode,
+        focusedResultId,
       };
+      }
     case "result.focus":
       return { ...state, focusedResultId: action.id };
+    case "display.chart":
+      return { ...state, showChart: action.value };
+    case "display.trades":
+      return { ...state, showTrades: action.value };
+    case "chart.series":
+      return {
+        ...state,
+        visibleSeriesIds: action.visible
+          ? state.visibleSeriesIds.includes(action.id)
+            ? state.visibleSeriesIds
+            : [...state.visibleSeriesIds, action.id]
+          : state.visibleSeriesIds.filter((seriesId) => seriesId !== action.id),
+      };
   }
 }
 
