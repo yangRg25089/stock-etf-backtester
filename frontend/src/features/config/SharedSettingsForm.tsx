@@ -1,11 +1,17 @@
-import { useState } from "react";
-import type { Catalog, Diagnostic, ParameterDefinition } from "../../api/generated";
+import type {
+  Catalog,
+  Diagnostic,
+  ParameterDefinition,
+} from "../../api/generated";
 import { interpolate, translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
+import type { SharedDraft } from "./defaults";
 
 interface SharedSettingsFormProps {
   catalog: Catalog;
+  value: SharedDraft;
   locale: Locale;
+  onChange(value: SharedDraft): void;
   errors?: Diagnostic[];
   resolvedLatestEndDate?: string | null;
 }
@@ -20,55 +26,95 @@ const SHARED_FIELD_KEYS = [
 ] as const;
 
 type SharedFieldKey = (typeof SHARED_FIELD_KEYS)[number];
-type SharedValues = Record<SharedFieldKey, unknown>;
+
+function getDefinition(catalog: Catalog, key: SharedFieldKey): ParameterDefinition {
+  const definition = catalog.parameters?.find((item) => item.key === key);
+  if (!definition) throw new Error(`Catalog is missing shared parameter ${key}`);
+  return definition;
+}
+
+function valueFor(value: SharedDraft, key: SharedFieldKey): unknown {
+  switch (key) {
+    case "run.symbol":
+      return value.run.symbol;
+    case "run.startDate":
+      return value.run.startDate;
+    case "run.endDate":
+      return value.run.endDate;
+    case "run.endMode":
+      return value.run.endMode;
+    case "contribution.amount":
+      return value.contribution.amount;
+    case "contribution.day":
+      return value.contribution.day;
+  }
+}
 
 export function SharedSettingsForm({
   catalog,
+  value,
   locale,
+  onChange,
   errors = [],
   resolvedLatestEndDate = null,
 }: SharedSettingsFormProps) {
   const definitions = new Map((catalog.parameters ?? []).map((definition) => [definition.key, definition]));
-  const getDefinition = (key: SharedFieldKey): ParameterDefinition => {
-    const definition = definitions.get(key);
-    if (!definition) throw new Error(`Catalog is missing shared parameter ${key}`);
-    return definition;
+  const latestDefinition = getDefinition(catalog, "run.endMode");
+  const latestMode = latestDefinition.allowedValues?.find((choice) => choice === "latest");
+  const fixedMode = latestDefinition.allowedValues?.find((choice) => choice === "fixed");
+  const isLatest = value.run.endMode === latestMode;
+  const currentValues = Object.fromEntries(
+    SHARED_FIELD_KEYS.map((key) => [key, valueFor(value, key)]),
+  );
+  const dependencyValues = {
+    ...Object.fromEntries((catalog.parameters ?? []).map(({ key, default: item }) => [key, item])),
+    ...currentValues,
   };
-  const [values, setValues] = useState<SharedValues>(() =>
-    Object.fromEntries(
-      SHARED_FIELD_KEYS.map((key) => [key, getDefinition(key).default]),
-    ) as SharedValues,
-  );
-  const [dependencyValues, setDependencyValues] = useState<Record<string, unknown>>(() =>
-    Object.fromEntries(
-      (catalog.parameters ?? []).map(({ key, default: value }) => [key, value]),
-    ),
-  );
-  const latestDefinition = getDefinition("run.endMode");
-  const latestMode = latestDefinition.allowedValues?.find((value) => value === "latest");
-  const fixedMode = latestDefinition.allowedValues?.find((value) => value === "fixed");
-  const isLatest = values["run.endMode"] === latestMode;
-  const update = (key: SharedFieldKey, value: unknown) => {
-    setValues((current) => ({ ...current, [key]: value }));
-    setDependencyValues((current) => ({ ...current, [key]: value }));
+
+  const update = (key: SharedFieldKey, next: unknown) => {
+    if (key === "run.endMode") {
+      if (next === "latest" || next === "fixed") {
+        onChange({ ...value, run: { ...value.run, endMode: next } });
+      }
+      return;
+    }
+    if (key === "run.symbol") {
+      onChange({ ...value, run: { ...value.run, symbol: next == null ? "" : String(next) } });
+    } else if (key === "run.startDate") {
+      onChange({ ...value, run: { ...value.run, startDate: next == null ? "" : String(next) } });
+    } else if (key === "run.endDate") {
+      onChange({ ...value, run: { ...value.run, endDate: next == null ? null : String(next) } });
+    } else if (key === "contribution.amount") {
+      onChange({
+        ...value,
+        contribution: { ...value.contribution, amount: next == null ? null : String(next) },
+      });
+    } else if (key === "contribution.day") {
+      const day = next == null || next === "" ? null : Number(next);
+      onChange({ ...value, contribution: { ...value.contribution, day } });
+    }
   };
 
   const field = (
     key: SharedFieldKey,
-    options: { disabled?: boolean; required?: boolean; value?: unknown } = {},
-  ) => (
-    <ParameterField
-      key={key}
-      definition={getDefinition(key)}
-      value={Object.hasOwn(options, "value") ? options.value : values[key]}
-      locale={locale}
-      onChange={(value) => update(key, value)}
-      dependencyValues={dependencyValues}
-      errors={errors}
-      disabled={options.disabled}
-      required={options.required}
-    />
-  );
+    options: { disabled?: boolean; required?: boolean; shownValue?: unknown } = {},
+  ) => {
+    const definition = definitions.get(key);
+    if (!definition) throw new Error(`Catalog is missing shared parameter ${key}`);
+    return (
+      <ParameterField
+        key={key}
+        definition={definition}
+        value={Object.hasOwn(options, "shownValue") ? options.shownValue : valueFor(value, key)}
+        locale={locale}
+        onChange={(next) => update(key, next)}
+        dependencyValues={dependencyValues}
+        errors={errors}
+        disabled={options.disabled}
+        required={options.required}
+      />
+    );
+  };
 
   return (
     <section className="shared-settings" aria-labelledby="shared-settings-heading">
@@ -83,7 +129,7 @@ export function SharedSettingsForm({
         {field("run.startDate")}
         <div className="end-date-field">
           <div className="field-label-row">
-            <span className="field-label-text">{translate(locale, getDefinition("run.endDate").translationKey)}</span>
+            <span className="field-label-text">{translate(locale, getDefinition(catalog, "run.endDate").translationKey)}</span>
             <label className="latest-toggle">
               <input
                 type="checkbox"
@@ -98,7 +144,9 @@ export function SharedSettingsForm({
           {field("run.endDate", {
             disabled: isLatest,
             required: !isLatest,
-            value: isLatest && resolvedLatestEndDate ? resolvedLatestEndDate : values["run.endDate"],
+            shownValue: isLatest && resolvedLatestEndDate
+              ? resolvedLatestEndDate
+              : value.run.endDate,
           })}
           <p className="field-hint" aria-live="polite">
             {isLatest && resolvedLatestEndDate

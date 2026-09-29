@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { SharedSettingsForm } = require("../.test-output/features/config/SharedSettingsForm.js");
+const { createDefaultSharedDraft } = require("../.test-output/features/config/defaults.js");
 const { ParameterField } = require("../.test-output/shared/ui/ParameterField.js");
 
 function parameter(key, type, defaultValue, extra = {}) {
@@ -56,7 +57,9 @@ test("shared settings render catalog defaults once and lock a resolved latest da
   const html = renderToStaticMarkup(
     React.createElement(SharedSettingsForm, {
       catalog,
+      value: createDefaultSharedDraft(catalog),
       locale: "ja",
+      onChange() {},
       resolvedLatestEndDate: "2024-06-28",
     }),
   );
@@ -73,7 +76,12 @@ test("shared settings render catalog defaults once and lock a resolved latest da
 
 test("latest mode with no run snapshot does not invent a date", () => {
   const html = renderToStaticMarkup(
-    React.createElement(SharedSettingsForm, { catalog, locale: "zh" }),
+    React.createElement(SharedSettingsForm, {
+      catalog,
+      value: createDefaultSharedDraft(catalog),
+      locale: "zh",
+      onChange() {},
+    }),
   );
   assert.match(html, /结束日期将在运行时解析为最近完整行情日/);
   const unresolvedInput = html.match(/<input[^>]*id="field-run-endDate"[^>]*>/)?.[0] ?? "";
