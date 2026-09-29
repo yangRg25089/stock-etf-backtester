@@ -14,9 +14,9 @@ from app.api.errors import (
 )
 from app.api.export import router as export_router
 from app.api.runs import router as runs_router
-from app.runs.data import UnconfiguredRunDataProvider
 from app.runs.manager import RunManager
 from app.runs.sqlite_store import SQLiteRunStore
+from app.runs.yahoo_data import YahooRunDataProvider
 
 
 class HealthResponse(BaseModel):
@@ -43,7 +43,7 @@ app.add_exception_handler(APIException, api_exception_handler)
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 app.state.run_service = RunManager(
     store=SQLiteRunStore(_run_store_path()),
-    data_provider=UnconfiguredRunDataProvider(),
+    data_provider=YahooRunDataProvider(),
 )
 
 

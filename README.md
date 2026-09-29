@@ -56,4 +56,4 @@ npm run build
 
 外部 notebook の出典ハッシュと安定キーへの入力対応は [`docs/fixtures/notebook-mapping.md`](docs/fixtures/notebook-mapping.md) と JSON マニフェストに記録しています。アプリケーションの実行時に notebook パスを読み込むことはありません。live データ確認は明示的な smoke 検査として決定性テストから分離しています。
 
-アーキテクチャ、fixture の更新手順、PE の既知制限、live smoke と通常の検証コマンドは [`docs/development.md`](docs/development.md) を参照してください。現在、アプリ API の既定データプロバイダーは未設定診断を返します。live smoke はデータ取得可否を確認する独立コマンドであり、その結果をアプリの回測実行へ自動投入しません。
+アーキテクチャ、fixture の更新手順、PE の既知制限、live smoke と通常の検証コマンドは [`docs/development.md`](docs/development.md) を参照してください。通常のバックテスト実行では Yahoo から標的の日足データと有効な指数/金利データを取得します。外部ネットワーク接続はユーザーが実行を開始した後に行います。PE の SEC 取得経路は未接続のため、対象戦略にはデータ不可診断が表示されます。

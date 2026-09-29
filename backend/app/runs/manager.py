@@ -154,6 +154,50 @@ class RunManager:
             requirements[requirement.strategy_id].append(requirement)
 
         loaded: dict[str, StrategyDataLoad] = {}
+        batch_loader = getattr(self._data_provider, "load_for_run", None)
+        if callable(batch_loader):
+            eligible_strategies = []
+            for strategy in submission.config.strategies:
+                validation = validations[strategy.id]
+                if validation.diagnostics:
+                    loaded[strategy.id] = StrategyDataLoad(
+                        diagnostics=validation.diagnostics
+                    )
+                else:
+                    eligible_strategies.append(strategy)
+            if eligible_strategies:
+                try:
+                    batch = batch_loader(
+                        shared=submission.config.shared,
+                        strategies=tuple(eligible_strategies),
+                        requirements={
+                            strategy.id: tuple(requirements[strategy.id])
+                            for strategy in eligible_strategies
+                        },
+                    )
+                except Exception as error:
+                    for strategy in eligible_strategies:
+                        loaded[strategy.id] = StrategyDataLoad(
+                            diagnostics=(_provider_diagnostic(strategy.id, error),)
+                        )
+                else:
+                    for strategy in eligible_strategies:
+                        strategy_load = batch.get(strategy.id)
+                        if isinstance(strategy_load, StrategyDataLoad):
+                            loaded[strategy.id] = strategy_load
+                        else:
+                            loaded[strategy.id] = StrategyDataLoad(
+                                diagnostics=(
+                                    _provider_diagnostic(
+                                        strategy.id,
+                                        ValueError(
+                                            "batch data provider omitted strategy data"
+                                        ),
+                                    ),
+                                )
+                            )
+            return self._mark_incompatible_contexts(loaded)
+
         for strategy in submission.config.strategies:
             validation = validations[strategy.id]
             if validation.diagnostics:

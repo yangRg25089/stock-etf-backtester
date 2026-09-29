@@ -40,3 +40,14 @@ not reproduce their conflicting behavior:
 
 The `qqq_vix_dca_backtest copy` notebook is explicitly non-normative and is
 retained only to explain the inventory discrepancy.
+
+## Runtime data retrieval reference
+
+The two primary notebooks obtain daily Yahoo data with `yfinance.download`,
+using the configured symbol and inclusive start/exclusive end dates, with
+`auto_adjust=False`; the VIX series is fetched separately and joined to QQQ.
+Task 23 connects the same Yahoo source to the application through the existing
+normalized adapter, which uses `Ticker.history` with the same date and price
+adjustment settings. The notebook code is a retrieval reference; its VIX
+forward-fill and permissive column fallback are not copied because the confirmed
+data rules require missing observations to remain visible and unavailable.

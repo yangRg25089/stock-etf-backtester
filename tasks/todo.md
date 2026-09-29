@@ -68,6 +68,7 @@
 - [x] Task 20：固定数据端到端验收
 - [x] Task 21：live adapter smoke、可观测性和开发文档
 - [x] Task 22：持久化运行结果并在重启后恢复
+- [ ] Task 23：将 Yahoo 数据源接入本机回测运行
 
 ### 最终检查点
 
@@ -76,4 +77,4 @@
 - [x] 运行快照、四类 CSV 和运行完成日志保留来源与覆盖日期
 - [x] 用户要求的运行结果可在服务重启后恢复；notebook 映射与来源哈希已固化入库
 
-Task 21 门禁记录、smoke 使用方式、架构与 PE 限制见 [`tasks/plan.md`](plan.md) 和 [`docs/development.md`](../docs/development.md)。当前 API 默认 provider 尚未接入 live 回测；smoke 只检查单独的数据读取，不会生成回测结果。
+Task 21 的 smoke 与 PE 限制，以及当前回测 provider 接入进度见 [`tasks/plan.md`](plan.md) 和 [`docs/development.md`](../docs/development.md)。Task 23 完成前，API 默认 provider 尚未接入 Yahoo live 回测。

@@ -451,7 +451,7 @@
 **验收标准：**
 - [x] `python -m app.data.smoke` 需要显式 `--live`，Yahoo/SEC 报告 `asOf`、来源、数据截至日期、覆盖率和失败原因；无 SEC User-Agent 在发请求前安全失败。
 - [x] Yahoo 诊断区分限流和超时；供应商错误正文与 SEC User-Agent 不进入 API 诊断、日志或 smoke 输出。缓存和运行状态有不含配置/响应内容的结构化日志。
-- [x] `docs/development.md` 说明架构边界、fixture 更新流程、常用命令、PE 限制和 V1 范围；README 链接该文档并说明应用默认 provider 未接入 live run。
+- [x] `docs/development.md` 说明架构边界、fixture 更新流程、常用命令、PE 限制和 V1 范围；README 链接该文档并记录 Task 21 完成时默认 provider 尚未接入 live run（该限制由 Task 23 处理）。
 - [x] 冻结来源、日历截止日与行情报价覆盖日；运行完成日志用结构化字段记录它们，前端 OpenAPI 类型由后端契约生成。
 
 **验证（2026-09-29）：** 后端 `python -m pytest`（288 项）、`ruff check .`、`ruff format --check .`、`mypy app` 通过；前端 `npm test`（54 项）、`npm run typecheck`、`npm run lint`、`npm run build` 通过，`npm run generate:api` 根据 52 个 OpenAPI schema 生成类型；`npm run test:e2e`（9 项）通过。smoke 未加 `--live` 与 SEC 缺少 `SEC_USER_AGENT` 均以退出码 2 安全返回；Yahoo/SEC 成功、缺失、超时、限流及脱敏由 fake provider/HTTP opener 验证，未访问 live 网络。E2E 临时 API/Vite 进程退出后，8000/5173 端口均无监听；`git diff --check` 通过。
@@ -482,10 +482,29 @@
 
 **范围：** 中。
 
+#### Task 23：将 Yahoo 数据源接入本机回测运行
+
+**描述：** 参考 Task 4 的 `QQQ_VIX_DCA_backtest.ipynb` 和 `compare_strategies.ipynb` 数据下载段，在用户运行 API 时通过现有 Yahoo 适配器获取标的日线和已启用的 VIX/宏观序列，以真实交易日历、完整收盘日和规范化快照驱动回测。服务启动与确定性测试保持离线；不再让 API 默认 provider 无条件返回“未配置”。
+
+**验收标准：**
+- [ ] 默认 API provider 可对支持的 Yahoo 交易所和符号构造真实交易日历，并按已完成的行情日期冻结动态结束日。
+- [ ] 标的与启用的 Yahoo 行情/指数宏观数据走现有规范化适配器；价格口径、币种、观察时间、缓存指纹及缺失交易日诊断均保留。
+- [ ] 所有被选策略/基准共享一致的行情和日历上下文；指标所需预热数据覆盖已启用周期，普通行情缺口不静默填充或跳过。
+- [ ] Yahoo 不可用、标的交易所不支持、缺少估值获取链路时返回明确本地化诊断；一个依赖失败不阻断其他策略。
+- [ ] Yahoo 与交易所日历依赖通过标准后端安装可用，服务启动不发网络请求；文档说明联网发生时机和 PE/SEC 数据限制。
+
+**验证：** 离线校验使用注入的 Yahoo ticker 与日历；后端质量检查通过；live 数据不作为确定性基线。若执行 live smoke，记录来源、日期和覆盖诊断。
+
+**依赖：** Task 5、Task 6、Task 8、Task 14、Task 21、Task 22。
+
+**可能触及：** `backend/app/runs/`、`backend/app/data/providers/yahoo.py`、`backend/app/main.py`、`backend/pyproject.toml`、`frontend/src/i18n/messages.ts`、`docs/development.md`、`README.md`。
+
+**范围：** 中。
+
 ### 最终检查点
 
-- [x] 所有计划任务验收标准完成；确定性测试、类型检查、构建和 E2E 全部通过。
-- [x] 设计稿中的实现验收标准有测试或明确的手工检查记录；live 网络访问保持显式 opt-in，不作为确定性验收。
+- [ ] 所有计划任务验收标准完成；确定性测试、类型检查、构建和 E2E 全部通过。
+- [x] 设计稿中的实现验收标准有测试或明确的手工检查记录；live 数据仅由用户启动的回测或显式 smoke 请求，不作为确定性验收基线。
 - [x] 运行快照、四类导出、诊断、smoke 报告和开发文档保留来源/截至时间语义；数据不可用不伪装成零收益。
 - [x] 用户要求的已保存运行结果可在服务重启后恢复；notebook 映射与来源哈希已固化并完成审计。
 

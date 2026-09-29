@@ -110,6 +110,27 @@ class YahooFinanceAdapter:
             start_date=request.macro_source_start_date,
         )
 
+    def exchange_code(self, symbol: str) -> tuple[str | None, Diagnostic | None]:
+        """Read Yahoo's exchange identifier without retaining vendor objects."""
+
+        try:
+            ticker = self._ticker(symbol)
+            for attribute in ("fast_info", "history_metadata"):
+                metadata = _safe_attribute(ticker, attribute)
+                for key in ("exchange", "exchangeName"):
+                    value = _metadata_value(metadata, key)
+                    if isinstance(value, str) and value.strip():
+                        return value.strip(), None
+        except Exception as error:
+            return None, _provider_error(error, symbol)
+        return None, Diagnostic(
+            code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+            messageKey="market.exchange_metadata_unavailable",
+            fieldPath="run.symbol",
+            source=self.provider,
+            details={"symbol": symbol},
+        )
+
     def load(self, request: MarketDataRequest) -> MarketDataResult:
         cache_key = self.cache_identity(request)
         try:
