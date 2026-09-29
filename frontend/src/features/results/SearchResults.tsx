@@ -1,0 +1,105 @@
+import { useState } from "react";
+import type { SearchCandidate, SearchResult } from "../../api/generated";
+import { translate, type Locale } from "../../i18n/messages";
+import { DiagnosticList } from "../runs/StatusView";
+import { formatCurrency, formatPercent } from "./format";
+
+const INITIAL_CANDIDATE_LIMIT = 100;
+
+interface SearchResultsProps {
+  locale: Locale;
+  searchResult: SearchResult;
+}
+
+function candidateParameters(candidate: SearchCandidate): Array<[string, unknown]> {
+  if (typeof candidate.parameterValues !== "object" || candidate.parameterValues === null || Array.isArray(candidate.parameterValues)) {
+    return [];
+  }
+  return Object.entries(candidate.parameterValues as Record<string, unknown>);
+}
+
+function orderedCandidates(searchResult: SearchResult): SearchCandidate[] {
+  const candidatesById = new Map(searchResult.candidates.map((candidate) => [candidate.candidateId, candidate]));
+  const ranked = searchResult.rankedCandidateIds.flatMap((candidateId) => {
+    const candidate = candidatesById.get(candidateId);
+    return candidate ? [candidate] : [];
+  });
+  const rankedIds = new Set(searchResult.rankedCandidateIds);
+  const unranked = searchResult.candidates
+    .filter((candidate) => !rankedIds.has(candidate.candidateId))
+    .sort((left, right) => left.sequence - right.sequence);
+  return [...ranked, ...unranked];
+}
+
+function CandidateRow({ locale, candidate }: { locale: Locale; candidate: SearchCandidate }) {
+  const metrics = candidate.metrics;
+  const diagnostics = [
+    ...(candidate.diagnostics ?? []),
+    ...(metrics?.diagnostics ?? []),
+  ];
+  return (
+    <tr>
+      <th scope="row">
+        <span>{candidate.sequence}</span>
+        <small>{candidate.candidateId}</small>
+      </th>
+      <td><span className="status-tag">{translate(locale, `status.${candidate.status}`)}</span></td>
+      <td>
+        <dl className="search-parameters">
+          {candidateParameters(candidate).map(([key, value]) => (
+            <div key={key}>
+              <dt>{translate(locale, `parameters.${key}`)}</dt>
+              <dd>{typeof value === "string" ? value : JSON.stringify(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      </td>
+      <td>{formatCurrency(metrics?.endingEquity, metrics?.currency, locale)}</td>
+      <td>{formatPercent(metrics?.maximumDrawdown, locale)}</td>
+      <td>
+        {candidate.reusedCalculation && <span className="search-reused">{translate(locale, "search.reused")}</span>}
+        <DiagnosticList locale={locale} diagnostics={diagnostics} />
+      </td>
+    </tr>
+  );
+}
+
+export function SearchResults({ locale, searchResult }: SearchResultsProps) {
+  const [showAll, setShowAll] = useState(false);
+  const candidates = orderedCandidates(searchResult);
+  const displayed = showAll ? candidates : candidates.slice(0, INITIAL_CANDIDATE_LIMIT);
+  const hiddenCount = candidates.length - displayed.length;
+
+  return (
+    <section className="search-results" aria-labelledby="search-results-title">
+      <h3 id="search-results-title">
+        {translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}
+      </h3>
+      <div className="data-table-scroll">
+        <table className="data-table search-table">
+          <caption className="sr-only">{translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{translate(locale, "search.sequence")}</th>
+              <th scope="col">{translate(locale, "results.status")}</th>
+              <th scope="col">{translate(locale, "search.parameters")}</th>
+              <th scope="col">{translate(locale, "results.endingEquity")}</th>
+              <th scope="col">{translate(locale, "results.maximumDrawdown")}</th>
+              <th scope="col">{translate(locale, "diagnostics.title")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayed.map((candidate) => (
+              <CandidateRow key={candidate.candidateId} locale={locale} candidate={candidate} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hiddenCount > 0 && (
+        <button className="text-button search-show-all" type="button" onClick={() => setShowAll(true)}>
+          {translate(locale, "search.showRemaining", { count: String(hiddenCount) })}
+        </button>
+      )}
+    </section>
+  );
+}

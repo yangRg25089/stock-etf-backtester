@@ -1058,6 +1058,71 @@ h2 {
   gap: 8px;
 }
 
+.search-results {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.search-results h3 {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.search-table {
+  min-width: 720px;
+}
+
+.search-table tbody th small {
+  display: block;
+  margin-top: 3px;
+  color: var(--app-muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.search-table td:last-child {
+  min-width: 210px;
+  white-space: normal;
+}
+
+.search-parameters {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  text-align: left;
+  white-space: normal;
+}
+
+.search-parameters div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 7px;
+}
+
+.search-parameters dt {
+  color: var(--app-muted);
+}
+
+.search-parameters dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.search-reused {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 2px 5px;
+  color: #126754;
+  background: var(--app-accent-soft);
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.search-show-all {
+  min-height: 44px;
+}
+
 .results-heading {
   align-items: center;
   margin-bottom: 14px;
