@@ -41,6 +41,8 @@ from app.metrics import (
 from app.search.types import SearchCandidate, SearchHeatmapSlice, SearchResult
 from app.signals import INDICATOR_METHOD_VERSION, evaluate_signals
 
+SEARCH_METHOD_VERSION = "search-v1"
+
 
 @dataclass(frozen=True, slots=True)
 class GridSearchInput:

@@ -82,6 +82,7 @@
 | `metrics` | `summarize(trace, schedule)`：统一绩效指标 | `ledger` 输出 |
 | `search` | `runGridSearch(baseConfig, dimensions, snapshot)`：按稳定候选序号枚举并复用 `config/ledger/metrics`；无效候选保留诊断但不排名；排名依次按期末资产降序、绝对最大回撤升序和候选序号；指纹包含目录/算法版本及所有计算输入，复用时仍保留候选 ID 和 `strategy` 角色 | 纯配置、共享数据快照 |
 | `runs` | `createRun(snapshot)` 与 `getRun(id)`：编排、进度、局部失败和不可变结果 | 上述模块 |
+| `api` | `/api/v1/catalog`、`/contracts`、`/config/validate`、`/runs`：Pydantic/OpenAPI 契约、结构化字段诊断、范围选择及 `Idempotency-Key` | `catalog`、`config`、`runs` |
 | `export` | `exportRun(runId, kind, focusedResultId)`：从已存结果生成 CSV | `runs` 结果，不重新计算 |
 
 建议目录按职责放置：`backend/app/catalog`、`config`、`data`、`domain`、`runs`、`export`；`frontend/src/features/config`、`strategies`、`runs`、`results`、`i18n`；统一表单控件放 `frontend/src/shared/ui`。这些是组织边界，不要求每个目录包装一个透传模块。领域契约只接收已物化的数据设置，不反向导入 catalog；注册表默认值与适用边界由 catalog/config 边界提供。数据供应商更换只改适配器，策略逻辑与 UI 契约不变。

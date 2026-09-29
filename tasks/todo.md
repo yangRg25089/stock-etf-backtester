@@ -40,7 +40,7 @@
 
 ## 阶段 3：FastAPI 应用层
 
-- [ ] Task 13：catalog、校验和运行提交 API
+- [x] Task 13：catalog、校验和运行提交 API
 - [ ] Task 14：作业编排、进度和局部失败
 - [ ] Task 15：四类 CSV 导出
 
