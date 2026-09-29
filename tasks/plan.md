@@ -9,7 +9,7 @@
 - `docs/design/review-resolutions.md`：已确认问题及其唯一归属。
 - `docs/design/backtest-ui.html`：静态 UI 视觉与响应式参考（不是应用实现）。
 
-当前仓库已建立 `backend/`、`frontend/`、依赖配置和离线测试入口；Task 1–7 与 Task 9 已完成。Task 8 的后端校验/诊断契约已实现，API/CSV 跨层验收仍由 Task 13/15 完成。notebook 输入映射和确定性 fixture 已固化到仓库，运行时不得依赖外部 notebook 路径。后续任务与实际命令以本计划、`tasks/todo.md` 和仓库中的依赖配置为准。
+当前仓库已建立 `backend/`、`frontend/`、依赖配置和离线测试入口；Task 1–15 已完成，Task 8 的 API/运行诊断/CSV 稳定码跨层验收已随 Task 15 关闭。notebook 输入映射和确定性 fixture 已固化到仓库，运行时不得依赖外部 notebook 路径。后续任务与实际命令以本计划、`tasks/todo.md` 和仓库中的依赖配置为准。
 
 ## 目标与范围
 
@@ -181,7 +181,7 @@
 **验收标准：**
 - [x] `ratio` 始终 0..1、`percent_point` 使用 2.5 表示 2.5%，所有范围与注册表一致。
 - [x] 禁用信号不形成依赖；启用信号缺失会生成带 strategyId 的 unavailable 诊断，不被 OR 静默跳过或转为 false。
-- [ ] 前端字段路径、API 错误、运行诊断和 CSV 使用同一稳定码/键。
+- [x] API 校验错误、运行诊断和 CSV 诊断保留同一 `code`、`messageKey`、`fieldPath` 结构；前端消费此契约由 Task 16/17 接入。
 
 **验证：** 普通配置与网格配置共用边界测试；AND/OR 与能力诊断矩阵；错误 JSON schema 契约测试。
 
@@ -191,7 +191,7 @@
 
 **范围：** 中。
 
-**跨层验收说明：** 后端校验和数据能力诊断先定义稳定码、message key 与字段路径；Task 13 和 Task 15 完成 API/CSV 后再关闭最后一项。
+**跨层验收说明：** 后端校验和数据能力诊断定义稳定码、message key 与字段路径；Task 13/15 的 API 与 CSV 契约测试已确认字段一致。
 
 ### 检查点 B：数据层可供内核消费
 
@@ -323,11 +323,11 @@
 **描述：** 从已存结果快照生成汇总、每日资产、交易、搜索结果 CSV；不重新计算，稳定输出字段键、ISO 日期、原始精度和独立币种列。
 
 **验收标准：**
-- [ ] 导出始终绑定 `runId` 与 `focusedResultId`，不读取当前草稿。
-- [ ] 无完成结果时禁用/返回明确错误；成功但零交易时交易 CSV 至少输出表头。
-- [ ] 日文/中文只改变界面文案，不改变 CSV 字段键和数值语义。
+- [x] `/api/v1/runs/{run_id}/export/{kind}?focusedResultId=...` 只从已存 `RunResponse` 导出，不读取当前草稿。
+- [x] 无完成结果/不存在的聚焦结果返回结构化错误；成功但零交易时交易 CSV 仍输出表头。
+- [x] CSV 不接收 locale，字段键、日期和数值格式固定，不受界面语言影响。
 
-**验证：** CSV golden tests、空结果/零交易/搜索结果测试、导出与结果 API 数据一致性测试。
+**验证：** `backend/tests/export/test_csv.py` 覆盖四类 CSV golden 输出、空结果、零交易、搜索候选诊断和原始精度；`backend/tests/api/test_export.py` 覆盖结构化错误、OpenAPI 文档、语言无关及导出/运行查询一致性。
 
 **依赖：** Task 11、Task 14。
 
@@ -337,9 +337,9 @@
 
 ### 检查点 D：后端端到端可用
 
-- [ ] 从提交运行到查询状态、聚焦结果和 CSV 导出可用。
-- [ ] 部分成功/全失败/不可用/零交易状态在 API 中可区分。
-- [ ] API 不重复实现目录边界、交易算法或指标算法。
+- [x] 从提交运行到查询状态、用 `focusedResultId` 选定结果和 CSV 导出可用。
+- [x] 部分成功/全失败/不可用/警告/零交易状态由 API 和导出检查可区分。
+- [x] API 不重复实现目录边界、交易算法或指标算法；API 层边界扫描无算法分支。
 
 ### 阶段 4：React 前端与交互
 

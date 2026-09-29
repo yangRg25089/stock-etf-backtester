@@ -10,6 +10,7 @@ from app.api.errors import (
     api_exception_handler,
     request_validation_exception_handler,
 )
+from app.api.export import router as export_router
 from app.api.runs import router as runs_router
 from app.runs.data import UnconfiguredRunDataProvider
 from app.runs.manager import RunManager
@@ -27,6 +28,7 @@ app = FastAPI(
 )
 app.include_router(catalog_router)
 app.include_router(runs_router)
+app.include_router(export_router)
 app.add_exception_handler(APIException, api_exception_handler)
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 app.state.run_service = RunManager(
