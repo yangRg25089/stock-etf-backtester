@@ -8,6 +8,9 @@ from app.catalog.definitions import (
     ParameterDefinition,
     ParameterLevel,
     ParameterType,
+    ParameterValidationError,
+    ParameterValueIssue,
+    validate_parameter_value,
 )
 from app.catalog.presets import (
     EXECUTION_MODULES,
@@ -193,6 +196,28 @@ def test_ratio_and_percent_point_conventions_are_explicit() -> None:
     rate_threshold = get_parameter_definition("rate.thresholdPct")
     assert rate_threshold.type is ParameterType.PERCENT_POINT
     assert rate_threshold.default == Decimal("2.5")
+
+
+def test_parameter_value_validator_keeps_ratio_range_and_percent_point_scale() -> None:
+    ratio = get_parameter_definition("accumulation.fixedDcaRatio")
+    rate = get_parameter_definition("rate.thresholdPct")
+
+    validate_parameter_value(ratio, Decimal("0.5"))
+    validate_parameter_value(rate, Decimal("2.5"))
+
+    for value in (Decimal("-0.01"), Decimal("1.01")):
+        with pytest.raises(ParameterValidationError) as error:
+            validate_parameter_value(ratio, value)
+        assert error.value.issue is ParameterValueIssue.OUT_OF_RANGE
+
+
+def test_parameter_value_validator_distinguishes_empty_required_value() -> None:
+    symbol = get_parameter_definition("vix.symbol")
+
+    with pytest.raises(ParameterValidationError) as error:
+        validate_parameter_value(symbol, "   ")
+
+    assert error.value.issue is ParameterValueIssue.EMPTY_VALUE
 
 
 def test_periods_are_positive_and_composite_exit_defaults_on() -> None:

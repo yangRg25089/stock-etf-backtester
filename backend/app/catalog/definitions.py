@@ -47,6 +47,32 @@ class ParameterLevel(StrEnum):
     UI = "ui"
 
 
+class ParameterValueIssue(StrEnum):
+    """Stable reason categories for a rejected catalog-backed value."""
+
+    REQUIRED = "required"
+    EMPTY_VALUE = "empty_value"
+    INVALID_TYPE = "invalid_type"
+    INVALID_VALUE = "invalid_value"
+    OUT_OF_RANGE = "out_of_range"
+    INVALID_CHOICE = "invalid_choice"
+    INVALID_COLLECTION = "invalid_collection"
+
+
+class ParameterValidationError(ValueError):
+    """A value error that retains its catalog key and machine-readable cause."""
+
+    def __init__(
+        self,
+        key: str,
+        issue: ParameterValueIssue,
+        message: str,
+    ) -> None:
+        self.key = key
+        self.issue = issue
+        super().__init__(message)
+
+
 _NUMERIC_TYPES: Final[frozenset[ParameterType]] = frozenset(
     {
         ParameterType.INTEGER,
@@ -81,68 +107,129 @@ def validate_parameter_value(definition: "ParameterDefinition", value: object) -
 
     if value is None:
         if not definition.nullable:
-            raise ValueError(f"non-nullable parameter has no value: {definition.key}")
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.REQUIRED,
+                f"non-nullable parameter has no value: {definition.key}",
+            )
         return
 
     parameter_type = definition.type
     if parameter_type is ParameterType.SYMBOL:
         if not isinstance(value, str):
-            raise ValueError(
-                f"symbol parameter has a non-string value: {definition.key}"
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_TYPE,
+                f"symbol parameter has a non-string value: {definition.key}",
+            )
+        if not value.strip():
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.EMPTY_VALUE,
+                f"symbol parameter is empty: {definition.key}",
             )
     elif parameter_type is ParameterType.DATE:
         if not isinstance(value, date):
-            raise ValueError(f"date parameter has a non-date value: {definition.key}")
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_TYPE,
+                f"date parameter has a non-date value: {definition.key}",
+            )
     elif parameter_type is ParameterType.INTEGER:
         if isinstance(value, bool) or not isinstance(value, int):
-            raise ValueError(
-                f"integer parameter has a non-integer value: {definition.key}"
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_TYPE,
+                f"integer parameter has a non-integer value: {definition.key}",
             )
-        numeric_value = _as_finite_decimal(value, definition.key)
-        if definition.minimum is not None and numeric_value < definition.minimum:
-            raise ValueError(f"value is below minimum: {definition.key}")
-        if definition.maximum is not None and numeric_value > definition.maximum:
-            raise ValueError(f"value is above maximum: {definition.key}")
+        _validate_numeric_value(definition, value)
     elif parameter_type in {
         ParameterType.DECIMAL,
         ParameterType.RATIO,
         ParameterType.PERCENT_POINT,
     }:
         if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
-            raise ValueError(
-                f"numeric parameter has a non-numeric value: {definition.key}"
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_TYPE,
+                f"numeric parameter has a non-numeric value: {definition.key}",
             )
-        numeric_value = _as_finite_decimal(value, definition.key)
-        if definition.minimum is not None and numeric_value < definition.minimum:
-            raise ValueError(f"value is below minimum: {definition.key}")
-        if definition.maximum is not None and numeric_value > definition.maximum:
-            raise ValueError(f"value is above maximum: {definition.key}")
+        _validate_numeric_value(definition, value)
     elif parameter_type is ParameterType.BOOLEAN:
         if not isinstance(value, bool):
-            raise ValueError(
-                f"boolean parameter has a non-boolean value: {definition.key}"
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_TYPE,
+                f"boolean parameter has a non-boolean value: {definition.key}",
             )
     elif parameter_type is ParameterType.ENUM:
         if value not in definition.allowed_values:
-            raise ValueError(f"enum value is not allowed: {definition.key}")
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_CHOICE,
+                f"enum value is not allowed: {definition.key}",
+            )
     elif parameter_type is ParameterType.ENUM_LIST:
-        if not isinstance(value, (list, tuple)) or any(
-            item not in definition.allowed_values for item in value
+        if (
+            not isinstance(value, (list, tuple))
+            or not value
+            or any(item not in definition.allowed_values for item in value)
         ):
-            raise ValueError(f"enum_list value is not allowed: {definition.key}")
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_COLLECTION,
+                f"enum_list value is not allowed: {definition.key}",
+            )
+        if len(value) != len(set(value)):
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_COLLECTION,
+                f"enum_list values must be unique: {definition.key}",
+            )
     elif parameter_type is ParameterType.NUMBER_LIST:
-        if not isinstance(value, (list, tuple)):
-            raise ValueError(f"number_list value is not a list: {definition.key}")
+        if not isinstance(value, (list, tuple)) or not value:
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_COLLECTION,
+                f"number_list value is not a valid list: {definition.key}",
+            )
         for item in value:
             if isinstance(item, bool) or not isinstance(item, (int, float, Decimal)):
-                raise ValueError(
-                    f"number_list contains a non-numeric value: {definition.key}"
+                raise ParameterValidationError(
+                    definition.key,
+                    ParameterValueIssue.INVALID_TYPE,
+                    f"number_list contains a non-numeric value: {definition.key}",
                 )
-            numeric_value = _as_finite_decimal(item, definition.key)
-            if definition.minimum is not None and numeric_value < definition.minimum:
-                raise ValueError(f"value is below minimum: {definition.key}")
-            if definition.maximum is not None and numeric_value > definition.maximum:
-                raise ValueError(f"value is above maximum: {definition.key}")
+            _validate_numeric_value(definition, item)
+        if len(value) != len(set(value)):
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_COLLECTION,
+                f"number_list values must be unique: {definition.key}",
+            )
+
+
+def _validate_numeric_value(definition: "ParameterDefinition", value: object) -> None:
+    try:
+        numeric_value = _as_finite_decimal(value, definition.key)
+    except ValueError as error:
+        raise ParameterValidationError(
+            definition.key,
+            ParameterValueIssue.INVALID_VALUE,
+            str(error),
+        ) from error
+    if definition.minimum is not None and numeric_value < definition.minimum:
+        raise ParameterValidationError(
+            definition.key,
+            ParameterValueIssue.OUT_OF_RANGE,
+            f"value is below minimum: {definition.key}",
+        )
+    if definition.maximum is not None and numeric_value > definition.maximum:
+        raise ParameterValidationError(
+            definition.key,
+            ParameterValueIssue.OUT_OF_RANGE,
+            f"value is above maximum: {definition.key}",
+        )
 
 
 class ParameterDefinition(DomainModel):
