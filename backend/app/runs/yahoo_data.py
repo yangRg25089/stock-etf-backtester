@@ -370,8 +370,9 @@ class YahooRunDataProvider:
 
         loaded: dict[MacroKey, MacroDataResult] = {}
         for symbol, series_type, source_unit in sorted(required):
+            macro_request = request.model_copy(update={"symbol": symbol})
             loaded[(symbol, series_type, source_unit)] = self._macro.load(
-                request,
+                macro_request,
                 series_type=series_type,
                 source_unit=source_unit,
             )
@@ -388,6 +389,19 @@ class YahooRunDataProvider:
         macro_results: Mapping[MacroKey, MacroDataResult],
     ) -> Mapping[str, StrategyDataLoad]:
         loaded: dict[str, StrategyDataLoad] = {}
+        run_macros = tuple(
+            result
+            for _key, result in sorted(macro_results.items())
+            if result.observations
+        )
+        try:
+            shared_snapshot = compose_data_snapshot(base_snapshot, run_macros)
+        except (TypeError, ValueError):
+            # A conflicting unit/source for the same ticker must not block
+            # unrelated strategies. In that rare case each strategy receives
+            # only the macro series it explicitly requires below.
+            shared_snapshot = None
+
         for strategy in strategies:
             macros: list[MacroDataResult] = []
             diagnostics = list(market_diagnostics)
@@ -421,7 +435,11 @@ class YahooRunDataProvider:
                     )
 
             try:
-                snapshot = compose_data_snapshot(base_snapshot, macros)
+                snapshot = (
+                    shared_snapshot
+                    if shared_snapshot is not None
+                    else compose_data_snapshot(base_snapshot, macros)
+                )
             except (TypeError, ValueError) as error:
                 _LOGGER.warning(
                     "Strategy macro data could not be composed",

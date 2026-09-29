@@ -45,7 +45,7 @@ TickerFactory = Callable[[str], object]
 _LOGGER = logging.getLogger(__name__)
 
 _YAHOO_DUAL_PRICE_BASIS = "adj-close-simulation+split-close-valuation-v1"
-_NORMALIZER_VERSION = "yfinance-adapter-v1"
+_NORMALIZER_VERSION = "yfinance-adapter-v2"
 
 
 class YahooFinanceAdapter:
@@ -166,6 +166,10 @@ class YahooFinanceAdapter:
         try:
             close_column = _resolve_column(frame, "Close", request.symbol)
             adjusted_column = _resolve_column(frame, "Adj Close", request.symbol)
+            ohlc_columns = {
+                name: _resolve_column(frame, name, request.symbol)
+                for name in ("Open", "High", "Low")
+            }
         except Exception as error:
             return _required_market_unavailable(
                 cache_key=cache_key,
@@ -245,10 +249,19 @@ class YahooFinanceAdapter:
                         )
                     )
                     continue
+                simulation_ohlc = _simulation_ohlc(
+                    row,
+                    ohlc_columns,
+                    simulation_price=simulation_price,
+                    valuation_price=valuation_price,
+                )
                 bars_by_date.setdefault(session_date, []).append(
                     MarketBar(
                         date=session_date,
                         symbol=request.symbol,
+                        simulationOpen=simulation_ohlc[0],
+                        simulationHigh=simulation_ohlc[1],
+                        simulationLow=simulation_ohlc[2],
                         simulationPrice=simulation_price,
                         valuationPrice=valuation_price,
                         currency=currency,
@@ -423,6 +436,7 @@ class YahooFinanceAdapter:
 
         source_rows: list[MacroObservation] = []
         diagnostics: list[Diagnostic] = []
+        trading_sessions = set(request.exchange_calendar.trading_dates)
         try:
             for index, row in frame.iterrows():
                 observed_at = _as_datetime(index)
@@ -442,6 +456,11 @@ class YahooFinanceAdapter:
                     <= observation_date
                     <= request.end_date
                 ):
+                    continue
+                if observation_date not in trading_sessions:
+                    # Yahoo can include non-trading calendar dates (for example
+                    # Labor Day) with an empty row. Only a missing observation
+                    # on an expected exchange session is a data-quality error.
                     continue
                 raw_value = _as_decimal(_row_value(row, close_column))
                 if raw_value is None:
@@ -661,6 +680,37 @@ def _resolve_column(frame: _HistoryFrame, name: str, symbol: str) -> object | No
     if len(symbol_candidates) == 1:
         return symbol_candidates[0]
     return None
+
+
+def _simulation_ohlc(
+    row: object,
+    columns: Mapping[str, object | None],
+    *,
+    simulation_price: Decimal,
+    valuation_price: Decimal,
+) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+    raw_values = tuple(
+        _as_positive_decimal(_row_value(row, columns[name]))
+        if columns[name] is not None
+        else None
+        for name in ("Open", "High", "Low")
+    )
+    if any(value is None for value in raw_values):
+        return None, None, None
+    raw_open, raw_high, raw_low = raw_values
+    assert raw_open is not None and raw_high is not None and raw_low is not None
+
+    adjustment = simulation_price / valuation_price
+    adjusted_open = raw_open * adjustment
+    adjusted_high = raw_high * adjustment
+    adjusted_low = raw_low * adjustment
+    if (
+        adjusted_high < max(adjusted_open, simulation_price)
+        or adjusted_low > min(adjusted_open, simulation_price)
+        or adjusted_high < adjusted_low
+    ):
+        return None, None, None
+    return adjusted_open, adjusted_high, adjusted_low
 
 
 def _row_value(row: object, column: object) -> object:

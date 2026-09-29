@@ -3,6 +3,7 @@ import type {
   Diagnostic,
   ParameterDefinition,
 } from "../../api/generated";
+import type { ReactNode } from "react";
 import { interpolate, translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
 import type { SharedDraft } from "./defaults";
@@ -63,6 +64,11 @@ export function SharedSettingsForm({
   const latestMode = latestDefinition.allowedValues?.find((choice) => choice === "latest");
   const fixedMode = latestDefinition.allowedValues?.find((choice) => choice === "fixed");
   const isLatest = value.run.endMode === latestMode;
+  const endHelperText = isLatest && resolvedLatestEndDate
+    ? interpolate(translate(locale, "end.resolved"), { date: resolvedLatestEndDate })
+    : isLatest
+      ? translate(locale, "end.unresolved")
+      : translate(locale, "end.fixed");
   const currentValues = Object.fromEntries(
     SHARED_FIELD_KEYS.map((key) => [key, valueFor(value, key)]),
   );
@@ -97,7 +103,14 @@ export function SharedSettingsForm({
 
   const field = (
     key: SharedFieldKey,
-    options: { disabled?: boolean; required?: boolean; shownValue?: unknown } = {},
+    options: {
+      disabled?: boolean;
+      required?: boolean;
+      shownValue?: unknown;
+      labelAccessory?: ReactNode;
+      helperText?: string;
+      helperLive?: boolean;
+    } = {},
   ) => {
     const definition = definitions.get(key);
     if (!definition) throw new Error(`Catalog is missing shared parameter ${key}`);
@@ -112,6 +125,9 @@ export function SharedSettingsForm({
         errors={errors}
         disabled={options.disabled}
         required={options.required}
+        labelAccessory={options.labelAccessory}
+        helperText={options.helperText}
+        helperLive={options.helperLive}
       />
     );
   };
@@ -127,9 +143,15 @@ export function SharedSettingsForm({
       <div className="shared-settings-grid">
         {field("run.symbol")}
         {field("run.startDate")}
-        <div className="end-date-field">
-          <div className="field-label-row">
-            <span className="field-label-text">{translate(locale, getDefinition(catalog, "run.endDate").translationKey)}</span>
+        {field("run.endDate", {
+          disabled: isLatest,
+          required: !isLatest,
+          shownValue: isLatest && resolvedLatestEndDate
+            ? resolvedLatestEndDate
+            : value.run.endDate,
+          helperText: endHelperText,
+          helperLive: true,
+          labelAccessory: (
             <label className="latest-toggle">
               <input
                 type="checkbox"
@@ -140,23 +162,11 @@ export function SharedSettingsForm({
               />
               <span>{translate(locale, "end.latest")}</span>
             </label>
-          </div>
-          {field("run.endDate", {
-            disabled: isLatest,
-            required: !isLatest,
-            shownValue: isLatest && resolvedLatestEndDate
-              ? resolvedLatestEndDate
-              : value.run.endDate,
-          })}
-          <p className="field-hint" aria-live="polite">
-            {isLatest && resolvedLatestEndDate
-              ? interpolate(translate(locale, "end.resolved"), { date: resolvedLatestEndDate })
-              : isLatest
-                ? translate(locale, "end.unresolved")
-                : translate(locale, "end.fixed")}
-          </p>
-        </div>
-        {field("contribution.amount")}
+          ),
+        })}
+        {field("contribution.amount", {
+          helperText: translate(locale, "field.currencyHelp"),
+        })}
         {field("contribution.day")}
       </div>
     </section>

@@ -37,7 +37,11 @@ test("strategy editor keeps the catalog name and current VIX summary visible", (
   const html = render(createInitialWorkspaceState(catalog));
   assert.match(html, /VIX シグナル積立/);
   assert.match(html, /VIX: \^VIX ≥ 25、月間最大 1 回/);
+  assert.match(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
+  assert.match(html, /VXN — Nasdaq 100 ボラティリティ指数/);
+  assert.match(html, /VXD — Dow Jones ボラティリティ指数/);
   assert.match(html, /id="preset-to-add"/);
+  assert.equal(createInitialWorkspaceState(catalog).runScope, "all_enabled");
 });
 
 test("turning off VIX shows the required disabled copy and preserves the preset id", () => {
@@ -61,7 +65,9 @@ test("catalog selector renders every available preset with accessible controls",
   }
   assert.match(html, /aria-label="启用VIX 信号定投"/);
   assert.match(html, /aria-label="删除VIX 信号定投"/);
-  assert.match(html, /<ul class="strategy-list">/);
+  assert.match(html, /<article class="strategy-card is-active">/);
+  assert.match(html, /买入条件的组合方式/);
+  assert.match(html, /此设置适用于此策略中所有已启用的买入条件/);
 
   const controls = renderToStaticMarkup(React.createElement(RunControls, {
     locale: "zh",
@@ -73,4 +79,17 @@ test("catalog selector renders every available preset with accessible controls",
   }));
   assert.match(controls, /role="group" aria-label="运行范围"/);
   assert.match(controls, /aria-pressed="true">当前策略/);
+});
+
+test("every strategy instance renders as its own card with independently editable settings", () => {
+  const initial = createInitialWorkspaceState(catalog);
+  const second = workspaceReducer(initial, {
+    type: "strategy.add",
+    id: "strategy-composite-1",
+    presetId: "composite_dca",
+  }, catalog);
+  const html = render(second, "zh");
+  assert.equal((html.match(/class="strategy-card(?: is-active)?"/g) ?? []).length, 2);
+  assert.match(html, /class="strategy-card is-active"/);
+  assert.match(html, /class="strategy-card"/);
 });

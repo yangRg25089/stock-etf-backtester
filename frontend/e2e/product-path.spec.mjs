@@ -110,7 +110,7 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
     await page.locator("#preset-to-add").selectOption(presetId);
     await page.locator(".add-strategy-button").click();
   }
-  await expect(page.locator(".strategy-row")).toHaveCount(8);
+  await expect(page.locator(".strategy-card")).toHaveCount(8);
 
   await page.getByRole("button", { name: "中文" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
@@ -131,7 +131,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   });
 
   await page.goto("/");
-  await expect(page.locator(".strategy-editor-heading h3")).toHaveText("VIX シグナル積立");
+  await expect(page.locator(".strategy-card-name").first()).toHaveText("VIX シグナル積立");
   await page.getByLabel("開始日").fill("2024-01-31");
   await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
   await page.locator("#field-run-endDate").fill("2024-02-02");
@@ -164,12 +164,32 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const chartToggle = page.getByRole("button", { name: "資産チャートを表示" });
   await expect(chartToggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("svg[role=img]").first()).toBeVisible();
+  await expect(page.locator(".chart-panel.chart-price .chart-axis-title").first()).toContainText("価格 (USD)");
+  expect(await page.locator(".chart-panel.chart-price .chart-gridline").count()).toBeGreaterThan(7);
+  await expect(page.locator(".chart-panel.chart-price .candlestick")).not.toHaveCount(0);
   await chartToggle.click();
   await expect(chartToggle).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("svg[role=img]")).toHaveCount(0);
   await chartToggle.click();
   await expect(chartToggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("svg[role=img]").first()).toBeVisible();
+  const strategyButton = page.locator("button.result-select").filter({ hasText: "strategy-vix_dca-1" });
+  await strategyButton.click();
+  await expect(page.locator(".chart-panel.chart-vix")).toContainText("25");
+  await expect(page.locator(".chart-panel.chart-vix .chart-threshold-line")).toHaveCount(1);
+  const chartAccessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(chartAccessibility.violations, JSON.stringify(chartAccessibility.violations, null, 2)).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath("financial-charts.png"), fullPage: true });
+  await page.setViewportSize({ width: 320, height: 900 });
+  const chartLayout = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    pricePanel: document.querySelector(".chart-panel.chart-price")?.getBoundingClientRect().width,
+  }));
+  expect(chartLayout.document, JSON.stringify(chartLayout)).toBeLessThanOrEqual(chartLayout.viewport);
+  await benchmarkButton.click();
   const tradeToggle = page.getByRole("button", { name: "取引明細を表示" });
   await expect(tradeToggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("table").last()).toBeVisible();
@@ -194,7 +214,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(exported.resultId).toBe(benchmark.id);
   expect(exported.endingEquity).toBe(String(benchmark.metrics.endingEquity));
 
-  await page.locator("#field-vix-buyThreshold").fill("28");
+  await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("28");
   await expect(page.locator(".snapshot-warning")).toBeVisible();
   const staleDownloadPromise = page.waitForEvent("download");
   await page.locator('[data-export-kind="summary"]').click();
@@ -236,4 +256,29 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(restoredExport.endingEquity).toBe(String(restoredStrategy.metrics.endingEquity));
   expect(pageErrors).toEqual([]);
   expect(nonLocalRequests).toEqual([]);
+});
+
+test("adding a strategy keeps the default run scope on every enabled strategy", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("開始日").fill("2024-01-31");
+  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+  await page.locator("#field-run-endDate").fill("2024-02-02");
+
+  await page.locator("#preset-to-add").selectOption("monthly_dca");
+  await page.locator(".add-strategy-button").click();
+  await expect(page.locator(".strategy-card")).toHaveCount(2);
+
+  const runSubmission = page.waitForRequest((request) =>
+    request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
+  );
+  await page.getByRole("button", { name: "バックテストを実行" }).click();
+  const request = await runSubmission;
+  const payload = request.postDataJSON();
+  expect(payload.scope).toBe("all_enabled");
+  expect(payload.draft.strategies.filter((strategy) => strategy.enabled).map((strategy) => strategy.id))
+    .toEqual(["strategy-vix_dca-1", "strategy-monthly_dca-2"]);
+
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(4);
+  await expect(page.locator(".comparison-table")).toContainText("strategy-vix_dca-1");
+  await expect(page.locator(".comparison-table")).toContainText("strategy-monthly_dca-2");
 });

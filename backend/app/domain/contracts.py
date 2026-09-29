@@ -293,11 +293,36 @@ class MarketBar(DomainModel):
 
     date: Date
     symbol: str = Field(min_length=1)
+    simulation_open: Decimal | None = Field(default=None, alias="simulationOpen", gt=0)
+    simulation_high: Decimal | None = Field(default=None, alias="simulationHigh", gt=0)
+    simulation_low: Decimal | None = Field(default=None, alias="simulationLow", gt=0)
     simulation_price: Decimal = Field(alias="simulationPrice", gt=0)
     valuation_price: Decimal = Field(alias="valuationPrice", gt=0)
     currency: str = Field(min_length=1)
     source: str = Field(min_length=1)
     observed_at: datetime = Field(alias="observedAt")
+
+    @model_validator(mode="after")
+    def validate_simulation_ohlc(self) -> "MarketBar":
+        values = (self.simulation_open, self.simulation_high, self.simulation_low)
+        if any(value is not None for value in values) and not all(
+            value is not None for value in values
+        ):
+            raise ValueError("simulation OHLC values must be complete")
+        if all(value is not None for value in values):
+            assert self.simulation_open is not None
+            assert self.simulation_high is not None
+            assert self.simulation_low is not None
+            if (
+                self.simulation_high < max(self.simulation_open, self.simulation_price)
+                or self.simulation_low
+                > min(self.simulation_open, self.simulation_price)
+                or self.simulation_high < self.simulation_low
+            ):
+                raise ValueError(
+                    "simulation OHLC values must contain the closing price"
+                )
+        return self
 
 
 class MarketSnapshot(DomainModel):
@@ -367,6 +392,8 @@ class SignalEvaluation(DomainModel):
     date: Date
     signal_id: str = Field(alias="signalId", min_length=1)
     state: SignalState
+    observed_value: Decimal | None = Field(default=None, alias="observedValue")
+    observed_unit: str | None = Field(default=None, alias="observedUnit", min_length=1)
     diagnostics: tuple[Diagnostic, ...] = ()
 
     @model_validator(mode="after")
@@ -400,11 +427,36 @@ class DailyAsset(DomainModel):
     cash: Decimal = Field(ge=0)
     timing_quantity: Decimal = Field(alias="timingQuantity", ge=0)
     fixed_quantity: Decimal = Field(alias="fixedQuantity", ge=0)
+    simulation_open: Decimal | None = Field(default=None, alias="simulationOpen", gt=0)
+    simulation_high: Decimal | None = Field(default=None, alias="simulationHigh", gt=0)
+    simulation_low: Decimal | None = Field(default=None, alias="simulationLow", gt=0)
     simulation_price: Decimal = Field(alias="simulationPrice", gt=0)
     total_asset: Decimal = Field(alias="totalAsset", ge=0)
     currency: str = Field(min_length=1)
     unit_nav: Decimal | None = Field(default=None, alias="unitNav", ge=0)
     drawdown: Decimal | None = Field(default=None, ge=-1, le=0)
+
+    @model_validator(mode="after")
+    def validate_simulation_ohlc(self) -> "DailyAsset":
+        values = (self.simulation_open, self.simulation_high, self.simulation_low)
+        if any(value is not None for value in values) and not all(
+            value is not None for value in values
+        ):
+            raise ValueError("simulation OHLC values must be complete")
+        if all(value is not None for value in values):
+            assert self.simulation_open is not None
+            assert self.simulation_high is not None
+            assert self.simulation_low is not None
+            if (
+                self.simulation_high < max(self.simulation_open, self.simulation_price)
+                or self.simulation_low
+                > min(self.simulation_open, self.simulation_price)
+                or self.simulation_high < self.simulation_low
+            ):
+                raise ValueError(
+                    "simulation OHLC values must contain the closing price"
+                )
+        return self
 
 
 class MetricSummary(DomainModel):

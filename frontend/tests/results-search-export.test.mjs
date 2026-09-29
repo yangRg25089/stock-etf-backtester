@@ -53,7 +53,7 @@ test("search results retain backend ranking, invalid candidates, and stable diag
   assert.ok(html.indexOf("candidate-3") < html.indexOf("candidate-1"));
   assert.ok(html.indexOf("candidate-1") < html.indexOf("candidate-2"));
   assert.match(html, /计算过程中发生错误/);
-  assert.match(html, /strategies\[0\]\.params\.vix\.buyThreshold/);
+  assert.doesNotMatch(html, /strategies\[0\]\.params\.vix\.buyThreshold/);
   assert.match(html, /搜索候选（共 3 个）/);
   assert.match(html, /<caption class="sr-only">搜索候选/);
   assert.match(html, /<th scope="col">候选<\/th>/);

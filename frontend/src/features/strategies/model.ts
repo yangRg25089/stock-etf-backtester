@@ -111,7 +111,7 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
       strategies: [initialStrategy],
     },
     activeStrategyId: initialStrategy.id,
-    runScope: "active",
+    runScope: "all_enabled",
     runResponse: null,
     runRequestedEndMode: null,
     runRequestedScope: null,

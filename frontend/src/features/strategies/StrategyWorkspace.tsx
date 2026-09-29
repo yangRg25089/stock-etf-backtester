@@ -41,163 +41,151 @@ export function StrategyWorkspace({
   const [selectedPresetId, setSelectedPresetId] = useState<StrategyPresetId | "">("");
   const presets = catalog.presets ?? [];
   const strategies = state.draft.strategies;
-  const active = strategies.find((strategy) => strategy.id === state.activeStrategyId) ?? null;
-  const preset = active ? presets.find((item) => item.id === active.presetId) ?? null : null;
-  const activeValidation = validation?.strategies?.find(
-    (item) => item.strategyId === active?.id,
-  );
-  const activeErrors = activeValidation?.diagnostics ?? [];
-  const dependencies = Object.fromEntries(
-    (catalog.parameters ?? []).map((definition) => [
-      definition.key,
-      active && Object.hasOwn(active.params, definition.key)
-        ? active.params[definition.key]
-        : definition.default,
-    ]),
-  );
 
   return (
-    <div className="workspace-grid">
-      <section className="strategy-workspace" aria-labelledby="strategy-workspace-heading">
-        <div className="section-heading">
-          <div>
-            <h2 id="strategy-workspace-heading">{translate(locale, "section.strategyWorkspace")}</h2>
-            <p className="section-subhead">{translate(locale, "section.strategyWorkspaceHelp")}</p>
-          </div>
+    <section className="strategy-workspace" aria-labelledby="strategy-workspace-heading">
+      <div className="section-heading">
+        <div>
+          <h2 id="strategy-workspace-heading">{translate(locale, "section.strategyWorkspace")}</h2>
+          <p className="section-subhead">{translate(locale, "section.strategyWorkspaceHelp")}</p>
         </div>
-        {!active || !preset ? (
-          <div className="workspace-placeholder" role="status">
-            <span className="placeholder-mark" aria-hidden="true">↗</span>
-            <p>{translate(locale, "strategy.noSelection")}</p>
-          </div>
-        ) : (
-          <div className="strategy-editor">
-            <div className="strategy-editor-heading">
-              <div>
-                <h3>{translate(locale, preset.nameKey)}</h3>
-                <p className="strategy-summary">
-                  {strategySummary(locale, active.presetId, active.params)}
-                </p>
-              </div>
-              <span className={`enabled-tag${active.enabled ? " is-enabled" : ""}`}>
-                {translate(locale, active.enabled ? "strategy.enabled" : "strategy.disabled")}
-              </span>
-            </div>
-            <p className="strategy-description">{translate(locale, preset.descriptionKey)}</p>
-            <fieldset className="strategy-parameters">
-              <legend>{translate(locale, "strategy.parameters")}</legend>
-              <div className="strategy-parameter-grid">
-                {preset.parameterKeys.map((key) => {
-                  const definition = catalog.parameters?.find((item) => item.key === key);
-                  if (!definition) return null;
-                  return (
-                    <ParameterField
-                      key={key}
-                      definition={definition}
-                      value={active.params[key]}
-                      locale={locale}
-                      dependencyValues={dependencies}
-                      errors={activeErrors}
-                      onChange={(value) => dispatch({
-                        type: "strategy.param",
-                        id: active.id,
-                        key,
-                        value,
-                      })}
-                    />
-                  );
-                })}
-              </div>
-            </fieldset>
-          </div>
-        )}
-      </section>
+      </div>
 
-      <aside className="strategy-rail" aria-labelledby="strategy-list-heading">
-        <div className="section-heading">
-          <div>
-            <h2 id="strategy-list-heading">{translate(locale, "strategy.listTitle")}</h2>
-            <p className="section-subhead">
-              {translate(locale, "catalog.count", { count: String(presets.length) })}
-            </p>
-          </div>
+      {strategies.length === 0 ? (
+        <div className="workspace-placeholder" role="status">
+          <span className="placeholder-mark" aria-hidden="true">↗</span>
+          <p>{translate(locale, "strategy.noSelection")}</p>
         </div>
-        <ul className="strategy-list">
+      ) : (
+        <div className="strategy-card-list">
           {strategies.map((strategy) => {
-            const itemPreset = presets.find((item) => item.id === strategy.presetId);
-            if (!itemPreset) return null;
-            const name = translate(locale, itemPreset.nameKey);
+            const preset = presets.find((item) => item.id === strategy.presetId);
+            if (!preset) return null;
+            const name = translate(locale, preset.nameKey);
             const isActive = strategy.id === state.activeStrategyId;
-            const diagnostics = validation?.strategies?.find(
+            const strategyValidation = validation?.strategies?.find(
               (item) => item.strategyId === strategy.id,
-            )?.diagnostics ?? [];
-            const hasError = diagnostics.some((diagnostic) => diagnostic.severity === "error");
+            );
+            const errors = strategyValidation?.diagnostics ?? [];
+            const hasError = errors.some((diagnostic) => diagnostic.severity === "error");
+            const dependencyValues = Object.fromEntries(
+              (catalog.parameters ?? []).map((definition) => [
+                definition.key,
+                Object.hasOwn(strategy.params, definition.key)
+                  ? strategy.params[definition.key]
+                  : definition.default,
+              ]),
+            );
+
             return (
-              <li className={`strategy-row${isActive ? " is-active" : ""}`} key={strategy.id}>
-                <button
-                  type="button"
-                  className="strategy-select"
-                  aria-current={isActive ? "true" : undefined}
-                  onClick={() => dispatch({ type: "strategy.select", id: strategy.id })}
-                >
-                  <span className="strategy-row-name">{name}</span>
-                  <span className="strategy-row-summary">
-                    {strategySummary(locale, strategy.presetId, strategy.params)}
-                  </span>
-                  {hasError && <span className="row-error">{translate(locale, "strategy.hasErrors")}</span>}
-                </button>
-                <label className="strategy-enabled-control">
-                  <input
-                    type="checkbox"
-                    checked={strategy.enabled}
-                    aria-label={interpolate(translate(locale, "strategy.toggleEnabled"), { name })}
-                    onChange={(event) => dispatch({
-                      type: "strategy.enabled",
-                      id: strategy.id,
-                      value: event.target.checked,
+              <article
+                className={`strategy-card${isActive ? " is-active" : ""}`}
+                key={strategy.id}
+              >
+                <div className="strategy-card-heading">
+                  <div className="strategy-card-title">
+                    <h3 className="strategy-card-name">
+                      <button
+                        type="button"
+                        className="strategy-card-select"
+                        aria-current={isActive ? "true" : undefined}
+                        onClick={() => dispatch({ type: "strategy.select", id: strategy.id })}
+                      >
+                        {name}
+                      </button>
+                    </h3>
+                    <span className="strategy-card-summary">
+                      {strategySummary(locale, strategy.presetId, strategy.params)}
+                    </span>
+                  </div>
+                  <div className="strategy-card-actions">
+                    <label className="strategy-enabled-control">
+                      <input
+                        type="checkbox"
+                        checked={strategy.enabled}
+                        aria-label={interpolate(translate(locale, "strategy.toggleEnabled"), { name })}
+                        onChange={(event) => dispatch({
+                          type: "strategy.enabled",
+                          id: strategy.id,
+                          value: event.target.checked,
+                        })}
+                      />
+                      <span>{translate(locale, strategy.enabled ? "strategy.enabled" : "strategy.disabled")}</span>
+                    </label>
+                    <button
+                      className="icon-button strategy-remove"
+                      type="button"
+                      aria-label={interpolate(translate(locale, "strategy.remove"), { name })}
+                      onClick={() => dispatch({ type: "strategy.remove", id: strategy.id })}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+                <p className="strategy-description">{translate(locale, preset.descriptionKey)}</p>
+                {hasError && <p className="strategy-card-error">{translate(locale, "strategy.hasErrors")}</p>}
+
+                <fieldset className="strategy-parameters">
+                  <legend>{translate(locale, "strategy.parameters")}</legend>
+                  <div className="strategy-parameter-grid">
+                    {preset.parameterKeys.map((key) => {
+                      const definition = catalog.parameters?.find((item) => item.key === key);
+                      if (!definition) return null;
+                      return (
+                        <ParameterField
+                          key={key}
+                          id={`field-${strategy.id}-${key.replaceAll(".", "-")}`}
+                          definition={definition}
+                          value={strategy.params[key]}
+                          locale={locale}
+                          dependencyValues={dependencyValues}
+                          errors={errors}
+                          helperText={key === "accumulation.conditionLogic"
+                            ? translate(locale, "strategy.conditionLogicHelp")
+                            : undefined}
+                          onChange={(value) => dispatch({
+                            type: "strategy.param",
+                            id: strategy.id,
+                            key,
+                            value,
+                          })}
+                        />
+                      );
                     })}
-                  />
-                </label>
-                <button
-                  className="icon-button strategy-remove"
-                  type="button"
-                  aria-label={interpolate(translate(locale, "strategy.remove"), { name })}
-                  onClick={() => dispatch({ type: "strategy.remove", id: strategy.id })}
-                >
-                  ×
-                </button>
-              </li>
+                  </div>
+                </fieldset>
+              </article>
             );
           })}
-        </ul>
-
-        <div className="strategy-add">
-          <label className="field-label" htmlFor="preset-to-add">{translate(locale, "strategy.addLabel")}</label>
-          <select
-            className="input"
-            id="preset-to-add"
-            value={selectedPresetId}
-            onChange={(event) => setSelectedPresetId(event.target.value as StrategyPresetId | "")}
-          >
-            <option value="">{translate(locale, "strategy.choosePreset")}</option>
-            {presets.map((item) => (
-              <option key={item.id} value={item.id}>{translate(locale, item.nameKey)}</option>
-            ))}
-          </select>
-          <button
-            className="button add-strategy-button"
-            type="button"
-            disabled={!selectedPresetId}
-            onClick={() => {
-              if (!selectedPresetId) return;
-              onAdd(selectedPresetId);
-              setSelectedPresetId("");
-            }}
-          >
-            + {translate(locale, "strategy.add")}
-          </button>
         </div>
-      </aside>
-    </div>
+      )}
+
+      <div className="strategy-add">
+        <label className="field-label" htmlFor="preset-to-add">{translate(locale, "strategy.addLabel")}</label>
+        <select
+          className="input"
+          id="preset-to-add"
+          value={selectedPresetId}
+          onChange={(event) => setSelectedPresetId(event.target.value as StrategyPresetId | "")}
+        >
+          <option value="">{translate(locale, "strategy.choosePreset")}</option>
+          {presets.map((item) => (
+            <option key={item.id} value={item.id}>{translate(locale, item.nameKey)}</option>
+          ))}
+        </select>
+        <button
+          className="button add-strategy-button"
+          type="button"
+          disabled={!selectedPresetId}
+          onClick={() => {
+            if (!selectedPresetId) return;
+            onAdd(selectedPresetId);
+            setSelectedPresetId("");
+          }}
+        >
+          + {translate(locale, "strategy.add")}
+        </button>
+      </div>
+    </section>
   );
 }

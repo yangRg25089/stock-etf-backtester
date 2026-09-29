@@ -642,6 +642,7 @@ def test_yahoo_market_adapter_uses_explicit_price_bases_and_inclusive_range() ->
     bars = {bar.date: bar for bar in result.snapshot.market.bars}
     assert bars[date(2024, 1, 31)].simulation_price == Decimal("200")
     assert bars[date(2024, 1, 31)].valuation_price == Decimal("400")
+    assert bars[date(2024, 1, 31)].simulation_open is None
     assert bars[date(2024, 1, 31)].currency == "USD"
     assert bars[date(2024, 1, 31)].source == "yahoo"
     assert "Adj Close" not in result.snapshot.model_dump_json()
@@ -651,6 +652,39 @@ def test_yahoo_market_adapter_uses_explicit_price_bases_and_inclusive_range() ->
         for diagnostic in result.diagnostics
     )
     assert date(2024, 2, 2) in result.missing_market_sessions
+
+
+def test_yahoo_market_adapter_normalizes_ohlc_to_the_simulation_price_basis() -> None:
+    session = date(2024, 1, 31)
+    ticker = _Ticker(
+        _Frame(
+            ["Open", "High", "Low", "Close", "Adj Close"],
+            [
+                (
+                    datetime(2024, 1, 31, 21, tzinfo=UTC),
+                    {
+                        "Open": 390,
+                        "High": 410,
+                        "Low": 380,
+                        "Close": 400,
+                        "Adj Close": 200,
+                    },
+                )
+            ],
+        ),
+        metadata={"currency": "USD"},
+    )
+
+    result = _yahoo_adapter(ticker).load(
+        _request(_calendar(session), start=session, end=session, prewarm_start=None)
+    )
+
+    assert result.snapshot is not None
+    bar = result.snapshot.market.bars[0]
+    assert bar.simulation_open == Decimal("195.0")
+    assert bar.simulation_high == Decimal("205.0")
+    assert bar.simulation_low == Decimal("190.0")
+    assert bar.simulation_price == Decimal("200")
 
 
 def test_yahoo_adapter_refuses_missing_or_ambiguous_price_basis() -> None:

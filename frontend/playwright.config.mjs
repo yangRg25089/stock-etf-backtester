@@ -2,7 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: true,
+  // Browser tests share the same in-memory fixture API and its latest-run slot.
+  fullyParallel: false,
+  workers: 1,
   reporter: "list",
   outputDir: "../.playwright-results",
   timeout: 45_000,

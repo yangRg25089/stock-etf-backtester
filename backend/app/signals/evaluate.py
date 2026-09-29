@@ -424,8 +424,20 @@ def _append_vix_exit_signals(
     low1_hit = not low2_hit and value <= _decimal_parameter(params, "exit.vix.low1")
     evaluations.extend(
         (
-            _state_evaluation(day, "vix.exit.low1", low1_hit),
-            _state_evaluation(day, "vix.exit.low2", low2_hit),
+            _state_evaluation(
+                day,
+                "vix.exit.low1",
+                low1_hit,
+                observed_value=value,
+                observed_unit="index_points",
+            ),
+            _state_evaluation(
+                day,
+                "vix.exit.low2",
+                low2_hit,
+                observed_value=value,
+                observed_unit="index_points",
+            ),
         )
     )
 
@@ -467,7 +479,13 @@ def _macro_threshold_evaluation(
                 symbol,
             ),
         )
-    return _state_evaluation(day, signal_id, compare(value, threshold))
+    return _state_evaluation(
+        day,
+        signal_id,
+        compare(value, threshold),
+        observed_value=value,
+        observed_unit=unit,
+    )
 
 
 def _macro_value(
@@ -661,11 +679,20 @@ def _combine_buy_signals(
     return _state_evaluation(day, "accumulation.buy", triggered)
 
 
-def _state_evaluation(day: date, signal_id: str, triggered: bool) -> SignalEvaluation:
+def _state_evaluation(
+    day: date,
+    signal_id: str,
+    triggered: bool,
+    *,
+    observed_value: Decimal | None = None,
+    observed_unit: str | None = None,
+) -> SignalEvaluation:
     return SignalEvaluation(
         date=day,
         signalId=signal_id,
         state=SignalState.TRUE if triggered else SignalState.FALSE,
+        observedValue=observed_value,
+        observedUnit=observed_unit,
     )
 
 

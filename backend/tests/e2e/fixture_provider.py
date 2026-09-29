@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from concurrent.futures import Executor, Future
+from decimal import Decimal
 from typing import Any
 
 from app.calendar import ExchangeCalendar
@@ -53,8 +54,28 @@ class Task4FixtureProvider:
             target_sessions=target_sessions,
             max_staleness_sessions=shared.data.macro_staleness_sessions,
         )
+        market = self.bundle.snapshot.market
+        chart_market = market.model_copy(
+            update={
+                "bars": tuple(
+                    bar.model_copy(
+                        update={
+                            "simulation_open": bar.simulation_price * Decimal("0.995"),
+                            "simulation_high": bar.simulation_price * Decimal("1.02"),
+                            "simulation_low": bar.simulation_price * Decimal("0.98"),
+                        }
+                    )
+                    for bar in market.bars
+                ),
+                "fingerprint": f"{market.fingerprint}:ohlc-chart-fixture",
+            }
+        )
         snapshot: DataSnapshot = self.bundle.snapshot.model_copy(
-            update={"macro": aligned.observations}
+            update={
+                "market": chart_market,
+                "macro": aligned.observations,
+                "fingerprint": f"{self.bundle.snapshot.fingerprint}:ohlc-chart-fixture",
+            }
         )
         return StrategyDataLoad(calendar=self.calendar, snapshot=snapshot)
 

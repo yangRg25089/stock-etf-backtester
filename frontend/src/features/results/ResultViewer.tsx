@@ -24,6 +24,19 @@ function resultDiagnostics(result: StrategyRun | null): NonNullable<StrategyRun[
   ];
 }
 
+function savedParameters(run: RunResponse, result: StrategyRun): Record<string, unknown> {
+  const strategy = run.snapshot.config.strategies?.find((item) => item.id === result.id);
+  const params = strategy?.params;
+  return typeof params === "object" && params !== null && !Array.isArray(params)
+    ? params as Record<string, unknown>
+    : {};
+}
+
+function savedParameterText(params: Record<string, unknown>, key: string): string | undefined {
+  const value = params[key];
+  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+}
+
 export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
   const run: RunResponse | null = state.runResponse;
   if (!run) {
@@ -38,6 +51,7 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const canShowSavedValues = focusedResult !== null && SUCCESS_STATUSES.has(focusedResult.status ?? "queued");
   const diagnostics = resultDiagnostics(focusedResult);
+  const params = focusedResult ? savedParameters(run, focusedResult) : {};
 
   return (
     <div className="result-content">
@@ -97,6 +111,10 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
                 locale={locale}
                 dailyAssets={focusedResult.dailyAssets ?? []}
                 trades={focusedResult.trades ?? []}
+                signals={focusedResult.signals ?? []}
+                vixSymbol={savedParameterText(params, "vix.symbol")}
+                vixThreshold={savedParameterText(params, "vix.buyThreshold")}
+                assetSymbol={run.snapshot.config.shared.run.symbol}
                 visibleSeriesIds={state.visibleSeriesIds}
                 onSeriesChange={(id, visible) => dispatch({ type: "chart.series", id, visible })}
               />

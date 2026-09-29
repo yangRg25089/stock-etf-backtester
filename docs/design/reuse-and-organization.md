@@ -16,7 +16,7 @@
 
 自动显示的 DCA 与一次投入基准分别使用 `monthly_dca`、`lump_sum` 的同一参数、账本和指标模块，结果角色为 `benchmark`。用户添加同种策略时角色为 `strategy`、实例 ID 独立；相同计算指纹可复用结果，但不能把两行身份混成一个实例。搜索也不拥有独立的交易规则。
 
-目录中的用户可见名称表示预设类型，不锁定实例参数。`vix_dca` 的日文 UI 名称为「VIX シグナル積立」，首屏摘要显示当前配置（例如 `VIX: ^VIX ≥ 25、月間最大 1 回`）；`vix.buyEnabled`、`vix.symbol`、`vix.buyThreshold` 和相关买入次数都可以编辑。关闭 VIX 信号时仍保留 `presetId=vix_dca` 和实例身份，界面明确显示「VIX シグナル無効」，不静默改成另一种策略；空买入信号集合按统一信号规则处理。
+目录中的用户可见名称表示预设类型，不锁定实例参数。`vix_dca` 的日文 UI 名称为「VIX シグナル積立」，首屏摘要显示当前配置（例如 `VIX: ^VIX ≥ 25、月間最大 1 回`）；`vix.buyEnabled`、`vix.symbol`、`vix.buyThreshold` 和相关买入次数都可以编辑，其中 `vix.symbol` 只能从真实 Yahoo 验证可用的 `^VIX`、`^VXN`、`^VXD` 选项中选择。关闭 VIX 信号时仍保留 `presetId=vix_dca` 和实例身份，界面明确显示「VIX シグナル無効」，不静默改成另一种策略；空买入信号集合按统一信号规则处理。
 
 首屏 VIX 信号定投是上述目录中的普通预设，可删除后重新添加。实例参数相互独立；复用的是字段定义、输入组件和算法，不是用户编辑中的数值。
 
@@ -24,7 +24,7 @@
 
 后端的 `ParameterDefinition` 注册表是默认值、类型、单位、取值范围、适用目录、可搜索性、依赖和日中翻译键的唯一维护点。前端通过目录接口取得元数据并渲染字段；服务端用同一注册表完成最终校验。TypeScript 结构类型由服务端公开契约生成，不在前端另写默认值或边界。跨字段约束（如 VIX 阈值顺序、搜索组合数）也集中在一次配置校验中。所有配置键稳定、不翻译。
 
-`type` 只允许 `symbol | date | integer | decimal | ratio | percent_point | boolean | enum | enum_list | number_list`。`ratio` 在保存和计算中恒为 0 至 1；`percent_point` 以 2.5 表示 2.5%，不能有的字段存 `0.025`、有的存 `2.5`。金额是数值，币种来自所选标的的行情元数据；单位只在 UI 外层显示。空值、非法范围与无适用性是三种不同校验结果。
+`type` 只允许 `symbol | date | integer | decimal | ratio | percent_point | boolean | enum | enum_list | number_list`。`ratio` 在保存和计算中恒为 0 至 1；`percent_point` 以 2.5 表示 2.5%，不能有的字段存 `0.025`、有的存 `2.5`。金额是数值，币种来自所选标的的行情元数据；代码和日期不显示无意义单位，数值单位以内嵌尾缀呈现，金额字段用说明解释其按标的报价币种计价。空值、非法范围与无适用性是三种不同校验结果。
 
 | 统一键或键族 | notebook 输入 / 默认值 | 所属层级及复用规则 |
 | --- | --- | --- |
@@ -36,7 +36,7 @@
 | `accumulation.maxSignalBuysPerMonth` | 每月最多买入次数 / VIX `1` | 策略实例；多条件定投默认 `null` 表示不限，显式数字须为正整数；仍用同一定义 |
 | `accumulation.conditionLogic` | 条件逻辑 / `OR` | 策略实例；只组合有效的已启用买入信号 |
 | `accumulation.fixedDcaEnabled`, `accumulation.fixedDcaRatio` | 启用固定比例定投 / 多条件默认开；固定定投比例 / `0.5` | 策略实例；比例 0..1，固定部分计入总资产 |
-| `vix.buyEnabled`, `vix.symbol`, `vix.buyThreshold` | 启用 VIX 信号 / 开；VIX代码 / `^VIX`；VIX阈值 / `25` | 策略实例；VIX 信号定投预设和多条件预设共用信号定义，代码与阈值可编辑 |
+| `vix.buyEnabled`, `vix.symbol`, `vix.buyThreshold` | 启用 VIX 信号 / 开；波动率指数 / `^VIX`；VIX阈值 / `25` | 策略实例；VIX 信号定投预设和多条件预设共用信号定义；指数从已验证的 Yahoo 选项中选择，阈值可编辑 |
 | `rsi.buyEnabled`, `rsi.period`, `rsi.buyThreshold` | 启用RSI / 多条件默认开；RSI周期 / `14`；RSI阈值 / `30` | 策略实例；同一周期结果供买卖复用 |
 | `ma.buyEnabled`, `ma.period`, `ma.buyDeviationPct` | 启用200日均线 / 多条件默认开；均线周期 / `200`；价格低于均线百分比阈值 / `-1` | 策略实例；`buyEnabled` 和偏离阈值只适用多条件，趋势策略必需 `ma.period` 并使用同一均线实现 |
 | `bollinger.buyEnabled`, `bollinger.period`, `bollinger.stddev` | 启用布林带 / 多条件默认开；周期 / `20`；标准差倍数 / `2` | 策略实例；上下轨由同一指标模块给买卖规则 |
@@ -60,9 +60,9 @@
 | --- | --- |
 | `StrategyInstance {id, presetId, enabled, params}` | 可编辑草稿；右侧列表行的启用开关是唯一写入入口 |
 | `activeStrategyId` | 当前在左侧编辑的实例；点行名切换，不自动启用或运行 |
-| `runScope` | `active` 或 `all_enabled`；当前实例必须已启用才能单独运行，全部模式至少有一条已启用实例；其余实例的错误不阻断本次所选实例 |
+| `runScope` | 默认 `all_enabled`，也可选 `active`；当前实例必须已启用才能单独运行，全部模式至少有一条已启用实例；所选范围之外的实例不参与本次运行 |
 | `RunSnapshot {runId, config, catalogVersion, dataFingerprint, engineVersion, dataProvenance}` | 提交时冻结的共享设置、各实例参数和数据来源/覆盖标记，不受后续草稿变化影响 |
-| `StrategyRun` | 该快照中的实例状态、诊断、账本、指标、交易；`benchmark` 是角色字段，不是第二套算法 |
+| `StrategyRun` | 该快照中的实例状态、诊断、账本、指标、交易和信号观测值；每日资产保留可选的调整后 OHLC；`benchmark` 是角色字段，不是第二套算法 |
 | `focusedResultId` | 结果页 KPI、交易明细和导出的归属；与 `activeStrategyId` 独立 |
 | `visibleSeriesIds` | 只控制曲线显隐，不改变结果、启用状态或运行范围 |
 
@@ -95,18 +95,18 @@
 
 | 组件 | 唯一职责 |
 | --- | --- |
-| `ParameterField` / `FieldGroup` | 按注册表渲染标签、数字/日期/代码输入、单位、依赖、校验信息；全界面同尺寸/焦点/错误样式 |
+| `ParameterField` / `FieldGroup` | 按注册表渲染唯一标签、数字/日期/代码输入、内嵌单位、依赖、校验信息；全界面同尺寸/焦点/错误样式，说明文字位于控件下方 |
 | `SharedSettingsForm` | 标的、区间、注资金额和日期；不在策略编辑器重复 |
-| `StrategyListRow` / `StrategyCatalogMenu` | 切换编辑对象、唯一启用开关、添加完整 7 类目录、删除实例 |
+| `StrategyListRow` / `StrategyCatalogMenu` | 每个策略实例独立卡片，切换编辑对象、唯一启用开关、添加完整 7 类目录、删除实例 |
 | `StrategyEditor` / `SignalEditor` | 由实例预设与注册表生成相同类型的信号和卖出控件；停用不丢值 |
-| `RunControls` | 一个 `runScope` 分段选择和一个执行按钮；当前实例停用或全部模式无启用实例时禁用执行并指出原因 |
+| `RunControls` | 一个默认选中全部启用策略的 `runScope` 分段选择和一个执行按钮；当前实例停用或全部模式无启用实例时禁用执行并指出原因 |
 | `StatusView` / `DiagnosticList` | 统一状态码、数据覆盖、错误原因和翻译 |
-| `ResultViewer` / `ChartLegend` | 聚焦结果、指标、曲线显隐、交易明细；图例不修改策略启用 |
+| `ResultViewer` / `ChartLegend` | 聚焦结果、指标、网格与轴标签、调整后 OHLC/收盘价、VIX 观察值、交易标记、曲线显隐和交易明细；均读取保存快照，图例不修改策略启用 |
 | `ExportControls` | 从当前结果快照选导出种类；无结果禁用，零交易可导出表头 |
 | `SearchDimensionEditor` | 从注册表筛选可搜索字段，沿用普通输入的单位、范围和错误 |
 | `LocaleControl` | 可访问的日/中文分段控件；只改变文案与格式 |
 
-相同控制统一样式和交互：二元值用开关，模式用分段控件，多项目录用菜单，数值用不含单位的数字控件，明确命令用文本加 Lucide 图标。操作区域只有一个主按钮。桌面可见输入高度统一，触屏命中区域至少 44px；窄屏允许顶栏、长名称、输入组换行，不能裁切内容。绘图和交易记录是结果区两项独立开关。日中词典覆盖字段、状态、诊断、空态和导出；内部键及 CSV 字段名保持不变。
+相同控制统一样式和交互：二元值用开关，模式用分段控件，多项目录用菜单，数值单位以内嵌尾缀呈现，明确命令用文本加 Lucide 图标。标签使用统一字号和粗细，输入、选择与复选控件保持对齐，说明文字统一置于控件下方。操作区域只有一个主按钮。桌面可见输入高度统一，触屏命中区域至少 44px；窄屏允许顶栏、长名称、输入组换行，不能裁切内容。每个策略实例使用独立卡片；复合策略的条件组合说明明确指出作用于所有已启用的买入条件。绘图和交易记录是结果区两项独立开关。日中词典覆盖字段、状态、诊断、空态和导出；内部键及 CSV 字段名保持不变。
 
 ## 组织顺序与检查点
 

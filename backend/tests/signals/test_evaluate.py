@@ -168,6 +168,12 @@ def test_vix_boundary_is_inclusive_and_aggregate_buy_uses_the_enabled_set() -> N
     states = _states(result.strategies[0], day)
     assert states["vix.buy"] is SignalState.TRUE
     assert states["accumulation.buy"] is SignalState.TRUE
+    observed_vix = next(
+        evaluation
+        for evaluation in result.strategies[0].evaluations
+        if evaluation.date == day and evaluation.signal_id == "vix.buy"
+    )
+    assert observed_vix.observed_value == Decimal("25")
     assert result.strategies[0].available is True
 
 

@@ -67,47 +67,97 @@
     #backtest-ui-preview .global-settings {
       display: grid;
       grid-template-columns: 1fr 1.2fr 1.2fr .85fr .85fr;
-      gap: 12px;
+      gap: 16px 14px;
       padding: 14px 0 18px;
       border-bottom: 1px solid var(--app-border);
     }
-    #backtest-ui-preview .field { display: grid; gap: 6px; min-width: 0; }
-    #backtest-ui-preview .field label { color: var(--app-muted); font-size: 12px; }
-    #backtest-ui-preview .field-label { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+    #backtest-ui-preview .field { display: grid; align-content: start; gap: 8px; min-width: 0; }
+    #backtest-ui-preview .field > label,
+    #backtest-ui-preview .field-label { color: var(--app-foreground); font-size: 13px; font-weight: 650; }
+    #backtest-ui-preview .field-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; }
     #backtest-ui-preview .field-label .end-mode { display: inline-flex; align-items: center; gap: 4px; color: var(--app-foreground); white-space: nowrap; }
     #backtest-ui-preview .end-mode input { margin: 0; accent-color: var(--app-accent); }
     #backtest-ui-preview .input {
       width: 100%;
       min-width: 0;
-      height: 36px;
-      padding: 0 10px;
+      min-height: 40px;
+      padding: 7px 10px;
       color: var(--app-foreground);
       background: var(--app-surface);
       border: 1px solid var(--app-border);
       border-radius: 5px;
     }
-    #backtest-ui-preview .unit-field { display: flex; align-items: center; gap: 7px; min-width: 0; }
-    #backtest-ui-preview .unit-field .input { flex: 1; }
-    #backtest-ui-preview .unit { color: var(--app-muted); font-size: 12px; white-space: nowrap; }
+    #backtest-ui-preview .unit-field { position: relative; min-width: 0; }
+    #backtest-ui-preview .unit-field .input { padding-right: 54px; }
+    #backtest-ui-preview .unit { position: absolute; top: 50%; right: 11px; color: var(--app-muted); font-size: 12px; transform: translateY(-50%); pointer-events: none; }
+    #backtest-ui-preview .field-hint { color: var(--app-muted); font-size: 12px; line-height: 1.45; }
     #backtest-ui-preview .input:disabled { color: var(--app-muted); background: var(--app-bg); }
-    #backtest-ui-preview .workspace-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.65fr) minmax(260px, .85fr);
-      gap: 30px;
+    #backtest-ui-preview .strategy-workspace {
       padding: 20px 0 22px;
       border-bottom: 1px solid var(--app-border);
     }
+    #backtest-ui-preview .workspace-cards { display: grid; gap: 14px; }
+    #backtest-ui-preview .strategy-card {
+      min-width: 0;
+      padding: 16px;
+      background: var(--app-surface);
+      border: 1px solid var(--app-border);
+      border-radius: 8px;
+    }
+    #backtest-ui-preview .strategy-card.is-active { border-color: #83b3a5; box-shadow: 0 0 0 2px var(--app-accent-soft); }
+    #backtest-ui-preview .strategy-card-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+    #backtest-ui-preview .strategy-select { display: grid; min-width: 0; gap: 4px; padding: 0; color: var(--app-foreground); background: transparent; border: 0; text-align: left; cursor: pointer; }
+    #backtest-ui-preview .strategy-name { font-size: 16px; font-weight: 650; }
+    #backtest-ui-preview .strategy-summary,
+    #backtest-ui-preview .strategy-description { color: var(--app-muted); font-size: 12px; overflow-wrap: anywhere; }
+    #backtest-ui-preview .strategy-description { margin-top: 9px; font-size: 13px; }
+    #backtest-ui-preview .strategy-actions { display: flex; align-items: center; gap: 8px; }
+    #backtest-ui-preview .switch-line { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; color: var(--app-foreground); font-size: 12px; }
+    #backtest-ui-preview .switch-line input { accent-color: var(--app-accent); width: 16px; height: 16px; margin: 0; }
+    #backtest-ui-preview .signal-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 18px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--app-border);
+    }
+    #backtest-ui-preview .add-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 8px 12px;
+      max-width: 520px;
+      margin-top: 15px;
+      padding: 14px;
+      background: var(--app-surface);
+      border: 1px solid var(--app-border);
+      border-radius: 6px;
+    }
+    #backtest-ui-preview .add-row .field { grid-column: 1; }
+    #backtest-ui-preview .add-row > label { grid-column: 1 / -1; }
+    #backtest-ui-preview .run-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--app-border);
+    }
+    #backtest-ui-preview .run-scope { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--app-border); border-radius: 6px; }
+    #backtest-ui-preview .run-scope button { min-height: 38px; padding: 5px 10px; color: var(--app-muted); background: transparent; border: 0; border-radius: 4px; }
+    #backtest-ui-preview .run-scope button[aria-pressed="true"] { color: var(--app-foreground); background: var(--app-accent-soft); }
+    #backtest-ui-preview .run-button { min-height: 44px; padding: 0 18px; color: #fff; background: #147d68; border: 1px solid #147d68; border-radius: 5px; font-weight: 600; }
+    #backtest-ui-preview .result-panels { display: grid; gap: 14px; padding-top: 14px; }
+    #backtest-ui-preview .result-panel {
+      min-width: 0;
+      padding: 14px;
+      background: var(--app-surface);
+      border: 1px solid var(--app-border);
+      border-radius: 6px;
+    }
     #backtest-ui-preview .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
-    #backtest-ui-preview .strategy-title { display: flex; align-items: center; gap: 9px; }
-    #backtest-ui-preview .strategy-summary { margin: -7px 0 12px 29px; color: var(--app-muted); font-size: 12px; }
-    #backtest-ui-preview .strategy-index { color: var(--app-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-    #backtest-ui-preview .switch-line { display: inline-flex; align-items: center; gap: 7px; color: var(--app-foreground); font-size: 13px; white-space: nowrap; }
-    #backtest-ui-preview .switch-line input { accent-color: var(--app-accent); width: 15px; height: 15px; margin: 0; }
-    #backtest-ui-preview .signal-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
-    #backtest-ui-preview .signal-fields .field { gap: 6px; }
-    #backtest-ui-preview .vix-line { display: flex; align-items: center; gap: 8px; margin: 14px 0 12px; }
-    #backtest-ui-preview .vix-line .signal-name { font-weight: 600; }
-    #backtest-ui-preview .vix-line .signal-code { color: var(--app-muted); font-size: 12px; }
     #backtest-ui-preview .button {
       display: inline-flex;
       align-items: center;
@@ -124,44 +174,45 @@
     #backtest-ui-preview .button i { display: inline-flex; width: 15px; height: 15px; }
     #backtest-ui-preview .button-primary { color: #fff; background: #147d68; border-color: #147d68; font-weight: 600; }
     #backtest-ui-preview .button-small { padding: 0 9px; font-size: 12px; }
-    #backtest-ui-preview .strategy-rail { padding-left: 22px; border-left: 1px solid var(--app-border); }
-    #backtest-ui-preview .strategy-rail .section-heading { margin-bottom: 10px; }
-    #backtest-ui-preview .strategy-row { display: flex; align-items: center; gap: 9px; padding: 10px 0; border-bottom: 1px solid var(--app-border); }
-    #backtest-ui-preview .strategy-select { flex: 1; min-width: 0; padding: 3px 0; color: var(--app-accent); background: transparent; border: 0; text-align: left; font-weight: 600; }
-    #backtest-ui-preview .strategy-row .switch-line { margin-left: auto; }
-    #backtest-ui-preview .strategy-select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #backtest-ui-preview .icon-button { display: grid; place-items: center; flex: none; width: 32px; height: 32px; color: var(--app-muted); background: transparent; border: 0; border-radius: 5px; }
     #backtest-ui-preview .icon-button i { width: 15px; height: 15px; }
-    #backtest-ui-preview .default-tag { padding: 2px 6px; color: var(--app-accent); background: var(--app-accent-soft); border-radius: 3px; font-size: 10px; white-space: nowrap; }
-    #backtest-ui-preview .add-row { display: flex; align-items: end; gap: 8px; margin-top: 13px; }
-    #backtest-ui-preview .add-row .field { flex: 1; }
-    #backtest-ui-preview .run-actions { display: grid; gap: 8px; margin-top: 18px; }
-    #backtest-ui-preview .run-actions .button { width: 100%; }
-    #backtest-ui-preview .run-scope { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; border: 1px solid var(--app-border); border-radius: 6px; }
-    #backtest-ui-preview .run-scope button { text-align: center; white-space: normal; }
     #backtest-ui-preview .status-tag { color: var(--app-accent); background: var(--app-accent-soft); padding: 4px 7px; border-radius: 3px; font-size: 11px; }
     #backtest-ui-preview .results { padding-top: 20px; }
     #backtest-ui-preview .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 15px; }
     #backtest-ui-preview .result-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-    #backtest-ui-preview .result-actions .switch-line { color: var(--app-muted); }
+    #backtest-ui-preview .display-toggle { min-height: 40px; padding: 6px 10px; color: var(--app-muted); background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 5px; }
+    #backtest-ui-preview .display-toggle[aria-pressed="true"] { color: #125c4e; background: var(--app-accent-soft); border-color: #a9c8bd; }
     #backtest-ui-preview button:disabled { opacity: .45; }
-    #backtest-ui-preview .empty-results { display: grid; place-items: center; min-height: 174px; color: var(--app-muted); border-top: 1px solid var(--app-border); text-align: center; }
+    #backtest-ui-preview .empty-results { display: grid; place-items: center; min-height: 150px; padding: 18px; color: var(--app-muted); background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 6px; text-align: center; }
     #backtest-ui-preview .empty-results i { display: block; width: 23px; height: 23px; margin: 0 auto 10px; }
+    #backtest-ui-preview .result-state { margin-bottom: 14px; padding: 12px 14px; background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 6px; }
+    #backtest-ui-preview .result-state p { margin-top: 4px; color: var(--app-muted); font-size: 12px; }
+    #backtest-ui-preview .chart-example-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    #backtest-ui-preview .chart-example { min-width: 0; margin: 0; padding: 12px; overflow-x: auto; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); }
+    #backtest-ui-preview .chart-example figcaption { margin-bottom: 8px; font-size: 12px; font-weight: 650; }
+    #backtest-ui-preview .chart-example svg { display: block; width: 100%; min-width: 610px; height: auto; }
+    #backtest-ui-preview .chart-grid { stroke: #dce3df; stroke-width: 1; }
+    #backtest-ui-preview .chart-tick { fill: var(--app-muted); font-size: 11px; }
+    #backtest-ui-preview .chart-axis-label { fill: var(--app-foreground); font-size: 11px; font-weight: 600; }
+    #backtest-ui-preview .candle-up { fill: #147d68; stroke: #147d68; }
+    #backtest-ui-preview .candle-down { fill: #a7373a; stroke: #a7373a; }
+    #backtest-ui-preview .chart-trade-buy { fill: #147d68; stroke: #fff; stroke-width: 1.5; }
+    #backtest-ui-preview .chart-trade-sell { fill: #a7373a; stroke: #fff; stroke-width: 1.5; }
     @media (max-width: 760px) {
       #backtest-ui-preview .app-topbar { padding: 12px 15px; }
       #backtest-ui-preview .local-tag { display: none; }
       #backtest-ui-preview main { padding: 18px 15px 24px; }
-      #backtest-ui-preview .global-settings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      #backtest-ui-preview .workspace-grid { grid-template-columns: 1fr; gap: 22px; }
-      #backtest-ui-preview .strategy-rail { padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--app-border); }
-      #backtest-ui-preview .signal-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #backtest-ui-preview .global-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 420px) {
       #backtest-ui-preview h1 { font-size: 18px; }
       #backtest-ui-preview .page-heading { align-items: center; }
-      #backtest-ui-preview .global-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      #backtest-ui-preview .global-settings .date-field { grid-column: span 2; }
+      #backtest-ui-preview .global-settings,
+      #backtest-ui-preview .signal-fields { grid-template-columns: minmax(0, 1fr); }
+      #backtest-ui-preview .chart-example-grid { grid-template-columns: minmax(0, 1fr); }
       #backtest-ui-preview .results-head { align-items: flex-start; flex-direction: column; }
+      #backtest-ui-preview .run-actions { align-items: stretch; flex-direction: column; }
+      #backtest-ui-preview .run-button { width: 100%; }
     }
     @media (pointer: coarse) {
       #backtest-ui-preview .input,
@@ -195,62 +246,113 @@
     <section class="global-settings" aria-label="共通設定">
       <div class="field"><label for="ticker">銘柄コード</label><input class="input" id="ticker" value="QQQ" /></div>
       <div class="field date-field"><label for="date-start">開始日</label><input class="input" id="date-start" type="date" value="2020-01-01" /></div>
-      <div class="field date-field"><div class="field-label"><label for="date-end">終了日</label><label class="end-mode"><input type="checkbox" checked aria-label="最新の取引日を使用" />最新まで</label></div><input class="input" id="date-end" type="date" value="2026-09-25" disabled /></div>
-      <div class="field"><label for="monthly-cash">月次入金額</label><div class="unit-field"><input class="input" id="monthly-cash" type="number" min="0" value="100" /><span class="unit">USD</span></div></div>
-      <div class="field"><label for="deposit-day">毎月の入金日</label><div class="unit-field"><input class="input" id="deposit-day" type="number" min="1" max="31" value="1" /><span class="unit">日</span></div></div>
+      <div class="field date-field"><div class="field-label"><label for="date-end">終了日</label><label class="end-mode"><input type="checkbox" checked aria-label="最新の完了日まで" />最新の完了日まで</label></div><input class="input" id="date-end" type="date" value="2026-09-29" disabled /><p class="field-hint">この実行で確定した終了日：2026-09-29</p></div>
+      <div class="field"><label for="monthly-cash">毎月の投入額</label><input class="input" id="monthly-cash" type="number" min="0" value="100" /><p class="field-hint">投入額は銘柄の取引通貨で指定します。通貨は実行時にデータ提供元で確認します。</p></div>
+      <div class="field"><label for="deposit-day">毎月の投入日</label><div class="unit-field"><input class="input" id="deposit-day" type="number" min="1" max="31" value="1" /><span class="unit">日</span></div></div>
     </section>
-    <div class="workspace-grid">
-      <section aria-labelledby="strategy-config-heading">
-        <div class="section-heading">
-          <div class="strategy-title"><span class="strategy-index">01</span><h2 id="strategy-config-heading">VIX シグナル積立</h2></div>
-          <span class="status-tag">有効</span>
-        </div>
-        <p class="strategy-summary">VIX: ^VIX ≥ 25、月間最大 1 回（条件は編集可能）</p>
-        <div class="vix-line">
-          <label class="switch-line"><input type="checkbox" checked />VIX シグナル</label>
-        </div>
-        <div class="signal-fields">
-          <div class="field"><label for="vix-threshold">買付しきい値</label><input class="input" id="vix-threshold" type="number" min="0" step="0.1" value="25" /></div>
-          <div class="field"><label for="vix-ticker">指数コード</label><input class="input" id="vix-ticker" value="^VIX" /></div>
-          <div class="field"><label for="max-buys">月間シグナル買付</label><div class="unit-field"><input class="input" id="max-buys" type="number" min="1" step="1" value="1" /><span class="unit">回</span></div></div>
-          <div class="field"><label for="cash-limit">現金上限</label><div class="unit-field"><input class="input" id="cash-limit" type="number" min="0" step="100" value="1200" /><span class="unit">USD</span></div></div>
-        </div>
-      </section>
-      <aside class="strategy-rail" aria-labelledby="strategy-list-heading">
-        <div class="section-heading"><h2 id="strategy-list-heading">実行する戦略</h2><span class="strategy-index">1 件</span></div>
-        <div class="strategy-row">
-          <button type="button" class="strategy-select" aria-current="true">VIX シグナル積立</button>
-          <span class="default-tag">初期設定</span>
-          <label class="switch-line"><input type="checkbox" checked /><span class="sr-only">VIX シグナル積立を有効にする</span></label>
-          <button type="button" class="icon-button" aria-label="VIX シグナル積立を削除" data-tooltip="VIX シグナル積立を削除"><i data-lucide="trash-2" aria-hidden="true"></i></button>
-        </div>
-        <div class="add-row">
-          <div class="field">
-            <label for="strategy-add">戦略を追加</label>
-            <select class="input" id="strategy-add"><option>戦略を選択...</option><option>VIX シグナル積立</option><option>複合シグナル積立</option><option>移動平均トレンド（売買）</option><option>移動平均トレンド（買付のみ）</option><option>毎月定額積立</option><option>一括投資</option><option>グリッド検索</option></select>
+    <section class="strategy-workspace" aria-labelledby="strategy-config-heading">
+      <div class="section-heading"><div><h2 id="strategy-config-heading">戦略設定</h2><p class="subhead">各戦略は独立したカードで編集できます。</p></div></div>
+      <div class="workspace-cards">
+        <article class="strategy-card is-active">
+          <div class="strategy-card-heading">
+            <button type="button" class="strategy-select" aria-current="true"><span class="strategy-name">VIX シグナル積立</span><span class="strategy-summary">VIX: ^VIX ≥ 25、月間最大 1 回</span></button>
+            <div class="strategy-actions"><label class="switch-line"><input type="checkbox" checked aria-label="VIX シグナル積立を有効にする" />有効</label><button type="button" class="icon-button" aria-label="VIX シグナル積立を削除">×</button></div>
           </div>
-          <button class="button button-small" type="button" disabled aria-label="選択した戦略を追加"><i data-lucide="plus" aria-hidden="true"></i>追加</button>
-        </div>
-        <div class="run-actions">
-          <div class="run-scope" role="group" aria-label="実行範囲">
-            <button type="button" aria-pressed="true">現在の戦略</button>
-            <button type="button" aria-pressed="false">有効な戦略すべて</button>
+          <p class="strategy-description">ボラティリティ指数の買付条件に応じて積み立てます。</p>
+          <div class="signal-fields">
+            <div class="field"><label for="vix-index">参照するボラティリティ指数</label><select class="input" id="vix-index"><option selected>VIX — S&amp;P 500 ボラティリティ指数</option><option>VXN — Nasdaq 100 ボラティリティ指数</option><option>VXD — Dow Jones ボラティリティ指数</option></select></div>
+            <div class="field"><label for="vix-threshold">VIX買付しきい値</label><div class="unit-field"><input class="input" id="vix-threshold" type="number" min="0" step="0.01" value="25" /><span class="unit">ポイント</span></div></div>
+            <div class="field"><label for="max-buys">月間シグナル買付上限</label><div class="unit-field"><input class="input" id="max-buys" type="number" min="1" step="1" value="1" /><span class="unit">回</span></div></div>
+            <div class="field"><label for="cash-limit">現金安全上限</label><div class="unit-field"><input class="input" id="cash-limit" type="number" min="0" step="100" value="1200" /></div><p class="field-hint">金額は銘柄の取引通貨で指定します。</p></div>
           </div>
-          <button class="button button-primary" type="button"><i data-lucide="play" aria-hidden="true"></i>バックテストを実行</button>
-        </div>
-      </aside>
-    </div>
+        </article>
+        <article class="strategy-card">
+          <div class="strategy-card-heading">
+            <button type="button" class="strategy-select"><span class="strategy-name">複合シグナル積立</span><span class="strategy-summary">有効な買付条件を組み合わせる</span></button>
+            <div class="strategy-actions"><label class="switch-line"><input type="checkbox" checked aria-label="複合シグナル積立を有効にする" />有効</label><button type="button" class="icon-button" aria-label="複合シグナル積立を削除">×</button></div>
+          </div>
+          <p class="strategy-description">RSI、移動平均、ボリンジャー、VIX などを組み合わせます。</p>
+          <div class="signal-fields">
+            <div class="field"><label for="condition-logic">買付条件の組み合わせ</label><select class="input" id="condition-logic"><option>いずれかを満たす（OR）</option><option>すべて満たす（AND）</option></select><p class="field-hint">この戦略で有効になっている買付条件すべてに適用します。AND はすべて満たす、OR はいずれかを満たす条件です。</p></div>
+            <div class="field"><label for="fixed-ratio">固定定投の比率</label><div class="unit-field"><input class="input" id="fixed-ratio" type="number" min="0" max="1" step="0.01" value="0.5" /><span class="unit">割合</span></div></div>
+          </div>
+        </article>
+      </div>
+      <div class="add-row">
+        <label for="strategy-add">カタログから追加</label>
+        <select class="input" id="strategy-add"><option>戦略を選択...</option><option>VIX シグナル積立</option><option>複合シグナル積立</option><option>移動平均トレンド（売買）</option><option>移動平均トレンド（買付のみ）</option><option>毎月定額積立</option><option>一括投資</option><option>グリッド検索</option></select>
+        <button class="button button-small" type="button" disabled aria-label="選択した戦略を追加">追加</button>
+      </div>
+    </section>
+    <section class="run-actions" aria-label="バックテスト実行">
+      <div class="run-scope" role="group" aria-label="実行範囲">
+        <button type="button" aria-pressed="false">編集中の戦略</button>
+        <button type="button" aria-pressed="true">有効な戦略すべて</button>
+      </div>
+      <button class="run-button" type="button">バックテストを実行</button>
+    </section>
     <section class="results" aria-labelledby="results-heading">
       <div class="results-head">
         <div><h2 id="results-heading">結果</h2><p class="subhead">実行後に比較を表示</p></div>
-        <div class="result-actions">
-          <label class="switch-line"><input type="checkbox" checked />チャート</label>
-          <label class="switch-line"><input type="checkbox" checked />取引記録</label>
-          <button class="button button-small" type="button" disabled aria-label="結果の CSV を書き出す"><i data-lucide="download" aria-hidden="true"></i>CSV</button>
+        <div class="result-actions" role="group" aria-label="CSV と表示設定">
+          <button class="display-toggle" type="button" aria-pressed="true">資産曲線</button>
+          <button class="display-toggle" type="button" aria-pressed="true">取引明細</button>
+          <button class="button button-small" type="button" disabled aria-label="結果の CSV を書き出す">CSV</button>
         </div>
       </div>
-      <div class="empty-results" role="status">
-        <div><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>まだ結果がありません</div>
+      <div class="result-state" role="status"><strong>未実行</strong><p>戦略を実行すると、保存された結果がここに表示されます。</p></div>
+      <div class="result-panels">
+        <section class="result-panel" aria-labelledby="compare-heading">
+          <h3 id="compare-heading">実行結果の比較</h3>
+          <div class="empty-results" role="status">比較する結果がまだありません。</div>
+        </section>
+        <section class="result-panel" aria-labelledby="metrics-heading">
+          <h3 id="metrics-heading">選択した結果の指標</h3>
+          <div class="empty-results" role="status">まだ結果がありません</div>
+        </section>
+        <section class="result-panel" aria-labelledby="charts-heading">
+          <h3 id="charts-heading">グラフ表示例（実行後は保存済みデータを表示）</h3>
+          <div class="chart-example-grid">
+            <figure class="chart-example">
+              <figcaption>QQQ · 価格 (USD) · 調整後 OHLC</figcaption>
+              <svg viewBox="0 0 700 260" role="img" aria-label="価格、取引日、OHLC ローソク足と売買マーカーの例">
+                <g class="chart-grid"><path d="M72 32H680 M72 78H680 M72 124H680 M72 170H680 M72 216H680 M120 24V216 M260 24V216 M400 24V216 M540 24V216 M680 24V216" fill="none" /></g>
+                <g class="chart-tick"><text x="8" y="36">$520</text><text x="8" y="82">$500</text><text x="8" y="128">$480</text><text x="8" y="174">$460</text><text x="8" y="220">$440</text><text x="92" y="240">2024-01</text><text x="370" y="240">2024-06</text><text x="630" y="240">2024-12</text></g>
+                <g stroke-width="2"><path class="candle-up" d="M120 76V142 M260 64V122 M400 90V164 M540 48V106 M680 38V90" fill="none" /><rect class="candle-up" x="112" y="96" width="16" height="30" /><rect class="candle-up" x="252" y="82" width="16" height="22" /><rect class="candle-down" x="392" y="106" width="16" height="34" /><rect class="candle-up" x="532" y="62" width="16" height="26" /><rect class="candle-up" x="672" y="50" width="16" height="20" /></g>
+                <path class="chart-trade-buy" d="M260 147l-7 12h14z" /><path class="chart-trade-sell" d="M540 41l-7-12h14z" />
+                <text class="chart-axis-label" x="375" y="257" text-anchor="middle">日付</text><text class="chart-axis-label" transform="translate(18 130) rotate(-90)" text-anchor="middle">価格 (USD)</text>
+              </svg>
+            </figure>
+            <figure class="chart-example">
+              <figcaption>総資産 (USD) · 売買</figcaption>
+              <svg viewBox="0 0 700 260" role="img" aria-label="総資産曲線、目盛りと売買マーカーの例">
+                <g class="chart-grid"><path d="M72 32H680 M72 78H680 M72 124H680 M72 170H680 M72 216H680 M120 24V216 M260 24V216 M400 24V216 M540 24V216 M680 24V216" fill="none" /></g>
+                <g class="chart-tick"><text x="8" y="36">$16k</text><text x="8" y="82">$12k</text><text x="8" y="128">$8k</text><text x="8" y="174">$4k</text><text x="92" y="240">2024-01</text><text x="370" y="240">2024-06</text><text x="630" y="240">2024-12</text></g>
+                <polyline points="120,188 260,150 400,110 540,74 680,42" fill="none" stroke="#147d68" stroke-width="3" />
+                <circle class="chart-trade-buy" cx="260" cy="150" r="5" /><circle class="chart-trade-sell" cx="540" cy="74" r="5" />
+                <text class="chart-axis-label" x="375" y="257" text-anchor="middle">日付</text><text class="chart-axis-label" transform="translate(18 130) rotate(-90)" text-anchor="middle">総資産 (USD)</text>
+              </svg>
+            </figure>
+            <figure class="chart-example">
+              <figcaption>回撤 (%)</figcaption>
+              <svg viewBox="0 0 700 260" role="img" aria-label="回撤曲線と日期及び百分比坐标的例">
+                <g class="chart-grid"><path d="M72 32H680 M72 78H680 M72 124H680 M72 170H680 M72 216H680 M120 24V216 M260 24V216 M400 24V216 M540 24V216 M680 24V216" fill="none" /></g>
+                <g class="chart-tick"><text x="18" y="36">0%</text><text x="18" y="82">-5%</text><text x="18" y="128">-10%</text><text x="18" y="174">-15%</text><text x="18" y="220">-20%</text><text x="92" y="240">2024-01</text><text x="370" y="240">2024-06</text><text x="630" y="240">2024-12</text></g>
+                <polyline points="120,42 260,108 400,82 540,184 680,132" fill="none" stroke="#a7373a" stroke-width="3" />
+                <text class="chart-axis-label" x="375" y="257" text-anchor="middle">日付</text><text class="chart-axis-label" transform="translate(18 130) rotate(-90)" text-anchor="middle">回撤 (%)</text>
+              </svg>
+            </figure>
+            <figure class="chart-example">
+              <figcaption>VIX 指数 · しきい値 25</figcaption>
+              <svg viewBox="0 0 700 260" role="img" aria-label="VIX の実測値と保存したしきい値、日付・数値軸の例">
+                <g class="chart-grid"><path d="M72 32H680 M72 78H680 M72 124H680 M72 170H680 M72 216H680 M120 24V216 M260 24V216 M400 24V216 M540 24V216 M680 24V216" fill="none" /></g>
+                <g class="chart-tick"><text x="24" y="36">40</text><text x="24" y="82">30</text><text x="24" y="128">20</text><text x="24" y="174">10</text><text x="92" y="240">2024-01</text><text x="370" y="240">2024-06</text><text x="630" y="240">2024-12</text></g>
+                <line x1="72" y1="101" x2="680" y2="101" stroke="#b27b24" stroke-width="2" stroke-dasharray="6 4" /><polyline points="120,150 260,100 400,172 540,62 680,126" fill="none" stroke="#7656a6" stroke-width="3" />
+                <text class="chart-axis-label" x="375" y="257" text-anchor="middle">日付</text><text class="chart-axis-label" transform="translate(18 130) rotate(-90)" text-anchor="middle">VIX 指数 (ポイント)</text>
+              </svg>
+            </figure>
+          </div>
+        </section>
       </div>
     </section>
   </main>

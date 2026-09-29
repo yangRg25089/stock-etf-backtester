@@ -78,6 +78,7 @@ def _snapshot(
     dates: tuple[date, ...],
     prices: tuple[str, ...],
     valuation_prices: tuple[str, ...] | None = None,
+    ohlc: tuple[tuple[str, str, str], ...] | None = None,
 ) -> DataSnapshot:
     if valuation_prices is None:
         valuation_prices = prices
@@ -86,13 +87,16 @@ def _snapshot(
             date=day,
             symbol="QQQ",
             simulationPrice=Decimal(price),
+            simulationOpen=None if ohlc is None else Decimal(ohlc[index][0]),
+            simulationHigh=None if ohlc is None else Decimal(ohlc[index][1]),
+            simulationLow=None if ohlc is None else Decimal(ohlc[index][2]),
             valuationPrice=Decimal(valuation_price),
             currency="USD",
             source="fixture",
             observedAt=datetime.combine(day, datetime.min.time(), UTC),
         )
-        for day, price, valuation_price in zip(
-            dates, prices, valuation_prices, strict=True
+        for index, (day, price, valuation_price) in enumerate(
+            zip(dates, prices, valuation_prices, strict=True)
         )
     )
     return DataSnapshot(
@@ -140,10 +144,11 @@ def _run(
     signals: StrategySignalSeries | None = None,
     calendar: ExchangeCalendar | None = None,
     valuation_prices: tuple[str, ...] | None = None,
+    ohlc: tuple[tuple[str, str, str], ...] | None = None,
 ):
     exchange_calendar = _calendar(dates) if calendar is None else calendar
     contribution_schedule = schedule(config.shared, exchange_calendar)
-    data = _snapshot(dates, prices, valuation_prices)
+    data = _snapshot(dates, prices, valuation_prices, ohlc)
     signal_series = (
         _signals(config, contribution_schedule.trading_dates)
         if signals is None
@@ -157,6 +162,28 @@ def _run(
         signal_series,
         exchange_calendar=exchange_calendar,
     )
+
+
+def test_ledger_preserves_normalized_ohlc_in_daily_result_snapshots() -> None:
+    dates = (date(2024, 1, 31), date(2024, 2, 1))
+    config = _config(
+        start=dates[0],
+        end=dates[-1],
+        preset="monthly_dca",
+        params={"scheduled.fundingMode": "monthly"},
+    )
+
+    result = _run(
+        config,
+        dates,
+        ("100", "105"),
+        ohlc=(("98", "102", "97"), ("101", "108", "100")),
+    )
+
+    assert result.daily_assets[0].simulation_open == Decimal("98")
+    assert result.daily_assets[0].simulation_high == Decimal("102")
+    assert result.daily_assets[0].simulation_low == Decimal("97")
+    assert result.daily_assets[0].simulation_price == Decimal("100")
 
 
 def test_signal_buy_executes_on_the_next_session_at_that_session_price() -> None:

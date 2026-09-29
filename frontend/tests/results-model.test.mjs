@@ -15,6 +15,7 @@ const catalog = JSON.parse(
 
 test("result display defaults come from the catalog and remain separate preferences", () => {
   let state = createInitialWorkspaceState(catalog);
+  assert.equal(state.runScope, "all_enabled");
   assert.equal(state.showChart, true);
   assert.equal(state.showTrades, true);
   assert.deepEqual(state.visibleSeriesIds, ["totalAsset", "drawdown"]);

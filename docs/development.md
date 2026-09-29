@@ -4,7 +4,7 @@
 
 这是本机历史模拟应用。前端只消费 FastAPI 契约；`catalog` 和 `config` 提供目录与验证，`data` 负责供应商适配、规范化和快照，`signals`、`ledger`、`metrics` 与 `search` 负责计算，`runs` 冻结配置并协调独立结果，`export` 只从保存的结果快照导出。
 
-应用启动和确定性测试不访问外部网络。用户提交回测后，默认 API provider 才会调用 Yahoo 获取标的日线及已启用的指数/利率序列；数据先经过现有适配器规范化，再进入快照和回测。当前交易所日历映射覆盖美国 NASDAQ、NYSE、AMEX/ARCA 与 OTC 常用代码；未知交易所会返回未支持诊断。Yahoo 请求失败会返回限流、超时或请求错误诊断。E2E 仍使用仓库 fixture provider，`live smoke` 继续作为独立的只读连通性检查。
+应用启动不访问外部网络。纯计算确定性测试使用固定数据；后端的默认 Yahoo provider 回归测试会实际请求 Yahoo 和交易所日历，覆盖 QQQ 与 `^VIX`、`^VXN`、`^VXD`。用户提交回测后，默认 API provider 调用 Yahoo 获取标的日线及已启用的指数/利率序列；数据先经过现有适配器规范化，再进入快照和回测。当前交易所日历映射覆盖美国 NASDAQ、NYSE、AMEX/ARCA 与 OTC 常用代码；未知交易所会返回未支持诊断。Yahoo 请求失败会返回限流、超时或请求错误诊断。浏览器 E2E 仍使用仓库 fixture provider，`live smoke` 继续作为独立的只读连通性检查。
 
 已提交的 `RunSnapshot.dataProvenance` 冻结来源列表、日历截止日和行情最新报价日。汇总、每日资产、交易、搜索结果四类 CSV 都从这个保存快照附带 `dataSources`、`calendarAsOf`、`marketDataThrough`，导出不读取当前草稿或重新请求数据。`marketDataThrough` 表示行情报价覆盖，不代表宏观或 SEC 数据也更新到该日；这些数据的观察日/公开时间保留在数据快照和诊断中。运行完成日志以结构化字段记录相同来源与日期，不输出配置值或供应商响应。
 
@@ -51,6 +51,8 @@ npm run test:e2e
 
 E2E 会自行启动本机 fixture API 和 Vite 临时进程，结束后应释放端口。不要把 E2E 临时服务当作平时启动的 API。
 
+后端全量 `pytest` 包含 `tests/runs/test_yahoo_data_live.py`，需要外网访问 Yahoo 和 Yahoo Finance 的交易所元数据。该回归检查真实 QQQ 和所选波动率指数的日期、来源、信号可用状态及完整 API 运行结果，不断言实时行情数值；网络或 Yahoo 服务不可用时全量 pytest 会失败。纯账本、信号边界和 fixture API 测试仍保持确定性。
+
 ## 显式 live smoke
 
 后端标准安装已包含 Yahoo 与交易所日历依赖。运行 API 前在后端虚拟环境安装/更新项目依赖：
@@ -81,7 +83,7 @@ SEC_USER_AGENT='Stock ETF Backtester contact@example.com' \
 
 没有 `SEC_USER_AGENT` 时命令会在发出请求前安全失败。检查只请求 SEC 官方 CompanyFacts JSON 地址一次；报告、日志和诊断不会包含 User-Agent、响应正文或请求 URL。SEC 要求使用可识别的 User-Agent，并要求遵守 fair-access 速率限制；这个单次 smoke 不会自动重试。
 
-关闭 `--live` 时 smoke 命令不会调用供应商。确定性测试通过 fake provider/HTTP opener 检查超时、限流、缺少配置、覆盖率和脱敏，不访问 Yahoo 或 SEC。回测本身在用户按下运行后会访问 Yahoo；若数据缺失，服务不会前向填充 VIX 或把行情缺口当成休市。
+关闭 `--live` 时 smoke 命令不会调用供应商。provider 的超时、限流、缺少配置和脱敏边界通过 fake provider/HTTP opener 精确检查；另有真实 Yahoo API 回归保证默认 QQQ/VIX 数据链实际可用。回测本身在用户按下运行后会访问 Yahoo；若数据缺失，服务不会前向填充 VIX 或把行情缺口当成休市。
 
 ## Fixture 更新流程
 

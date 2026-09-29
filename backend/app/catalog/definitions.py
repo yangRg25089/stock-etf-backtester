@@ -114,6 +114,13 @@ def validate_parameter_value(definition: "ParameterDefinition", value: object) -
             )
         return
 
+    if isinstance(value, str) and not value.strip():
+        raise ParameterValidationError(
+            definition.key,
+            ParameterValueIssue.EMPTY_VALUE,
+            f"string parameter is empty: {definition.key}",
+        )
+
     parameter_type = definition.type
     if parameter_type is ParameterType.SYMBOL:
         if not isinstance(value, str):
@@ -121,12 +128,6 @@ def validate_parameter_value(definition: "ParameterDefinition", value: object) -
                 definition.key,
                 ParameterValueIssue.INVALID_TYPE,
                 f"symbol parameter has a non-string value: {definition.key}",
-            )
-        if not value.strip():
-            raise ParameterValidationError(
-                definition.key,
-                ParameterValueIssue.EMPTY_VALUE,
-                f"symbol parameter is empty: {definition.key}",
             )
     elif parameter_type is ParameterType.DATE:
         if not isinstance(value, date):
@@ -491,10 +492,10 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
     ),
     _d(
         "vix.symbol",
-        ParameterType.SYMBOL,
+        ParameterType.ENUM,
         "^VIX",
         presets=_ACCUMULATION_PRESETS,
-        unit="symbol",
+        allowed_values=("^VIX", "^VXN", "^VXD"),
         dependencies=("vix.buyEnabled",),
     ),
     _d(

@@ -32,7 +32,7 @@ from app.signals.evaluate import StrategySignalSeries
 
 from .types import LedgerResult
 
-LEDGER_METHOD_VERSION = "ledger-v1"
+LEDGER_METHOD_VERSION = "ledger-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +258,9 @@ def run_strategy(
                 cash=timing_cash,
                 timingQuantity=timing_quantity,
                 fixedQuantity=fixed_quantity,
+                simulationOpen=bar_by_date[day].simulation_open,
+                simulationHigh=bar_by_date[day].simulation_high,
+                simulationLow=bar_by_date[day].simulation_low,
                 simulationPrice=price,
                 totalAsset=timing_cash + (timing_quantity + fixed_quantity) * price,
                 currency=currency,

@@ -230,7 +230,13 @@ def test_periods_are_positive_and_composite_exit_defaults_on() -> None:
 
 def test_default_vix_preset_uses_shared_parameters_and_expected_defaults() -> None:
     defaults = preset_defaults(StrategyPresetId.VIX_DCA)
+    vix_index = get_parameter_definition("vix.symbol")
 
+    assert vix_index.type is ParameterType.ENUM
+    assert vix_index.allowed_values == ("^VIX", "^VXN", "^VXD")
+    with pytest.raises(ParameterValidationError) as error:
+        validate_parameter_value(vix_index, "^RVX")
+    assert error.value.issue is ParameterValueIssue.INVALID_CHOICE
     assert defaults["vix.buyEnabled"] is True
     assert defaults["vix.symbol"] == "^VIX"
     assert defaults["vix.buyThreshold"] == Decimal("25")

@@ -33,6 +33,9 @@ export type DailyAsset = {
   cash: string;
   timingQuantity: string;
   fixedQuantity: string;
+  simulationOpen?: string | null;
+  simulationHigh?: string | null;
+  simulationLow?: string | null;
   simulationPrice: string;
   totalAsset: string;
   currency: string;
@@ -253,6 +256,8 @@ export type SignalEvaluation = {
   date: string;
   signalId: string;
   state: SignalState;
+  observedValue?: string | null;
+  observedUnit?: string | null;
   diagnostics?: Array<Diagnostic>;
 };
 

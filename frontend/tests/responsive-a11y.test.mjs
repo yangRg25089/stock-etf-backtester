@@ -59,11 +59,12 @@ test("320px, 768px, and 1024px widths follow the responsive layout rules", () =>
   assert.match(blockFor(".main-content"), /width:\s*min\(100% - 48px, 1180px\)/);
   assert.match(narrow, /\.main-content\s*\{[^}]*width:\s*min\(100% - 30px, 1180px\)/s);
   assert.match(phone, /\.main-content\s*\{[^}]*width:\s*min\(100% - 24px, 1180px\)/s);
-  assert.match(phone, /\.shared-settings-grid\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
+  assert.match(phone, /\.shared-settings-grid\s*\{[^}]*minmax\(0, 1fr\)/s);
   assert.match(phone, /\.strategy-parameter-grid\s*\{[^}]*minmax\(0, 1fr\)/s);
-  assert.match(narrow, /\.workspace-grid\s*\{[^}]*grid-template-columns:\s*1fr/s);
+  assert.match(narrow, /\.shared-settings-grid\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
   assert.match(tablet, /\.shared-settings-grid\s*\{[^}]*repeat\(3, minmax\(0, 1fr\)\)/s);
-  assert.match(blockFor(".strategy-row-name,\n.strategy-row-summary"), /overflow-wrap:\s*anywhere/);
+  assert.match(blockFor(".strategy-card-name"), /overflow-wrap:\s*anywhere/);
+  assert.match(blockFor(".strategy-card-summary,\n.strategy-description"), /overflow-wrap:\s*anywhere/);
   assert.match(blockFor(".page-heading > div"), /overflow-wrap:\s*anywhere/);
 });
 
@@ -78,9 +79,19 @@ test("wide data tables scroll inside their panels instead of widening the page",
 test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   const touch = mediaBlock("@media (pointer: coarse)");
   assert.match(touch, /button,[\s\S]*\.input,[\s\S]*min-height:\s*44px/);
-  assert.match(touch, /\.checkbox-control,[\s\S]*\.latest-toggle\s*\{\s*min-height:\s*44px/);
+  assert.match(touch, /\.checkbox-control,[\s\S]*\.latest-toggle,[\s\S]*\.strategy-enabled-control\s*\{\s*min-height:\s*44px/);
   assert.match(touch, /\.input\s*\{\s*font-size:\s*16px/);
   assert.match(touch, /\.icon-button\s*\{\s*min-width:\s*44px/);
+});
+
+test("catalog fields use aligned bold labels, 40px controls, and in-field units", () => {
+  assert.match(blockFor(".field-label"), /font-size:\s*13px/);
+  assert.match(blockFor(".field-label"), /font-weight:\s*650/);
+  assert.match(blockFor(".input"), /min-height:\s*40px/);
+  assert.match(css, /\.checkbox-control \{\s*min-height:\s*40px/);
+  assert.match(blockFor(".unit-field.has-unit .input"), /padding-right:\s*54px/);
+  assert.match(css, /\.unit-label \{[^}]*position:\s*absolute/s);
+  assert.match(css, /\.field-hint \{[^}]*font-size:\s*12px/s);
 });
 
 test("keyboard focus, skip navigation, and reduced motion remain visible and supported", () => {

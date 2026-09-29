@@ -89,6 +89,7 @@ test("disabling the VIX signal retains the preset identity and its other values"
 
 test("strategy enable switches preserve parameters and expose accurate run reasons", () => {
   let state = createInitialWorkspaceState(catalog);
+  state = workspaceReducer(state, { type: "run.scope", value: "active" });
   const id = state.activeStrategyId;
   const params = state.draft.strategies[0].params;
   state = workspaceReducer(state, { type: "strategy.enabled", id, value: false });

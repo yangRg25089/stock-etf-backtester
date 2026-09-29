@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import type { Diagnostic, ParameterDefinition } from "../../api/generated";
 import {
   interpolate,
@@ -17,6 +17,9 @@ interface ParameterFieldProps {
   disabled?: boolean;
   required?: boolean;
   id?: string;
+  labelAccessory?: ReactNode;
+  helperText?: string;
+  helperLive?: boolean;
 }
 
 function inputValue(value: unknown): string {
@@ -38,6 +41,11 @@ function dependencyIsPresent(value: unknown): boolean {
   return value !== null && value !== undefined && value !== "";
 }
 
+function describedBy(...ids: Array<string | null | undefined>): string | undefined {
+  const value = ids.filter((item): item is string => Boolean(item)).join(" ");
+  return value || undefined;
+}
+
 export function ParameterField({
   definition,
   value,
@@ -48,6 +56,9 @@ export function ParameterField({
   disabled = false,
   required,
   id,
+  labelAccessory,
+  helperText,
+  helperLive = false,
 }: ParameterFieldProps) {
   const fieldId = id ?? `field-${definition.key.replaceAll(".", "-")}`;
   const label = translate(locale, definition.translationKey);
@@ -56,13 +67,27 @@ export function ParameterField({
     (key) => !dependencyIsPresent(dependencyValues[key]),
   );
   const fieldDisabled = disabled || unmetDependencies.length > 0;
+  const resolvedHelperText = helperText ?? (
+    definition.unit === "currency" ? translate(locale, "field.currencyHelp") : undefined
+  );
   const fieldErrors = errors.filter((error) =>
     error.fieldPath === definition.key || error.fieldPath?.endsWith(`.${definition.key}`),
   );
   const helpId = `${fieldId}-help`;
   const errorId = `${fieldId}-error`;
+  const helperId = resolvedHelperText ? `${fieldId}-hint` : null;
+  const hasVisibleUnit = Boolean(unit) && ![
+    "boolean",
+    "enum",
+    "enum_list",
+  ].includes(definition.type);
+  const unitId = hasVisibleUnit && definition.type !== "number_list"
+    ? `${fieldId}-unit`
+    : null;
   const descriptionIds = [
     unmetDependencies.length > 0 ? helpId : null,
+    helperId,
+    unitId,
     fieldErrors.length > 0 ? errorId : null,
   ]
     .filter((item): item is string => item !== null)
@@ -73,6 +98,7 @@ export function ParameterField({
     "aria-invalid": fieldErrors.length > 0 ? true : undefined,
     "aria-describedby": descriptionIds || undefined,
   };
+  const labelTargetId = definition.type === "number_list" ? `${fieldId}-0` : fieldId;
 
   const numericProps = {
     min: definition.minimum ?? undefined,
@@ -84,15 +110,17 @@ export function ParameterField({
   let control;
   if (definition.type === "boolean") {
     control = (
-      <label className="checkbox-control" htmlFor={fieldId}>
+      <div className="checkbox-control">
         <input
           {...common}
           type="checkbox"
           checked={value === true}
           onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.checked)}
         />
-        <span>{label}</span>
-      </label>
+        <span className="checkbox-state" aria-hidden="true">
+          {translate(locale, value === true ? "field.enabled" : "field.disabled")}
+        </span>
+      </div>
     );
   } else if (definition.type === "enum") {
     control = (
@@ -143,19 +171,23 @@ export function ParameterField({
             <label className="sr-only" htmlFor={`${fieldId}-${index}`}>
               {`${label} ${index + 1}`}
             </label>
-            <input
-              {...numericProps}
-              {...common}
-              id={`${fieldId}-${index}`}
-              className="input"
-              type="number"
-              value={inputValue(item)}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                const next = [...values];
-                next[index] = event.target.value === "" ? "" : Number(event.target.value);
-                onChange(next);
-              }}
-            />
+            <div className={`unit-field${unit ? " has-unit" : ""}`}>
+              <input
+                {...numericProps}
+                {...common}
+                aria-describedby={describedBy(descriptionIds, unit ? `${fieldId}-${index}-unit` : null)}
+                id={`${fieldId}-${index}`}
+                className={`input${unit ? " input-with-unit" : ""}`}
+                type="number"
+                value={inputValue(item)}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  const next = [...values];
+                  next[index] = event.target.value === "" ? "" : Number(event.target.value);
+                  onChange(next);
+                }}
+              />
+              {unit && <span className="unit-label" id={`${fieldId}-${index}-unit`}>{unit}</span>}
+            </div>
             <button
               type="button"
               className="icon-button"
@@ -182,11 +214,11 @@ export function ParameterField({
     const isSymbol = definition.type === "symbol";
     const isInteger = definition.type === "integer";
     control = (
-      <div className="unit-field">
+      <div className={`unit-field${unit ? " has-unit" : ""}`}>
         <input
           {...common}
           {...(isInteger || (!isDate && !isSymbol) ? numericProps : {})}
-          className="input"
+          className={`input${unit ? " input-with-unit" : ""}`}
           type={isDate ? "date" : isSymbol ? "text" : "number"}
           value={inputValue(value)}
           required={required ?? (definition.nullable !== true)}
@@ -195,21 +227,29 @@ export function ParameterField({
             onChange(raw === "" ? null : raw);
           }}
         />
-        {unit && <span className="unit-label">{unit}</span>}
+        {unit && hasVisibleUnit && <span className="unit-label" id={unitId ?? undefined}>{unit}</span>}
       </div>
     );
   }
 
   return (
     <div className={`field${fieldErrors.length > 0 ? " field-invalid" : ""}`}>
-      {definition.type === "boolean" ? (
-        control
-      ) : (
-        <label className="field-label" htmlFor={fieldId}>
+      <div className="field-label-row">
+        <label className="field-label" htmlFor={labelTargetId}>
           {label}
         </label>
+        {labelAccessory}
+      </div>
+      {control}
+      {resolvedHelperText && (
+        <p
+          className="field-hint"
+          id={helperId ?? undefined}
+          aria-live={helperLive ? "polite" : undefined}
+        >
+          {resolvedHelperText}
+        </p>
       )}
-      {definition.type !== "boolean" && control}
       {unmetDependencies.length > 0 && (
         <p className="field-hint" id={helpId}>
           {interpolate(translate(locale, "field.requiredData"), {
@@ -222,11 +262,6 @@ export function ParameterField({
           {fieldErrors.map((error, index) => (
             <p key={`${error.code}-${index}`}>
               {translate(locale, error.messageKey)}
-              <span className="diagnostic-code">
-                {interpolate(translate(locale, "field.errorCode"), {
-                  code: translate(locale, `diagnosticCode.${error.code}`),
-                })}
-              </span>
             </p>
           ))}
         </div>

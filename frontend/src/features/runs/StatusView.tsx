@@ -19,10 +19,6 @@ export function DiagnosticList({ locale, diagnostics }: { locale: Locale; diagno
             {translate(locale, `severity.${diagnostic.severity ?? "error"}`)}
           </span>
           <span>{translate(locale, diagnostic.messageKey)}</span>
-          {diagnostic.fieldPath && <code>{diagnostic.fieldPath}</code>}
-          <small>
-            {translate(locale, "field.errorCode")}: {translate(locale, `diagnosticCode.${diagnostic.code}`)}
-          </small>
         </li>
       ))}
     </ul>
@@ -53,7 +49,6 @@ export function StatusView({ locale, run, error }: StatusViewProps) {
         <div className="catalog-error" role="alert">
           <div>
             <strong>{translate(locale, error.messageKey)}</strong>
-            <p><code>{error.code}</code></p>
           </div>
         </div>
       )}

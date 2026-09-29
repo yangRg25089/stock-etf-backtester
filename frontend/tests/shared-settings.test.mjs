@@ -72,6 +72,11 @@ test("shared settings render catalog defaults once and lock a resolved latest da
   assert.match(html, /この実行で確定した終了日：2024-06-28/);
   assert.match(html, /id="field-contribution-amount"[^>]*min="0"[^>]*step="0.01"/);
   assert.match(html, /id="field-contribution-day"[^>]*min="1"[^>]*max="31"/);
+  assert.equal((html.match(/for="field-run-endDate"/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /代码|日付|銘柄の通貨|标的报价币种/);
+  assert.match(html, /金額は銘柄の取引通貨/);
+  assert.match(html, /aria-describedby="field-contribution-day-unit"/);
+  assert.match(html, /<span class="unit-label" id="field-contribution-day-unit">日<\/span>/);
 });
 
 test("latest mode with no run snapshot does not invent a date", () => {

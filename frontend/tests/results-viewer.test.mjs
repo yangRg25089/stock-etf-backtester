@@ -51,8 +51,12 @@ function workspaceWithRun() {
     status: "completed",
     metrics: metrics("125.00"),
     dailyAssets: [
-      { date: "2024-01-02", totalAsset: "100", drawdown: "0" },
-      { date: "2024-01-03", totalAsset: "125", drawdown: "-0.01" },
+      { date: "2024-01-02", simulationPrice: "100", currency: "USD", totalAsset: "100", drawdown: "0" },
+      { date: "2024-01-03", simulationPrice: "112", currency: "USD", totalAsset: "125", drawdown: "-0.01" },
+    ],
+    signals: [
+      { date: "2024-01-02", signalId: "vix.buy", state: "false", observedValue: "18.2" },
+      { date: "2024-01-03", signalId: "vix.buy", state: "true", observedValue: "27.4" },
     ],
     trades: [trade("active-vix-trade", "2024-01-03")],
     diagnostics: [],
@@ -76,7 +80,13 @@ function workspaceWithRun() {
     selectedStrategyIds: [primaryId],
     snapshot: {
       runId: "saved-run",
-      config: { shared: initial.draft.shared, strategies: initial.draft.strategies },
+      config: {
+        shared: {
+          ...structuredClone(initial.draft.shared),
+          run: { ...initial.draft.shared.run, symbol: "QQQ" },
+        },
+        strategies: structuredClone(initial.draft.strategies),
+      },
     },
     result: { runId: "saved-run", strategyRuns: [primary, benchmark] },
   };
@@ -127,6 +137,23 @@ test("chart and trade display controls are independent and chart legend remains 
   }));
   assert.doesNotMatch(tradesOnly, /<svg /);
   assert.match(tradesOnly, /class="data-table trade-table"/);
+});
+
+test("VIX chart settings come from the focused frozen strategy snapshot", () => {
+  const state = workspaceWithRun();
+  state.focusedResultId = state.draft.strategies[0].id;
+  state.showChart = true;
+  state.draft.strategies[0].params["vix.buyThreshold"] = 99;
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh",
+    state,
+    dispatch() {},
+  }));
+
+  assert.match(html, /QQQ · 价格/);
+  assert.match(html, /阈值 25/);
+  assert.doesNotMatch(html, /阈值 99/);
+  assert.match(html, /27\.4/);
 });
 
 test("CSV eligibility includes completed zero-trade results and limits search exports", () => {

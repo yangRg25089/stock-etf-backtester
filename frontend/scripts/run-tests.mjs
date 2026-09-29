@@ -53,6 +53,7 @@ try {
       "tests/strategy-model.test.mjs",
       "tests/strategy-ui.test.mjs",
       "tests/runs-api.test.mjs",
+      "tests/diagnostic-display.test.mjs",
       "tests/results-model.test.mjs",
       "tests/results-components.test.mjs",
       "tests/results-visuals.test.mjs",
