@@ -73,6 +73,6 @@
 - [x] 确定性测试、类型检查、构建和 E2E 全部通过
 - [x] 设计实现验收标准有测试或明确的手工检查记录
 - [x] 运行快照、四类 CSV 和运行完成日志保留来源与覆盖日期
-- [ ] 请用户确认是否接受 V1 内存 RunStore；notebook 映射与来源哈希已固化入库
+- [ ] 请用户确认 V1 运行结果仅保存在进程内、服务重启后清空是否符合需求；notebook 映射与来源哈希已固化入库
 
 Task 21 门禁记录、smoke 使用方式、架构与 PE 限制见 [`tasks/plan.md`](plan.md) 和 [`docs/development.md`](../docs/development.md)。当前 API 默认 provider 尚未接入 live 回测；smoke 只检查单独的数据读取，不会生成回测结果。
