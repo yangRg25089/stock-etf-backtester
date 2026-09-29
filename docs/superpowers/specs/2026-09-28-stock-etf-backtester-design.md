@@ -106,9 +106,9 @@ RSI 使用 notebook 的滚动算术均值，MA 使用简单均值，布林带使
 
 ## 数据源与缺失处理
 
-行情、VIX、利率优先用 Yahoo Finance/yfinance；公司财务事实优先用 SEC CompanyFacts/XBRL；ETF 历史持仓优先用 SEC N-PORT 公开申报。供应商适配器向回测模块提供统一的报价币种、交易所日历、`simulationPrice`（模拟总回报价）、`valuationPrice`（不含分红调整且与 EPS 拆股基准一致的估值价）、数据时间戳、来源及数据指纹。两种价格无法可靠区分时，依赖 PE 的策略不可用，不擅自代用。利率统一为百分数值；不能只凭 `^TNX` 代码猜测转换倍数，无法确认来源单位时要求明确设置或报单位错误。
+行情、VIX、利率优先用 Yahoo Finance/yfinance；公司财务事实优先用 SEC CompanyFacts/XBRL；ETF 历史持仓优先用 SEC N-PORT 公开申报。供应商适配器向回测模块提供统一的报价币种、交易所日历、`simulationPrice`（模拟总回报价）、`valuationPrice`（不含分红调整且与 EPS 拆股基准一致的估值价）、数据时间戳、来源及数据指纹。两种价格无法可靠区分时，依赖 PE 的策略不可用，不擅自代用。利率统一为百分数值；不能只凭 `^TNX` 代码猜测转换倍数，无法确认来源单位时要求明确设置或报单位错误。Yahoo 适配器依据 [yfinance PyPI 发布页](https://pypi.org/project/yfinance/)（当前验证版本 1.7.0）及其 [`Ticker.history` 实现](https://github.com/ranaroussi/yfinance/blob/main/yfinance/scrapers/history.py)、[quote 实现](https://github.com/ranaroussi/yfinance/blob/main/yfinance/scrapers/quote.py)：显式关闭自动/回溯调整，按 inclusive `start`、exclusive `end` 请求，只有明确的调整收盘价与收盘价时分别映射为两种价格口径；币种必须来自明确行情元数据，字段缺失或冲突均不可用，不假设 USD。
 
-行情价格缺失不能前向填充或静默跳过交易日。VIX/利率可使用当时已经发布且不晚于目标交易日历 3 个交易日的最近观测，该上限是可调共享数据设置。财务与持仓按公开时间进行 as-of 查询，分别默认不晚于财务报告期结束后 550 个日历日、持仓快照后 180 个日历日，两个有效期亦可调并进入运行快照。过期、币种不一致、数据缺失或交易区间无重叠都通过同一诊断机制处理。
+行情价格缺失不能前向填充或静默跳过交易日。VIX/利率可使用当时已经发布且不晚于目标交易日历 3 个交易日的最近观测，该上限是可调共享数据设置。宏观规范化保留源观察日、观察时间、可核实的发布时间和来源单位；对齐后的交易日另存，不覆盖任何源日期。as-of 选择不得早于源数据可用时间，陈旧度按交易所 session 计数，超过设置的观察不生成对齐值。财务与持仓按公开时间进行 as-of 查询，分别默认不晚于财务报告期结束后 550 个日历日、持仓快照后 180 个日历日，两个有效期亦可调并进入运行快照。过期、币种不一致、数据缺失或交易区间无重叠都通过同一诊断机制处理。
 
 每项 SEC 事实保留报告期、申报/更正标识、实际公开可用时间及来源版本。只在已公开后参与信号，后续更正不回填此前日期。对于只有公开日期、无法确认具体日内时间的记录，从下一交易日才视为可用；连公开日期也无法核实则不可用。基金持仓不能用今天的组合回填历史。[SEC CompanyFacts 接口](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)和[SEC N-PORT 公开数据范围](https://www.sec.gov/data-research/sec-markets-data/form-n-port-data-sets)是首版免费来源，部分标的与日期缺少可用 PE 是预期限制。
 

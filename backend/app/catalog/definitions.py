@@ -321,6 +321,15 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         step="0.01",
         level=ParameterLevel.SHARED,
     ),
+    _d(
+        "data.macroStalenessSessions",
+        ParameterType.INTEGER,
+        3,
+        unit="exchange_session",
+        minimum=0,
+        step=1,
+        level=ParameterLevel.SHARED,
+    ),
     # Shared accumulation settings.
     _d(
         "accumulation.cashSafetyLimit",

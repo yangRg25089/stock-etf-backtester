@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from datetime import date as Date
 from decimal import Decimal
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from pydantic import (
     BaseModel,
@@ -28,6 +29,9 @@ from app.domain.status import (
     StrategyStatus,
     transition_status,
 )
+
+if TYPE_CHECKING:
+    from app.catalog.definitions import ParameterDefinition
 
 
 class StrategyPresetId(StrEnum):
@@ -107,11 +111,49 @@ class ContributionSettings(DomainModel):
     amount: Decimal = Field(ge=0)
 
 
+def _macro_staleness_definition() -> "ParameterDefinition":
+    from app.catalog.definitions import get_parameter_definition
+
+    return get_parameter_definition("data.macroStalenessSessions")
+
+
+def _default_macro_staleness_sessions() -> int:
+    """Read the freshness default from the single parameter catalog."""
+
+    default = _macro_staleness_definition().default
+    if isinstance(default, bool) or not isinstance(default, int):
+        raise RuntimeError("macro staleness catalog default must be an integer")
+    return default
+
+
+def _validate_macro_staleness_sessions(value: int) -> int:
+    from app.catalog.definitions import validate_parameter_value
+
+    validate_parameter_value(_macro_staleness_definition(), value)
+    return value
+
+
+class DataSettings(DomainModel):
+    """Shared data validity policy frozen with each run's settings."""
+
+    macro_staleness_sessions: int = Field(
+        default_factory=_default_macro_staleness_sessions,
+        alias="macroStalenessSessions",
+        strict=True,
+    )
+
+    @field_validator("macro_staleness_sessions")
+    @classmethod
+    def validate_registered_staleness(cls, value: int) -> int:
+        return _validate_macro_staleness_sessions(value)
+
+
 class SharedSettings(DomainModel):
     """Settings shared by every strategy and automatic benchmark."""
 
     run: RunSettings
     contribution: ContributionSettings
+    data: DataSettings = Field(default_factory=DataSettings)
 
 
 class StrategyInstance(MutableDomainModel):
@@ -272,12 +314,22 @@ class MarketSnapshot(DomainModel):
 
 
 class MacroObservation(DomainModel):
+    """A source observation, optionally normalized onto a target session.
+
+    ``date`` remains the provider's original observation date.  Alignment never
+    overwrites it; ``alignedSessionDate`` records the session where the
+    as-of-selected value is usable.
+    """
+
     date: Date
     symbol: str = Field(min_length=1)
     value: Decimal
     unit: str = Field(min_length=1)
     source: str = Field(min_length=1)
     observed_at: datetime = Field(alias="observedAt")
+    published_at: datetime | None = Field(default=None, alias="publishedAt")
+    source_unit: str | None = Field(default=None, alias="sourceUnit", min_length=1)
+    aligned_session_date: Date | None = Field(default=None, alias="alignedSessionDate")
 
 
 class ValuationObservation(DomainModel):

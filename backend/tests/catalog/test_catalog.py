@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.catalog.definitions import (
     PARAMETER_DEFINITIONS,
     ParameterDefinition,
+    ParameterLevel,
     ParameterType,
 )
 from app.catalog.presets import (
@@ -43,6 +44,7 @@ EXPECTED_PARAMETER_KEYS = {
     "run.endMode",
     "contribution.day",
     "contribution.amount",
+    "data.macroStalenessSessions",
     "accumulation.cashSafetyLimit",
     "accumulation.maxSignalBuysPerMonth",
     "accumulation.conditionLogic",
@@ -88,6 +90,10 @@ EXPECTED_PARAMETER_KEYS = {
 }
 
 
+def test_catalog_version_advances_with_the_shared_data_policy_contract() -> None:
+    assert CATALOG_VERSION == "catalog-v2"
+
+
 def test_catalog_exposes_exactly_the_seven_stable_strategy_presets() -> None:
     assert tuple(PRESET_DEFINITIONS) == EXPECTED_PRESETS
     assert tuple(EXECUTION_MODULES[preset] for preset in EXPECTED_PRESETS) == (
@@ -123,6 +129,18 @@ def test_every_parameter_has_complete_stable_metadata() -> None:
             assert definition.default >= definition.minimum
         if definition.default is not None and definition.maximum is not None:
             assert definition.default <= definition.maximum
+
+
+def test_macro_staleness_is_a_registered_shared_data_setting() -> None:
+    staleness = get_parameter_definition("data.macroStalenessSessions")
+
+    assert staleness.type is ParameterType.INTEGER
+    assert staleness.default == 3
+    assert staleness.unit == "exchange_session"
+    assert staleness.minimum == Decimal("0")
+    assert staleness.step == Decimal("1")
+    assert staleness.level is ParameterLevel.SHARED
+    assert get_parameter_definition("rate.sourceUnit").default == "auto"
 
 
 def test_ratio_and_percent_point_conventions_are_explicit() -> None:

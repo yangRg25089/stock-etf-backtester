@@ -24,7 +24,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v1"
+CATALOG_VERSION: Final[str] = "catalog-v2"
 
 
 class Catalog(DomainModel):

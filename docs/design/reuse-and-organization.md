@@ -31,6 +31,7 @@
 | `run.symbol` | 标的代码 / `QQQ` | 共享；行情、基准、所有实例同一代码 |
 | `run.startDate`, `run.endDate`, `run.endMode` | 回测起始日 / `2020-01-01`；回测结束日 / 最近完整日 | 共享；动态模式显示实际解析的结束日并锁定日期框，取消「最新まで」即可修改固定日期；每次运行冻结解析值 |
 | `contribution.day`, `contribution.amount` | 每月注资日 / `1`；每月注资金额 / `100` | 共享；所有账本与基准调用一个日历生成器 |
+| `data.macroStalenessSessions` | 宏观数据最大陈旧交易日 / `3` | 共享数据有效期；按交易所 session 计数，并随运行设置冻结 |
 | `accumulation.cashSafetyLimit` | 强制买入现金限额 / `1200` | 策略实例；VIX 和多条件定投共用字段/规则 |
 | `accumulation.maxSignalBuysPerMonth` | 每月最多买入次数 / VIX `1` | 策略实例；多条件定投默认 `null` 表示不限，显式数字须为正整数；仍用同一定义 |
 | `accumulation.conditionLogic` | 条件逻辑 / `OR` | 策略实例；只组合有效的已启用买入信号 |
@@ -74,7 +75,7 @@
 | `catalog` | `getCatalog()`：预设、字段元数据、默认值、翻译键、可搜索字段 | 无业务 I/O |
 | `config` | `validateDraft(draft, catalog)`：结构化字段错误及必要数据清单 | `catalog` |
 | `calendar` | `schedule(runSettings, exchangeCalendar)`：有效注资日期及金额 | 交易所日历适配器 |
-| `market-data` | `loadMarket(spec)`：统一行情、两种价格口径、VIX/利率、币种及时间戳 | Yahoo 适配器；测试用固定 fixture 适配器 |
+| `market-data` | `loadMarket(spec)`：统一行情、两种价格口径、VIX/利率、币种及时间戳；预热行情不改变回测日历，宏观源请求额外覆盖陈旧期回看 session，宏观原始日期/发布时间与对齐 session 分字段保存 | Yahoo 适配器；测试用固定 fixture 适配器；规范化结果经具备完整身份的缓存边界复用 |
 | `fundamentals` | `loadValuation(spec)`：已公开财务/持仓、覆盖率、来源及公开时间 | SEC 适配器；测试用固定 fixture 适配器 |
 | `signals` | `evaluate(config, snapshot)`：逐日 `true/false/unavailable` 与诊断 | 规范化数据、指标计算 |
 | `ledger` | `runStrategy(config, schedule, signals, prices)`：统一交易顺序、每日总资产及交易 | 纯输入，不自行下载 |
