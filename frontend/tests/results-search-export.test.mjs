@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { ExportApiError, fetchCsvExport } = require("../.test-output/api/exports.js");
+const { performCsvExport } = require("../.test-output/features/results/exportModel.js");
 const { SearchResults } = require("../.test-output/features/results/SearchResults.js");
 
 function candidate(candidateId, sequence, status = "completed") {
@@ -126,5 +127,64 @@ test("CSV API preserves structured export diagnostics", async () => {
     );
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("CSV action downloads the focused server response", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+  const originalCreateObjectUrl = URL.createObjectURL;
+  const originalRevokeObjectUrl = URL.revokeObjectURL;
+  const calls = [];
+  let clickedAnchor = null;
+  const anchor = {
+    href: "",
+    download: "",
+    hidden: false,
+    click() { clickedAnchor = this; },
+    remove() { calls.push("removed"); },
+  };
+  globalThis.document = {
+    createElement(tagName) {
+      assert.equal(tagName, "a");
+      return anchor;
+    },
+    body: { append(element) { assert.equal(element, anchor); calls.push("appended"); } },
+  };
+  globalThis.window = { setTimeout(callback) { callback(); return 0; } };
+  URL.createObjectURL = (blob) => {
+    assert.ok(blob instanceof Blob);
+    calls.push("created-url");
+    return "blob:focused-export";
+  };
+  URL.revokeObjectURL = (url) => calls.push(`revoked:${url}`);
+  globalThis.fetch = async (url) => {
+    calls.push(`requested:${url}`);
+    return new Response("date,totalAsset\n2024-01-02,100.00\n", {
+      status: 200,
+      headers: { "Content-Disposition": "attachment; filename*=UTF-8''run-4-benchmark-dca-trades.csv" },
+    });
+  };
+  try {
+    await performCsvExport("run-4", "benchmark-dca", "trades");
+    assert.equal(clickedAnchor, anchor);
+    assert.equal(anchor.href, "blob:focused-export");
+    assert.equal(anchor.download, "run-4-benchmark-dca-trades.csv");
+    assert.deepEqual(calls, [
+      "requested:/api/v1/runs/run-4/export/trades?focusedResultId=benchmark-dca",
+      "created-url",
+      "appended",
+      "removed",
+      "revoked:blob:focused-export",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+    URL.createObjectURL = originalCreateObjectUrl;
+    URL.revokeObjectURL = originalRevokeObjectUrl;
   }
 });

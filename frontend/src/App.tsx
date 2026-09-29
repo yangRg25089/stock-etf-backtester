@@ -11,6 +11,7 @@ import {
 import { SharedSettingsForm } from "./features/config/SharedSettingsForm";
 import { RunControls } from "./features/runs/RunControls";
 import { DiagnosticList, StatusView } from "./features/runs/StatusView";
+import { ResultViewer } from "./features/results/ResultViewer";
 import {
   createInitialWorkspaceState,
   getRunAvailability,
@@ -299,16 +300,9 @@ function App() {
                   <h2 id="results-heading">{translate(locale, "section.results")}</h2>
                   <p className="section-subhead">{translate(locale, "section.resultsHelp")}</p>
                 </div>
-                <button
-                  className="button button-small"
-                  type="button"
-                  disabled={!workspace.runResponse}
-                  aria-label={translate(locale, "export.csvLabel")}
-                >
-                  ↓ {translate(locale, "export.csv")}
-                </button>
               </div>
               <StatusView locale={locale} run={workspace.runResponse} error={runError} />
+              <ResultViewer locale={locale} state={workspace} dispatch={dispatch} />
             </section>
           </>
         )}
