@@ -387,6 +387,8 @@ class DailyAsset(DomainModel):
     simulation_price: Decimal = Field(alias="simulationPrice", gt=0)
     total_asset: Decimal = Field(alias="totalAsset", ge=0)
     currency: str = Field(min_length=1)
+    unit_nav: Decimal | None = Field(default=None, alias="unitNav", ge=0)
+    drawdown: Decimal | None = Field(default=None, ge=-1, le=0)
 
 
 class MetricSummary(DomainModel):

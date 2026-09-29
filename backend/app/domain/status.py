@@ -75,6 +75,7 @@ class DiagnosticCode(StrEnum):
     PRICE_BASIS_UNAVAILABLE = "price_basis_unavailable"
     NO_VALID_CONTRIBUTION = "no_valid_contribution"
     NO_VALID_XIRR = "no_valid_xirr"
+    COMPARISON_UNAVAILABLE = "comparison_unavailable"
     INVALID_STATUS_TRANSITION = "invalid_status_transition"
 
 
