@@ -6,7 +6,7 @@ from typing import Final
 
 from pydantic import Field, model_validator
 
-from app.domain.contracts import StrategyPresetId
+from app.domain.contracts import DataSettings, StrategyPresetId
 from app.domain.immutability import thaw_value
 from app.domain.status import DomainModel
 
@@ -136,6 +136,17 @@ def get_catalog() -> Catalog:
             if key not in PARAMETER_DEFINITIONS:
                 raise RuntimeError(f"unknown preset default parameter: {key}")
     return catalog
+
+
+def default_data_settings() -> DataSettings:
+    """Materialize shared data-policy defaults from their catalog definition."""
+
+    definition = get_parameter_definition("data.macroStalenessSessions")
+    default = definition.default
+    if isinstance(default, bool) or not isinstance(default, int):
+        raise RuntimeError("macro staleness catalog default must be an integer")
+    validate_parameter_value(definition, default)
+    return DataSettings(macroStalenessSessions=default)
 
 
 def parameter_keys_for_preset(

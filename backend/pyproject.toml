@@ -20,7 +20,7 @@ dev = [
   "ruff>=0.8,<1",
 ]
 live = [
-  "yfinance>=1.7.0,<2",
+  "yfinance==1.7.0",
 ]
 
 [tool.setuptools.packages.find]

@@ -73,9 +73,9 @@
 | 模块 | 小接口与职责 | 依赖 |
 | --- | --- | --- |
 | `catalog` | `getCatalog()`：预设、字段元数据、默认值、翻译键、可搜索字段 | 无业务 I/O |
-| `config` | `validateDraft(draft, catalog)`：结构化字段错误及必要数据清单 | `catalog` |
+| `config` | `validateDraft(draft, catalog)`：结构化字段错误及必要数据清单；在构造领域契约前用注册表物化 `DataSettings` 默认值 | `catalog` |
 | `calendar` | `schedule(runSettings, exchangeCalendar)`：有效注资日期及金额 | 交易所日历适配器 |
-| `market-data` | `loadMarket(spec)`：统一行情、两种价格口径、VIX/利率、币种及时间戳；预热行情不改变回测日历，宏观源请求额外覆盖陈旧期回看 session，宏观原始日期/发布时间与对齐 session 分字段保存 | Yahoo 适配器；测试用固定 fixture 适配器；规范化结果经具备完整身份的缓存边界复用 |
+| `market-data` | `loadMarket(spec)`：统一行情、两种价格口径、VIX/利率、币种及时间戳；`compose_data_snapshot` 将分离加载的供应商结果组合为同一 `DataSnapshot`；预热行情不改变回测日历，宏观源请求额外覆盖陈旧期回看 session，宏观原始日期/发布时间与对齐 session 分字段保存 | Yahoo 适配器；测试用固定 fixture 适配器；规范化结果经具备完整身份的有界缓存复用，显式刷新不读取旧缓存 |
 | `fundamentals` | `loadValuation(spec)`：已公开财务/持仓、覆盖率、来源及公开时间 | SEC 适配器；测试用固定 fixture 适配器 |
 | `signals` | `evaluate(config, snapshot)`：逐日 `true/false/unavailable` 与诊断 | 规范化数据、指标计算 |
 | `ledger` | `runStrategy(config, schedule, signals, prices)`：统一交易顺序、每日总资产及交易 | 纯输入，不自行下载 |
@@ -84,7 +84,7 @@
 | `runs` | `createRun(snapshot)` 与 `getRun(id)`：编排、进度、局部失败和不可变结果 | 上述模块 |
 | `export` | `exportRun(runId, kind, focusedResultId)`：从已存结果生成 CSV | `runs` 结果，不重新计算 |
 
-建议目录按职责放置：`backend/app/catalog`、`config`、`data`、`domain`、`runs`、`export`；`frontend/src/features/config`、`strategies`、`runs`、`results`、`i18n`；统一表单控件放 `frontend/src/shared/ui`。这些是组织边界，不要求每个目录包装一个透传模块。数据供应商更换只改适配器，策略逻辑与 UI 契约不变。
+建议目录按职责放置：`backend/app/catalog`、`config`、`data`、`domain`、`runs`、`export`；`frontend/src/features/config`、`strategies`、`runs`、`results`、`i18n`；统一表单控件放 `frontend/src/shared/ui`。这些是组织边界，不要求每个目录包装一个透传模块。领域契约只接收已物化的数据设置，不反向导入 catalog；注册表默认值与适用边界由 catalog/config 边界提供。数据供应商更换只改适配器，策略逻辑与 UI 契约不变。
 
 ## V1 组件清单与统一规则
 

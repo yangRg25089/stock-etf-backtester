@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from app.domain.contracts import (
     ContributionSettings,
     DailyAsset,
+    DataSettings,
     DataSnapshot,
     MarketBar,
     MarketSnapshot,
@@ -44,6 +45,7 @@ def _shared_settings() -> SharedSettings:
             endMode="fixed",
         ),
         contribution=ContributionSettings(day=1, amount=Decimal("100")),
+        data=DataSettings(macroStalenessSessions=3),
     )
 
 
@@ -81,6 +83,7 @@ def test_snapshot_copies_a_mutable_draft_and_freezes_config() -> None:
     draft.shared = SharedSettings(
         run=draft.shared.run,
         contribution=ContributionSettings(day=1, amount=Decimal("200")),
+        data=DataSettings(macroStalenessSessions=3),
     )
 
     saved_strategy = snapshot.config.strategies[0]

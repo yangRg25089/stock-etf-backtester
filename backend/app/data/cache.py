@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from threading import RLock
 from typing import TYPE_CHECKING, Protocol
 
@@ -26,19 +27,32 @@ class NormalizedDataCache(Protocol):
 class InMemoryDataCache:
     """Process-local cache containing immutable, normalized results only."""
 
-    def __init__(self) -> None:
-        self._values: dict[DataCacheKey, NormalizedDataResult] = {}
+    def __init__(self, *, max_entries: int = 128) -> None:
+        if (
+            isinstance(max_entries, bool)
+            or not isinstance(max_entries, int)
+            or max_entries < 1
+        ):
+            raise ValueError("max_entries must be a positive integer")
+        self._max_entries = max_entries
+        self._values: OrderedDict[DataCacheKey, NormalizedDataResult] = OrderedDict()
         self._lock = RLock()
 
     def get(self, key: DataCacheKey) -> NormalizedDataResult | None:
         with self._lock:
-            return self._values.get(key)
+            value = self._values.get(key)
+            if value is not None:
+                self._values.move_to_end(key)
+            return value
 
     def put(self, key: DataCacheKey, value: NormalizedDataResult) -> None:
         if value.cache_key != key:
             raise ValueError("cache entry identity does not match its key")
         with self._lock:
             self._values[key] = value
+            self._values.move_to_end(key)
+            while len(self._values) > self._max_entries:
+                self._values.popitem(last=False)
 
     def clear(self) -> None:
         """Discard normalized in-memory entries."""
@@ -76,7 +90,7 @@ class CacheableMacroDataProvider(Protocol):
 
 
 class CachedMarketDataProvider:
-    """Decorate one normalized provider with identity-safe cache reuse."""
+    """Reuse normalized results from a bounded cache or explicitly refresh them."""
 
     def __init__(
         self,
@@ -86,13 +100,18 @@ class CachedMarketDataProvider:
         self._provider = provider
         self._cache = cache
 
-    def load(self, request: MarketDataRequest) -> MarketDataResult:
+    def load(
+        self, request: MarketDataRequest, *, refresh: bool = False
+    ) -> MarketDataResult:
         key = self._provider.cache_identity(request)
-        cached = self._cache.get(key)
-        if isinstance(cached, MarketDataResult):
-            return cached
-        if cached is not None:
-            raise ValueError("cache identity contains a different normalized result")
+        if not refresh:
+            cached = self._cache.get(key)
+            if isinstance(cached, MarketDataResult):
+                return cached
+            if cached is not None:
+                raise ValueError(
+                    "cache identity contains a different normalized result"
+                )
 
         result = self._provider.load(request)
         # A failed/unavailable result may be transient, so only snapshots without
@@ -105,7 +124,11 @@ class CachedMarketDataProvider:
 
 
 class CachedMacroDataProvider:
-    """Cache usable normalized macro observations under their complete request key."""
+    """Cache usable macro data with explicit units in the request identity.
+
+    Auto-detected rate units bypass the cache because the resolved provider unit
+    is not known until after the cache lookup.
+    """
 
     def __init__(
         self,
@@ -121,15 +144,24 @@ class CachedMacroDataProvider:
         *,
         series_type: str,
         source_unit: str = "auto",
+        refresh: bool = False,
     ) -> MacroDataResult:
+        if series_type == "rate" and source_unit == "auto":
+            return self._provider.load_macro(
+                request, series_type=series_type, source_unit=source_unit
+            )
+
         key = self._provider.macro_cache_identity(
             request, series_type=series_type, source_unit=source_unit
         )
-        cached = self._cache.get(key)
-        if isinstance(cached, MacroDataResult):
-            return cached
-        if cached is not None:
-            raise ValueError("cache identity contains a different normalized result")
+        if not refresh:
+            cached = self._cache.get(key)
+            if isinstance(cached, MacroDataResult):
+                return cached
+            if cached is not None:
+                raise ValueError(
+                    "cache identity contains a different normalized result"
+                )
 
         result = self._provider.load_macro(
             request, series_type=series_type, source_unit=source_unit

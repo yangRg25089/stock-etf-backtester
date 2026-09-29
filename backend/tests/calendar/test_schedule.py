@@ -6,6 +6,7 @@ import pytest
 from app.calendar import ExchangeCalendar, ScheduleResult, schedule
 from app.domain.contracts import (
     ContributionSettings,
+    DataSettings,
     EndMode,
     RunSettings,
     SharedSettings,
@@ -29,6 +30,7 @@ def _settings(
             endMode=end_mode,
         ),
         contribution=ContributionSettings(day=day, amount=Decimal(amount)),
+        data=DataSettings(macroStalenessSessions=3),
     )
 
 

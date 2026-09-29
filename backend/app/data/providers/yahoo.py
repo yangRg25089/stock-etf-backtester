@@ -365,8 +365,20 @@ class YahooFinanceAdapter:
 
         effective_unit = source_unit
         if normalized_type is MacroSeriesType.RATE and source_unit == "auto":
-            metadata = _safe_attribute(ticker, "history_metadata")
-            metadata_unit = _metadata_value(metadata, "unit")
+            try:
+                metadata = _safe_attribute(ticker, "history_metadata")
+                metadata_unit = _metadata_value(metadata, "unit")
+            except Exception as error:
+                return _macro_result(
+                    symbol=request.symbol,
+                    request=request,
+                    series_type=normalized_type.value,
+                    source_unit=source_unit,
+                    cache_source_unit=source_unit,
+                    observations=(),
+                    data_version=self.data_version,
+                    diagnostics=(_provider_error(error, request.symbol),),
+                )
             effective_unit = metadata_unit if isinstance(metadata_unit, str) else "auto"
 
         source_rows: list[MacroObservation] = []
@@ -513,7 +525,7 @@ def _history_frame(
     # Upstream documents start as inclusive, end as exclusive, and auto_adjust=True
     # by default. We pass the next date and disable adjustment explicitly so the
     # original Adj Close and Close columns remain distinct.
-    # Source: https://github.com/ranaroussi/yfinance/blob/main/yfinance/scrapers/history.py
+    # Source: https://github.com/ranaroussi/yfinance/blob/1.7.0/yfinance/scrapers/history.py
     frame = history(
         start=(
             request.data_start_date if start_date is None else start_date
@@ -557,14 +569,14 @@ def _quote_currency(ticker: object) -> tuple[str | None, Diagnostic | None]:
         )
     # fast_info is the primary quote source; history metadata is a safe fallback
     # only when the returned currency code is explicit.
-    # Source: https://github.com/ranaroussi/yfinance/blob/main/yfinance/scrapers/quote.py
+    # Source: https://github.com/ranaroussi/yfinance/blob/1.7.0/yfinance/scrapers/quote.py
     return values[0][1], None
 
 
 def _safe_attribute(target: object, name: str) -> object | None:
     try:
         return cast(object, getattr(target, name))
-    except Exception:
+    except (AttributeError, KeyError):
         return None
 
 
@@ -574,14 +586,14 @@ def _metadata_value(metadata: object | None, key: str) -> object | None:
     if isinstance(metadata, Mapping):
         try:
             return metadata.get(key)
-        except Exception:
+        except (AttributeError, KeyError):
             return None
     getter = getattr(metadata, "__getitem__", None)
     if not callable(getter):
         return None
     try:
         return cast(object, getter(key))
-    except Exception:
+    except (KeyError, IndexError):
         return None
 
 

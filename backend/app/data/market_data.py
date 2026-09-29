@@ -17,15 +17,16 @@ from app.calendar.schedule import ExchangeCalendar
 from app.data.contracts import (
     DataCacheKey,
     MacroAlignmentResult,
+    MacroDataResult,
     MarketDataResult,
 )
 from app.data.fixtures import FixtureBundle, load_fixture
 from app.domain.contracts import (
-    DataSettings,
     DataSnapshot,
     MacroObservation,
     MarketBar,
     MarketSnapshot,
+    ValuationSnapshot,
 )
 from app.domain.status import (
     Diagnostic,
@@ -44,10 +45,17 @@ class MarketDataRequest(DomainModel):
     prewarm_start_date: Date | None = Field(default=None, alias="prewarmStartDate")
     exchange_calendar: ExchangeCalendar = Field(alias="exchangeCalendar")
     macro_staleness_sessions: int = Field(
-        default_factory=lambda: DataSettings().macro_staleness_sessions,
         alias="macroStalenessSessions",
         strict=True,
+        ge=0,
     )
+
+    @field_validator("frequency")
+    @classmethod
+    def validate_daily_frequency(cls, value: str) -> str:
+        if value != "1d":
+            raise ValueError("only daily frequency is supported")
+        return value
 
     @field_validator("symbol")
     @classmethod
@@ -55,11 +63,6 @@ class MarketDataRequest(DomainModel):
         if re.fullmatch(r"[A-Za-z0-9.^=_-]{1,32}", value) is None:
             raise ValueError("symbol contains unsupported characters")
         return value
-
-    @field_validator("macro_staleness_sessions")
-    @classmethod
-    def validate_macro_staleness_policy(cls, value: int) -> int:
-        return DataSettings(macroStalenessSessions=value).macro_staleness_sessions
 
     @model_validator(mode="after")
     def validate_range(self) -> MarketDataRequest:
@@ -198,7 +201,9 @@ def align_macro_observations(
     untouched.  The target is recorded separately in ``alignedSessionDate``.
     When a provider has no distinct publication timestamp, its source observation
     timestamp is the earliest known availability marker; a later explicit
-    ``publishedAt`` always takes precedence.
+    ``publishedAt`` always takes precedence. Because this calendar has no session
+    close cutoff, observations dated on a target session are conservatively made
+    available starting with the next session.
     """
 
     if max_staleness_sessions < 0:
@@ -226,39 +231,53 @@ def align_macro_observations(
                 row.source,
             )
         )
+        ready_rows = sorted(
+            source_rows,
+            key=lambda row: (
+                max(row.date, (row.published_at or row.observed_at).date()),
+                row.date,
+                _availability_sort_key(row),
+                row.source,
+            ),
+        )
+        ready_index = 0
+        selected: MacroObservation | None = None
+        selected_key: tuple[Date, str] | None = None
+
         for target in targets:
+            # Sweep the source series once as target sessions advance. A row is
+            # ready only when both its source date and availability date precede
+            # the target date; no per-session rescan of the full history is needed.
+            while ready_index < len(ready_rows):
+                candidate = ready_rows[ready_index]
+                availability = candidate.published_at or candidate.observed_at
+                ready_date = max(candidate.date, availability.date())
+                if ready_date >= target:
+                    break
+                ready_index += 1
+
+                candidate_key = (
+                    candidate.date,
+                    _availability_sort_key(candidate),
+                )
+                if selected_key is None or candidate_key > selected_key:
+                    selected = candidate
+                    selected_key = candidate_key
+
             target_index = session_indexes[target]
-            eligible: list[tuple[int, MacroObservation]] = []
-            stale_ages: list[int] = []
-            for row in source_rows:
-                availability = row.published_at or row.observed_at
-                if row.date > target or availability.date() > target:
-                    continue
-                source_index = bisect_right(sessions, row.date) - 1
-                if source_index < 0:
-                    stale_ages.append(target_index + 1)
-                    continue
-                age = target_index - source_index
+            if selected is not None:
+                source_index = bisect_right(sessions, selected.date) - 1
+                age = (
+                    target_index - source_index
+                    if source_index >= 0
+                    else target_index + 1
+                )
                 if age <= max_staleness_sessions:
-                    eligible.append((age, row))
-                else:
-                    stale_ages.append(age)
+                    aligned.append(
+                        selected.model_copy(update={"aligned_session_date": target})
+                    )
+                    continue
 
-            if eligible:
-                # Newest source observation wins; later publication breaks ties.
-                _, selected = max(
-                    eligible,
-                    key=lambda item: (
-                        item[1].date,
-                        _availability_sort_key(item[1]),
-                    ),
-                )
-                aligned.append(
-                    selected.model_copy(update={"aligned_session_date": target})
-                )
-                continue
-
-            if stale_ages:
                 diagnostics.append(
                     Diagnostic(
                         code=DiagnosticCode.STALE_DATA,
@@ -269,23 +288,24 @@ def align_macro_observations(
                             "symbol": symbol,
                             "targetSession": target.isoformat(),
                             "maxStalenessSessions": max_staleness_sessions,
-                            "ageSessions": min(stale_ages),
+                            "ageSessions": age,
                         },
                     )
                 )
-            else:
-                diagnostics.append(
-                    Diagnostic(
-                        code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
-                        messageKey="macro.not_published_as_of_session",
-                        asOf=target,
-                        source=source_rows[-1].source,
-                        details={
-                            "symbol": symbol,
-                            "targetSession": target.isoformat(),
-                        },
-                    )
+                continue
+
+            diagnostics.append(
+                Diagnostic(
+                    code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+                    messageKey="macro.not_published_as_of_session",
+                    asOf=target,
+                    source=source_rows[-1].source,
+                    details={
+                        "symbol": symbol,
+                        "targetSession": target.isoformat(),
+                    },
                 )
+            )
 
     aligned.sort(
         key=lambda row: (
@@ -361,6 +381,87 @@ def _unknown_rate_unit(symbol: str, source: str, source_unit: str) -> Diagnostic
     )
 
 
+def compose_data_snapshot(
+    base_snapshot: DataSnapshot,
+    macro_results: Iterable[MacroDataResult],
+) -> DataSnapshot:
+    """Compose cached market and macro provider results into one domain snapshot.
+
+    Provider results should be cached independently before composition because a
+    combined snapshot has more than one source cache identity. Conflicting values
+    for one macro symbol/session are rejected instead of merged silently.
+    Diagnostics stay on their provider results and must be aggregated by the caller.
+    """
+
+    macro_by_session: dict[tuple[str, Date], MacroObservation] = {}
+    for observation in base_snapshot.macro:
+        _add_macro_observation(macro_by_session, observation)
+
+    for result in macro_results:
+        for observation in result.observations:
+            if observation.symbol != result.symbol:
+                raise ValueError("macro result observations must match its symbol")
+            _add_macro_observation(macro_by_session, observation)
+
+    return _build_data_snapshot(
+        market=base_snapshot.market,
+        macro=tuple(macro_by_session.values()),
+        valuation=base_snapshot.valuation,
+    )
+
+
+def _add_macro_observation(
+    macro_by_session: dict[tuple[str, Date], MacroObservation],
+    observation: MacroObservation,
+) -> None:
+    aligned_session_date = observation.aligned_session_date
+    if aligned_session_date is None:
+        raise ValueError("macro observations must be session-aligned")
+
+    key = (observation.symbol, aligned_session_date)
+    existing = macro_by_session.get(key)
+    if existing is not None and existing != observation:
+        raise ValueError(
+            "conflicting macro observations for "
+            f"{observation.symbol} on {aligned_session_date}"
+        )
+    macro_by_session[key] = observation
+
+
+def _build_data_snapshot(
+    *,
+    market: MarketSnapshot,
+    macro: tuple[MacroObservation, ...],
+    valuation: ValuationSnapshot | None,
+) -> DataSnapshot:
+    ordered_macro = tuple(
+        sorted(
+            macro,
+            key=lambda row: (
+                row.aligned_session_date or row.date,
+                row.symbol,
+                row.date,
+                _availability_sort_key(row),
+            ),
+        )
+    )
+    payload: dict[str, object] = {
+        "market": market.model_dump(mode="json", by_alias=True),
+        "macro": [
+            item.model_dump(mode="json", by_alias=True) for item in ordered_macro
+        ],
+    }
+    if valuation is not None:
+        payload["valuation"] = valuation.model_dump(mode="json", by_alias=True)
+    fingerprint = _fingerprint(payload)
+    return DataSnapshot(
+        market=market,
+        macro=ordered_macro,
+        valuation=valuation,
+        fingerprint=fingerprint,
+    )
+
+
 def _market_data_result(
     *,
     symbol: str,
@@ -394,19 +495,12 @@ def _market_data_result(
         source=source,
         fingerprint=_fingerprint(market_payload),
     )
-    macro_payload = [item.model_dump(mode="json", by_alias=True) for item in macro]
-    normalized_fingerprint = _fingerprint(
-        {
-            "market": market.model_dump(mode="json", by_alias=True),
-            "macro": macro_payload,
-        }
-    )
-    snapshot = DataSnapshot(
+    snapshot = _build_data_snapshot(
         market=market,
         macro=macro,
         valuation=None,
-        fingerprint=normalized_fingerprint,
     )
+    normalized_fingerprint = snapshot.fingerprint
     return MarketDataResult(
         snapshot=snapshot,
         fingerprint=normalized_fingerprint,
@@ -583,5 +677,6 @@ __all__ = [
     "MarketDataResult",
     "align_macro_observations",
     "build_cache_key",
+    "compose_data_snapshot",
     "normalize_rate_value",
 ]

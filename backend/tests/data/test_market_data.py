@@ -7,22 +7,26 @@ import pytest
 from pydantic import ValidationError
 
 from app.calendar.schedule import ExchangeCalendar
+from app.catalog.service import default_data_settings
 from app.data.cache import (
     CachedMacroDataProvider,
     CachedMarketDataProvider,
     DataCacheKey,
     InMemoryDataCache,
 )
+from app.data.contracts import MacroDataResult
 from app.data.fixtures import FixtureBundle, load_fixture
 from app.data.market_data import (
     FixtureMarketDataAdapter,
     MarketDataRequest,
     align_macro_observations,
+    compose_data_snapshot,
     normalize_rate_value,
 )
 from app.data.providers.yahoo import YahooFinanceAdapter
 from app.domain.contracts import (
     ContributionSettings,
+    DataSettings,
     MacroObservation,
     RunConfig,
     RunSettings,
@@ -49,13 +53,14 @@ def _request(
     end: date = date(2024, 2, 2),
     prewarm_start: date | None = date(2024, 1, 30),
     max_staleness: object = 3,
+    frequency: str = "1d",
 ) -> MarketDataRequest:
     return MarketDataRequest(
         symbol="QQQ",
         startDate=start,
         endDate=end,
         prewarmStartDate=prewarm_start,
-        frequency="1d",
+        frequency=frequency,
         exchangeCalendar=calendar,
         macroStalenessSessions=max_staleness,
     )
@@ -101,20 +106,22 @@ def _yahoo_adapter(ticker: _Ticker) -> YahooFinanceAdapter:
     )
 
 
-def test_market_request_uses_registered_macro_staleness_default() -> None:
+def test_market_request_receives_catalog_materialized_staleness_default() -> None:
     calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
+    settings = default_data_settings()
     request = MarketDataRequest(
         symbol="QQQ",
         startDate=date(2024, 1, 30),
         endDate=date(2024, 1, 31),
         exchangeCalendar=calendar,
+        macroStalenessSessions=settings.macro_staleness_sessions,
     )
 
-    assert request.macro_staleness_sessions == 3
+    assert request.macro_staleness_sessions == settings.macro_staleness_sessions
 
 
 @pytest.mark.parametrize("value", [-1, True, "3"])
-def test_market_request_validates_staleness_from_the_catalog(value: object) -> None:
+def test_market_request_rejects_invalid_staleness_value(value: object) -> None:
     calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
 
     with pytest.raises(ValidationError):
@@ -132,11 +139,12 @@ def test_shared_macro_staleness_setting_uses_registry_default_and_is_adjustable(
             endMode="fixed",
         ),
         contribution=ContributionSettings(day=1, amount=Decimal("100")),
+        data=default_data_settings(),
     )
     adjusted = SharedSettings(
         run=settings.run,
         contribution=settings.contribution,
-        data={"macroStalenessSessions": 7},
+        data=DataSettings(macroStalenessSessions=7),
     )
 
     assert settings.data.macro_staleness_sessions == 3
@@ -181,11 +189,11 @@ def test_fixture_adapter_keeps_pre_warm_bars_sparse_and_provider_neutral() -> No
         2024, 1, 31, 21, tzinfo=UTC
     )
     rate_rows = [item for item in result.snapshot.macro if item.symbol == "^TNX"]
-    assert [(item.date, item.aligned_session_date) for item in rate_rows] == [
-        (date(2024, 2, 1), date(2024, 2, 2))
-    ]
-    assert rate_rows[0].unit == "percent_point"
-    assert rate_rows[0].source_unit == "percent_point"
+    assert rate_rows == []
+    assert any(
+        diagnostic.message_key == "macro.not_published_as_of_session"
+        for diagnostic in result.diagnostics
+    )
     assert all(
         item.aligned_session_date != date(2024, 1, 30) for item in result.snapshot.macro
     )
@@ -222,6 +230,87 @@ def test_fixture_adapter_diagnoses_bars_outside_the_exchange_calendar() -> None:
         for diagnostic in result.diagnostics
     )
     assert result.missing_market_sessions == ()
+
+
+def test_yahoo_market_and_macro_results_compose_into_provider_neutral_snapshot() -> (
+    None
+):
+    sessions = (date(2024, 1, 30), date(2024, 1, 31))
+    calendar = _calendar(*sessions)
+    market_ticker = _Ticker(
+        _Frame(
+            ["Close", "Adj Close"],
+            [
+                (datetime(2024, 1, 30, 21, tzinfo=UTC), {"Close": 10, "Adj Close": 9}),
+                (datetime(2024, 1, 31, 21, tzinfo=UTC), {"Close": 11, "Adj Close": 10}),
+            ],
+        )
+    )
+    macro_ticker = _Ticker(
+        _Frame(
+            ["Close"],
+            [(datetime(2024, 1, 30, 20, tzinfo=UTC), {"Close": 25})],
+        )
+    )
+    adapter = YahooFinanceAdapter(
+        ticker_factory=lambda symbol: {
+            "QQQ": market_ticker,
+            "^VIX": macro_ticker,
+        }[symbol],
+        data_version="yfinance-test-1.7.0",
+    )
+    market_request = _request(
+        calendar,
+        start=date(2024, 1, 31),
+        end=date(2024, 1, 31),
+        prewarm_start=date(2024, 1, 30),
+    )
+
+    market_result = adapter.load(market_request)
+    macro_result = adapter.load_macro(
+        market_request.model_copy(update={"symbol": "^VIX"}),
+        series_type="index",
+    )
+
+    assert market_result.snapshot is not None
+    assert macro_result.observations
+    snapshot = compose_data_snapshot(market_result.snapshot, (macro_result,))
+
+    assert snapshot.market.symbol == "QQQ"
+    assert snapshot.macro[0].symbol == "^VIX"
+    assert snapshot.macro[0].aligned_session_date == date(2024, 1, 31)
+    assert (
+        snapshot.fingerprint
+        == compose_data_snapshot(market_result.snapshot, (macro_result,)).fingerprint
+    )
+
+
+def test_composition_rejects_conflicting_fixture_and_yahoo_macro_values() -> None:
+    fixture = load_fixture("task4_core")
+    calendar = _calendar(*fixture.exchange_dates)
+    request = _request(
+        calendar,
+        start=date(2024, 1, 31),
+        end=date(2024, 1, 31),
+        prewarm_start=date(2024, 1, 30),
+    )
+    fixture_result = FixtureMarketDataAdapter(bundle=fixture).load(request)
+    yahoo_result = _yahoo_adapter(
+        _Ticker(
+            _Frame(
+                ["Close"],
+                [(datetime(2024, 1, 30, 20, tzinfo=UTC), {"Close": 25})],
+            )
+        )
+    ).load_macro(
+        request.model_copy(update={"symbol": "^VIX"}),
+        series_type="index",
+    )
+
+    assert fixture_result.snapshot is not None
+    assert yahoo_result.observations[0].aligned_session_date == date(2024, 1, 31)
+    with pytest.raises(ValueError, match="conflicting macro observations"):
+        compose_data_snapshot(fixture_result.snapshot, (yahoo_result,))
 
 
 def test_fixture_adapter_reports_missing_sessions_without_filling_or_dropping() -> None:
@@ -284,13 +373,93 @@ def test_macro_as_of_alignment_preserves_source_dates_and_publication_metadata()
     )
 
     assert tuple(item.aligned_session_date for item in aligned.observations) == (
-        date(2024, 2, 1),
         date(2024, 2, 2),
     )
     assert all(item.date == date(2024, 1, 30) for item in aligned.observations)
     assert all(
         item.published_at == datetime(2024, 2, 1, 12, tzinfo=UTC)
         for item in aligned.observations
+    )
+
+
+@pytest.mark.parametrize("publication_hour", [13, 23])
+def test_macro_published_on_session_date_waits_until_next_session(
+    publication_hour: int,
+) -> None:
+    sessions = (
+        date(2024, 1, 31),
+        date(2024, 2, 1),
+        date(2024, 2, 2),
+    )
+    calendar = _calendar(*sessions)
+    observation = MacroObservation(
+        date=sessions[0],
+        symbol="^VIX",
+        value=Decimal("25"),
+        unit="index_points",
+        source="fixture:test",
+        observedAt=datetime(2024, 1, 31, 21, tzinfo=UTC),
+        publishedAt=datetime(2024, 1, 31, publication_hour, tzinfo=UTC),
+    )
+
+    aligned = align_macro_observations(
+        (observation,),
+        exchange_calendar=calendar,
+        target_sessions=sessions,
+        max_staleness_sessions=3,
+    )
+
+    assert tuple(item.aligned_session_date for item in aligned.observations) == (
+        date(2024, 2, 1),
+        date(2024, 2, 2),
+    )
+
+
+def test_macro_alignment_uses_prior_observation_until_later_value_is_available() -> (
+    None
+):
+    sessions = (
+        date(2024, 1, 30),
+        date(2024, 1, 31),
+        date(2024, 2, 1),
+        date(2024, 2, 2),
+        date(2024, 2, 5),
+    )
+    calendar = _calendar(*sessions)
+    observations = (
+        MacroObservation(
+            date=sessions[0],
+            symbol="^VIX",
+            value=Decimal("20"),
+            unit="index_points",
+            source="fixture:test",
+            observedAt=datetime(2024, 1, 30, 20, tzinfo=UTC),
+        ),
+        MacroObservation(
+            date=sessions[1],
+            symbol="^VIX",
+            value=Decimal("25"),
+            unit="index_points",
+            source="fixture:test",
+            observedAt=datetime(2024, 1, 31, 20, tzinfo=UTC),
+            publishedAt=datetime(2024, 2, 2, 23, tzinfo=UTC),
+        ),
+    )
+
+    aligned = align_macro_observations(
+        observations,
+        exchange_calendar=calendar,
+        target_sessions=sessions,
+        max_staleness_sessions=3,
+    )
+
+    assert tuple(
+        (item.aligned_session_date, item.value) for item in aligned.observations
+    ) == (
+        (date(2024, 1, 31), Decimal("20")),
+        (date(2024, 2, 1), Decimal("20")),
+        (date(2024, 2, 2), Decimal("20")),
+        (date(2024, 2, 5), Decimal("25")),
     )
 
 
@@ -321,7 +490,7 @@ def test_macro_staleness_uses_exchange_sessions_and_stops_at_configured_limit() 
 
     assert (
         tuple(item.aligned_session_date for item in aligned.observations)
-        == sessions[:4]
+        == sessions[1:4]
     )
     assert any(
         diagnostic.code is DiagnosticCode.STALE_DATA
@@ -495,6 +664,48 @@ def test_yahoo_adapter_reports_non_positive_price_values_as_unavailable() -> Non
     )
 
 
+def test_yahoo_adapter_reports_metadata_property_failures_as_provider_errors() -> None:
+    class BrokenMetadataTicker:
+        history_metadata: dict[str, object] = {}
+
+        def __init__(self) -> None:
+            self.history_kwargs: dict[str, object] | None = None
+
+        @property
+        def fast_info(self) -> object:
+            raise RuntimeError("metadata request failed")
+
+        def history(self, **kwargs: object) -> _Frame:
+            self.history_kwargs = kwargs
+            return _Frame(
+                ["Close", "Adj Close"],
+                [
+                    (
+                        datetime(2024, 1, 30, 21, tzinfo=UTC),
+                        {"Close": 10, "Adj Close": 9},
+                    )
+                ],
+            )
+
+    calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
+    ticker = BrokenMetadataTicker()
+
+    result = _yahoo_adapter(ticker).load(
+        _request(
+            calendar,
+            start=date(2024, 1, 30),
+            end=date(2024, 1, 31),
+            prewarm_start=None,
+        )
+    )
+
+    assert result.snapshot is None
+    assert any(
+        diagnostic.code is DiagnosticCode.PROVIDER_REQUEST_FAILED
+        for diagnostic in result.diagnostics
+    )
+
+
 def test_yahoo_adapter_never_assumes_usd_when_quote_currency_is_missing() -> None:
     calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
     ticker = _Ticker(
@@ -584,6 +795,39 @@ def test_yahoo_adapter_rejects_conflicting_explicit_currency_metadata() -> None:
     )
 
 
+def test_yahoo_macro_reports_unit_metadata_failure_as_provider_error() -> None:
+    class BrokenUnitMetadataTicker:
+        fast_info = {"currency": "USD"}
+
+        @property
+        def history_metadata(self) -> object:
+            raise RuntimeError("metadata request failed")
+
+        def history(self, **_kwargs: object) -> _Frame:
+            return _Frame(
+                ["Close"],
+                [(datetime(2024, 1, 30, 20, tzinfo=UTC), {"Close": 2.5})],
+            )
+
+    calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
+    result = _yahoo_adapter(BrokenUnitMetadataTicker()).load_macro(
+        _request(
+            calendar,
+            start=date(2024, 1, 30),
+            end=date(2024, 1, 31),
+            prewarm_start=None,
+        ),
+        series_type="rate",
+        source_unit="auto",
+    )
+
+    assert result.observations == ()
+    assert any(
+        diagnostic.code is DiagnosticCode.PROVIDER_REQUEST_FAILED
+        for diagnostic in result.diagnostics
+    )
+
+
 def test_yahoo_rate_unit_auto_does_not_infer_from_ticker_symbol() -> None:
     calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
     ticker = _Ticker(
@@ -638,7 +882,7 @@ def test_yahoo_rate_explicit_basis_points_are_normalized_and_aligned() -> None:
     assert result.observations[0].value == Decimal("2.5")
     assert result.observations[0].unit == "percent_point"
     assert result.observations[0].source_unit == "basis_points"
-    assert result.observations[0].aligned_session_date == date(2024, 1, 30)
+    assert result.observations[0].aligned_session_date == date(2024, 1, 31)
 
 
 @pytest.mark.parametrize(
@@ -671,6 +915,14 @@ def test_cache_identity_includes_each_required_data_dimension(
 
 def test_cached_market_provider_reuses_normalized_result() -> None:
     fixture = load_fixture("task4_core")
+    snapshot = fixture.snapshot.model_copy(
+        update={
+            "macro": tuple(
+                item for item in fixture.snapshot.macro if item.symbol == "^VIX"
+            )
+        }
+    )
+    fixture = fixture.model_copy(update={"snapshot": snapshot})
     calendar = _calendar(*fixture.exchange_dates)
     delegate = FixtureMarketDataAdapter(bundle=fixture)
 
@@ -689,8 +941,8 @@ def test_cached_market_provider_reuses_normalized_result() -> None:
     cached = CachedMarketDataProvider(provider, InMemoryDataCache())
     request = _request(
         calendar,
-        start=date(2024, 1, 30),
-        end=date(2024, 1, 30),
+        start=date(2024, 1, 31),
+        end=date(2024, 1, 31),
         prewarm_start=None,
     )
 
@@ -702,6 +954,74 @@ def test_cached_market_provider_reuses_normalized_result() -> None:
     assert first.snapshot.fingerprint == second.snapshot.fingerprint
     assert first.cache_key == second.cache_key
     assert provider.load_count == 1
+
+    refreshed = cached.load(request, refresh=True)
+
+    assert refreshed.snapshot is not None
+    assert provider.load_count == 2
+
+
+def test_in_memory_data_cache_evicts_least_recently_used_entry() -> None:
+    cache = InMemoryDataCache(max_entries=2)
+    keys = tuple(
+        DataCacheKey(
+            provider="yahoo",
+            symbol=f"^VIX{index}",
+            frequency="1d",
+            startDate=date(2024, 1, 30),
+            endDate=date(2024, 1, 31),
+            dataVersion="test-v1",
+            priceBasis="macro-index-index_points",
+        )
+        for index in range(3)
+    )
+    results = tuple(
+        MacroDataResult(
+            symbol=key.symbol,
+            fingerprint=f"fingerprint-{index}",
+            cacheKey=key,
+        )
+        for index, key in enumerate(keys)
+    )
+
+    cache.put(keys[0], results[0])
+    cache.put(keys[1], results[1])
+    assert cache.get(keys[0]) == results[0]
+    cache.put(keys[2], results[2])
+
+    assert cache.get(keys[0]) == results[0]
+    assert cache.get(keys[1]) is None
+    assert cache.get(keys[2]) == results[2]
+
+
+def test_cached_auto_rate_reloads_when_provider_unit_metadata_changes() -> None:
+    sessions = (date(2024, 1, 30), date(2024, 1, 31))
+    calendar = _calendar(*sessions)
+    frame = _Frame(
+        ["Close"],
+        [(datetime(2024, 1, 30, 21, tzinfo=UTC), {"Close": 0.025})],
+    )
+    units = iter(("decimal", "percent_point"))
+    adapter = YahooFinanceAdapter(
+        ticker_factory=lambda _symbol: _Ticker(
+            frame,
+            metadata={"unit": next(units)},
+        ),
+        data_version="yfinance-test-1.7.0",
+    )
+    cached = CachedMacroDataProvider(adapter, InMemoryDataCache())
+    request = _request(
+        calendar,
+        start=date(2024, 1, 31),
+        end=date(2024, 1, 31),
+        prewarm_start=None,
+    )
+
+    first = cached.load(request, series_type="rate", source_unit="auto")
+    second = cached.load(request, series_type="rate", source_unit="auto")
+
+    assert first.observations[0].value == Decimal("2.500")
+    assert second.observations[0].value == Decimal("0.025")
 
 
 def test_cached_macro_provider_reuses_normalized_observations() -> None:
@@ -757,6 +1077,18 @@ def test_cached_macro_provider_reuses_normalized_observations() -> None:
     assert first.fingerprint == second.fingerprint
     assert first.cache_key == second.cache_key
     assert provider.load_count == 1
+
+    refreshed = cached.load(request, series_type="index", refresh=True)
+
+    assert refreshed.observations
+    assert provider.load_count == 2
+
+
+def test_market_request_rejects_non_daily_frequency() -> None:
+    calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
+
+    with pytest.raises(ValidationError, match="daily frequency"):
+        _request(calendar, frequency="1wk")
 
 
 def test_market_request_rejects_prewarm_after_backtest_start() -> None:

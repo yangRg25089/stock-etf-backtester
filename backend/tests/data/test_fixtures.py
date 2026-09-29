@@ -44,6 +44,7 @@ def test_fixture_fingerprint_can_be_frozen_into_a_run_snapshot() -> None:
                 endMode="fixed",
             ),
             contribution=ContributionSettings(day=1, amount=Decimal("100")),
+            data={"macroStalenessSessions": 3},
         )
     )
 

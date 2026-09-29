@@ -18,6 +18,7 @@ from app.catalog.presets import (
 from app.catalog.service import (
     CATALOG_VERSION,
     Catalog,
+    default_data_settings,
     get_catalog,
     get_parameter_definition,
     get_preset_definition,
@@ -129,6 +130,13 @@ def test_every_parameter_has_complete_stable_metadata() -> None:
             assert definition.default >= definition.minimum
         if definition.default is not None and definition.maximum is not None:
             assert definition.default <= definition.maximum
+
+
+def test_default_data_settings_materializes_the_registered_staleness_default() -> None:
+    settings = default_data_settings()
+    definition = get_parameter_definition("data.macroStalenessSessions")
+
+    assert settings.macro_staleness_sessions == definition.default
 
 
 def test_macro_staleness_is_a_registered_shared_data_setting() -> None:

@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 from datetime import date as Date
 from decimal import Decimal
 from enum import StrEnum
-from typing import TYPE_CHECKING
 
 from pydantic import (
     BaseModel,
@@ -29,9 +28,6 @@ from app.domain.status import (
     StrategyStatus,
     transition_status,
 )
-
-if TYPE_CHECKING:
-    from app.catalog.definitions import ParameterDefinition
 
 
 class StrategyPresetId(StrEnum):
@@ -111,41 +107,18 @@ class ContributionSettings(DomainModel):
     amount: Decimal = Field(ge=0)
 
 
-def _macro_staleness_definition() -> "ParameterDefinition":
-    from app.catalog.definitions import get_parameter_definition
-
-    return get_parameter_definition("data.macroStalenessSessions")
-
-
-def _default_macro_staleness_sessions() -> int:
-    """Read the freshness default from the single parameter catalog."""
-
-    default = _macro_staleness_definition().default
-    if isinstance(default, bool) or not isinstance(default, int):
-        raise RuntimeError("macro staleness catalog default must be an integer")
-    return default
-
-
-def _validate_macro_staleness_sessions(value: int) -> int:
-    from app.catalog.definitions import validate_parameter_value
-
-    validate_parameter_value(_macro_staleness_definition(), value)
-    return value
-
-
 class DataSettings(DomainModel):
-    """Shared data validity policy frozen with each run's settings."""
+    """Validated data policy frozen with each run's settings.
+
+    Defaults and parameter-catalog range validation are materialized at the
+    catalog/config boundary; domain contracts do not depend on the catalog.
+    """
 
     macro_staleness_sessions: int = Field(
-        default_factory=_default_macro_staleness_sessions,
         alias="macroStalenessSessions",
         strict=True,
+        ge=0,
     )
-
-    @field_validator("macro_staleness_sessions")
-    @classmethod
-    def validate_registered_staleness(cls, value: int) -> int:
-        return _validate_macro_staleness_sessions(value)
 
 
 class SharedSettings(DomainModel):
@@ -153,7 +126,7 @@ class SharedSettings(DomainModel):
 
     run: RunSettings
     contribution: ContributionSettings
-    data: DataSettings = Field(default_factory=DataSettings)
+    data: DataSettings
 
 
 class StrategyInstance(MutableDomainModel):
