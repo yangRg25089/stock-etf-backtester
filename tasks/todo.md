@@ -77,4 +77,4 @@
 - [x] 运行快照、四类 CSV 和运行完成日志保留来源与覆盖日期
 - [x] 用户要求的运行结果可在服务重启后恢复；notebook 映射与来源哈希已固化入库
 
-Task 21 的 smoke 与 PE 限制，以及当前回测 provider 接入进度见 [`tasks/plan.md`](plan.md) 和 [`docs/development.md`](../docs/development.md)。Task 23 完成前，API 默认 provider 尚未接入 Yahoo live 回测。
+Task 21 的 smoke 与 PE 限制，以及当前回测 provider 接入进度见 [`tasks/plan.md`](plan.md) 和 [`docs/development.md`](../docs/development.md)。Task 23 已将 Yahoo 接入 API 默认 provider；该任务仍待完成其验收与验证。
