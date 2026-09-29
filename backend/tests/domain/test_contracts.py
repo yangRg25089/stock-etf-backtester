@@ -98,6 +98,30 @@ def test_snapshot_copies_a_mutable_draft_and_freezes_config() -> None:
         snapshot.catalog_version = "changed"
 
 
+def test_snapshot_freezes_and_serializes_data_provenance() -> None:
+    sources = ["yahoo", "sec:companyfacts"]
+    snapshot = RunSnapshot(
+        runId="run-provenance",
+        config=_draft_config(),
+        catalogVersion="catalog-1",
+        dataFingerprint="data-1",
+        engineVersion="engine-1",
+        dataProvenance={
+            "sources": sources,
+            "calendarAsOf": date(2024, 1, 31),
+            "marketDataThrough": date(2024, 1, 30),
+        },
+    )
+    sources.append("untrusted-later-change")
+
+    assert snapshot.data_provenance.sources == ("sec:companyfacts", "yahoo")
+    assert snapshot.model_dump(mode="json", by_alias=True)["dataProvenance"] == {
+        "sources": ["sec:companyfacts", "yahoo"],
+        "calendarAsOf": "2024-01-31",
+        "marketDataThrough": "2024-01-30",
+    }
+
+
 @pytest.mark.parametrize("params", [[["vix.buyThreshold", 25]], None, 3])
 def test_strategy_params_require_a_mapping(params: object) -> None:
     with pytest.raises(ValidationError):

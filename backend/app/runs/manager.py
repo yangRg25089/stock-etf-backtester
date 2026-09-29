@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import date
 
 from app.calendar import ExchangeCalendar, schedule
 from app.catalog.service import Catalog, get_catalog
@@ -18,6 +20,7 @@ from app.domain.contracts import (
     FrozenStrategyInstance,
     MetricSummary,
     ResultRole,
+    RunDataProvenance,
     RunResult,
     RunSnapshot,
     SearchResult,
@@ -46,6 +49,7 @@ _BENCHMARKS: tuple[tuple[str, StrategyPresetId], ...] = (
     ("benchmark:monthly-dca", StrategyPresetId.MONTHLY_DCA),
     ("benchmark:lump-sum", StrategyPresetId.LUMP_SUM),
 )
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +99,15 @@ class RunManager:
             snapshot = self._make_snapshot(reservation.run_id, submission, data_loads)
             response = self._queued_response(snapshot, submission)
             self._store.publish(reservation, response)
+            _LOGGER.info(
+                "Run accepted and queued",
+                extra={
+                    "event": "run_queued",
+                    "run_id": reservation.run_id,
+                    "status": StrategyStatus.QUEUED.value,
+                    "strategy_count": len(submission.config.strategies),
+                },
+            )
         except BaseException as error:
             self._store.abort(reservation, error)
             raise
@@ -107,6 +120,14 @@ class RunManager:
                 data_loads,
             )
         except Exception as error:
+            _LOGGER.warning(
+                "Run executor rejected the job",
+                extra={
+                    "event": "run_executor_failed",
+                    "run_id": reservation.run_id,
+                    "exception_type": type(error).__name__,
+                },
+            )
             diagnostic = _calculation_diagnostic(error)
             self._fail_unfinished(reservation.run_id, diagnostic)
             current = self._store.get(reservation.run_id)
@@ -144,6 +165,14 @@ class RunManager:
                     requirements=requirements[strategy.id],
                 )
             except Exception as error:
+                _LOGGER.warning(
+                    "Strategy data load failed",
+                    extra={
+                        "event": "strategy_data_load_failed",
+                        "strategy_id": strategy.id,
+                        "exception_type": type(error).__name__,
+                    },
+                )
                 loaded[strategy.id] = StrategyDataLoad(
                     diagnostics=(_provider_diagnostic(strategy.id, error),)
                 )
@@ -225,6 +254,7 @@ class RunManager:
             catalogVersion=submission.catalog_version,
             dataFingerprint=_fingerprint(data_payload),
             engineVersion=submission.engine_version,
+            dataProvenance=_data_provenance(data_loads),
         )
 
     def _queued_response(
@@ -267,6 +297,14 @@ class RunManager:
         data_loads: Mapping[str, StrategyDataLoad],
     ) -> None:
         try:
+            _LOGGER.info(
+                "Run execution started",
+                extra={
+                    "event": "run_started",
+                    "run_id": run_id,
+                    "status": StrategyStatus.RUNNING.value,
+                },
+            )
             self._advance_all(run_id, StrategyStatus.LOADING)
             self._advance_all(run_id, StrategyStatus.RUNNING)
             response = self._store.get(run_id)
@@ -340,7 +378,32 @@ class RunManager:
                 self._complete_run(run_id, strategy.id, outcome)
 
             self._clear_current(run_id)
+            response = self._store.get(run_id)
+            if response is not None:
+                _LOGGER.info(
+                    "Run execution finished",
+                    extra={
+                        "event": "run_finished",
+                        "run_id": run_id,
+                        "status": response.status.value,
+                        "data_sources": list(response.snapshot.data_provenance.sources),
+                        "calendar_as_of": _iso_date(
+                            response.snapshot.data_provenance.calendar_as_of
+                        ),
+                        "market_data_through": _iso_date(
+                            response.snapshot.data_provenance.market_data_through
+                        ),
+                    },
+                )
         except Exception as error:
+            _LOGGER.warning(
+                "Run execution failed",
+                extra={
+                    "event": "run_failed",
+                    "run_id": run_id,
+                    "exception_type": type(error).__name__,
+                },
+            )
             self._fail_unfinished(run_id, _calculation_diagnostic(error))
 
     def _run_benchmark(
@@ -566,6 +629,16 @@ class RunManager:
         if not found:
             raise KeyError(f"run result does not contain strategy: {strategy_id}")
         self._save_result(response, tuple(runs))
+        _LOGGER.info(
+            "Strategy execution finished",
+            extra={
+                "event": "strategy_finished",
+                "run_id": run_id,
+                "strategy_id": strategy_id,
+                "status": outcome.status.value,
+                "diagnostic_codes": [item.code.value for item in outcome.diagnostics],
+            },
+        )
 
     def _save_result(
         self, response: RunResponse, strategy_runs: Sequence[StrategyRun]
@@ -623,6 +696,57 @@ def _resolve_latest_end(
     )
     shared_settings = config.shared.model_copy(update={"run": run_settings})
     return config.model_copy(update={"shared": shared_settings})
+
+
+def _data_provenance(
+    data_loads: Mapping[str, StrategyDataLoad],
+) -> RunDataProvenance:
+    sources: set[str] = set()
+    calendar_as_of_dates = [
+        item.calendar.as_of_date
+        for item in data_loads.values()
+        if item.calendar is not None
+    ]
+    market_data_through_dates: list[date | None] = []
+    for item in data_loads.values():
+        sources.update(
+            diagnostic.source
+            for diagnostic in item.diagnostics
+            if diagnostic.source is not None
+        )
+        if item.snapshot is None:
+            continue
+        market = item.snapshot.market
+        sources.add(market.source)
+        sources.update(bar.source for bar in market.bars)
+        market_dates = [bar.date for bar in market.bars]
+        market_data_through_dates.append(max(market_dates, default=None))
+        sources.update(observation.source for observation in item.snapshot.macro)
+        if item.snapshot.valuation is not None:
+            sources.update(
+                observation.source
+                for observation in item.snapshot.valuation.observations
+            )
+    return RunDataProvenance(
+        sources=tuple(sources),
+        calendarAsOf=(min(calendar_as_of_dates) if calendar_as_of_dates else None),
+        marketDataThrough=(
+            min(
+                market_date
+                for market_date in market_data_through_dates
+                if market_date is not None
+            )
+            if market_data_through_dates
+            and all(
+                market_date is not None for market_date in market_data_through_dates
+            )
+            else None
+        ),
+    )
+
+
+def _iso_date(value: date | None) -> str | None:
+    return None if value is None else value.isoformat()
 
 
 def _benchmark_strategy(

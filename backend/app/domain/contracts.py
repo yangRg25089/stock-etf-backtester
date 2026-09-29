@@ -221,6 +221,19 @@ class FrozenRunConfig(DomainModel):
         )
 
 
+class RunDataProvenance(DomainModel):
+    """Stable source and coverage markers frozen with a submitted run."""
+
+    sources: tuple[str, ...] = ()
+    calendar_as_of: Date | None = Field(default=None, alias="calendarAsOf")
+    market_data_through: Date | None = Field(default=None, alias="marketDataThrough")
+
+    @field_validator("sources")
+    @classmethod
+    def sort_unique_sources(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(sorted(set(value)))
+
+
 class RunSnapshot(DomainModel):
     """The immutable input boundary for one submitted run."""
 
@@ -229,6 +242,9 @@ class RunSnapshot(DomainModel):
     catalog_version: str = Field(alias="catalogVersion", min_length=1)
     data_fingerprint: str = Field(alias="dataFingerprint", min_length=1)
     engine_version: str = Field(alias="engineVersion", min_length=1)
+    data_provenance: RunDataProvenance = Field(
+        default_factory=RunDataProvenance, alias="dataProvenance"
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), alias="createdAt"
     )

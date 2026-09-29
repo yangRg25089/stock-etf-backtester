@@ -243,7 +243,8 @@ def test_successful_zero_trade_fixture_run_still_exports_the_trade_header() -> N
     assert strategy["trades"] == []
     assert exported.status_code == 200
     assert exported.text.splitlines() == [
-        "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,signalId"
+        "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
+        "signalId,dataSources,calendarAsOf,marketDataThrough"
     ]
 
 

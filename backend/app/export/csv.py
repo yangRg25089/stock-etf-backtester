@@ -51,6 +51,9 @@ _SUMMARY_FIELDS = (
     "relativeToDca",
     "currency",
     "diagnostics",
+    "dataSources",
+    "calendarAsOf",
+    "marketDataThrough",
 )
 _DAILY_ASSET_FIELDS = (
     "runId",
@@ -64,6 +67,9 @@ _DAILY_ASSET_FIELDS = (
     "currency",
     "unitNav",
     "drawdown",
+    "dataSources",
+    "calendarAsOf",
+    "marketDataThrough",
 )
 _TRADE_FIELDS = (
     "runId",
@@ -76,6 +82,9 @@ _TRADE_FIELDS = (
     "cashAmount",
     "currency",
     "signalId",
+    "dataSources",
+    "calendarAsOf",
+    "marketDataThrough",
 )
 _SEARCH_FIELDS = (
     "runId",
@@ -88,6 +97,7 @@ _SEARCH_FIELDS = (
     "calculationFingerprint",
     "reusedCalculation",
 )
+_DATA_PROVENANCE_FIELDS = ("dataSources", "calendarAsOf", "marketDataThrough")
 _METRIC_FIELDS = (
     "totalContributed",
     "endingEquity",
@@ -142,16 +152,16 @@ def export_csv(
     if kind is ExportKind.SUMMARY:
         return _summary_csv(run, focused)
     if kind is ExportKind.DAILY_ASSETS:
-        return _daily_assets_csv(run.run_id, focused)
+        return _daily_assets_csv(run, focused)
     if kind is ExportKind.TRADES:
-        return _trades_csv(run.run_id, focused)
+        return _trades_csv(run, focused)
     if focused.search_result is None:
         raise ExportError(
             "search_results_unavailable",
             "api.errors.search_results_unavailable",
             409,
         )
-    return _search_csv(run.run_id, focused, focused.search_result)
+    return _search_csv(run, focused, focused.search_result)
 
 
 def _summary_csv(run: RunResponse, focused: StrategyRun) -> str:
@@ -168,14 +178,15 @@ def _summary_csv(run: RunResponse, focused: StrategyRun) -> str:
         "endDate": config.shared.run.end_date,
         **_metric_values(metrics),
         "diagnostics": _diagnostic_json(focused.diagnostics),
+        **_provenance_values(run),
     }
     return _render(_SUMMARY_FIELDS, (row[field] for field in _SUMMARY_FIELDS))
 
 
-def _daily_assets_csv(run_id: str, focused: StrategyRun) -> str:
+def _daily_assets_csv(run: RunResponse, focused: StrategyRun) -> str:
     rows = (
         {
-            "runId": run_id,
+            "runId": run.run_id,
             "resultId": focused.id,
             "date": asset.date,
             "cash": asset.cash,
@@ -186,16 +197,17 @@ def _daily_assets_csv(run_id: str, focused: StrategyRun) -> str:
             "currency": asset.currency,
             "unitNav": asset.unit_nav,
             "drawdown": asset.drawdown,
+            **_provenance_values(run),
         }
         for asset in focused.daily_assets
     )
     return _render_rows(_DAILY_ASSET_FIELDS, rows)
 
 
-def _trades_csv(run_id: str, focused: StrategyRun) -> str:
+def _trades_csv(run: RunResponse, focused: StrategyRun) -> str:
     rows = (
         {
-            "runId": run_id,
+            "runId": run.run_id,
             "resultId": focused.id,
             "date": trade.date,
             "side": trade.side,
@@ -205,6 +217,7 @@ def _trades_csv(run_id: str, focused: StrategyRun) -> str:
             "cashAmount": trade.cash_amount,
             "currency": trade.currency,
             "signalId": trade.signal_id,
+            **_provenance_values(run),
         }
         for trade in focused.trades
     )
@@ -212,7 +225,7 @@ def _trades_csv(run_id: str, focused: StrategyRun) -> str:
 
 
 def _search_csv(
-    run_id: str,
+    run: RunResponse,
     focused: StrategyRun,
     search_result: SearchResult,
 ) -> str:
@@ -227,12 +240,18 @@ def _search_csv(
         )
     )
     parameter_fields = (*dimension_fields, *parameter_fields)
-    fields = (*_SEARCH_FIELDS, *parameter_fields, *_METRIC_FIELDS, "diagnostics")
+    fields = (
+        *_SEARCH_FIELDS,
+        *parameter_fields,
+        *_METRIC_FIELDS,
+        "diagnostics",
+        *_DATA_PROVENANCE_FIELDS,
+    )
     rows: list[dict[str, object]] = []
     for candidate in search_result.candidates:
         metrics = candidate.metrics
         row: dict[str, object] = {
-            "runId": run_id,
+            "runId": run.run_id,
             "resultId": focused.id,
             "role": candidate.role,
             "presetId": focused.preset_id,
@@ -243,6 +262,7 @@ def _search_csv(
             "reusedCalculation": candidate.reused_calculation,
             **_metric_values(metrics),
             "diagnostics": _diagnostic_json(candidate.diagnostics),
+            **_provenance_values(run),
         }
         row.update(
             {
@@ -252,6 +272,19 @@ def _search_csv(
         )
         rows.append(row)
     return _render_rows(fields, rows)
+
+
+def _provenance_values(run: RunResponse) -> dict[str, object]:
+    provenance = run.snapshot.data_provenance
+    return {
+        "dataSources": json.dumps(
+            provenance.sources,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+        "calendarAsOf": provenance.calendar_as_of,
+        "marketDataThrough": provenance.market_data_through,
+    }
 
 
 def _metric_values(metrics: MetricSummary | None) -> dict[str, object]:

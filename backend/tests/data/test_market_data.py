@@ -85,6 +85,7 @@ class _Ticker:
         *,
         currency: str | None = "USD",
         metadata: dict[str, object] | None = None,
+        history_error: Exception | None = None,
     ) -> None:
         self.frame = frame
         self.fast_info: dict[str, object] = (
@@ -92,9 +93,12 @@ class _Ticker:
         )
         self.history_metadata = {} if metadata is None else metadata
         self.history_kwargs: dict[str, object] | None = None
+        self.history_error = history_error
 
     def history(self, **kwargs: object) -> _Frame:
         self.history_kwargs = kwargs
+        if self.history_error is not None:
+            raise self.history_error
         return self.frame
 
 
@@ -103,6 +107,100 @@ def _yahoo_adapter(ticker: _Ticker) -> YahooFinanceAdapter:
         ticker_factory=lambda _symbol: ticker,
         data_version="yfinance-test-1.7.0",
     )
+
+
+def test_yahoo_adapter_passes_an_explicit_timeout_to_history() -> None:
+    ticker = _Ticker(_Frame(["Close", "Adj Close"], []))
+    adapter = YahooFinanceAdapter(
+        ticker_factory=lambda _symbol: ticker,
+        request_timeout_seconds=4.5,
+        data_version="yfinance-test-1.7.0",
+    )
+
+    adapter.load(_request(_calendar(date(2024, 1, 31))))
+
+    assert ticker.history_kwargs is not None
+    assert ticker.history_kwargs["timeout"] == 4.5
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan"), True])
+def test_yahoo_adapter_rejects_invalid_request_timeouts(timeout: object) -> None:
+    with pytest.raises(ValueError, match="finite positive"):
+        YahooFinanceAdapter(request_timeout_seconds=timeout)  # type: ignore[arg-type]
+
+
+def test_yahoo_rate_limit_diagnostic_is_specific_and_omits_exception_text() -> None:
+    class YFRateLimitError(Exception):
+        pass
+
+    ticker = _Ticker(
+        _Frame(["Close", "Adj Close"], []),
+        history_error=YFRateLimitError("token=must-not-escape"),
+    )
+
+    result = _yahoo_adapter(ticker).load(_request(_calendar(date(2024, 1, 31))))
+
+    diagnostic = result.diagnostics[0]
+    assert result.snapshot is None
+    assert diagnostic.message_key == "market.provider_rate_limited"
+    assert diagnostic.details == {
+        "symbol": "QQQ",
+        "exceptionType": "YFRateLimitError",
+        "failureKind": "rate_limited",
+    }
+    assert "token=must-not-escape" not in result.model_dump_json()
+
+
+def test_yahoo_rate_limit_log_omits_provider_exception_text(caplog) -> None:
+    class YFRateLimitError(Exception):
+        pass
+
+    ticker = _Ticker(
+        _Frame(["Close", "Adj Close"], []),
+        history_error=YFRateLimitError("secret=must-not-escape"),
+    )
+
+    _yahoo_adapter(ticker).load(_request(_calendar(date(2024, 1, 31))))
+
+    records = [record for record in caplog.records if record.name.endswith("yahoo")]
+    assert len(records) == 1
+    assert records[0].failure_kind == "rate_limited"
+    assert records[0].exception_type == "YFRateLimitError"
+    assert "secret=must-not-escape" not in caplog.text
+
+
+def test_yahoo_http_429_diagnostic_is_classified_as_rate_limited() -> None:
+    class _Response:
+        status_code = 429
+
+    class ProviderHttpError(Exception):
+        response = _Response()
+
+    ticker = _Ticker(
+        _Frame(["Close", "Adj Close"], []),
+        history_error=ProviderHttpError("response body must not escape"),
+    )
+
+    result = _yahoo_adapter(ticker).load(_request(_calendar(date(2024, 1, 31))))
+
+    assert result.diagnostics[0].message_key == "market.provider_rate_limited"
+    assert result.diagnostics[0].details["failureKind"] == "rate_limited"
+    assert "response body must not escape" not in result.model_dump_json()
+
+
+def test_yahoo_timeout_diagnostic_is_specific_and_omits_exception_text() -> None:
+    ticker = _Ticker(
+        _Frame(["Close", "Adj Close"], []),
+        history_error=TimeoutError("authorization=must-not-escape"),
+    )
+
+    result = _yahoo_adapter(ticker).load(_request(_calendar(date(2024, 1, 31))))
+
+    diagnostic = result.diagnostics[0]
+    assert result.snapshot is None
+    assert diagnostic.message_key == "market.provider_timeout"
+    assert diagnostic.details["failureKind"] == "timeout"
+    assert "authorization=must-not-escape" not in result.model_dump_json()
 
 
 def test_market_request_receives_catalog_materialized_staleness_default() -> None:
@@ -958,6 +1056,43 @@ def test_cached_market_provider_reuses_normalized_result() -> None:
 
     assert refreshed.snapshot is not None
     assert provider.load_count == 2
+
+
+def test_cached_market_provider_logs_miss_hit_and_refresh_without_data(caplog) -> None:
+    caplog.set_level("INFO")
+    fixture = load_fixture("task4_core")
+    snapshot = fixture.snapshot.model_copy(
+        update={
+            "macro": tuple(
+                item for item in fixture.snapshot.macro if item.symbol == "^VIX"
+            )
+        }
+    )
+    fixture = fixture.model_copy(update={"snapshot": snapshot})
+    calendar = _calendar(*fixture.exchange_dates)
+    delegate = FixtureMarketDataAdapter(bundle=fixture)
+    cached = CachedMarketDataProvider(delegate, InMemoryDataCache())
+    request = _request(
+        calendar,
+        start=date(2024, 1, 31),
+        end=date(2024, 1, 31),
+        prewarm_start=None,
+    )
+
+    cached.load(request)
+    cached.load(request)
+    cached.load(request, refresh=True)
+
+    events = [
+        record.cache_event for record in caplog.records if record.name.endswith("cache")
+    ]
+    assert events == ["miss", "hit", "refresh"]
+    assert all(
+        record.provider == "fixture"
+        for record in caplog.records
+        if record.name.endswith("cache")
+    )
+    assert "fingerprint" not in caplog.text
 
 
 def test_in_memory_data_cache_evicts_least_recently_used_entry() -> None:

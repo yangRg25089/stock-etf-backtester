@@ -61,12 +61,14 @@
 | `StrategyInstance {id, presetId, enabled, params}` | 可编辑草稿；右侧列表行的启用开关是唯一写入入口 |
 | `activeStrategyId` | 当前在左侧编辑的实例；点行名切换，不自动启用或运行 |
 | `runScope` | `active` 或 `all_enabled`；当前实例必须已启用才能单独运行，全部模式至少有一条已启用实例；其余实例的错误不阻断本次所选实例 |
-| `RunSnapshot {runId, config, catalogVersion, dataFingerprint, engineVersion}` | 提交时冻结的共享设置与各实例参数，不受后续草稿变化影响 |
+| `RunSnapshot {runId, config, catalogVersion, dataFingerprint, engineVersion, dataProvenance}` | 提交时冻结的共享设置、各实例参数和数据来源/覆盖标记，不受后续草稿变化影响 |
 | `StrategyRun` | 该快照中的实例状态、诊断、账本、指标、交易；`benchmark` 是角色字段，不是第二套算法 |
 | `focusedResultId` | 结果页 KPI、交易明细和导出的归属；与 `activeStrategyId` 独立 |
 | `visibleSeriesIds` | 只控制曲线显隐，不改变结果、启用状态或运行范围 |
 
 作业及每条策略的状态码由后端给出：`queued | loading | running | completed | completed_with_warning | unavailable | failed`。`empty` 是结果页没有作业时的显示状态，不伪装成失败；零交易但指标完整仍是 `completed`。前端不可从“是否含 PE”自行推断失败，必须展示统一诊断码。全体失败与部分成功分别呈现。草稿与 `RunSnapshot` 不同则标记结果使用旧配置，不把旧 KPI 挂在新表单下面。
+
+`RunSnapshot.dataProvenance` 保存已读取数据的去重排序来源 `sources`、最早日历截止日 `calendarAsOf` 和已加载行情快照中最早的最新报价日 `marketDataThrough`。任一已加载行情快照没有报价时，`marketDataThrough` 为 `null`。四类 CSV 都从保存的运行快照追加 `dataSources`、`calendarAsOf`、`marketDataThrough`；行情截至日期只表示行情报价覆盖，宏观和 SEC 数据的观察/公开日期仍由各自数据诊断说明。
 
 ## 模块接口与目录组织
 

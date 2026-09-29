@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Callable, Iterable, Mapping
 from datetime import date as Date
 from datetime import datetime, timedelta
 from decimal import Decimal, DecimalException
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
+from math import isfinite
 from typing import Protocol, cast
 
 from app.data.contracts import DataCacheKey, MacroDataResult, MarketDataResult
@@ -40,6 +42,7 @@ class _HistoryFrame(Protocol):
 
 
 TickerFactory = Callable[[str], object]
+_LOGGER = logging.getLogger(__name__)
 
 _YAHOO_DUAL_PRICE_BASIS = "adj-close-simulation+split-close-valuation-v1"
 _NORMALIZER_VERSION = "yfinance-adapter-v1"
@@ -54,9 +57,18 @@ class YahooFinanceAdapter:
         self,
         *,
         ticker_factory: TickerFactory | None = None,
+        request_timeout_seconds: float = 10.0,
         data_version: str | None = None,
     ) -> None:
+        if (
+            isinstance(request_timeout_seconds, bool)
+            or not isinstance(request_timeout_seconds, (int, float))
+            or not isfinite(request_timeout_seconds)
+            or request_timeout_seconds <= 0
+        ):
+            raise ValueError("request timeout must be a finite positive number")
         self._ticker_factory = ticker_factory
+        self._request_timeout_seconds = float(request_timeout_seconds)
         self._configured_data_version = data_version
 
     @property
@@ -102,7 +114,11 @@ class YahooFinanceAdapter:
         cache_key = self.cache_identity(request)
         try:
             ticker = self._ticker(request.symbol)
-            frame = _history_frame(ticker, request)
+            frame = _history_frame(
+                ticker,
+                request,
+                timeout_seconds=self._request_timeout_seconds,
+            )
         except Exception as error:
             return _required_market_unavailable(
                 cache_key=cache_key,
@@ -315,7 +331,10 @@ class YahooFinanceAdapter:
         try:
             ticker = self._ticker(request.symbol)
             frame = _history_frame(
-                ticker, request, start_date=request.macro_source_start_date
+                ticker,
+                request,
+                start_date=request.macro_source_start_date,
+                timeout_seconds=self._request_timeout_seconds,
             )
         except Exception as error:
             return _macro_result(
@@ -517,6 +536,7 @@ def _history_frame(
     request: MarketDataRequest,
     *,
     start_date: Date | None = None,
+    timeout_seconds: float,
 ) -> _HistoryFrame:
     end_exclusive = request.end_date + timedelta(days=1)
     history = _safe_attribute(ticker, "history")
@@ -539,6 +559,7 @@ def _history_frame(
         repair=False,
         rounding=False,
         raise_errors=True,
+        timeout=timeout_seconds,
     )
     if not hasattr(frame, "columns") or not callable(getattr(frame, "iterrows", None)):
         raise ValueError("yfinance history response is not a tabular history frame")
@@ -664,12 +685,57 @@ def _as_positive_decimal(value: object) -> Decimal | None:
 
 
 def _provider_error(error: Exception, symbol: str) -> Diagnostic:
+    failure_kind = _provider_failure_kind(error)
+    exception_type = type(error).__name__
+    message_key = {
+        "rate_limited": "market.provider_rate_limited",
+        "timeout": "market.provider_timeout",
+    }.get(failure_kind, "market.provider_request_failed")
+    _LOGGER.warning(
+        "Market data provider request failed",
+        extra={
+            "provider": "yahoo",
+            "failure_kind": failure_kind,
+            "exception_type": exception_type,
+        },
+    )
     return Diagnostic(
         code=DiagnosticCode.PROVIDER_REQUEST_FAILED,
-        messageKey="market.provider_request_failed",
+        messageKey=message_key,
         source="yahoo",
-        details={"symbol": symbol, "exceptionType": type(error).__name__},
+        details={
+            "symbol": symbol,
+            "exceptionType": exception_type,
+            "failureKind": failure_kind,
+        },
     )
+
+
+def _provider_failure_kind(error: Exception) -> str:
+    exception_names = tuple(
+        base.__name__.casefold() for base in type(error).__mro__ if base.__name__
+    )
+    if (
+        any("ratelimit" in name or "rate_limit" in name for name in exception_names)
+        or _http_status(error) == 429
+    ):
+        return "rate_limited"
+    if isinstance(error, TimeoutError) or any(
+        "timeout" in name for name in exception_names
+    ):
+        return "timeout"
+    return "request_failed"
+
+
+def _http_status(error: Exception) -> int | None:
+    for target in (error, _safe_attribute(error, "response")):
+        if target is None:
+            continue
+        for name in ("status_code", "status", "code"):
+            value = _safe_attribute(target, name)
+            if isinstance(value, int) and not isinstance(value, bool):
+                return value
+    return None
 
 
 def _macro_result(

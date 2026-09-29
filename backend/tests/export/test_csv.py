@@ -12,6 +12,7 @@ from app.domain.contracts import (
     FrozenStrategyInstance,
     MetricSummary,
     ResultRole,
+    RunDataProvenance,
     RunResult,
     RunSettings,
     RunSnapshot,
@@ -178,6 +179,11 @@ def _response(*, trades: tuple[Trade, ...] = ()) -> RunResponse:
         catalogVersion="catalog-v1",
         dataFingerprint="data-fingerprint-v1",
         engineVersion="engine-v1",
+        dataProvenance=RunDataProvenance(
+            sources=("sec:companyfacts", "yahoo"),
+            calendarAsOf=date(2024, 1, 4),
+            marketDataThrough=date(2024, 1, 4),
+        ),
     )
     return RunResponse(
         runId="run-123",
@@ -202,7 +208,8 @@ def test_summary_export_is_bound_to_run_and_focused_result() -> None:
     assert content.splitlines()[0] == (
         "runId,resultId,role,presetId,status,symbol,startDate,endDate,"
         "totalContributed,endingEquity,netProfit,returnOnContributions,"
-        "capitalMultiple,xirr,maximumDrawdown,relativeToDca,currency,diagnostics"
+        "capitalMultiple,xirr,maximumDrawdown,relativeToDca,currency,diagnostics,"
+        "dataSources,calendarAsOf,marketDataThrough"
     )
     assert rows == [
         {
@@ -223,6 +230,9 @@ def test_summary_export_is_bound_to_run_and_focused_result() -> None:
             "maximumDrawdown": "0.123400",
             "relativeToDca": "-1.234",
             "currency": "USD",
+            "dataSources": '["sec:companyfacts","yahoo"]',
+            "calendarAsOf": "2024-01-04",
+            "marketDataThrough": "2024-01-04",
             "diagnostics": json.dumps(
                 [
                     {
@@ -250,9 +260,11 @@ def test_daily_assets_export_preserves_iso_dates_precision_and_currency() -> Non
 
     assert content == (
         "runId,resultId,date,cash,timingQuantity,fixedQuantity,simulationPrice,"
-        "totalAsset,currency,unitNav,drawdown\n"
+        "totalAsset,currency,unitNav,drawdown,dataSources,calendarAsOf,"
+        "marketDataThrough\n"
         "run-123,ordinary,2024-01-02,10.00,1.5,2,3.123456789,20.1851851835,"
-        "USD,1.2345,-0.01\n"
+        'USD,1.2345,-0.01,"[""sec:companyfacts"",""yahoo""]",2024-01-04,'
+        "2024-01-04\n"
     )
 
 
@@ -262,7 +274,8 @@ def test_successful_zero_trade_export_still_contains_a_header() -> None:
     )
 
     assert content == (
-        "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,signalId\n"
+        "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
+        "signalId,dataSources,calendarAsOf,marketDataThrough\n"
     )
 
 
@@ -285,9 +298,11 @@ def test_trade_export_writes_stable_fields_without_rounding() -> None:
     )
 
     assert content == (
-        "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,signalId\n"
+        "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
+        "signalId,dataSources,calendarAsOf,marketDataThrough\n"
         "run-123,ordinary,2024-01-03,buy,signal_buy,0.123456789,81.00000001,"
-        "10.00000000,USD,vix.buy\n"
+        '10.00000000,USD,vix.buy,"[""sec:companyfacts"",""yahoo""]",'
+        "2024-01-04,2024-01-04\n"
     )
 
 
@@ -303,6 +318,7 @@ def test_search_export_includes_all_candidates_and_stable_parameter_keys() -> No
         "accumulation.cashSafetyLimit,"
         "totalContributed,endingEquity,netProfit,returnOnContributions,"
         "capitalMultiple,xirr,maximumDrawdown,relativeToDca,currency,diagnostics"
+        ",dataSources,calendarAsOf,marketDataThrough"
     )
     assert [row["candidateId"] for row in rows] == [
         "grid-search:candidate:00001",
@@ -312,6 +328,9 @@ def test_search_export_includes_all_candidates_and_stable_parameter_keys() -> No
     assert [row["accumulation.cashSafetyLimit"] for row in rows] == ["1200", "1200"]
     assert rows[0]["endingEquity"] == "109.123456789"
     assert rows[0]["reusedCalculation"] == "false"
+    assert rows[0]["dataSources"] == '["sec:companyfacts","yahoo"]'
+    assert rows[0]["calendarAsOf"] == "2024-01-04"
+    assert rows[0]["marketDataThrough"] == "2024-01-04"
     candidate_diagnostics = json.loads(rows[1]["diagnostics"])
     assert candidate_diagnostics[0]["code"] == "invalid_parameter"
     assert candidate_diagnostics[0]["messageKey"] == (

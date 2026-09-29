@@ -56,11 +56,13 @@ class _FixtureProvider:
         provider_failed_ids: frozenset[str] = frozenset(),
         warning_ids: frozenset[str] = frozenset(),
         snapshot_error_ids: frozenset[str] = frozenset(),
+        empty_market_ids: frozenset[str] = frozenset(),
     ) -> None:
         self.failed_ids = failed_ids
         self.provider_failed_ids = provider_failed_ids
         self.warning_ids = warning_ids
         self.snapshot_error_ids = snapshot_error_ids
+        self.empty_market_ids = empty_market_ids
         self.snapshot = _snapshot()
         self.calendar = ExchangeCalendar.from_dates(
             _DATES,
@@ -121,9 +123,13 @@ class _FixtureProvider:
                     fieldPath="strategies[0].params.vix.buyEnabled",
                 ),
             )
+        snapshot = self.snapshot
+        if strategy_id in self.empty_market_ids:
+            market = snapshot.market.model_copy(update={"bars": ()})
+            snapshot = snapshot.model_copy(update={"market": market})
         return StrategyDataLoad(
             calendar=self.calendar,
-            snapshot=self.snapshot,
+            snapshot=snapshot,
             diagnostics=diagnostics,
         )
 
@@ -424,7 +430,9 @@ def test_manager_preserves_warning_status_for_a_usable_snapshot() -> None:
 
 def test_calculation_failure_does_not_stop_later_strategy_results(
     monkeypatch: pytest.MonkeyPatch,
+    caplog,
 ) -> None:
+    caplog.set_level("INFO")
     from app.ledger import run_strategy as original_run_strategy
 
     executor = _ManualExecutor()
@@ -460,6 +468,7 @@ def test_calculation_failure_does_not_stop_later_strategy_results(
     assert runs["healthy-after-failure"].status is StrategyStatus.COMPLETED
     assert completed.result is not None
     assert completed.result.is_partial_success
+    assert "fixture calculation error" not in caplog.text
 
 
 def test_manager_reuses_same_submission_and_rejects_changed_body_for_key() -> None:
@@ -478,3 +487,58 @@ def test_manager_reuses_same_submission_and_rejects_changed_body_for_key() -> No
     assert len(executor.jobs) == 1
     with pytest.raises(IdempotencyConflict):
         manager.submit_run(_submission("another-vix"), idempotency_key="retry-key")
+
+
+def test_manager_logs_run_and_strategy_status_without_exception_or_config_values(
+    caplog,
+) -> None:
+    caplog.set_level("INFO")
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(),
+        data_provider=_FixtureProvider(),
+        executor=executor,  # type: ignore[arg-type]
+    )
+
+    accepted = manager.submit_run(_submission("logged-vix"), idempotency_key="log-run")
+    executor.run_next()
+
+    completed = manager.get_run(accepted.run_id)
+    assert completed is not None
+    assert completed.snapshot.data_provenance.sources == ("fixture",)
+    assert completed.snapshot.data_provenance.calendar_as_of == _DATES[-1]
+    assert completed.snapshot.data_provenance.market_data_through == _DATES[-1]
+    events = [
+        (record.event, getattr(record, "status", None))
+        for record in caplog.records
+        if record.name.endswith("manager")
+    ]
+    run_finished = next(
+        record
+        for record in caplog.records
+        if record.name.endswith("manager") and record.event == "run_finished"
+    )
+    assert ("run_queued", "queued") in events
+    assert ("strategy_finished", "completed") in events
+    assert run_finished.data_sources == ["fixture"]
+    assert run_finished.calendar_as_of == _DATES[-1].isoformat()
+    assert run_finished.market_data_through == _DATES[-1].isoformat()
+    assert "QQQ" not in caplog.text
+    assert "amount" not in caplog.text
+
+
+def test_market_data_coverage_is_unavailable_if_a_loaded_snapshot_has_no_quotes() -> (
+    None
+):
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(),
+        data_provider=_FixtureProvider(empty_market_ids=frozenset({"empty-market"})),
+        executor=executor,  # type: ignore[arg-type]
+    )
+
+    accepted = manager.submit_run(
+        _submission("quoted-market", "empty-market"), idempotency_key="empty-quotes"
+    )
+
+    assert accepted.snapshot.data_provenance.market_data_through is None

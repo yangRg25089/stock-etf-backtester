@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import OrderedDict
 from threading import RLock
 from typing import TYPE_CHECKING, Protocol
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 
 
 NormalizedDataResult = MarketDataResult | MacroDataResult
+_LOGGER = logging.getLogger(__name__)
 
 
 class NormalizedDataCache(Protocol):
@@ -104,14 +106,19 @@ class CachedMarketDataProvider:
         self, request: MarketDataRequest, *, refresh: bool = False
     ) -> MarketDataResult:
         key = self._provider.cache_identity(request)
-        if not refresh:
+        provider_name = _provider_name(self._provider)
+        if refresh:
+            _log_cache_event("refresh", provider_name, "market")
+        else:
             cached = self._cache.get(key)
             if isinstance(cached, MarketDataResult):
+                _log_cache_event("hit", provider_name, "market")
                 return cached
             if cached is not None:
                 raise ValueError(
                     "cache identity contains a different normalized result"
                 )
+            _log_cache_event("miss", provider_name, "market")
 
         result = self._provider.load(request)
         # A failed/unavailable result may be transient, so only snapshots without
@@ -147,6 +154,9 @@ class CachedMacroDataProvider:
         refresh: bool = False,
     ) -> MacroDataResult:
         if series_type == "rate" and source_unit == "auto":
+            _log_cache_event(
+                "bypass_auto_unit", _provider_name(self._provider), "macro"
+            )
             return self._provider.load_macro(
                 request, series_type=series_type, source_unit=source_unit
             )
@@ -154,14 +164,19 @@ class CachedMacroDataProvider:
         key = self._provider.macro_cache_identity(
             request, series_type=series_type, source_unit=source_unit
         )
-        if not refresh:
+        provider_name = _provider_name(self._provider)
+        if refresh:
+            _log_cache_event("refresh", provider_name, "macro")
+        else:
             cached = self._cache.get(key)
             if isinstance(cached, MacroDataResult):
+                _log_cache_event("hit", provider_name, "macro")
                 return cached
             if cached is not None:
                 raise ValueError(
                     "cache identity contains a different normalized result"
                 )
+            _log_cache_event("miss", provider_name, "macro")
 
         result = self._provider.load_macro(
             request, series_type=series_type, source_unit=source_unit
@@ -172,3 +187,19 @@ class CachedMacroDataProvider:
         ):
             self._cache.put(key, result)
         return result
+
+
+def _provider_name(provider: object) -> str:
+    name = getattr(provider, "provider", None)
+    return name if isinstance(name, str) and name else type(provider).__name__
+
+
+def _log_cache_event(event: str, provider: str, cache_kind: str) -> None:
+    _LOGGER.info(
+        "Normalized data cache event",
+        extra={
+            "cache_event": event,
+            "provider": provider,
+            "cache_kind": cache_kind,
+        },
+    )

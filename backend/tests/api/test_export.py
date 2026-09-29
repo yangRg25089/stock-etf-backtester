@@ -262,7 +262,8 @@ def test_export_endpoint_returns_zero_trade_header_and_explicit_errors() -> None
 
     assert trade_export.status_code == 200
     assert trade_export.text.splitlines() == [
-        "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,signalId"
+        "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
+        "signalId,dataSources,calendarAsOf,marketDataThrough"
     ]
     assert missing_run.status_code == 404
     assert missing_run.json()["error"]["code"] == "run_not_found"

@@ -128,3 +128,11 @@ test("the Japanese and Chinese dictionaries cover shared fields and preset names
     assert.notEqual(translate(locale, "presets.vix_dca.name"), "presets.vix_dca.name");
   }
 });
+
+test("provider rate limit and timeout diagnostics are localized in both locales", () => {
+  for (const locale of ["ja", "zh"]) {
+    for (const key of ["market.provider_rate_limited", "market.provider_timeout"]) {
+      assert.notEqual(translate(locale, key), key, `${locale} is missing ${key}`);
+    }
+  }
+});

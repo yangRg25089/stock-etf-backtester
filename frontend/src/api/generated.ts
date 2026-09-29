@@ -157,6 +157,12 @@ export type PresetDefinition = {
 
 export type ResultRole = "benchmark" | "strategy";
 
+export type RunDataProvenance = {
+  sources?: Array<string>;
+  calendarAsOf?: string | null;
+  marketDataThrough?: string | null;
+};
+
 export type RunProgress = {
   completedStrategies: number;
   totalStrategies: number;
@@ -193,6 +199,7 @@ export type RunSnapshot = {
   catalogVersion: string;
   dataFingerprint: string;
   engineVersion: string;
+  dataProvenance?: RunDataProvenance;
   createdAt?: string;
 };
 

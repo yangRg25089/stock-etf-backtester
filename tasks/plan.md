@@ -9,7 +9,7 @@
 - `docs/design/review-resolutions.md`：已确认问题及其唯一归属。
 - `docs/design/backtest-ui.html`：静态 UI 视觉与响应式参考（不是应用实现）。
 
-当前仓库已建立 `backend/`、`frontend/`、依赖配置和离线测试入口；Task 1–16 已完成，Task 8 的 API/运行诊断/CSV 稳定码跨层验收已随 Task 15 关闭。Task 8 后端实现提交 `af384f6` 早于 Task 9，延后的是跨层验收。notebook 输入映射和确定性 fixture 已固化到仓库，运行时不得依赖外部 notebook 路径。后续任务与实际命令以本计划、`tasks/todo.md` 和仓库中的依赖配置为准。
+当前仓库已建立 `backend/`、`frontend/`、依赖配置和离线测试入口；Task 1–21 已完成。Task 8 的 API/运行诊断/CSV 稳定码跨层验收已随 Task 15 关闭；Task 8 后端实现提交 `af384f6` 早于 Task 9，延后的是跨层验收。Task 13 在检查点 C 关闭前完成并推送，顺序偏差如实保留，之后重新核验 C 并按序完成 Task 14 及后续任务。notebook 输入映射和确定性 fixture 已固化到仓库，运行时不得依赖外部 notebook 路径。最终检查点仍待用户确认是否接受进程内运行结果存储。
 
 ## 目标与范围
 
@@ -49,9 +49,9 @@
 **描述：** 建立 Python 后端、React/TypeScript 前端、统一格式化/静态检查/测试命令和本地启动入口；记录 Python/Node 版本及依赖选择。保持现有设计文件不动。
 
 **验收标准：**
-- [ ] 后端健康检查和前端开发页可以分别启动。
-- [ ] `pytest`、后端类型/格式检查、前端 lint/typecheck/build 命令可执行。
-- [ ] README 或开发文档说明启动、测试和 fixture 模式；实时网络不是默认启动依赖。
+- [x] 后端健康检查和前端开发页可以分别启动。
+- [x] `pytest`、后端类型/格式检查、前端 lint/typecheck/build 命令可执行。
+- [x] README 或开发文档说明启动、测试和 fixture 模式；实时网络不是默认启动依赖。
 
 **验证：** 运行后端测试与健康检查；运行 `npm run lint`、`npm run typecheck`、`npm run build`（命令名在本任务确定）。
 
@@ -66,9 +66,9 @@
 **描述：** 定义共享设置、策略实例、目录 ID、`RunSnapshot`、`StrategyRun`、标准化数据快照、交易/每日资产、指标、诊断和七类状态码。稳定键使用设计稿中的命名，不让 UI 字符串进入算法模型。
 
 **验收标准：**
-- [ ] `queued | loading | running | completed | completed_with_warning | unavailable | failed` 及 `empty` 的语义与设计一致。
-- [ ] 运行快照冻结共享设置、实例参数、catalog/data/engine 指纹；结果能区分 `benchmark` 与 `strategy` 身份。
-- [ ] 领域类型能表达 `true/false/unavailable`、部分成功和零交易成功。
+- [x] `queued | loading | running | completed | completed_with_warning | unavailable | failed` 及 `empty` 的语义与设计一致。
+- [x] 运行快照冻结共享设置、实例参数、catalog/data/engine 指纹；结果能区分 `benchmark` 与 `strategy` 身份。
+- [x] 领域类型能表达 `true/false/unavailable`、部分成功和零交易成功。
 
 **验证：** 领域构造/序列化测试覆盖缺字段、旧草稿与快照分离、状态转换非法情况。
 
@@ -83,9 +83,9 @@
 **描述：** 按复用规范建立 `ParameterDefinition` 注册表、七类预设及适用性/依赖/搜索维度元数据；将 `vix_dca`、`composite_dca`、两种 `ma`、`monthly_dca`、`lump_sum`、`grid_search` 映射到三个执行模块和一个搜索包装。
 
 **验收标准：**
-- [ ] 所有 notebook 显式输入和新增硬编码字段均有唯一稳定键、默认值、单位、范围、翻译键。
-- [ ] 普通编辑器、搜索维度、服务端错误路径和导出快照引用同一注册表；不出现第二套搜索阈值。
-- [ ] 删除 VIX 后可从目录再次添加；基准使用同一参数/账本而非复制算法。
+- [x] 所有 notebook 显式输入和新增硬编码字段均有唯一稳定键、默认值、单位、范围、翻译键。
+- [x] 普通编辑器、搜索维度、服务端错误路径和导出快照引用同一注册表；不出现第二套搜索阈值。
+- [x] 删除 VIX 后可从目录再次添加；基准使用同一参数/账本而非复制算法。
 
 **验证：** catalog 契约测试；枚举目录、适用字段、边界/步长和预设默认值；检查生成的 OpenAPI 类型与前端类型一致。
 
@@ -100,9 +100,9 @@
 **描述：** 从外部两个 notebook 提取参数/策略映射，记录来源版本或校验信息；建立固定行情、交易日历、VIX/利率、SEC 公司事实、ETF 持仓和缺失数据 fixture，覆盖设计中明确的边界。
 
 **验收标准：**
-- [ ] 两个 notebook 的显式输入逐项映射到注册键，外部路径不进入生产运行链路。
-- [ ] fixture 能重现拆股/双价格口径、披露晚于收盘、PE 缺失、ETF 覆盖边界、休市和跨月。
-- [ ] 默认测试完全离线且可重复，fixture 版本/数据指纹可进入运行快照。
+- [x] 两个 notebook 的显式输入逐项映射到注册键，外部路径不进入生产运行链路。
+- [x] fixture 能重现拆股/双价格口径、披露晚于收盘、PE 缺失、ETF 覆盖边界、休市和跨月。
+- [x] 默认测试完全离线且可重复，fixture 版本/数据指纹可进入运行快照。
 
 **验证：** fixture 加载测试、输入映射完整性测试、同一 fixture 多次运行结果字节级/数值级稳定性检查。
 
@@ -114,9 +114,9 @@
 
 ### 检查点 A：契约可冻结
 
-- [ ] 七类目录、唯一字段注册表和领域快照通过测试。
-- [ ] fixture 能离线加载；实现不再依赖外部 notebook 文件路径。
-- [ ] 在进入交易逻辑前确认参数键和状态码不再随意改名。
+- [x] 七类目录、唯一字段注册表和领域快照通过测试。
+- [x] fixture 能离线加载；实现不再依赖外部 notebook 文件路径。
+- [x] 在进入交易逻辑前确认参数键和状态码不再随意改名。
 
 ### 阶段 1：时间与数据层
 
@@ -125,9 +125,9 @@
 **描述：** 实现含起止边界的交易日历和 `schedule(runSettings, exchangeCalendar)`：每月 1–31 日截到月末，休市取同月后首个交易日；无后续交易日时，只有日历已覆盖整月才回退至当月最后交易日。日历显式携带 `asOfDate`、`latestCompleteDate` 与 `calendarCoverageEndDate`，纯函数不读取系统时钟；月中区间不补缴、不预缴；一次性投入使用同一计划金额总和。
 
 **验收标准：**
-- [ ] 31 日、月底假期、跨月、月中起止、未来结束日和无有效注资均有明确结果/诊断。
-- [ ] 所有策略、基准和搜索候选共享同一排程；结束日冻结为最近完整行情日并可展示实际值。
-- [ ] 一次性投入本金等于有效计划总额，但在首个回测交易日投入。
+- [x] 31 日、月底假期、跨月、月中起止、未来结束日和无有效注资均有明确结果/诊断。
+- [x] 所有策略、基准和搜索候选共享同一排程；结束日冻结为最近完整行情日并可展示实际值。
+- [x] 一次性投入本金等于有效计划总额，但在首个回测交易日投入。
 
 **验证：** 纯函数测试覆盖设计稿的日期矩阵和金额矩阵；不访问供应商。
 
@@ -326,6 +326,7 @@
 - [x] `/api/v1/runs/{run_id}/export/{kind}?focusedResultId=...` 只从已存 `RunResponse` 导出，不读取当前草稿。
 - [x] 无完成结果/不存在的聚焦结果返回结构化错误；成功但零交易时交易 CSV 仍输出表头。
 - [x] CSV 不接收 locale，字段键、日期和数值格式固定，不受界面语言影响。
+- [x] 四类 CSV 都从已存 `RunSnapshot.dataProvenance` 附加 `dataSources`、`calendarAsOf`、`marketDataThrough`；行情截至日只代表报价覆盖。
 
 **验证：** `backend/tests/export/test_csv.py` 覆盖四类 CSV golden 输出、空结果、零交易、搜索候选诊断和原始精度；`backend/tests/api/test_export.py` 覆盖结构化错误、OpenAPI 文档、语言无关及导出/运行查询一致性。
 
@@ -448,11 +449,14 @@
 **描述：** 增加显式 live 数据 smoke 命令、供应商限流/缓存/超时诊断、运行日志和开发排障文档；不把 live 数据结果作为确定性验收基线。
 
 **验收标准：**
-- [ ] live smoke 可单独运行并报告数据截至日期、来源、覆盖率和失败原因。
-- [ ] 生产/本地运行不会把供应商原始响应或敏感环境变量返回前端；网络失败有可读诊断。
-- [ ] 文档说明架构边界、fixture 更新流程、常用命令、已知 PE 限制和不在 V1 范围。
+- [x] `python -m app.data.smoke` 需要显式 `--live`，Yahoo/SEC 报告 `asOf`、来源、数据截至日期、覆盖率和失败原因；无 SEC User-Agent 在发请求前安全失败。
+- [x] Yahoo 诊断区分限流和超时；供应商错误正文与 SEC User-Agent 不进入 API 诊断、日志或 smoke 输出。缓存和运行状态有不含配置/响应内容的结构化日志。
+- [x] `docs/development.md` 说明架构边界、fixture 更新流程、常用命令、PE 限制和 V1 范围；README 链接该文档并说明应用默认 provider 未接入 live run。
+- [x] 冻结来源、日历截止日与行情报价覆盖日；运行完成日志用结构化字段记录它们，前端 OpenAPI 类型由后端契约生成。
 
-**验证：** 无凭据时 smoke 安全失败；缓存/超时/限流测试；全量质量门禁再次通过。
+**验证（2026-09-29）：** 后端 `python -m pytest`（288 项）、`ruff check .`、`ruff format --check .`、`mypy app` 通过；前端 `npm test`（54 项）、`npm run typecheck`、`npm run lint`、`npm run build` 通过，`npm run generate:api` 根据 52 个 OpenAPI schema 生成类型；`npm run test:e2e`（9 项）通过。smoke 未加 `--live` 与 SEC 缺少 `SEC_USER_AGENT` 均以退出码 2 安全返回；Yahoo/SEC 成功、缺失、超时、限流及脱敏由 fake provider/HTTP opener 验证，未访问 live 网络。E2E 临时 API/Vite 进程退出后，8000/5173 端口均无监听；`git diff --check` 通过。
+
+**实现记录：** 新增 `backend/app/data/smoke.py`，SEC 只请求固定的官方 CompanyFacts 主机并限制响应读取大小；Yahoo 使用 10 秒默认超时。缓存限流策略不自动重试、不写磁盘，成功规范化结果保留在最多 128 项的进程内 LRU。完整维护命令与供应商边界见 [`docs/development.md`](../docs/development.md)。全量 Ruff 格式检查同时格式化了 Task 20 新增的固定 fixture E2E 测试文件，没有改变其行为。
 
 **依赖：** Task 6、Task 7、Task 14、Task 20。
 
@@ -462,9 +466,9 @@
 
 ### 最终检查点
 
-- [ ] 所有任务验收标准完成，确定性测试、类型检查、构建和 E2E 全部通过。
-- [ ] 设计稿中的每项验收标准有测试或明确的手工检查记录。
-- [ ] 运行结果、导出、日志和文档均标明数据来源/截至时间；没有把数据不可用伪装成收益为零。
+- [x] 所有计划任务验收标准完成；确定性测试、类型检查、构建和 E2E 全部通过。
+- [x] 设计稿中的实现验收标准有测试或明确的手工检查记录；live 网络访问保持显式 opt-in，不作为确定性验收。
+- [x] 运行快照、四类导出、诊断、smoke 报告和开发文档保留来源/截至时间语义；数据不可用不伪装成零收益。
 - [ ] 评审并确认是否接受 V1 的内存 `RunStore` 与外部 notebook 映射固化方案，再开始后续扩展。
 
 ## 风险与缓解
@@ -480,11 +484,11 @@
 
 ## 开始前需确认的开放问题
 
-1. V1 运行结果是否只需进程内保留，还是必须重启后仍可恢复；本计划默认 `RunStore` 内存实现并保留替换接口。
-2. Python/Node 包管理器、图表库和浏览器测试工具是否有团队标准；Task 1 建脚手架时固定版本。
-3. 两个外部 notebook 是否允许以映射/fixture 形式纳入仓库，以及应记录哪个版本/提交哈希。
-4. 交易所日历依赖与 Yahoo/SEC 的默认 User-Agent、限流和缓存目录策略。
-5. 本地作业是否需要跨进程并发；本计划先按单机本地、可观察的后台作业实现，不承诺多用户并发。
+1. V1 运行结果是否只需进程内保留，还是必须重启后仍可恢复；当前按 `RunStore` 内存实现，待用户确认是否接受。
+2. Python/Node 包管理器、图表库和浏览器测试工具已由 Task 1 的配置固定。
+3. 两个外部 notebook 的映射、来源哈希和 fixture 已入库；运行时不读取 notebook 路径。
+4. Task 21 的 smoke 不增加交易所日历依赖，Yahoo 覆盖率按工作日估计并说明节假日限制；SEC smoke 要求显式 `SEC_USER_AGENT`，Yahoo 超时默认为 10 秒，SEC 单请求不重试，规范化缓存只存内存且无磁盘缓存目录。
+5. 本地作业按单机单进程实现，不承诺跨进程并发。
 
 ## Definition of Done
 
