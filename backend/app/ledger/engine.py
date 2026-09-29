@@ -32,6 +32,8 @@ from app.signals.evaluate import StrategySignalSeries
 
 from .types import LedgerResult
 
+LEDGER_METHOD_VERSION = "ledger-v1"
+
 
 @dataclass(frozen=True, slots=True)
 class _SellTrigger:

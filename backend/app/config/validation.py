@@ -438,6 +438,13 @@ def _validate_search_dimensions(
             dimension is None
             or definition is None
             or not definition.searchable
+            or definition.type
+            not in {
+                ParameterType.INTEGER,
+                ParameterType.DECIMAL,
+                ParameterType.RATIO,
+                ParameterType.PERCENT_POINT,
+            }
             or preset.id not in definition.applicable_presets
         ):
             diagnostics.append(

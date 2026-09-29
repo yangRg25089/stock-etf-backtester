@@ -15,6 +15,7 @@ from .definitions import (
     PARAMETER_DEFINITIONS,
     ParameterDefinition,
     ParameterLevel,
+    ParameterType,
     get_parameter_definition,
     validate_parameter_value,
 )
@@ -63,6 +64,15 @@ class Catalog(DomainModel):
                 if not definition.searchable:
                     raise ValueError(
                         f"search parameter is not searchable: {dimension.key}"
+                    )
+                if definition.type not in {
+                    ParameterType.INTEGER,
+                    ParameterType.DECIMAL,
+                    ParameterType.RATIO,
+                    ParameterType.PERCENT_POINT,
+                }:
+                    raise ValueError(
+                        f"search parameter is not numeric: {dimension.key}"
                     )
                 if preset.id not in definition.applicable_presets:
                     raise ValueError(

@@ -80,7 +80,7 @@
 | `signals` | `evaluate(config, snapshot)`：逐日 `true/false/unavailable` 与诊断 | 规范化数据、指标计算 |
 | `ledger` | `runStrategy(config, schedule, signals, prices)`：统一交易顺序、每日总资产及交易 | 纯输入，不自行下载 |
 | `metrics` | `summarize(trace, schedule)`：统一绩效指标 | `ledger` 输出 |
-| `search` | `enumerateAndRun(baseConfig, dimensions, snapshot)`：复用 `config/ledger/metrics` | 纯配置、共享数据快照 |
+| `search` | `runGridSearch(baseConfig, dimensions, snapshot)`：按稳定候选序号枚举并复用 `config/ledger/metrics`；无效候选保留诊断但不排名；排名依次按期末资产降序、绝对最大回撤升序和候选序号；指纹包含目录/算法版本及所有计算输入，复用时仍保留候选 ID 和 `strategy` 角色 | 纯配置、共享数据快照 |
 | `runs` | `createRun(snapshot)` 与 `getRun(id)`：编排、进度、局部失败和不可变结果 | 上述模块 |
 | `export` | `exportRun(runId, kind, focusedResultId)`：从已存结果生成 CSV | `runs` 结果，不重新计算 |
 
