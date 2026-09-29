@@ -958,6 +958,106 @@ h2 {
   font-size: 10px;
 }
 
+.charts-content {
+  display: grid;
+  gap: 12px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 5px 9px;
+  color: var(--app-muted);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.legend-toggle.is-visible {
+  color: var(--app-foreground);
+  border-color: #a9c8bd;
+}
+
+.legend-swatch {
+  width: 15px;
+  height: 3px;
+  border-radius: 3px;
+}
+
+.chart-panel {
+  min-width: 0;
+  margin: 0;
+  padding: 12px 13px 8px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+}
+
+.chart-panel figcaption {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.result-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 260px;
+  overflow: visible;
+}
+
+.chart-gridline {
+  stroke: #dce3df;
+  stroke-width: 1;
+}
+
+.trade-marker-buy {
+  fill: #147d68;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.trade-marker-sell {
+  fill: #a7373a;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.chart-date-range {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--app-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-empty,
+.trade-empty {
+  padding: 10px 12px;
+  color: var(--app-muted);
+  background: var(--app-surface);
+  border: 1px dashed var(--app-border);
+  border-radius: var(--app-radius);
+  font-size: 12px;
+}
+
+.trade-table-content {
+  display: grid;
+  gap: 8px;
+}
+
 .results-heading {
   align-items: center;
   margin-bottom: 14px;

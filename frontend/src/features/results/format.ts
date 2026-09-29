@@ -64,3 +64,13 @@ export function formatPlainNumber(
     ? "—"
     : new Intl.NumberFormat(languageTag(locale), { maximumFractionDigits: 2 }).format(numeric);
 }
+
+export function formatQuantity(
+  value: string | number | null | undefined,
+  locale: Locale,
+): string {
+  const numeric = numericValue(value);
+  return numeric === null
+    ? "—"
+    : new Intl.NumberFormat(languageTag(locale), { maximumFractionDigits: 8 }).format(numeric);
+}
