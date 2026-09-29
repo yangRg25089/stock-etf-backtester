@@ -128,6 +128,60 @@ test("snapshot freshness ignores a resolved latest date but detects selected dra
   assert.equal(isRunSnapshotStale(state), true);
 });
 
+test("snapshot freshness treats numeric draft values and serialized Decimal strings as equal", () => {
+  let state = createInitialWorkspaceState(catalog);
+  const strategyId = state.draft.strategies[0].id;
+  state = workspaceReducer(state, {
+    type: "strategy.param",
+    id: strategyId,
+    key: "vix.buyThreshold",
+    value: 25,
+  });
+  state = workspaceReducer(state, {
+    type: "strategy.param",
+    id: strategyId,
+    key: "accumulation.cashSafetyLimit",
+    value: 1200,
+  });
+  const strategy = state.draft.strategies[0];
+  state = {
+    ...state,
+    runRequestedEndMode: "latest",
+    runRequestedScope: "active",
+    runResponse: {
+      runId: "saved-decimal-run",
+      status: "completed",
+      selectedStrategyIds: [strategyId],
+      snapshot: {
+        config: {
+          shared: {
+            run: { ...state.draft.shared.run, endMode: "fixed", endDate: "2024-02-02" },
+            contribution: { ...state.draft.shared.contribution },
+            data: { ...state.draft.shared.data },
+          },
+          strategies: [{
+            ...strategy,
+            params: {
+              ...strategy.params,
+              "vix.buyThreshold": "25",
+              "accumulation.cashSafetyLimit": "1200",
+            },
+          }],
+        },
+      },
+    },
+  };
+
+  assert.equal(isRunSnapshotStale(state), false);
+  state = workspaceReducer(state, {
+    type: "strategy.param",
+    id: strategyId,
+    key: "vix.buyThreshold",
+    value: 31,
+  });
+  assert.equal(isRunSnapshotStale(state), true);
+});
+
 test("all-enabled snapshot freshness notices a newly enabled strategy", () => {
   let state = createInitialWorkspaceState(catalog);
   const first = state.draft.strategies[0];

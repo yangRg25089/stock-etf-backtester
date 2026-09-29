@@ -121,7 +121,14 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
 
 test("default VIX can run to a focused saved result, display toggles, and matching CSV", async ({ page }) => {
   const pageErrors = [];
+  const nonLocalRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("request", (request) => {
+    const hostname = new URL(request.url()).hostname;
+    if (hostname !== "127.0.0.1" && hostname !== "localhost") {
+      nonLocalRequests.push(request.url());
+    }
+  });
 
   await page.goto("/");
   await expect(page.locator(".strategy-editor-heading h3")).toHaveText("VIX シグナル積立");
@@ -148,6 +155,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(strategy.status).toBe("completed");
   expect(benchmark.role).toBe("benchmark");
   await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
+  await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
   const benchmarkButton = page.locator("button.result-select").filter({ hasText: "benchmark:monthly-dca" });
   await benchmarkButton.click();
@@ -185,5 +193,20 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const exported = Object.fromEntries(headers.map((name, index) => [name, values[index]]));
   expect(exported.resultId).toBe(benchmark.id);
   expect(exported.endingEquity).toBe(String(benchmark.metrics.endingEquity));
+
+  await page.locator("#field-vix-buyThreshold").fill("28");
+  await expect(page.locator(".snapshot-warning")).toBeVisible();
+  const staleDownloadPromise = page.waitForEvent("download");
+  await page.locator('[data-export-kind="summary"]').click();
+  const staleDownload = await staleDownloadPromise;
+  const stalePath = await staleDownload.path();
+  const staleCsv = await readFile(stalePath, "utf8");
+  const [staleHeader, staleRow] = staleCsv.trim().split(/\r?\n/);
+  const staleHeaders = staleHeader.split(",");
+  const staleValues = staleRow.split(",");
+  const staleExported = Object.fromEntries(staleHeaders.map((name, index) => [name, staleValues[index]]));
+  expect(staleExported.resultId).toBe(benchmark.id);
+  expect(staleExported.endingEquity).toBe(exported.endingEquity);
   expect(pageErrors).toEqual([]);
+  expect(nonLocalRequests).toEqual([]);
 });

@@ -429,11 +429,13 @@
 **描述：** 用固定行情/SEC/日历 fixture 跑完整 API + UI 链路，覆盖设计稿验收标准及审查指摘；对比账本、指标、图表、表格和 CSV 的同一结果快照。
 
 **验收标准：**
-- [ ] 首屏 VIX 信号定投、七类目录、基准、搜索、利率/PE、部分失败、旧结果和零交易场景全部可验收。
-- [ ] t+1 成交、100% 固定比例等值、PE 覆盖/公开时间和 XIRR/回撤现金流均有端到端断言。
-- [ ] 结果页、导出和 API 的数值/状态/身份一致；不依赖实时网络。
+- [x] 首屏 VIX 信号定投、七类目录、基准、搜索、利率/PE、部分失败、旧结果和零交易场景全部可验收。
+- [x] t+1 成交、100% 固定比例等值、PE 价格口径/公开时间和 XIRR/回撤现金流有固定数据断言；ETF 覆盖率边界由 Task 7 的 SEC 估值 fixture 测试保护。
+- [x] 结果页、导出和 API 的数值/状态/身份一致；浏览器运行只请求本机 fixture 服务，不依赖实时网络。
 
-**验证：** `pytest` 全量、前端 unit/integration、Playwright E2E、构建和类型检查。
+**验证：** 2026-09-29：后端全量 pytest、`ruff check tests/e2e`、前端 53 项 unit/integration、typecheck、lint、production build 和 Playwright 9 项 E2E 全部通过。单日 PE 场景明确断言 `no_valid_xirr` 警告；ETF 覆盖边界由 `tests/data/valuation/test_fundamentals.py` 中精确 80% 与低于 80% 的 SEC N-PORT fixture 用例覆盖。
+
+**执行记录：** 新增 `backend/tests/e2e/` 固定 fixture API 验收和 `backend/tests/e2e/serve_api.py` 浏览器服务入口；浏览器回归验证旧结果编辑后仍导出冻结快照、七类目录、可访问性和响应式布局，并确认没有向本机以外发请求。一次沙箱内的 Playwright 启动因本地监听权限失败；获批的本机测试进程重跑后 9 项全部通过，进程结束后端口已释放。
 
 **依赖：** Task 1–19。
 

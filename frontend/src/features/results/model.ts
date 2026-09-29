@@ -5,21 +5,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function stableValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stableValue);
-  if (isRecord(value)) {
-    return Object.fromEntries(
-      Object.keys(value)
-        .filter((key) => value[key] !== undefined)
-        .sort()
-        .map((key) => [key, stableValue(value[key])]),
+function equalValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (typeof left === "number" && typeof right === "string") {
+    return numericStringMatches(left, right);
+  }
+  if (typeof right === "number" && typeof left === "string") {
+    return numericStringMatches(right, left);
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) &&
+      left.length === right.length && left.every((value, index) => equalValue(value, right[index]));
+  }
+  if (isRecord(left) || isRecord(right)) {
+    if (!isRecord(left) || !isRecord(right)) return false;
+    const leftKeys = Object.keys(left).filter((key) => left[key] !== undefined).sort();
+    const rightKeys = Object.keys(right).filter((key) => right[key] !== undefined).sort();
+    return leftKeys.length === rightKeys.length && leftKeys.every((key, index) =>
+      key === rightKeys[index] && equalValue(left[key], right[key]),
     );
   }
-  return value;
+  return false;
 }
 
-function equalValue(left: unknown, right: unknown): boolean {
-  return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right));
+function numericStringMatches(value: number, candidate: string): boolean {
+  if (candidate.trim() === "") return false;
+  const parsed = Number(candidate);
+  return Number.isFinite(parsed) && value === parsed;
 }
 
 export function findFocusedResult(
