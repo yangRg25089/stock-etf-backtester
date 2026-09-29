@@ -59,6 +59,7 @@ try {
       "tests/results-search-export.test.mjs",
       "tests/results-viewer.test.mjs",
       "tests/ui-accessibility.test.mjs",
+      "tests/responsive-a11y.test.mjs",
     ],
     { cwd: frontendRoot, stdio: "inherit" },
   );

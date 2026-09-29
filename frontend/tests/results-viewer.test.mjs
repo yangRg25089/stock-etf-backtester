@@ -149,6 +149,18 @@ test("CSV eligibility includes completed zero-trade results and limits search ex
   }));
   assert.match(html, /data-export-kind="trades"(?![^>]*disabled)/);
   assert.match(html, /data-export-kind="search-results" disabled/);
+  assert.match(html, /role="group" aria-label="导出结果 CSV"/);
+});
+
+test("an empty workspace keeps every CSV kind visible and disabled", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh",
+    state: createInitialWorkspaceState(catalog),
+    dispatch() {},
+  }));
+  assert.equal((html.match(/<button[^>]*disabled/g) ?? []).length, 4);
+  assert.match(html, /data-export-kind="summary" disabled/);
+  assert.match(html, /data-export-kind="search-results" disabled/);
 });
 
 test("result statuses distinguish partial success, full failure, and completed empty trades", () => {

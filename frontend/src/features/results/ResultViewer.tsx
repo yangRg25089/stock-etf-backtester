@@ -26,7 +26,13 @@ function resultDiagnostics(result: StrategyRun | null): NonNullable<StrategyRun[
 
 export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
   const run: RunResponse | null = state.runResponse;
-  if (!run) return null;
+  if (!run) {
+    return (
+      <div className="result-content">
+        <ExportControls locale={locale} runId={null} result={null} />
+      </div>
+    );
+  }
 
   const strategyRuns = run.result?.strategyRuns ?? [];
   const focusedResult = findFocusedResult(run, state.focusedResultId);
@@ -110,11 +116,11 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
           {focusedResult.searchResult && focusedResult.presetId === "grid_search" && (
             <SearchResults locale={locale} searchResult={focusedResult.searchResult} />
           )}
-          <ExportControls key={focusedResult.id} locale={locale} runId={run.runId} result={focusedResult} />
         </>
       ) : (
         <p className="metric-empty" role="status">{translate(locale, "results.focusPending")}</p>
       )}
+      <ExportControls key={focusedResult?.id ?? "no-focused-result"} locale={locale} runId={run.runId} result={focusedResult} />
     </div>
   );
 }
