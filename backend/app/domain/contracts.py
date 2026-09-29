@@ -406,6 +406,133 @@ class MetricSummary(DomainModel):
     diagnostics: tuple[Diagnostic, ...] = ()
 
 
+class SearchResultDimension(DomainModel):
+    """A stable search axis captured with its persisted candidate results."""
+
+    key: str = Field(min_length=1)
+    values: tuple[object, ...] = Field(min_length=1)
+    translation_key: str = Field(default="", alias="translationKey")
+
+    @model_validator(mode="after")
+    def require_unique_values(self) -> "SearchResultDimension":
+        if len(set(self.values)) != len(self.values):
+            raise ValueError("search result dimension values must be unique")
+        if not self.translation_key:
+            object.__setattr__(self, "translation_key", f"parameters.{self.key}")
+        return self
+
+
+class SearchCandidate(DomainModel):
+    """One stable candidate result, including invalid or unavailable rows."""
+
+    candidate_id: str = Field(alias="candidateId", min_length=1)
+    sequence: int = Field(ge=1)
+    role: ResultRole = ResultRole.STRATEGY
+    status: StrategyStatus
+    calculation_fingerprint: str = Field(alias="calculationFingerprint", min_length=1)
+    parameter_values: Mapping[str, object] = Field(
+        alias="parameterValues", validate_default=True
+    )
+    reused_calculation: bool = Field(default=False, alias="reusedCalculation")
+    metrics: MetricSummary | None = None
+    diagnostics: tuple[Diagnostic, ...] = ()
+
+    @field_validator("parameter_values", mode="after")
+    @classmethod
+    def freeze_parameter_values(cls, value: Mapping[str, object]) -> FrozenMap:
+        return freeze_mapping(value)
+
+    @field_serializer("parameter_values")
+    def serialize_parameter_values(self, value: Mapping[str, object]) -> object:
+        return thaw_value(value)
+
+    @model_validator(mode="after")
+    def validate_candidate_result(self) -> "SearchCandidate":
+        if (
+            self.status
+            in {
+                StrategyStatus.COMPLETED,
+                StrategyStatus.COMPLETED_WITH_WARNING,
+            }
+            and self.metrics is None
+        ):
+            raise ValueError("completed search candidates require metrics")
+        if self.status in {StrategyStatus.FAILED, StrategyStatus.UNAVAILABLE} and not (
+            self.diagnostics
+        ):
+            raise ValueError("failed or unavailable candidates require diagnostics")
+        if self.reused_calculation and self.metrics is None:
+            raise ValueError("only completed candidates can reuse metric calculations")
+        return self
+
+
+class SearchResult(DomainModel):
+    """Complete candidate set and stable ranking for one search strategy."""
+
+    strategy_id: str = Field(alias="strategyId", min_length=1)
+    dimensions: tuple[SearchResultDimension, ...]
+    total_candidate_count: int = Field(alias="totalCandidateCount", ge=1)
+    candidates: tuple[SearchCandidate, ...]
+    ranked_candidate_ids: tuple[str, ...] = Field(alias="rankedCandidateIds")
+
+    @model_validator(mode="after")
+    def validate_candidate_identity(self) -> "SearchResult":
+        candidate_ids = tuple(candidate.candidate_id for candidate in self.candidates)
+        sequences = tuple(candidate.sequence for candidate in self.candidates)
+        if len(set(candidate_ids)) != len(candidate_ids):
+            raise ValueError("search candidate IDs must be unique")
+        if sequences != tuple(range(1, len(sequences) + 1)):
+            raise ValueError("search candidate sequence must be complete and one-based")
+        if len(self.candidates) != self.total_candidate_count:
+            raise ValueError("every search combination must have a result row")
+        if len(set(self.ranked_candidate_ids)) != len(self.ranked_candidate_ids):
+            raise ValueError("ranked candidate IDs must be unique")
+        expected_ranked_ids = {
+            candidate.candidate_id
+            for candidate in self.candidates
+            if candidate.metrics is not None
+            and candidate.status
+            in {
+                StrategyStatus.COMPLETED,
+                StrategyStatus.COMPLETED_WITH_WARNING,
+            }
+        }
+        if set(self.ranked_candidate_ids) != expected_ranked_ids:
+            raise ValueError("ranking must include every completed candidate once")
+        return self
+
+
+class SearchHeatmapSlice(DomainModel):
+    """A two-axis candidate view with every other dimension frozen."""
+
+    x_dimension: str = Field(alias="xDimension", min_length=1)
+    y_dimension: str = Field(alias="yDimension", min_length=1)
+    x_values: tuple[object, ...] = Field(alias="xValues")
+    y_values: tuple[object, ...] = Field(alias="yValues")
+    fixed_values: Mapping[str, object] = Field(alias="fixedValues")
+    candidates: tuple[SearchCandidate, ...]
+
+    @field_validator("fixed_values", mode="after")
+    @classmethod
+    def freeze_fixed_values(cls, value: Mapping[str, object]) -> FrozenMap:
+        return freeze_mapping(value)
+
+    @field_serializer("fixed_values")
+    def serialize_fixed_values(self, value: Mapping[str, object]) -> object:
+        return thaw_value(value)
+
+    @model_validator(mode="after")
+    def require_distinct_axes(self) -> "SearchHeatmapSlice":
+        if self.x_dimension == self.y_dimension:
+            raise ValueError("heatmap axes must use distinct dimensions")
+        if (
+            self.x_dimension in self.fixed_values
+            or self.y_dimension in self.fixed_values
+        ):
+            raise ValueError("heatmap axis dimensions cannot also be fixed")
+        return self
+
+
 class StrategyRun(DomainModel):
     """One strategy result; zero trades is valid when metrics are complete."""
 
@@ -421,9 +548,17 @@ class StrategyRun(DomainModel):
     trades: tuple[Trade, ...] = ()
     daily_assets: tuple[DailyAsset, ...] = Field(default=(), alias="dailyAssets")
     metrics: MetricSummary | None = None
+    search_result: SearchResult | None = Field(default=None, alias="searchResult")
 
     @model_validator(mode="after")
     def validate_terminal_result(self) -> "StrategyRun":
+        if self.search_result is not None and self.search_result.strategy_id != self.id:
+            raise ValueError("search result must belong to its strategy run")
+        if (
+            self.search_result is not None
+            and self.preset_id is not StrategyPresetId.GRID_SEARCH
+        ):
+            raise ValueError("only grid-search runs can contain search results")
         if (
             self.status
             in {

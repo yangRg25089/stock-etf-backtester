@@ -18,6 +18,8 @@ from app.domain.contracts import (
     RunScope,
     RunSettings,
     RunSnapshot,
+    SearchCandidate,
+    SearchResult,
     SharedSettings,
     StrategyInstance,
     StrategyPresetId,
@@ -228,6 +230,47 @@ def test_completed_zero_trade_strategy_and_partial_result_are_representable() ->
     assert strategy.trades == ()
     assert result.is_partial_success is True
     assert result.status is StrategyStatus.COMPLETED_WITH_WARNING
+
+
+def test_grid_search_result_is_frozen_inside_its_strategy_run() -> None:
+    summary = MetricSummary(
+        totalContributed=Decimal("100"),
+        endingEquity=Decimal("110"),
+        netProfit=Decimal("10"),
+        returnOnContributions=Decimal("0.1"),
+        capitalMultiple=Decimal("1.1"),
+        currency="USD",
+    )
+    search_result = SearchResult(
+        strategyId="grid-1",
+        dimensions=[{"key": "vix.buyThreshold", "values": [25, 30]}],
+        totalCandidateCount=1,
+        candidates=[
+            SearchCandidate(
+                candidateId="grid-1:candidate:00001",
+                sequence=1,
+                role=ResultRole.STRATEGY,
+                status=StrategyStatus.COMPLETED,
+                calculationFingerprint="fingerprint-1",
+                parameterValues={"vix.buyThreshold": Decimal("25")},
+                metrics=summary,
+            )
+        ],
+        rankedCandidateIds=["grid-1:candidate:00001"],
+    )
+    run = StrategyRun(
+        id="grid-1",
+        presetId=StrategyPresetId.GRID_SEARCH,
+        role=ResultRole.STRATEGY,
+        status=StrategyStatus.COMPLETED,
+        metrics=summary,
+        searchResult=search_result,
+    )
+
+    restored = StrategyRun.model_validate(run.model_dump(mode="python", by_alias=True))
+
+    assert restored.search_result == search_result
+    assert restored.search_result.candidates[0].metrics == summary
 
 
 def test_strategy_run_status_updates_return_a_new_validated_result() -> None:

@@ -19,6 +19,7 @@ from app.domain.contracts import (
 )
 from app.domain.status import Diagnostic, DiagnosticCode, DiagnosticSeverity
 from app.engine_version import ENGINE_VERSION
+from app.runs.store import IdempotencyConflict
 
 from .errors import APIException
 from .types import (
@@ -84,7 +85,14 @@ def submit_run(
     catalog = get_catalog()
     submission = _build_submission(body, catalog)
     service = _run_service(request)
-    accepted = service.submit_run(submission, idempotency_key=idempotency_key)
+    try:
+        accepted = service.submit_run(submission, idempotency_key=idempotency_key)
+    except IdempotencyConflict as error:
+        raise APIException(
+            409,
+            "idempotency_conflict",
+            "api.errors.idempotency_conflict",
+        ) from error
     response.headers["Location"] = f"/api/v1/runs/{accepted.run_id}"
     return accepted
 

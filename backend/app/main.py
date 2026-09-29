@@ -11,6 +11,9 @@ from app.api.errors import (
     request_validation_exception_handler,
 )
 from app.api.runs import router as runs_router
+from app.runs.data import UnconfiguredRunDataProvider
+from app.runs.manager import RunManager
+from app.runs.store import InMemoryRunStore
 
 
 class HealthResponse(BaseModel):
@@ -26,6 +29,10 @@ app.include_router(catalog_router)
 app.include_router(runs_router)
 app.add_exception_handler(APIException, api_exception_handler)
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+app.state.run_service = RunManager(
+    store=InMemoryRunStore(),
+    data_provider=UnconfiguredRunDataProvider(),
+)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])

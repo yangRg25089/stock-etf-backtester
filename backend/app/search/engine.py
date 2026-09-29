@@ -38,7 +38,12 @@ from app.metrics import (
     MetricsResult,
     calculate_metrics,
 )
-from app.search.types import SearchCandidate, SearchHeatmapSlice, SearchResult
+from app.search.types import (
+    SearchCandidate,
+    SearchHeatmapSlice,
+    SearchResult,
+    SearchResultDimension,
+)
 from app.signals import INDICATOR_METHOD_VERSION, evaluate_signals
 
 SEARCH_METHOD_VERSION = "search-v1"
@@ -258,7 +263,12 @@ def run_grid_search(
     candidate_rows = tuple(candidates)
     return SearchResult(
         strategyId=source.strategy.id,
-        dimensions=dimensions,
+        dimensions=tuple(
+            SearchResultDimension.model_validate(
+                dimension.model_dump(mode="python", by_alias=True)
+            )
+            for dimension in dimensions
+        ),
         totalCandidateCount=combination_count,
         candidates=candidate_rows,
         rankedCandidateIds=rank_candidates(candidate_rows),

@@ -13,6 +13,8 @@ from app.domain.contracts import RunScope, RunSnapshot
 from app.domain.immutability import thaw_value
 from app.domain.status import StrategyStatus
 from app.main import app
+from app.runs.manager import RunManager
+from app.runs.store import IdempotencyConflict
 
 
 class _FakeRunService:
@@ -51,18 +53,30 @@ class _FakeRunService:
         return self.responses.get(run_id)
 
 
+class _ConflictingRunService(_FakeRunService):
+    def submit_run(
+        self, submission: RunSubmission, *, idempotency_key: str
+    ) -> RunResponse:
+        del submission, idempotency_key
+        raise IdempotencyConflict("submission differs from the original request")
+
+
 def _request(
     method: str,
     path: str,
     *,
     service: _FakeRunService | None = None,
+    clear_service: bool = False,
     headers: dict[str, str] | None = None,
     json_body: object | None = None,
 ) -> httpx.Response:
     async def send() -> httpx.Response:
         previous = getattr(app.state, "run_service", None)
+        had_previous = hasattr(app.state, "run_service")
         if service is not None:
             app.state.run_service = service
+        elif clear_service and had_previous:
+            del app.state.run_service
         transport = httpx.ASGITransport(app=app)
         try:
             async with httpx.AsyncClient(
@@ -75,9 +89,10 @@ def _request(
                     json=jsonable_encoder(json_body),
                 )
         finally:
-            if service is not None:
-                if previous is None:
-                    del app.state.run_service
+            if service is not None or clear_service:
+                if not had_previous:
+                    if hasattr(app.state, "run_service"):
+                        del app.state.run_service
                 else:
                     app.state.run_service = previous
 
@@ -191,6 +206,28 @@ def test_active_run_ignores_errors_from_unselected_instances() -> None:
     assert lookup.json()["runId"] == "run-1"
 
 
+def test_default_local_manager_accepts_and_exposes_a_run_record() -> None:
+    assert isinstance(app.state.run_service, RunManager)
+
+    accepted = _request(
+        "POST",
+        "/api/v1/runs",
+        headers={"Idempotency-Key": "default-local-run"},
+        json_body={
+            "draft": _draft([_strategy("default-local")]),
+            "scope": "active",
+            "activeStrategyId": "default-local",
+        },
+    )
+    assert accepted.status_code == 202
+    run_id = accepted.json()["runId"]
+    lookup = _request("GET", f"/api/v1/runs/{run_id}")
+
+    assert accepted.json()["snapshot"]["dataFingerprint"]
+    assert lookup.status_code == 200
+    assert lookup.json()["runId"] == run_id
+
+
 def test_all_enabled_submission_keeps_invalid_strategy_as_local_diagnostic() -> None:
     service = _FakeRunService()
     draft = _draft([_strategy("valid"), _strategy("invalid", threshold=999)])
@@ -234,6 +271,24 @@ def test_run_scope_errors_and_missing_run_use_the_structured_error_envelope() ->
     assert empty_response.json()["error"]["code"] == "no_enabled_strategies"
     assert missing_response.status_code == 404
     assert missing_response.json()["error"]["code"] == "run_not_found"
+
+
+def test_idempotency_body_conflict_uses_stable_http_error_contract() -> None:
+    response = _request(
+        "POST",
+        "/api/v1/runs",
+        service=_ConflictingRunService(),
+        headers={"Idempotency-Key": "reused-key"},
+        json_body={
+            "draft": _draft([_strategy("active")]),
+            "scope": "active",
+            "activeStrategyId": "active",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "idempotency_conflict"
+    assert response.json()["error"]["messageKey"] == "api.errors.idempotency_conflict"
 
 
 def test_active_run_requires_an_enabled_selected_instance() -> None:
@@ -314,6 +369,7 @@ def test_run_submission_reports_missing_orchestration_service_explicitly() -> No
     response = _request(
         "POST",
         "/api/v1/runs",
+        clear_service=True,
         headers={"Idempotency-Key": "missing-service-intent"},
         json_body={
             "draft": _draft([_strategy("active")]),

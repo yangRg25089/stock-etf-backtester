@@ -305,12 +305,12 @@
 **描述：** 实现 `createRun/getRun` 和本地作业执行器，提供 `queued/loading/running` 进度及终态；按实例独立获取数据/运行策略，统一生成基准、诊断和不可变结果。
 
 **验收标准：**
-- [ ] 前端可观察作业状态，整体区分无作业、运行中、全失败、部分成功、完成警告和完成。
-- [ ] 数据/参数/计算异常映射到稳定状态码；零交易是 `completed`，缺少必需数据是 `unavailable`。
-- [ ] 草稿后续修改、停用或切换编辑对象不会改变已完成快照；结果焦点与编辑实例独立。
-- [ ] `Idempotency-Key` 由单一原子存储认领；同键同提交返回原作业，同键不同提交明确冲突。
+- [x] `getRun` 返回 queued/loading/running 和终态，整体状态可区分全失败、不可用、部分成功、警告和完成；无作业空态由前端呈现。
+- [x] 数据/参数/计算异常映射到稳定诊断码；零交易是 `completed`，缺少必需数据是 `unavailable`。
+- [x] `RunSnapshot` 冻结提交配置与数据指纹；后续草稿不能改变已保存结果。编辑实例与结果焦点的 UI 隔离由 Task 17/18 验收。
+- [x] `Idempotency-Key` 由单一原子存储认领；同键同提交返回原作业，同键不同提交明确冲突。
 
-**验证：** 作业 API 集成测试、部分失败 fixture、快照不可变性、重复运行/缓存指纹测试。
+**验证：** `backend/tests/api/test_api.py` 与 `backend/tests/runs/` 覆盖 API 状态、部分失败、全失败、不可用、警告、零交易、最新日期快照、同键复用/冲突和异常隔离；`pytest -q`、`mypy app`、`ruff check app tests`、`ruff format --check app tests` 通过。
 
 **依赖：** Task 9–13。
 
