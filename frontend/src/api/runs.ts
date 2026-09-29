@@ -133,6 +133,14 @@ export function fetchRun(runId: string, signal?: AbortSignal): Promise<RunRespon
   );
 }
 
+export function fetchLatestRun(signal?: AbortSignal): Promise<RunResponse | null> {
+  return requestJson<RunResponse | null>(
+    "/api/v1/runs/latest",
+    { method: "GET" },
+    signal,
+  );
+}
+
 export function createIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;

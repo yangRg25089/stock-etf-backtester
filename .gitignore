@@ -16,6 +16,7 @@ frontend/.test-output/
 
 # Local tooling
 .DS_Store
+.local/
 .env
 .env.*
 !.env.example

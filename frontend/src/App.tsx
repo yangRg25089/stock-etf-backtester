@@ -4,6 +4,7 @@ import type { Catalog, Diagnostic, StrategyPresetId, StrategyStatus } from "./ap
 import {
   createIdempotencyKey,
   fetchRun,
+  fetchLatestRun,
   RunApiError,
   submitRun,
   validateDraft,
@@ -69,6 +70,7 @@ function App() {
   const [runBusy, setRunBusy] = useState(false);
   const strategySequence = useRef(2);
   const activeRunController = useRef<AbortController | null>(null);
+  const submittedRunRef = useRef(false);
 
   const catalog = catalogState.status === "ready" ? catalogState.value : null;
   const draftForValidation = workspace?.draft ?? null;
@@ -102,6 +104,54 @@ function App() {
   useEffect(() => {
     if (!catalog) return;
     setWorkspace((current) => current ?? createInitialWorkspaceState(catalog));
+  }, [catalog]);
+
+  useEffect(() => {
+    if (!catalog) return;
+    const controller = new AbortController();
+    activeRunController.current = controller;
+
+    const restoreLatestRun = async () => {
+      try {
+        let response = await fetchLatestRun(controller.signal);
+        if (!response || submittedRunRef.current) return;
+
+        const restore = (value: Awaited<ReturnType<typeof fetchLatestRun>>) => {
+          if (!value || submittedRunRef.current) return;
+          setWorkspace((current) => {
+            if (submittedRunRef.current) return current;
+            const base = current ?? createInitialWorkspaceState(catalog);
+            return workspaceReducer(base, { type: "run.update", value }, catalog);
+          });
+        };
+
+        restore(response);
+        if (isTerminal(response.status)) return;
+
+        setRunBusy(true);
+        while (!isTerminal(response.status)) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 700));
+          response = await fetchRun(response.runId, controller.signal);
+          if (submittedRunRef.current) return;
+          restore(response);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted && !submittedRunRef.current) {
+          setRunError(asRunApiError(error));
+        }
+      } finally {
+        if (activeRunController.current === controller) {
+          activeRunController.current = null;
+          setRunBusy(false);
+        }
+      }
+    };
+
+    void restoreLatestRun();
+    return () => {
+      controller.abort();
+      if (activeRunController.current === controller) activeRunController.current = null;
+    };
   }, [catalog]);
 
   useEffect(() => {
@@ -140,6 +190,7 @@ function App() {
 
   const handleRun = async () => {
     if (!catalog || !workspace || runBusy) return;
+    submittedRunRef.current = true;
     const submittedDraft = workspace.draft;
     const submittedScope = workspace.runScope;
     const submittedActiveId = workspace.activeStrategyId;

@@ -8,7 +8,19 @@
 
 已提交的 `RunSnapshot.dataProvenance` 冻结来源列表、日历截止日和行情最新报价日。汇总、每日资产、交易、搜索结果四类 CSV 都从这个保存快照附带 `dataSources`、`calendarAsOf`、`marketDataThrough`，导出不读取当前草稿或重新请求数据。`marketDataThrough` 表示行情报价覆盖，不代表宏观或 SEC 数据也更新到该日；这些数据的观察日/公开时间保留在数据快照和诊断中。运行完成日志以结构化字段记录相同来源与日期，不输出配置值或供应商响应。
 
-`RunStore` 与规范化数据缓存目前都在进程内：重启会清空运行记录和缓存。数据缓存最多保留 128 个规范化结果，不保存供应商响应；成功且无错误诊断的快照才会缓存，`refresh=True` 会绕过现有项，自动识别单位的利率不走缓存。缓存键包含供应商、代码、日期、频率、版本、价格口径和上下文指纹。
+运行记录由本机 SQLite `RunStore` 保存，默认路径为仓库根目录 `.local/runs.sqlite3`，该目录已加入 Git 忽略规则。可通过 `STOCK_ETF_BACKTESTER_RUN_STORE_PATH` 指定另一文件路径。运行响应、冻结快照和幂等键均持久化；页面启动时读取最近一次已保存运行，旧结果仍从原快照导出，不重新计算或下载数据。服务重启时，仍处于 `queued/loading/running` 的策略会转成带 `runs.interrupted_by_restart` 诊断的 `failed`，已经结束的策略和部分结果保留。
+
+备份时优先使用 SQLite 在线备份接口，例如：
+
+```python
+import sqlite3
+
+with sqlite3.connect(".local/runs.sqlite3") as source:
+    with sqlite3.connect("runs-backup.sqlite3") as backup:
+        source.backup(backup)
+```
+
+清除全部运行历史前停止 API 服务，再删除 `.local/runs.sqlite3` 及其 SQLite `-wal`、`-shm` 辅助文件；下次启动会创建空数据库。规范化数据缓存仍只在进程内，最多保留 128 个结果，不保存供应商响应；成功且无错误诊断的快照才会缓存，`refresh=True` 会绕过现有项，自动识别单位的利率不走缓存。缓存键包含供应商、代码、日期、频率、版本、价格口径和上下文指纹，服务重启后缓存会清空。
 
 ## 环境与常用命令
 
@@ -92,4 +104,4 @@ SEC_USER_AGENT='Stock ETF Backtester contact@example.com' \
 
 Yahoo 失败诊断区分通用请求失败、超时和限流，并只记录异常类型等有限元数据。缓存日志只记录命中、未命中、刷新/绕过及 provider 名称；运行日志记录运行/策略 ID、状态、诊断码以及 `data_sources`、`calendar_as_of`、`market_data_through`。不记录配置金额、原始响应、异常消息或环境变量。后端还会通过稳定的 `messageKey` 返回可读诊断，由日中词典显示。
 
-V1 不连接券商或提交真实订单，不提供投资建议，不做公网部署、账户/云端同步或跨进程并发保证；运行结果和缓存都不跨进程/重启保留。live smoke 只做显式的只读数据检查。
+V1 不连接券商或提交真实订单，不提供投资建议，不做公网部署、账户/云端同步或跨进程并发保证；运行结果保存在本机数据库，规范化数据缓存只在进程内。live smoke 只做显式的只读数据检查。

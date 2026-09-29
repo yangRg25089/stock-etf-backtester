@@ -47,6 +47,8 @@ class RunService(Protocol):
 
     def get_run(self, run_id: str) -> RunResponse | None: ...
 
+    def get_latest_run(self) -> RunResponse | None: ...
+
 
 @router.post(
     "/config/validate",
@@ -95,6 +97,17 @@ def submit_run(
         ) from error
     response.headers["Location"] = f"/api/v1/runs/{accepted.run_id}"
     return accepted
+
+
+@router.get(
+    "/runs/latest",
+    response_model=RunResponse | None,
+    responses={503: {"model": APIErrorResponse}},
+)
+def read_latest_run(request: Request) -> RunResponse | None:
+    """Return the newest saved run, if this local installation has one."""
+
+    return _run_service(request).get_latest_run()
 
 
 @router.get(

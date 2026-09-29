@@ -207,6 +207,33 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const staleExported = Object.fromEntries(staleHeaders.map((name, index) => [name, staleValues[index]]));
   expect(staleExported.resultId).toBe(benchmark.id);
   expect(staleExported.endingEquity).toBe(exported.endingEquity);
+
+  const latestResponse = page.waitForResponse((response) =>
+    response.request().method() === "GET" && response.url().endsWith("/api/v1/runs/latest"),
+  );
+  await page.reload();
+  const restoredResponse = await latestResponse;
+  const restored = await restoredResponse.json();
+  expect(restored.runId).toBe(saved.runId);
+  expect(restored.status).toBe("completed");
+  await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
+  const restoredStrategy = restored.result.strategyRuns.find(
+    (item) => item.id === "strategy-vix_dca-1",
+  );
+  const restoredDownloadPromise = page.waitForEvent("download");
+  await page.locator('[data-export-kind="summary"]').click();
+  const restoredDownload = await restoredDownloadPromise;
+  const restoredDownloadPath = await restoredDownload.path();
+  expect(restoredDownloadPath).toBeTruthy();
+  const restoredCsv = await readFile(restoredDownloadPath, "utf8");
+  const [restoredHeader, restoredRow] = restoredCsv.trim().split(/\r?\n/);
+  const restoredHeaders = restoredHeader.split(",");
+  const restoredValues = restoredRow.split(",");
+  const restoredExport = Object.fromEntries(
+    restoredHeaders.map((name, index) => [name, restoredValues[index]]),
+  );
+  expect(restoredExport.resultId).toBe(restoredStrategy.id);
+  expect(restoredExport.endingEquity).toBe(String(restoredStrategy.metrics.endingEquity));
   expect(pageErrors).toEqual([]);
   expect(nonLocalRequests).toEqual([]);
 });

@@ -137,6 +137,9 @@ class RunManager:
     def get_run(self, run_id: str) -> RunResponse | None:
         return self._store.get(run_id)
 
+    def get_latest_run(self) -> RunResponse | None:
+        return self._store.get_latest()
+
     def _load_strategy_data(
         self, submission: RunSubmission
     ) -> dict[str, StrategyDataLoad]:

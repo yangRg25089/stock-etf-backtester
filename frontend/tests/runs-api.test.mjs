@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const { fetchRun, RunApiError, submitRun } = require("../.test-output/api/runs.js");
+const { fetchLatestRun, fetchRun, RunApiError, submitRun } = require("../.test-output/api/runs.js");
 const { isPartialSuccess } = require("../.test-output/features/strategies/model.js");
 
 function response(payload, status = 200) {
@@ -51,6 +51,34 @@ test("run API sends selected scope, active identity, and idempotency key then re
     assert.deepEqual(JSON.parse(calls[0].init.body), { draft, scope: "all_enabled" });
     assert.equal(calls[1].url, "/api/v1/runs/run-local-1");
     assert.equal(isPartialSuccess(saved), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("run API restores the latest saved response or an empty result", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const saved = {
+    runId: "run-restored",
+    status: "completed",
+    selectedStrategyIds: ["strategy-vix_dca-1"],
+    snapshot: { runId: "run-restored", config: { shared: {}, strategies: [] } },
+    result: { runId: "run-restored", strategyRuns: [] },
+  };
+  const payloads = [saved, null];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return response(payloads.shift());
+  };
+  try {
+    assert.deepEqual(await fetchLatestRun(), saved);
+    assert.equal(await fetchLatestRun(), null);
+    assert.deepEqual(calls.map(({ url }) => url), [
+      "/api/v1/runs/latest",
+      "/api/v1/runs/latest",
+    ]);
+    assert.deepEqual(calls.map(({ init }) => init.method), ["GET", "GET"]);
   } finally {
     globalThis.fetch = originalFetch;
   }

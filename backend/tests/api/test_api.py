@@ -14,7 +14,8 @@ from app.domain.immutability import thaw_value
 from app.domain.status import StrategyStatus
 from app.main import app
 from app.runs.manager import RunManager
-from app.runs.store import IdempotencyConflict
+from app.runs.sqlite_store import SQLiteRunStore
+from app.runs.store import IdempotencyConflict, InMemoryRunStore
 
 
 class _FakeRunService:
@@ -51,6 +52,11 @@ class _FakeRunService:
 
     def get_run(self, run_id: str) -> RunResponse | None:
         return self.responses.get(run_id)
+
+    def get_latest_run(self) -> RunResponse | None:
+        if not self.responses:
+            return None
+        return list(self.responses.values())[-1]
 
 
 class _ConflictingRunService(_FakeRunService):
@@ -202,16 +208,30 @@ def test_active_run_ignores_errors_from_unselected_instances() -> None:
     assert submission.strategy_validations[0].diagnostics == ()
     assert service.idempotency_keys == ["active-run-intent"]
     lookup = _request("GET", "/api/v1/runs/run-1", service=service)
+    latest = _request("GET", "/api/v1/runs/latest", service=service)
     assert lookup.status_code == 200
     assert lookup.json()["runId"] == "run-1"
+    assert latest.status_code == 200
+    assert latest.json()["runId"] == "run-1"
+
+
+def test_latest_run_is_null_when_no_run_has_been_saved() -> None:
+    response = _request("GET", "/api/v1/runs/latest", service=_FakeRunService())
+
+    assert response.status_code == 200
+    assert response.json() is None
 
 
 def test_default_local_manager_accepts_and_exposes_a_run_record() -> None:
-    assert isinstance(app.state.run_service, RunManager)
+    default_service = app.state.run_service
+    assert isinstance(default_service, RunManager)
+    assert isinstance(default_service._store, SQLiteRunStore)
+    service = RunManager(store=InMemoryRunStore())
 
     accepted = _request(
         "POST",
         "/api/v1/runs",
+        service=service,
         headers={"Idempotency-Key": "default-local-run"},
         json_body={
             "draft": _draft([_strategy("default-local")]),
@@ -221,7 +241,7 @@ def test_default_local_manager_accepts_and_exposes_a_run_record() -> None:
     )
     assert accepted.status_code == 202
     run_id = accepted.json()["runId"]
-    lookup = _request("GET", f"/api/v1/runs/{run_id}")
+    lookup = _request("GET", f"/api/v1/runs/{run_id}", service=service)
 
     assert accepted.json()["snapshot"]["dataFingerprint"]
     assert lookup.status_code == 200

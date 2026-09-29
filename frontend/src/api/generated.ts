@@ -66,7 +66,7 @@ export type Diagnostic = {
   details?: unknown;
 };
 
-export type DiagnosticCode = "invalid_parameter" | "required_data_unavailable" | "provider_request_failed" | "calculation_failed" | "source_quality_warning" | "stale_data" | "unknown_source_unit" | "price_basis_unavailable" | "no_valid_contribution" | "no_valid_xirr" | "comparison_unavailable" | "invalid_status_transition";
+export type DiagnosticCode = "invalid_parameter" | "required_data_unavailable" | "provider_request_failed" | "calculation_failed" | "source_quality_warning" | "stale_data" | "unknown_source_unit" | "price_basis_unavailable" | "no_valid_contribution" | "no_valid_xirr" | "comparison_unavailable" | "invalid_status_transition" | "run_interrupted";
 
 export type DiagnosticSeverity = "info" | "warning" | "error";
 

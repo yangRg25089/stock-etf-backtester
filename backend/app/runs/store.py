@@ -43,6 +43,8 @@ class RunStore(Protocol):
 
     def get(self, run_id: str) -> RunResponse | None: ...
 
+    def get_latest(self) -> RunResponse | None: ...
+
 
 @dataclass(slots=True)
 class _ReservationState:
@@ -59,6 +61,7 @@ class InMemoryRunStore:
         self._lock = RLock()
         self._reservations: dict[str, _ReservationState] = {}
         self._records: dict[str, RunResponse] = {}
+        self._latest_run_id: str | None = None
 
     def reserve(self, idempotency_key: str, request_fingerprint: str) -> RunReservation:
         """Return the unique run reservation for this key and request identity."""
@@ -101,6 +104,7 @@ class InMemoryRunStore:
         with self._lock:
             state = self._state_for(reservation)
             self._records[reservation.run_id] = response
+            self._latest_run_id = reservation.run_id
             state.ready.set()
 
     def abort(self, reservation: RunReservation, error: BaseException) -> None:
@@ -138,6 +142,12 @@ class InMemoryRunStore:
     def get(self, run_id: str) -> RunResponse | None:
         with self._lock:
             return self._records.get(run_id)
+
+    def get_latest(self) -> RunResponse | None:
+        with self._lock:
+            if self._latest_run_id is None:
+                return None
+            return self._records.get(self._latest_run_id)
 
     def _state_for(self, reservation: RunReservation) -> _ReservationState:
         state = self._reservations.get(reservation.idempotency_key)
