@@ -9,7 +9,7 @@
 - `docs/design/review-resolutions.md`：已确认问题及其唯一归属。
 - `docs/design/backtest-ui.html`：静态 UI 视觉与响应式参考（不是应用实现）。
 
-当前仓库已建立 `backend/`、`frontend/`、依赖配置和离线测试入口；Task 1–15 已完成，Task 8 的 API/运行诊断/CSV 稳定码跨层验收已随 Task 15 关闭。notebook 输入映射和确定性 fixture 已固化到仓库，运行时不得依赖外部 notebook 路径。后续任务与实际命令以本计划、`tasks/todo.md` 和仓库中的依赖配置为准。
+当前仓库已建立 `backend/`、`frontend/`、依赖配置和离线测试入口；Task 1–16 已完成，Task 8 的 API/运行诊断/CSV 稳定码跨层验收已随 Task 15 关闭。Task 8 后端实现提交 `af384f6` 早于 Task 9，延后的是跨层验收。notebook 输入映射和确定性 fixture 已固化到仓库，运行时不得依赖外部 notebook 路径。后续任务与实际命令以本计划、`tasks/todo.md` 和仓库中的依赖配置为准。
 
 ## 目标与范围
 
@@ -348,11 +348,13 @@
 **描述：** 根据静态 UI 源建立日文默认/中文切换、共享设置表单、统一输入/单位/错误样式、可访问的开关/分段控件和生成类型接入。
 
 **验收标准：**
-- [ ] 共享标的、日期、注资金额/日期只出现一次；动态结束日显示解析实际日期并锁定输入。
-- [ ] `ParameterField` 按 catalog 渲染类型、单位、依赖和错误，不复制后端默认值/边界。
-- [ ] 词典覆盖字段、状态、诊断、空态、导出；切换语言不改变配置或结果。
+- [x] 共享标的、日期、注资金额/日期只出现一次；动态结束日锁定输入，有运行快照时显示其中冻结的实际日期，无快照时明确显示将在运行时解析。
+- [x] `ParameterField` 按 catalog 渲染类型、单位、依赖和错误，不复制后端默认值/边界。
+- [x] 词典覆盖字段、状态、诊断、空态、导出；语言状态与配置/结果状态分离，切换语言只更换文案。
 
-**验证：** 前端组件/unit tests、catalog mock 契约测试、键盘/屏幕阅读器基本检查。
+**验证：** `npm test`（catalog mock 与实际后端目录契约、组件服务端渲染、latest 日期、依赖/诊断和语言控件）通过；`npm run typecheck`、`npm run lint`、`npm run build` 通过。键盘焦点、skip link、标签/状态播报有静态检查，视口和浏览器视觉回归留在 Task 19。
+
+**跨任务说明：** `SharedSettingsForm` 从 `RunSnapshot.config.shared.run.endDate` 接收已冻结的最新结束日期；Task 17 将运行响应接入后提供该值。初次运行前后端没有完整行情日可用时，界面不使用本机日期代替。
 
 **依赖：** Task 1、Task 3、Task 13。
 
