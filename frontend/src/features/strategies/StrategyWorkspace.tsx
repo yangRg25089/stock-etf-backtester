@@ -76,6 +76,22 @@ export function StrategyWorkspace({
                   : definition.default,
               ]),
             );
+            const groupedFields = new Map<string, {
+              translationKey: string;
+              fields: NonNullable<Catalog["parameters"]>;
+            }>();
+            for (const key of preset.parameterKeys) {
+              const definition = catalog.parameters?.find((item) => item.key === key);
+              if (!definition) continue;
+              const groupId = definition.groupId ?? "general";
+              const group = catalog.parameterGroups?.find((item) => item.id === groupId);
+              const current = groupedFields.get(groupId) ?? {
+                translationKey: group?.translationKey ?? "parameterGroups.general",
+                fields: [],
+              };
+              current.fields.push(definition);
+              groupedFields.set(groupId, current);
+            }
 
             return (
               <article
@@ -127,31 +143,37 @@ export function StrategyWorkspace({
 
                 <fieldset className="strategy-parameters">
                   <legend>{translate(locale, "strategy.parameters")}</legend>
-                  <div className="strategy-parameter-grid">
-                    {preset.parameterKeys.map((key) => {
-                      const definition = catalog.parameters?.find((item) => item.key === key);
-                      if (!definition) return null;
-                      return (
-                        <ParameterField
-                          key={key}
-                          id={`field-${strategy.id}-${key.replaceAll(".", "-")}`}
-                          definition={definition}
-                          value={strategy.params[key]}
-                          locale={locale}
-                          dependencyValues={dependencyValues}
-                          errors={errors}
-                          helperText={key === "accumulation.conditionLogic"
-                            ? translate(locale, "strategy.conditionLogicHelp")
-                            : undefined}
-                          onChange={(value) => dispatch({
-                            type: "strategy.param",
-                            id: strategy.id,
-                            key,
-                            value,
+                  <div className="strategy-parameter-groups">
+                    {[...groupedFields.entries()].map(([groupId, group]) => (
+                      <section className="strategy-parameter-group" key={groupId} aria-labelledby={`parameters-${strategy.id}-${groupId}`}>
+                        <h4 id={`parameters-${strategy.id}-${groupId}`}>{translate(locale, group.translationKey)}</h4>
+                        <div className="strategy-parameter-grid">
+                          {group.fields.map((definition) => {
+                            const key = definition.key;
+                            return (
+                              <ParameterField
+                                key={key}
+                                id={`field-${strategy.id}-${key.replaceAll(".", "-")}`}
+                                definition={definition}
+                                value={strategy.params[key]}
+                                locale={locale}
+                                dependencyValues={dependencyValues}
+                                errors={errors}
+                                helperText={key === "accumulation.conditionLogic"
+                                  ? translate(locale, "strategy.conditionLogicHelp")
+                                  : undefined}
+                                onChange={(value) => dispatch({
+                                  type: "strategy.param",
+                                  id: strategy.id,
+                                  key,
+                                  value,
+                                })}
+                              />
+                            );
                           })}
-                        />
-                      );
-                    })}
+                        </div>
+                      </section>
+                    ))}
                   </div>
                 </fieldset>
               </article>
@@ -162,17 +184,20 @@ export function StrategyWorkspace({
 
       <div className="strategy-add">
         <label className="field-label" htmlFor="preset-to-add">{translate(locale, "strategy.addLabel")}</label>
-        <select
-          className="input"
-          id="preset-to-add"
-          value={selectedPresetId}
-          onChange={(event) => setSelectedPresetId(event.target.value as StrategyPresetId | "")}
-        >
-          <option value="">{translate(locale, "strategy.choosePreset")}</option>
-          {presets.map((item) => (
-            <option key={item.id} value={item.id}>{translate(locale, item.nameKey)}</option>
-          ))}
-        </select>
+        <div className="strategy-add-select">
+          <select
+            className="input"
+            id="preset-to-add"
+            value={selectedPresetId}
+            onChange={(event) => setSelectedPresetId(event.target.value as StrategyPresetId | "")}
+          >
+            <option value="">{translate(locale, "strategy.choosePreset")}</option>
+            {presets.map((item) => (
+              <option key={item.id} value={item.id}>{translate(locale, item.nameKey)}</option>
+            ))}
+          </select>
+          <p className="field-hint">{translate(locale, "strategy.addHelp")}</p>
+        </div>
         <button
           className="button add-strategy-button"
           type="button"

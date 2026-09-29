@@ -32,6 +32,7 @@ export interface WorkspaceState {
   showChart: boolean;
   showTrades: boolean;
   visibleSeriesIds: string[];
+  overlayMode: boolean;
 }
 
 export type WorkspaceAction =
@@ -46,7 +47,8 @@ export type WorkspaceAction =
   | { type: "result.focus"; id: string | null }
   | { type: "display.chart"; value: boolean }
   | { type: "display.trades"; value: boolean }
-  | { type: "chart.series"; id: string; visible: boolean };
+  | { type: "chart.series"; id: string; visible: boolean }
+  | { type: "chart.overlay"; value: boolean };
 
 export interface RunAvailability {
   disabled: boolean;
@@ -118,7 +120,8 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
     focusedResultId: null,
     showChart: uiBooleanDefault(catalog, "display.showChart", true),
     showTrades: uiBooleanDefault(catalog, "display.showTrades", true),
-    visibleSeriesIds: ["totalAsset", "drawdown"],
+    visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
+    overlayMode: false,
   };
 }
 
@@ -214,6 +217,8 @@ export function workspaceReducer(
             : [...state.visibleSeriesIds, action.id]
           : state.visibleSeriesIds.filter((seriesId) => seriesId !== action.id),
       };
+    case "chart.overlay":
+      return { ...state, overlayMode: action.value };
   }
 }
 

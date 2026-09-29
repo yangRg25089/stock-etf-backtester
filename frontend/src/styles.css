@@ -7,7 +7,7 @@
   --app-bg: #f4f6f5;
   --app-surface: #fff;
   --app-foreground: #192321;
-  --app-muted: #65736f;
+  --app-muted: #5d6a65;
   --app-border: #dce3df;
   --app-accent: #147d68;
   --app-accent-soft: #e5f3ef;
@@ -544,6 +544,26 @@ h2 {
   font-weight: 600;
 }
 
+.strategy-parameter-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.strategy-parameter-group {
+  min-width: 0;
+  padding: 12px;
+  background: #fbfcfb;
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+}
+
+.strategy-parameter-group h4 {
+  margin: 0 0 11px;
+  color: var(--app-foreground);
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .strategy-parameter-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -613,6 +633,12 @@ h2 {
   grid-column: 1;
 }
 
+.strategy-add-select {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
 .add-strategy-button {
   grid-column: 2;
   grid-row: 2;
@@ -658,6 +684,12 @@ h2 {
 .run-control-options {
   align-items: center;
   flex-wrap: wrap;
+}
+
+.run-scope-option {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
 }
 
 .segmented-control {
@@ -979,6 +1011,14 @@ h2 {
   gap: 12px;
 }
 
+.chart-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .chart-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1004,10 +1044,75 @@ h2 {
   border-color: #a9c8bd;
 }
 
+.legend-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .legend-swatch {
   width: 15px;
   height: 3px;
   border-radius: 3px;
+}
+
+.chart-layout-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chart-layout-controls button {
+  min-height: 40px;
+  padding: 6px 10px;
+  color: var(--app-foreground);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chart-layout-controls button[aria-pressed="true"] {
+  color: #125c4e;
+  background: #e5f2ee;
+  border-color: #9fc7ba;
+}
+
+.chart-layout-controls button:disabled {
+  color: var(--app-muted);
+  cursor: not-allowed;
+}
+
+.chart-range-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chart-range-label {
+  flex: 1 1 220px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-range-controls button {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 6px 10px;
+  color: var(--app-foreground);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.chart-range-controls button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .chart-panel {
@@ -1032,6 +1137,12 @@ h2 {
   height: auto;
   min-width: 680px;
   overflow: visible;
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.result-chart:active {
+  cursor: grabbing;
 }
 
 .chart-gridline {
@@ -1060,6 +1171,12 @@ h2 {
   stroke-linejoin: round;
 }
 
+.chart-series-line:focus-visible,
+.overlay-series-line:focus-visible {
+  stroke-width: 4;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
 .chart-vix-line {
   stroke: #7656a6;
 }
@@ -1083,30 +1200,39 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
-.candlestick-up .candle-wick,
-.candlestick-up .candle-body {
-  stroke: #147d68;
-}
-
-.candlestick-up .candle-body {
-  fill: #147d68;
-}
-
-.candlestick-down .candle-wick,
-.candlestick-down .candle-body {
-  stroke: #a7373a;
-}
-
-.candlestick-down .candle-body {
-  fill: #a7373a;
-}
-
-.candle-wick {
+.chart-single-point,
+.overlay-single-point {
+  fill: #276d9b;
+  stroke: #fff;
   stroke-width: 1.5;
 }
 
-.candle-body {
-  stroke-width: 1;
+.chart-overlay-description {
+  margin: -3px 0 8px;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.overlay-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 5px 0 0 76px;
+  color: var(--app-foreground);
+  font-size: 12px;
+}
+
+.overlay-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.overlay-legend-swatch {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
 }
 
 .price-trade-marker-buy {
@@ -1159,15 +1285,6 @@ h2 {
   fill: #a7373a;
   stroke: #fff;
   stroke-width: 1.5;
-}
-
-.chart-date-range {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--app-muted);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
 }
 
 .chart-empty,
@@ -1436,6 +1553,10 @@ h2 {
 
   .metric-card dd {
     font-size: 15px;
+  }
+
+  .chart-range-label {
+    flex-basis: 100%;
   }
 
   .strategy-parameter-grid {

@@ -5,7 +5,9 @@ from pydantic import ValidationError
 
 from app.catalog.definitions import (
     PARAMETER_DEFINITIONS,
+    PARAMETER_GROUP_DEFINITIONS,
     ParameterDefinition,
+    ParameterGroupDefinition,
     ParameterLevel,
     ParameterType,
     ParameterValidationError,
@@ -97,7 +99,7 @@ EXPECTED_PARAMETER_KEYS = {
 
 
 def test_catalog_version_advances_with_the_shared_data_policy_contract() -> None:
-    assert CATALOG_VERSION == "catalog-v3"
+    assert CATALOG_VERSION == "catalog-v4"
 
 
 def test_catalog_exposes_exactly_the_seven_stable_strategy_presets() -> None:
@@ -126,6 +128,9 @@ def test_every_parameter_has_complete_stable_metadata() -> None:
         assert key == definition.key
         assert definition.type.value in allowed_types
         assert definition.translation_key.startswith("parameters.")
+        assert definition.group_id in {
+            group.id for group in PARAMETER_GROUP_DEFINITIONS
+        }
         assert definition.applicable_presets
         if definition.minimum is not None and definition.maximum is not None:
             assert definition.minimum <= definition.maximum
@@ -135,6 +140,40 @@ def test_every_parameter_has_complete_stable_metadata() -> None:
             assert definition.default >= definition.minimum
         if definition.default is not None and definition.maximum is not None:
             assert definition.default <= definition.maximum
+
+
+def test_parameter_groups_are_unique_and_every_catalog_field_uses_one() -> None:
+    catalog = get_catalog()
+    group_ids = [group.id for group in catalog.parameter_groups]
+    translation_keys = [group.translation_key for group in catalog.parameter_groups]
+
+    assert len(group_ids) == len(set(group_ids))
+    assert len(translation_keys) == len(set(translation_keys))
+    assert {parameter.group_id for parameter in catalog.parameters} <= set(group_ids)
+    assert catalog.parameter("vix.symbol").group_id == "vix"
+    assert catalog.parameter("exit.rsi.threshold").group_id == "sell_signals"
+
+
+def test_catalog_rejects_duplicate_or_unknown_parameter_groups() -> None:
+    definition = ParameterDefinition(
+        key="x.foo",
+        type=ParameterType.DECIMAL,
+        default=Decimal("1"),
+        minimum=0,
+        translationKey="parameters.x.foo",
+        groupId="general",
+        applicablePresets=[StrategyPresetId.VIX_DCA],
+    )
+    general = ParameterGroupDefinition(
+        id="general", translationKey="parameterGroups.general"
+    )
+
+    with pytest.raises(ValidationError, match="group IDs must be unique"):
+        Catalog(
+            version="test", parameters=(definition,), parameterGroups=(general, general)
+        )
+    with pytest.raises(ValidationError, match="unknown group"):
+        Catalog(version="test", parameters=(definition,), parameterGroups=())
 
 
 def test_default_data_settings_materializes_the_registered_staleness_default() -> None:
@@ -335,6 +374,7 @@ def test_catalog_lookups_use_the_snapshot_being_queried() -> None:
         default=Decimal("1"),
         minimum=0,
         translationKey="parameters.x.foo",
+        groupId="general",
         applicablePresets=[StrategyPresetId.VIX_DCA],
     )
     preset = PresetDefinition(
@@ -362,6 +402,7 @@ def test_parameter_definition_rejects_invalid_metadata() -> None:
             minimum=0,
             maximum=1,
             translationKey="parameters.invalid",
+            groupId="general",
             applicablePresets=[StrategyPresetId.VIX_DCA],
         )
 
@@ -371,6 +412,7 @@ def test_parameter_definition_rejects_invalid_metadata() -> None:
             type="boolean",
             default="enabled",
             translationKey="parameters.invalid",
+            groupId="general",
             applicablePresets=[StrategyPresetId.VIX_DCA],
         )
 
@@ -380,5 +422,6 @@ def test_parameter_definition_rejects_invalid_metadata() -> None:
             type="number_list",
             default=[1, float("nan")],
             translationKey="parameters.invalid",
+            groupId="general",
             applicablePresets=[StrategyPresetId.VIX_DCA],
         )

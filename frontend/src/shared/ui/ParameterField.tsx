@@ -67,7 +67,13 @@ export function ParameterField({
     (key) => !dependencyIsPresent(dependencyValues[key]),
   );
   const fieldDisabled = disabled || unmetDependencies.length > 0;
-  const resolvedHelperText = helperText ?? (
+  const optionDescriptionKey = `parameterDescriptions.${definition.key}`;
+  const translatedOptionDescription = translate(locale, optionDescriptionKey);
+  const optionDescription = ["enum", "enum_list"].includes(definition.type) &&
+    translatedOptionDescription !== optionDescriptionKey
+    ? translatedOptionDescription
+    : undefined;
+  const resolvedHelperText = helperText ?? optionDescription ?? (
     definition.unit === "currency" ? translate(locale, "field.currencyHelp") : undefined
   );
   const fieldErrors = errors.filter((error) =>

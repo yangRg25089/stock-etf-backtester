@@ -33,17 +33,20 @@ export function RunControls({
         </button>
       </div>
       <div className="run-control-options">
-        <div className="segmented-control" role="group" aria-label={translate(locale, "run.scopeLabel")}>
-          {(["active", "all_enabled"] as const).map((scope) => (
-            <button
-              key={scope}
-              type="button"
-              aria-pressed={runScope === scope}
-              onClick={() => onScopeChange(scope)}
-            >
-              {translate(locale, `run.scope.${scope}`)}
-            </button>
-          ))}
+        <div className="run-scope-option">
+          <div className="segmented-control" role="group" aria-label={translate(locale, "run.scopeLabel")}>
+            {(["active", "all_enabled"] as const).map((scope) => (
+              <button
+                key={scope}
+                type="button"
+                aria-pressed={runScope === scope}
+                onClick={() => onScopeChange(scope)}
+              >
+                {translate(locale, `run.scope.${scope}`)}
+              </button>
+            ))}
+          </div>
+          <p className="field-hint">{translate(locale, "run.scopeHelp")}</p>
         </div>
         {(busy || availability.reasonKey) && (
           <p className="run-reason" role={busy ? "status" : "note"}>

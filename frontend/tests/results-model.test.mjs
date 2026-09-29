@@ -18,7 +18,7 @@ test("result display defaults come from the catalog and remain separate preferen
   assert.equal(state.runScope, "all_enabled");
   assert.equal(state.showChart, true);
   assert.equal(state.showTrades, true);
-  assert.deepEqual(state.visibleSeriesIds, ["totalAsset", "drawdown"]);
+  assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown", "vix"]);
 
   state = workspaceReducer(state, { type: "display.chart", value: false });
   assert.equal(state.showChart, false);
@@ -27,7 +27,7 @@ test("result display defaults come from the catalog and remain separate preferen
   assert.equal(state.showChart, false);
   assert.equal(state.showTrades, false);
   state = workspaceReducer(state, { type: "chart.series", id: "drawdown", visible: false });
-  assert.deepEqual(state.visibleSeriesIds, ["totalAsset"]);
+  assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "vix"]);
 });
 
 test("result focus survives editor switching and draft edits", () => {

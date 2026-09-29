@@ -24,6 +24,7 @@ function parameter(key, type, value, extra = {}) {
     searchable: false,
     dependencies: [],
     translationKey: `parameters.${key}`,
+    groupId: "general",
     level: "shared",
     nullable: false,
     ...extra,
@@ -32,6 +33,7 @@ function parameter(key, type, value, extra = {}) {
 
 const mockCatalog = {
   version: "catalog-test",
+  parameterGroups: [{ id: "general", translationKey: "parameterGroups.general" }],
   parameters: [
     parameter("run.symbol", "symbol", "QQQ"),
     parameter("run.startDate", "date", "2020-01-01", { unit: "date" }),
@@ -77,6 +79,21 @@ test("catalog rejects duplicate field identities and dangling preset fields", ()
   assert.equal(isCatalog(dangling), false);
 });
 
+test("catalog rejects duplicate and unknown parameter groups", () => {
+  const duplicateGroups = {
+    ...mockCatalog,
+    parameterGroups: [...mockCatalog.parameterGroups, mockCatalog.parameterGroups[0]],
+  };
+  const unknownGroup = {
+    ...mockCatalog,
+    parameters: mockCatalog.parameters.map((field, index) =>
+      index === 0 ? { ...field, groupId: "missing" } : field,
+    ),
+  };
+  assert.equal(isCatalog(duplicateGroups), false);
+  assert.equal(isCatalog(unknownGroup), false);
+});
+
 test("the backend catalog response satisfies the frontend contract", () => {
   assert.equal(isCatalog(backendCatalog), true);
   for (const preset of backendCatalog.presets) {
@@ -111,11 +128,22 @@ test("all registered fields and preset labels are translated in both locales", (
         definition.translationKey,
         `${locale} is missing ${definition.translationKey}`,
       );
+      if (["enum", "enum_list"].includes(definition.type)) {
+        const helpKey = `parameterDescriptions.${definition.key}`;
+        assert.notEqual(translate(locale, helpKey), helpKey, `${locale} is missing ${helpKey}`);
+      }
     }
     for (const preset of backendCatalog.presets) {
       for (const key of [preset.nameKey, preset.descriptionKey]) {
         assert.notEqual(translate(locale, key), key, `${locale} is missing ${key}`);
       }
+    }
+    for (const group of backendCatalog.parameterGroups) {
+      assert.notEqual(
+        translate(locale, group.translationKey),
+        group.translationKey,
+        `${locale} is missing ${group.translationKey}`,
+      );
     }
   }
 });

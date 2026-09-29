@@ -105,7 +105,7 @@ test("keyboard focus, skip navigation, and reduced motion remain visible and sup
 test("semantic text colors meet WCAG AA contrast against their surfaces", () => {
   const pairs = [
     ["#192321", "#f4f6f5"],
-    ["#65736f", "#f4f6f5"],
+    ["#5d6a65", "#f4f6f5"],
     ["#147d68", "#ffffff"],
     ["#43524d", "#e9eeeb"],
     ["#125c4e", "#e5f3ef"],

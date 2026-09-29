@@ -36,19 +36,20 @@ const trades = [
   },
 ];
 
-test("asset and drawdown charts use saved daily assets and mark saved trades", () => {
+test("all financial charts use readable lines and saved results mark trades", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja",
     dailyAssets,
     trades,
-    visibleSeriesIds: ["totalAsset", "drawdown"],
+    visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
     onSeriesChange() {},
   }));
 
   assert.equal((html.match(/<svg /g) ?? []).length, 3);
-  assert.equal((html.match(/<polyline /g) ?? []).length, 2);
+  assert.equal((html.match(/<polyline /g) ?? []).length, 3);
   assert.equal((html.match(/class="trade-marker /g) ?? []).length, 2);
-  assert.equal((html.match(/class="candlestick candlestick-/g) ?? []).length, 3);
+  assert.equal((html.match(/class="candlestick candlestick-/g) ?? []).length, 0);
+  assert.match(html, /class="chart-series-line price-close-line"/);
   assert.ok((html.match(/class="chart-gridline/g) ?? []).length >= 12);
   assert.match(html, /chart-axis-title/);
   assert.match(html, /価格 \(USD\)/);
@@ -56,19 +57,53 @@ test("asset and drawdown charts use saved daily assets and mark saved trades", (
   assert.match(html, /ドローダウン/);
 });
 
-test("older result snapshots without OHLC render a close-price line instead of candles", () => {
+test("saved snapshots render a close-price trend line without requiring OHLC", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja",
     dailyAssets: dailyAssets.map(({ date, simulationPrice, currency, totalAsset, drawdown }) => ({
       date, simulationPrice, currency, totalAsset, drawdown,
     })),
     trades,
-    visibleSeriesIds: ["totalAsset"],
+    visibleSeriesIds: ["price"],
     onSeriesChange() {},
   }));
 
   assert.match(html, /price-close-line/);
   assert.doesNotMatch(html, /class="candlestick candlestick-/);
+  assert.match(html, /<polyline[^>]*tabindex="0"[^>]*aria-label="価格 \(USD\) · 2024-01-04/);
+});
+
+test("overlay mode combines selected series on a base-100 index", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh",
+    dailyAssets: dailyAssets.map((asset, index) => ({
+      ...asset,
+      simulationPrice: ["100", "120", "80"][index],
+      totalAsset: ["50", "60", "40"][index],
+      drawdown: ["0", "-0.2", "-0.1"][index],
+    })),
+    trades: [],
+    signals: [
+      { date: "2024-01-02", signalId: "vix.buy", state: "false", observedValue: "20" },
+      { date: "2024-01-03", signalId: "vix.buy", state: "false", observedValue: "24" },
+      { date: "2024-01-04", signalId: "vix.buy", state: "false", observedValue: "16" },
+    ],
+    vixSymbol: "^VIX",
+    vixThreshold: "25",
+    visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
+    overlayMode: true,
+    onOverlayModeChange() {},
+    onSeriesChange() {},
+  }));
+
+  assert.equal((html.match(/class="overlay-series-line /g) ?? []).length, 4);
+  assert.match(html, /起点 = 100/);
+  assert.match(html, /class="chart-panel chart-overlay"/);
+  assert.doesNotMatch(html, /class="candlestick candlestick-/);
+  assert.doesNotMatch(html, /class="chart-panel chart-price"/);
+  assert.match(html, /overlay-price/);
+  assert.match(html, /overlay-drawdown/);
+  assert.match(html, /aria-label="价格 \(USD\) · 2024-01-04 · US\$80/);
 });
 
 test("total-asset chart keeps its currency axis at zero or above", () => {
@@ -82,7 +117,7 @@ test("total-asset chart keeps its currency axis at zero or above", () => {
     visibleSeriesIds: ["totalAsset"],
     onSeriesChange() {},
   }));
-  const assetChart = html.match(/<figure class="chart-panel chart-totalAsset">([\s\S]*?)<\/figure>/)?.[1] ?? "";
+  const assetChart = html.match(/<figure class="chart-panel chart-totalAsset"[^>]*>([\s\S]*?)<\/figure>/)?.[1] ?? "";
   const yTickLabels = [...assetChart.matchAll(/class="chart-tick-label chart-y-tick"[^>]*>(.*?)<\/text>/g)]
     .map((match) => match[1] ?? "");
 
@@ -98,9 +133,11 @@ test("chart legend only changes visible chart series", () => {
     visibleSeriesIds: ["totalAsset"],
     onSeriesChange() {},
   }));
-  assert.equal((html.match(/<svg /g) ?? []).length, 2);
+  assert.equal((html.match(/<svg /g) ?? []).length, 1);
   assert.match(html, /aria-pressed="false"><span/);
   assert.ok(html.includes("</span>回撤 (%)</button>"));
+  assert.match(html, /aria-label="显示的图表"/);
+  assert.match(html, /重叠显示所选图表/);
 });
 
 test("VIX chart uses saved observed signal values and frozen threshold", () => {
@@ -115,7 +152,7 @@ test("VIX chart uses saved observed signal values and frozen threshold", () => {
     ],
     vixSymbol: "^VIX",
     vixThreshold: "25",
-    visibleSeriesIds: ["totalAsset", "drawdown"],
+    visibleSeriesIds: ["vix"],
     onSeriesChange() {},
   }));
   assert.match(html, /VIX 指数/);
@@ -135,7 +172,7 @@ test("VIX exit-only observations do not show the buy threshold", () => {
     ],
     vixSymbol: "^VIX",
     vixThreshold: "25",
-    visibleSeriesIds: ["totalAsset"],
+    visibleSeriesIds: ["vix"],
     onSeriesChange() {},
   }));
 

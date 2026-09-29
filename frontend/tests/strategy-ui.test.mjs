@@ -40,8 +40,30 @@ test("strategy editor keeps the catalog name and current VIX summary visible", (
   assert.match(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
   assert.match(html, /VXN — Nasdaq 100 ボラティリティ指数/);
   assert.match(html, /VXD — Dow Jones ボラティリティ指数/);
+  assert.match(html, /<h4 id="parameters-strategy-vix_dca-1-vix">VIX シグナル<\/h4>/);
+  assert.match(html, /買付・売却シグナルで参照するボラティリティ指数を選びます。/);
   assert.match(html, /id="preset-to-add"/);
   assert.equal(createInitialWorkspaceState(catalog).runScope, "all_enabled");
+});
+
+test("strategy parameters follow catalog groups and select controls explain their choices", () => {
+  const initial = createInitialWorkspaceState(catalog);
+  const composite = workspaceReducer(initial, {
+    type: "strategy.add",
+    id: "strategy-composite-groups",
+    presetId: "composite_dca",
+  }, catalog);
+  const ja = render(composite, "ja");
+  const zh = render(composite, "zh");
+
+  assert.ok((ja.match(/class="strategy-parameter-group"/g) ?? []).length >= 7);
+  assert.match(ja, /ボリンジャーシグナル/);
+  assert.match(ja, /売却条件/);
+  assert.match(ja, /この戦略で有効になっている買付条件すべてに適用します。AND はすべて満たす、OR はいずれかを満たす条件です。/);
+  assert.match(ja, /百分率の数値（例：5 = 5%）/);
+  assert.match(zh, /布林带信号/);
+  assert.match(zh, /卖出条件/);
+  assert.match(zh, /指定如何解释数据提供方的数值/);
 });
 
 test("turning off VIX shows the required disabled copy and preserves the preset id", () => {

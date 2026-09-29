@@ -1,14 +1,23 @@
+import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import type { DailyAsset, SignalEvaluation, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
+import {
+  normalizeSeriesToBase100,
+  normalizeValueToBase100,
+  type ChartSeriesId,
+  type SeriesSample,
+} from "./chartModel";
+import {
+  FULL_CHART_VIEWPORT,
+  MIN_CHART_VIEWPORT_SPAN,
+  panChartViewport,
+  samplesInViewport,
+  visibleIndexRange,
+  zoomChartViewport,
+  type ChartViewport,
+} from "./chartViewport";
 
-type SeriesId = "totalAsset" | "drawdown";
-interface Point {
-  date: string;
-  index: number;
-  value: number;
-  x: number;
-  y: number;
-}
+type AxisSeriesId = ChartSeriesId | "index";
 
 interface ResultsChartsProps {
   locale: Locale;
@@ -19,13 +28,20 @@ interface ResultsChartsProps {
   vixThreshold?: string;
   assetSymbol?: string;
   visibleSeriesIds: string[];
+  overlayMode?: boolean;
   onSeriesChange(id: string, visible: boolean): void;
+  onOverlayModeChange?(value: boolean): void;
 }
 
 interface SeriesDefinition {
-  id: SeriesId;
+  id: ChartSeriesId;
   color: string;
   labelKey: string;
+}
+
+interface ChartPoint extends SeriesSample {
+  x: number;
+  y: number;
 }
 
 interface ChartScale {
@@ -34,19 +50,29 @@ interface ChartScale {
   y(value: number): number;
 }
 
+interface ChartInteractionProps {
+  onPointerDown(event: ReactPointerEvent<SVGSVGElement>): void;
+  onPointerMove(event: ReactPointerEvent<SVGSVGElement>): void;
+  onPointerUp(event: ReactPointerEvent<SVGSVGElement>): void;
+  onPointerCancel(event: ReactPointerEvent<SVGSVGElement>): void;
+  onWheel(event: ReactWheelEvent<SVGSVGElement>): void;
+  onKeyDown(event: ReactKeyboardEvent<SVGSVGElement>): void;
+}
+
+interface PointerDragState {
+  pointerId: number;
+  lastRatio: number;
+  viewport: ChartViewport;
+}
+
 const SERIES: SeriesDefinition[] = [
+  { id: "price", color: "#276d9b", labelKey: "chart.price" },
   { id: "totalAsset", color: "#147d68", labelKey: "chart.totalAsset" },
   { id: "drawdown", color: "#a7373a", labelKey: "chart.drawdown" },
+  { id: "vix", color: "#7656a6", labelKey: "chart.vix" },
 ];
-
-const CHART = {
-  height: 320,
-  left: 92,
-  right: 26,
-  top: 20,
-  bottom: 54,
-  width: 800,
-};
+const VIX_SIGNAL_IDS = new Set(["vix.buy", "vix.exit.low1", "vix.exit.low2", "bollinger.exit.vix"]);
+const CHART = { height: 320, left: 92, right: 26, top: 20, bottom: 54, width: 800 };
 
 function numericValue(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -54,8 +80,51 @@ function numericValue(value: string | number | null | undefined): number | null 
   return Number.isFinite(number) ? number : null;
 }
 
-function seriesValue(asset: DailyAsset, seriesId: SeriesId): number | null {
-  return numericValue(seriesId === "totalAsset" ? asset.totalAsset : asset.drawdown);
+function localeTag(locale: Locale): string {
+  return locale === "ja" ? "ja-JP" : "zh-CN";
+}
+
+function formatAxisValue(
+  value: number,
+  locale: Locale,
+  seriesId: AxisSeriesId,
+  currency?: string,
+): string {
+  if (seriesId === "drawdown") {
+    return new Intl.NumberFormat(localeTag(locale), {
+      maximumFractionDigits: 1,
+      style: "percent",
+    }).format(value);
+  }
+  if (seriesId === "index") {
+    return new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 }).format(value);
+  }
+  if (currency && (seriesId === "price" || seriesId === "totalAsset")) {
+    try {
+      return new Intl.NumberFormat(localeTag(locale), {
+        currency,
+        maximumFractionDigits: value < 10 ? 2 : 0,
+        style: "currency",
+      }).format(value);
+    } catch {
+      // A malformed currency must not prevent rendering a saved result.
+    }
+  }
+  return new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value);
+}
+
+function axisTitle(locale: Locale, seriesId: AxisSeriesId, currency?: string): string {
+  if (seriesId === "index") return translate(locale, "chart.overlayAxis");
+  if (seriesId === "totalAsset" && !currency) return translate(locale, "chart.totalAssetAxisPlain");
+  if (seriesId === "price" && !currency) return translate(locale, "chart.priceAxisPlain");
+  const key = seriesId === "totalAsset"
+    ? "chart.totalAssetAxis"
+    : seriesId === "drawdown"
+      ? "chart.drawdownAxis"
+      : seriesId === "price"
+        ? "chart.priceAxis"
+        : "chart.vixAxis";
+  return translate(locale, key, { currency: currency ?? "" });
 }
 
 function chartScale(
@@ -81,89 +150,49 @@ function chartScale(
   };
 }
 
-function xPosition(index: number, count: number): number {
+function xPosition(index: number, count: number, viewport: ChartViewport): number {
   const plotWidth = CHART.width - CHART.left - CHART.right;
-  return CHART.left + (index / Math.max(count - 1, 1)) * plotWidth;
+  if (count <= 1) return CHART.left + plotWidth / 2;
+  const dateRatio = index / (count - 1);
+  return CHART.left + ((dateRatio - viewport.start) / (viewport.end - viewport.start)) * plotWidth;
 }
 
-function yTicks(scale: ChartScale): number[] {
-  return Array.from({ length: 5 }, (_, index) =>
-    scale.maximum - ((scale.maximum - scale.minimum) * index) / 4,
-  );
-}
-
-function dateTicks(assets: DailyAsset[]): Array<{ date: string; x: number }> {
-  if (assets.length === 0) return [];
-  const indexes = [...new Set([0, Math.floor((assets.length - 1) / 2), assets.length - 1])];
+function dateTicks(dates: string[], viewport: ChartViewport): Array<{ date: string; x: number }> {
+  if (dates.length === 0) return [];
+  const range = visibleIndexRange(dates.length, viewport);
+  const indexes = [...new Set([
+    Math.round(range.start),
+    Math.round((range.start + range.end) / 2),
+    Math.round(range.end),
+  ])];
   return indexes.flatMap((index) => {
-    const asset = assets[index];
-    return asset ? [{ date: asset.date, x: xPosition(index, assets.length) }] : [];
+    const date = dates[index];
+    if (!date) return [];
+    const x = xPosition(index, dates.length, viewport);
+    return [{ date, x: Math.min(CHART.width - CHART.right, Math.max(CHART.left, x)) }];
   });
 }
 
-function localeTag(locale: Locale): string {
-  return locale === "ja" ? "ja-JP" : "zh-CN";
-}
-
-function formatAxisValue(
-  value: number,
-  locale: Locale,
-  seriesId: SeriesId | "price" | "vix",
-  currency?: string,
-): string {
-  if (seriesId === "drawdown") {
-    return new Intl.NumberFormat(localeTag(locale), {
-      maximumFractionDigits: 1,
-      style: "percent",
-    }).format(value);
-  }
-  if (currency) {
-    try {
-      return new Intl.NumberFormat(localeTag(locale), {
-        currency,
-        maximumFractionDigits: value < 10 ? 2 : 0,
-        style: "currency",
-      }).format(value);
-    } catch {
-      // A malformed currency must not prevent rendering a saved result.
-    }
-  }
-  return new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value);
-}
-
-function axisTitle(
-  locale: Locale,
-  seriesId: SeriesId | "price" | "vix",
-  currency?: string,
-): string {
-  if (seriesId === "totalAsset" && !currency) return translate(locale, "chart.totalAssetAxisPlain");
-  if (seriesId === "price" && !currency) return translate(locale, "chart.priceAxisPlain");
-  const key = seriesId === "totalAsset"
-    ? "chart.totalAssetAxis"
-    : seriesId === "drawdown"
-      ? "chart.drawdownAxis"
-      : seriesId === "price"
-        ? "chart.priceAxis"
-        : "chart.vixAxis";
-  return translate(locale, key, { currency: currency ?? "" });
-}
-
 function ChartAxes({
-  assets,
+  dates,
   locale,
   scale,
   seriesId,
   currency,
+  viewport,
 }: {
-  assets: DailyAsset[];
+  dates: string[];
   locale: Locale;
   scale: ChartScale;
-  seriesId: SeriesId | "price" | "vix";
+  seriesId: AxisSeriesId;
   currency?: string;
+  viewport: ChartViewport;
 }) {
   const plotWidth = CHART.width - CHART.left - CHART.right;
   const plotBottom = CHART.height - CHART.bottom;
-  const ticks = yTicks(scale);
+  const ticks = Array.from({ length: 5 }, (_, index) =>
+    scale.maximum - ((scale.maximum - scale.minimum) * index) / 4,
+  );
   return (
     <g className="chart-axes">
       {ticks.map((value, index) => {
@@ -177,7 +206,7 @@ function ChartAxes({
           </g>
         );
       })}
-      {dateTicks(assets).map(({ date, x }) => (
+      {dateTicks(dates, viewport).map(({ date, x }) => (
         <g key={`x-${date}`}>
           <line className="chart-gridline chart-gridline-vertical" x1={x} y1={CHART.top} x2={x} y2={plotBottom} />
           <text className="chart-tick-label chart-x-tick" x={x} y={plotBottom + 18} textAnchor="middle">
@@ -195,11 +224,98 @@ function ChartAxes({
   );
 }
 
-function linePoints(assets: DailyAsset[], seriesId: SeriesId, scale: ChartScale): Point[] {
+function samplesForSeries(
+  seriesId: ChartSeriesId,
+  assets: DailyAsset[],
+  signals: SignalEvaluation[],
+): SeriesSample[] {
+  if (seriesId === "vix") {
+    const valueByDate = new Map<string, number>();
+    for (const signal of signals) {
+      if (!VIX_SIGNAL_IDS.has(signal.signalId)) continue;
+      const value = numericValue(signal.observedValue);
+      if (value !== null) valueByDate.set(signal.date, value);
+    }
+    return assets.flatMap((asset, index) => {
+      const value = valueByDate.get(asset.date);
+      return value === undefined ? [] : [{ date: asset.date, index, value }];
+    });
+  }
+
   return assets.flatMap((asset, index) => {
-    const value = seriesValue(asset, seriesId);
-    return value === null ? [] : [{ date: asset.date, index, value, x: xPosition(index, assets.length), y: scale.y(value) }];
+    const rawValue = seriesId === "price"
+      ? asset.simulationPrice
+      : seriesId === "totalAsset"
+        ? asset.totalAsset
+        : asset.drawdown;
+    const value = numericValue(rawValue);
+    return value === null ? [] : [{ date: asset.date, index, value }];
   });
+}
+
+function seriesLabel(locale: Locale, series: SeriesDefinition, currency?: string): string {
+  const units = series.id === "totalAsset" || series.id === "price"
+    ? currency
+    : series.id === "drawdown"
+      ? "%"
+      : null;
+  return `${translate(locale, series.labelKey)}${units ? ` (${units})` : ""}`;
+}
+
+function lineCoordinates(
+  points: SeriesSample[],
+  scale: ChartScale,
+  count: number,
+  viewport: ChartViewport,
+): ChartPoint[] {
+  return points.map((point) => ({
+    ...point,
+    x: xPosition(point.index, count, viewport),
+    y: scale.y(point.value),
+  }));
+}
+
+function TradeMarkers({
+  trades,
+  points,
+  scale,
+  locale,
+  currency,
+  seriesId,
+}: {
+  trades: Trade[];
+  points: ChartPoint[];
+  scale: ChartScale;
+  locale: Locale;
+  currency?: string;
+  seriesId: "price" | "totalAsset";
+}) {
+  const pointByDate = new Map(points.map((point) => [point.date, point]));
+  return (
+    <g className={`chart-trade-markers chart-trade-markers-${seriesId}`}>
+      {trades.flatMap((trade, index) => {
+        const point = pointByDate.get(trade.date);
+        const value = seriesId === "price" ? numericValue(trade.price) : point?.value ?? null;
+        if (!point || value === null) return [];
+        const y = scale.y(value);
+        const label = `${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(value, locale, seriesId, currency)}`;
+        if (seriesId === "price") {
+          const direction = trade.side === "buy" ? 1 : -1;
+          const markerPoints = `${point.x},${y + direction * 5} ${point.x - 5},${y - direction * 4} ${point.x + 5},${y - direction * 4}`;
+          return (
+            <polygon className={`price-trade-marker price-trade-marker-${trade.side}`} points={markerPoints} key={`${trade.date}-${trade.side}-${index}`}>
+              <title>{label}</title>
+            </polygon>
+          );
+        }
+        return (
+          <circle className={`trade-marker trade-marker-${trade.side}`} key={`${trade.date}-${trade.side}-${index}`} cx={point.x} cy={y} r="4" aria-hidden="true">
+            <title>{label}</title>
+          </circle>
+        );
+      })}
+    </g>
+  );
 }
 
 function LineChart({
@@ -207,234 +323,256 @@ function LineChart({
   assets,
   trades,
   series,
+  samples,
+  symbol,
+  thresholdValue,
+  hasBuySignalObservations,
+  viewport,
+  chartInteractionProps,
 }: {
   locale: Locale;
   assets: DailyAsset[];
   trades: Trade[];
   series: SeriesDefinition;
+  samples: SeriesSample[];
+  symbol?: string;
+  thresholdValue: number | null;
+  hasBuySignalObservations: boolean;
+  viewport: ChartViewport;
+  chartInteractionProps: ChartInteractionProps;
 }) {
-  const rawPoints = assets.flatMap((asset) => {
-    const value = seriesValue(asset, series.id);
-    return value === null ? [] : [value];
-  });
-  if (rawPoints.length === 0) {
-    return <p className="chart-empty">{translate(locale, "chart.seriesUnavailable")}</p>;
-  }
-  const scale = chartScale(rawPoints, {
+  if (samples.length === 0) return null;
+  const range = visibleIndexRange(assets.length, viewport);
+  const visibleSamples = samples.filter((point) => point.index >= range.start && point.index <= range.end);
+  const chartSamples = samplesInViewport(samples, viewport, assets.length);
+  const currency = assets[0]?.currency;
+  const visibleThreshold = series.id === "vix" && hasBuySignalObservations ? thresholdValue : null;
+  const values = chartSamples.map((point) => point.value);
+  if (visibleThreshold !== null) values.push(visibleThreshold);
+  const scale = chartScale(values, {
     maximumAtZero: series.id === "drawdown",
     minimumAtZero: series.id === "totalAsset",
   });
-  const points = linePoints(assets, series.id, scale);
-  const path = points.map(({ x, y }) => `${x},${y}`).join(" ");
-  const pointByDate = new Map(points.map((point) => [point.date, point]));
-  const markers = series.id === "totalAsset"
-    ? trades.flatMap((trade, index) => {
-      const point = pointByDate.get(trade.date);
-      return point ? [{ trade, point, index }] : [];
-    })
-    : [];
+  const points = lineCoordinates(chartSamples, scale, assets.length, viewport);
   const titleId = `chart-title-${series.id}`;
   const descriptionId = `chart-description-${series.id}`;
+  const figureClass = `chart-panel chart-${series.id}`;
+  const symbolLabel = series.id === "price" ? symbol : series.id === "vix" ? symbol : undefined;
+  const lastPoint = visibleSamples.at(-1);
+  const lineLabel = lastPoint
+    ? `${seriesLabel(locale, series, currency)} · ${lastPoint.date} · ${formatAxisValue(lastPoint.value, locale, series.id, currency)}`
+    : `${seriesLabel(locale, series, currency)} · ${translate(locale, "chart.noSeriesInWindow")}`;
+  const thresholdY = visibleThreshold === null ? null : scale.y(visibleThreshold);
+  const plotHeight = CHART.height - CHART.top - CHART.bottom;
+  const plotWidth = CHART.width - CHART.left - CHART.right;
+  const plotClipId = `chart-plot-${series.id}`;
   return (
-    <figure className={`chart-panel chart-${series.id}`}>
-      <figcaption>{translate(locale, series.labelKey)}</figcaption>
-      <svg className="result-chart" viewBox={`0 0 ${CHART.width} ${CHART.height}`} role="img" aria-labelledby={`${titleId} ${descriptionId}`}>
-        <title id={titleId}>{translate(locale, series.labelKey)}</title>
+    <figure className={figureClass} data-window-start={viewport.start} data-window-end={viewport.end}>
+      <figcaption>{symbolLabel ? `${symbolLabel} · ` : ""}{seriesLabel(locale, series, currency)}</figcaption>
+      <svg
+        {...chartInteractionProps}
+        className="result-chart"
+        viewBox={`0 0 ${CHART.width} ${CHART.height}`}
+        role="img"
+        aria-labelledby={`${titleId} ${descriptionId}`}
+        aria-label={translate(locale, "chart.interactionHelp")}
+        tabIndex={0}
+      >
+        <title id={titleId}>{seriesLabel(locale, series, currency)}</title>
         <desc id={descriptionId}>{translate(locale, "chart.description", {
-          start: points[0]?.date ?? "",
-          end: points.at(-1)?.date ?? "",
-          count: String(points.length),
+          start: assets[Math.round(range.start)]?.date ?? "",
+          end: assets[Math.round(range.end)]?.date ?? "",
+          count: String(Math.max(1, Math.round(range.end) - Math.round(range.start) + 1)),
         })}</desc>
-        <ChartAxes assets={assets} locale={locale} scale={scale} seriesId={series.id} currency={assets[0]?.currency} />
-        <polyline className="chart-series-line" points={path} fill="none" stroke={series.color} strokeWidth="2.5" />
-        {markers.map(({ trade, point, index }) => (
-          <circle className={`trade-marker trade-marker-${trade.side}`} key={`${trade.date}-${trade.side}-${index}`} cx={point.x} cy={point.y} r="4" aria-hidden="true">
-            <title>{`${trade.date} ${translate(locale, `trade.side.${trade.side}`)}`}</title>
-          </circle>
-        ))}
+        <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId={series.id} currency={currency} viewport={viewport} />
+        <defs>
+          <clipPath id={plotClipId}>
+            <rect x={CHART.left} y={CHART.top} width={plotWidth} height={plotHeight} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${plotClipId})`}>
+          {thresholdY !== null && (
+            <line className="chart-threshold-line" x1={CHART.left} y1={thresholdY} x2={CHART.width - CHART.right} y2={thresholdY}>
+              <title>{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</title>
+            </line>
+          )}
+          {points.length > 1 ? (
+            <polyline
+              className={`chart-series-line ${series.id === "price" ? "price-close-line" : ""} ${series.id === "vix" ? "chart-vix-line" : ""}`.trim()}
+              points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+              fill="none"
+              stroke={SERIES.find((item) => item.id === series.id)?.color}
+              strokeWidth="2.5"
+              tabIndex={0}
+              aria-label={lineLabel}
+            >
+              <title>{lineLabel}</title>
+            </polyline>
+          ) : points.length === 1 ? (
+            <circle className="chart-single-point" cx={points[0]?.x} cy={points[0]?.y} r="3" tabIndex={0} aria-label={lineLabel}>
+              <title>{lineLabel}</title>
+            </circle>
+          ) : null}
+          {(series.id === "price" || series.id === "totalAsset") && (
+            <TradeMarkers trades={trades} points={points} scale={scale} locale={locale} currency={currency} seriesId={series.id} />
+          )}
+          {series.id === "vix" && points.map((point) => (
+            <circle className="vix-observation" key={point.date} cx={point.x} cy={point.y} r="2">
+              <title>{`${point.date} ${formatAxisValue(point.value, locale, "vix")}`}</title>
+            </circle>
+          ))}
+        </g>
       </svg>
+      {series.id === "vix" && visibleThreshold !== null && (
+        <p className="chart-threshold-label">{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</p>
+      )}
+      {series.id === "price" && trades.length > 0 && (
+        <div className="price-marker-legend" aria-label={translate(locale, "chart.tradeMarkers")}>
+          <span><i className="trade-marker-buy" aria-hidden="true" />{translate(locale, "trade.side.buy")}</span>
+          <span><i className="trade-marker-sell" aria-hidden="true" />{translate(locale, "trade.side.sell")}</span>
+        </div>
+      )}
     </figure>
   );
 }
 
-interface PriceBar {
-  asset: DailyAsset;
-  index: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
-
-function completePriceBars(assets: DailyAsset[]): PriceBar[] | null {
-  const bars = assets.flatMap((asset, index) => {
-    const open = numericValue(asset.simulationOpen);
-    const high = numericValue(asset.simulationHigh);
-    const low = numericValue(asset.simulationLow);
-    const close = numericValue(asset.simulationPrice);
-    return open === null || high === null || low === null || close === null
-      ? []
-      : [{ asset, index, open, high, low, close }];
-  });
-  return bars.length === assets.length && bars.length > 0 ? bars : null;
-}
-
-function PriceChart({
+function OverlayChart({
   locale,
   assets,
   trades,
-  symbol,
+  series,
+  samplesById,
+  currency,
+  thresholdValue,
+  hasBuySignalObservations,
+  viewport,
+  chartInteractionProps,
 }: {
   locale: Locale;
   assets: DailyAsset[];
   trades: Trade[];
-  symbol?: string;
-}) {
-  const bars = completePriceBars(assets);
-  const closePoints = assets.flatMap((asset, index) => {
-    const close = numericValue(asset.simulationPrice);
-    return close === null ? [] : [{ date: asset.date, index, value: close }];
-  });
-  if (closePoints.length === 0) {
-    return <p className="chart-empty">{translate(locale, "chart.seriesUnavailable")}</p>;
-  }
-  const prices = bars
-    ? bars.flatMap((bar) => [bar.low, bar.high])
-    : closePoints.map((point) => point.value);
-  const tradePrices = trades.map((trade) => Number(trade.price)).filter(Number.isFinite);
-  const scale = chartScale([...prices, ...tradePrices]);
-  const currency = assets[0]?.currency;
-  const priceByDate = new Map(closePoints.map((point) => [point.date, point]));
-  const titleId = "chart-title-price";
-  const descriptionId = "chart-description-price";
-  const candleWidth = Math.max(3, Math.min(12, (CHART.width - CHART.left - CHART.right) / assets.length * 0.55));
-  return (
-    <figure className="chart-panel chart-price">
-      <figcaption>{symbol ? `${symbol} · ` : ""}{translate(locale, "chart.price")}{currency ? ` · ${currency}` : ""}</figcaption>
-      <svg className="result-chart" viewBox={`0 0 ${CHART.width} ${CHART.height}`} role="img" aria-labelledby={`${titleId} ${descriptionId}`}>
-        <title id={titleId}>{axisTitle(locale, "price", currency)}</title>
-        <desc id={descriptionId}>{translate(locale, "chart.description", {
-          start: assets[0]?.date ?? "",
-          end: assets.at(-1)?.date ?? "",
-          count: String(closePoints.length),
-        })}</desc>
-        <ChartAxes assets={assets} locale={locale} scale={scale} seriesId="price" currency={currency} />
-        {bars ? (
-          bars.map((bar) => {
-            const x = xPosition(bar.index, assets.length);
-            const openY = scale.y(bar.open);
-            const closeY = scale.y(bar.close);
-            const bodyY = Math.min(openY, closeY);
-            const bodyHeight = Math.max(Math.abs(closeY - openY), 1);
-            const trend = bar.close >= bar.open ? "up" : "down";
-            return (
-              <g className={`candlestick candlestick-${trend}`} key={bar.asset.date}>
-                <line className="candle-wick" x1={x} y1={scale.y(bar.high)} x2={x} y2={scale.y(bar.low)} />
-                <rect className="candle-body" x={x - candleWidth / 2} y={bodyY} width={candleWidth} height={bodyHeight}>
-                  <title>{`${bar.asset.date} O ${formatAxisValue(bar.open, locale, "price", currency)} H ${formatAxisValue(bar.high, locale, "price", currency)} L ${formatAxisValue(bar.low, locale, "price", currency)} C ${formatAxisValue(bar.close, locale, "price", currency)}`}</title>
-                </rect>
-              </g>
-            );
-          })
-        ) : (
-          <polyline
-            className="chart-series-line price-close-line"
-            points={closePoints.map((point) => `${xPosition(point.index, assets.length)},${scale.y(point.value)}`).join(" ")}
-            fill="none"
-            stroke="#276d9b"
-            strokeWidth="2.5"
-          />
-        )}
-        {trades.flatMap((trade, index) => {
-          const point = priceByDate.get(trade.date);
-          const value = numericValue(trade.price);
-          if (!point || value === null) return [];
-          const x = xPosition(point.index, assets.length);
-          const y = scale.y(value);
-          const direction = trade.side === "buy" ? 1 : -1;
-          const points = `${x},${y + direction * 5} ${x - 5},${y - direction * 4} ${x + 5},${y - direction * 4}`;
-          return (
-            <polygon className={`price-trade-marker price-trade-marker-${trade.side}`} points={points} key={`${trade.date}-${trade.side}-${index}`}>
-              <title>{`${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(value, locale, "price", currency)}`}</title>
-            </polygon>
-          );
-        })}
-      </svg>
-      <div className="price-marker-legend" aria-label={translate(locale, "chart.tradeMarkers")}>
-        <span><i className="trade-marker-buy" aria-hidden="true" />{translate(locale, "trade.side.buy")}</span>
-        <span><i className="trade-marker-sell" aria-hidden="true" />{translate(locale, "trade.side.sell")}</span>
-      </div>
-    </figure>
-  );
-}
-
-function VixChart({
-  locale,
-  assets,
-  signals,
-  symbol,
-  thresholdValue,
-}: {
-  locale: Locale;
-  assets: DailyAsset[];
-  signals: SignalEvaluation[];
-  symbol?: string;
+  series: SeriesDefinition[];
+  samplesById: Map<ChartSeriesId, SeriesSample[]>;
+  currency?: string;
   thresholdValue: number | null;
+  hasBuySignalObservations: boolean;
+  viewport: ChartViewport;
+  chartInteractionProps: ChartInteractionProps;
 }) {
-  const relevantSignals = signals.filter((signal) =>
-    ["vix.buy", "vix.exit.low1", "vix.exit.low2", "bollinger.exit.vix"].includes(signal.signalId),
-  );
-  const valueByDate = new Map<string, number>();
-  for (const signal of relevantSignals) {
-    const value = numericValue(signal.observedValue);
-    if (value !== null) valueByDate.set(signal.date, value);
+  const normalized = useMemo(() => series.flatMap((definition) => {
+    const result = normalizeSeriesToBase100(definition.id, samplesById.get(definition.id) ?? []);
+    return result ? [{ definition, result }] : [];
+  }), [samplesById, series]);
+  if (normalized.length < 2) {
+    return <p className="chart-empty">{translate(locale, "chart.noOverlaySeries")}</p>;
   }
-  const hasBuySignalObservations = relevantSignals.some((signal) =>
-    signal.signalId === "vix.buy" && numericValue(signal.observedValue) !== null,
-  );
-  const points = assets.flatMap((asset, index) => {
-    const value = valueByDate.get(asset.date);
-    return value === undefined ? [] : [{ date: asset.date, index, value }];
-  });
-  if (points.length === 0) return null;
-  const values = points.map((point) => point.value);
-  const visibleThreshold = hasBuySignalObservations ? thresholdValue : null;
-  if (visibleThreshold !== null) values.push(visibleThreshold);
+
+  const dateCount = assets.length;
+  const range = visibleIndexRange(dateCount, viewport);
+  const visibleNormalized = normalized.map(({ definition, result }) => ({
+    definition,
+    result,
+    chartPoints: samplesInViewport(result.points, viewport, dateCount),
+    visiblePoints: result.points.filter((point) => point.index >= range.start && point.index <= range.end),
+  }));
+  const values = visibleNormalized.flatMap(({ chartPoints }) => chartPoints.map((point) => point.indexValue));
   const scale = chartScale(values);
-  const line = points.map((point) => `${xPosition(point.index, assets.length)},${scale.y(point.value)}`).join(" ");
-  const thresholdY = visibleThreshold === null ? null : scale.y(visibleThreshold);
-  const titleId = "chart-title-vix";
-  const descriptionId = "chart-description-vix";
+  const thresholdIndex = normalized.some(({ definition }) => definition.id === "vix") && hasBuySignalObservations && thresholdValue !== null
+    ? normalizeValueToBase100("vix", thresholdValue, normalized.find(({ definition }) => definition.id === "vix")?.result.baseValue ?? 0)
+    : null;
+  const thresholdY = thresholdIndex === null ? null : scale.y(thresholdIndex);
+  const titleId = "chart-title-overlay";
+  const descriptionId = "chart-description-overlay";
+  const priceSeries = normalized.find(({ definition }) => definition.id === "price");
+  const priceSamples = samplesById.get("price") ?? [];
+  const priceByDate = new Map(priceSamples.map((point) => [point.date, point]));
+  const priceBaseline = priceSeries?.result.baseValue ?? null;
+  const startDate = assets[Math.round(range.start)]?.date ?? "";
+  const endDate = assets[Math.round(range.end)]?.date ?? "";
+  const plotHeight = CHART.height - CHART.top - CHART.bottom;
+  const plotWidth = CHART.width - CHART.left - CHART.right;
+  const plotClipId = "chart-plot-overlay";
   return (
-    <figure className="chart-panel chart-vix">
-      <figcaption>{translate(locale, "chart.vix")}{symbol ? ` · ${symbol}` : ""}</figcaption>
-      <svg className="result-chart" viewBox={`0 0 ${CHART.width} ${CHART.height}`} role="img" aria-labelledby={`${titleId} ${descriptionId}`}>
-        <title id={titleId}>{axisTitle(locale, "vix")}</title>
+    <figure className="chart-panel chart-overlay" data-window-start={viewport.start} data-window-end={viewport.end}>
+      <figcaption>{translate(locale, "chart.overlayTitle")}</figcaption>
+      <p className="chart-overlay-description">{translate(locale, "chart.overlayDescription")}</p>
+      <svg
+        {...chartInteractionProps}
+        className="result-chart"
+        viewBox={`0 0 ${CHART.width} ${CHART.height}`}
+        role="img"
+        aria-labelledby={`${titleId} ${descriptionId}`}
+        aria-label={translate(locale, "chart.interactionHelp")}
+        tabIndex={0}
+      >
+        <title id={titleId}>{translate(locale, "chart.overlayTitle")}</title>
         <desc id={descriptionId}>{translate(locale, "chart.description", {
-          start: points[0]?.date ?? "",
-          end: points.at(-1)?.date ?? "",
-          count: String(points.length),
+          start: startDate,
+          end: endDate,
+          count: String(Math.max(1, Math.round(range.end) - Math.round(range.start) + 1)),
         })}</desc>
-        <ChartAxes assets={assets} locale={locale} scale={scale} seriesId="vix" />
-        {thresholdY !== null && (
-          <line className="chart-threshold-line" x1={CHART.left} y1={thresholdY} x2={CHART.width - CHART.right} y2={thresholdY}>
-            <title>{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</title>
-          </line>
-        )}
-        <polyline className="chart-series-line chart-vix-line" points={line} fill="none" stroke="#7656a6" strokeWidth="2.5" />
-        {points.map((point) => (
-          <circle
-            className="vix-observation"
-            key={point.date}
-            cx={xPosition(point.index, assets.length)}
-            cy={scale.y(point.value)}
-            r="2"
-          >
-            <title>{`${point.date} ${formatAxisValue(point.value, locale, "vix")}`}</title>
-          </circle>
-        ))}
+        <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId="index" viewport={viewport} />
+        <defs>
+          <clipPath id={plotClipId}>
+            <rect x={CHART.left} y={CHART.top} width={plotWidth} height={plotHeight} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${plotClipId})`}>
+          {thresholdY !== null && (
+            <line className="chart-threshold-line" x1={CHART.left} y1={thresholdY} x2={CHART.width - CHART.right} y2={thresholdY}>
+              <title>{translate(locale, "chart.threshold", { threshold: String(thresholdValue) })}</title>
+            </line>
+          )}
+          {visibleNormalized.map(({ definition, chartPoints, visiblePoints }) => {
+            const points = chartPoints.map((point) => ({
+            ...point,
+            x: xPosition(point.index, dateCount, viewport),
+            y: scale.y(point.indexValue),
+          }));
+          const lastPoint = visiblePoints.at(-1);
+          const lastTitle = lastPoint
+            ? `${seriesLabel(locale, definition, currency)} · ${lastPoint.date} · ${formatAxisValue(lastPoint.value, locale, definition.id, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: lastPoint.indexValue.toFixed(1) })}`
+            : `${seriesLabel(locale, definition, currency)} · ${translate(locale, "chart.noSeriesInWindow")}`;
+          return (
+            <g className={`overlay-series overlay-${definition.id}`} key={definition.id}>
+              {points.length > 1 ? (
+                <polyline className={`overlay-series-line overlay-${definition.id}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={definition.color} strokeWidth="2.5" tabIndex={0} aria-label={lastTitle}>
+                  <title>{lastTitle}</title>
+                </polyline>
+              ) : (
+                points.length === 1 && <circle className="overlay-single-point" cx={points[0]?.x} cy={points[0]?.y} r="3" fill={definition.color} tabIndex={0} aria-label={lastTitle}>
+                  <title>{lastTitle}</title>
+                </circle>
+              )}
+            </g>
+          );
+          })}
+          {priceBaseline !== null && priceBaseline > 0 && trades.flatMap((trade, index) => {
+            const point = priceByDate.get(trade.date);
+            const rawPrice = numericValue(trade.price);
+            if (!point || rawPrice === null) return [];
+            const value = normalizeValueToBase100("price", rawPrice, priceBaseline);
+            if (value === null) return [];
+            const x = xPosition(point.index, dateCount, viewport);
+            const y = scale.y(value);
+            const direction = trade.side === "buy" ? 1 : -1;
+            const markerPoints = `${x},${y + direction * 5} ${x - 5},${y - direction * 4} ${x + 5},${y - direction * 4}`;
+            return (
+              <polygon className={`price-trade-marker price-trade-marker-${trade.side}`} points={markerPoints} key={`${trade.date}-${trade.side}-${index}`}>
+                <title>{`${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(rawPrice, locale, "price", currency)}`}</title>
+              </polygon>
+            );
+          })}
+        </g>
       </svg>
-      {visibleThreshold !== null && <p className="chart-threshold-label">{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</p>}
+      <div className="overlay-legend" role="list" aria-label={translate(locale, "chart.legend")}>
+        {normalized.map(({ definition }) => (
+          <span className="overlay-legend-item" role="listitem" key={definition.id}>
+            <i className="overlay-legend-swatch" style={{ backgroundColor: definition.color }} aria-hidden="true" />
+            {seriesLabel(locale, definition, currency)}
+          </span>
+        ))}
+      </div>
     </figure>
   );
 }
@@ -448,49 +586,185 @@ export function ResultsCharts({
   vixThreshold,
   assetSymbol,
   visibleSeriesIds,
+  overlayMode = false,
   onSeriesChange,
+  onOverlayModeChange = () => {},
 }: ResultsChartsProps) {
-  const visible = SERIES.filter((series) => visibleSeriesIds.includes(series.id));
+  const [viewport, setViewport] = useState<ChartViewport>(FULL_CHART_VIEWPORT);
+  const dragState = useRef<PointerDragState | null>(null);
+  const samplesById = useMemo(
+    () => new Map(SERIES.map(({ id }) => [id, samplesForSeries(id, dailyAssets, signals)])),
+    [dailyAssets, signals],
+  );
+  const available = useMemo(
+    () => SERIES.filter((series) => (samplesById.get(series.id)?.length ?? 0) > 0),
+    [samplesById],
+  );
+  const selected = useMemo(
+    () => available.filter((series) => visibleSeriesIds.includes(series.id)),
+    [available, visibleSeriesIds],
+  );
   const currency = dailyAssets[0]?.currency;
-  const parsedThreshold = numericValue(vixThreshold);
+  const thresholdValue = numericValue(vixThreshold);
+  const hasBuySignalObservations = signals.some((signal) =>
+    signal.signalId === "vix.buy" && numericValue(signal.observedValue) !== null,
+  );
+  const plotWidth = CHART.width - CHART.left - CHART.right;
+  const pointerPosition = (event: ReactPointerEvent<SVGSVGElement> | ReactWheelEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * CHART.width;
+    const svgY = ((event.clientY - bounds.top) / bounds.height) * CHART.height;
+    return { ratio: (svgX - CHART.left) / plotWidth, y: svgY };
+  };
+  const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (event.button !== 0) return;
+    const position = pointerPosition(event);
+    if (position.ratio < 0 || position.ratio > 1 || position.y < CHART.top || position.y > CHART.height - CHART.bottom) return;
+    dragState.current = { pointerId: event.pointerId, lastRatio: position.ratio, viewport };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const activeDrag = dragState.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+    const position = pointerPosition(event);
+    const nextViewport = panChartViewport(activeDrag.viewport, position.ratio - activeDrag.lastRatio);
+    activeDrag.lastRatio = position.ratio;
+    activeDrag.viewport = nextViewport;
+    setViewport(nextViewport);
+  };
+  const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (dragState.current?.pointerId !== event.pointerId) return;
+    dragState.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+  const onPointerCancel = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (dragState.current?.pointerId === event.pointerId) dragState.current = null;
+  };
+  const zoomAt = (factor: number, anchorRatio = 0.5) => {
+    setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
+  };
+  const onWheel = (event: ReactWheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    if (event.deltaY === 0) return;
+    zoomAt(event.deltaY < 0 ? 0.8 : 1.25, pointerPosition(event).ratio);
+  };
+  const onKeyDown = (event: ReactKeyboardEvent<SVGSVGElement>) => {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setViewport((current) => panChartViewport(current, 0.12));
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setViewport((current) => panChartViewport(current, -0.12));
+    } else if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      zoomAt(0.8);
+    } else if (event.key === "-") {
+      event.preventDefault();
+      zoomAt(1.25);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setViewport(FULL_CHART_VIEWPORT);
+    }
+  };
+  const chartInteractionProps: ChartInteractionProps = {
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+    onWheel,
+    onKeyDown,
+  };
+  const range = visibleIndexRange(dailyAssets.length, viewport);
+  const visibleStartDate = dailyAssets[Math.round(range.start)]?.date ?? "—";
+  const visibleEndDate = dailyAssets[Math.round(range.end)]?.date ?? "—";
+  const viewportSpan = viewport.end - viewport.start;
   return (
     <div className="charts-content">
-      <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
-        {SERIES.map((series) => {
-          const selected = visibleSeriesIds.includes(series.id);
-          return (
-            <button
-              className={`legend-toggle${selected ? " is-visible" : ""}`}
-              type="button"
-              key={series.id}
-              aria-pressed={selected}
-              onClick={() => onSeriesChange(series.id, !selected)}
-            >
-              <span className="legend-swatch" style={{ backgroundColor: series.color }} aria-hidden="true" />
-              {translate(locale, series.labelKey)}{series.id === "totalAsset" && currency ? ` (${currency})` : series.id === "drawdown" ? " (%)" : ""}
-            </button>
-          );
-        })}
+      <div className="chart-controls">
+        <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
+          {SERIES.map((series) => {
+            const isAvailable = available.includes(series);
+            const isVisible = visibleSeriesIds.includes(series.id);
+            return (
+              <button
+                className={`legend-toggle${isVisible ? " is-visible" : ""}`}
+                type="button"
+                key={series.id}
+                aria-pressed={isVisible}
+                disabled={!isAvailable}
+                onClick={() => onSeriesChange(series.id, !isVisible)}
+              >
+                <span className="legend-swatch" style={{ backgroundColor: series.color }} aria-hidden="true" />
+                {seriesLabel(locale, series, currency)}
+              </button>
+            );
+          })}
+        </div>
+        <div className="chart-layout-controls" role="group" aria-label={translate(locale, "chart.layout")}>
+          <button type="button" aria-pressed={!overlayMode} onClick={() => onOverlayModeChange(false)}>
+            {translate(locale, "chart.layout.separate")}
+          </button>
+          <button
+            type="button"
+            aria-pressed={overlayMode}
+            disabled={selected.length < 2}
+            onClick={() => onOverlayModeChange(true)}
+          >
+            {translate(locale, "chart.layout.overlay")}
+          </button>
+        </div>
       </div>
-      <PriceChart locale={locale} assets={dailyAssets} trades={trades} symbol={assetSymbol} />
-      <VixChart
-        locale={locale}
-        assets={dailyAssets}
-        signals={signals}
-        symbol={vixSymbol}
-        thresholdValue={parsedThreshold}
-      />
-      {visible.length === 0 ? (
-        <p className="chart-empty">{translate(locale, "chart.noVisibleSeries")}</p>
-      ) : visible.map((series) => (
-        <LineChart
-          key={series.id}
+      <div className="chart-range-controls" role="group" aria-label={translate(locale, "chart.rangeControls")}>
+        <span className="chart-range-label">
+          {translate(locale, "chart.visibleRange", { start: visibleStartDate, end: visibleEndDate })}
+        </span>
+        <button type="button" aria-label={translate(locale, "chart.zoomOut")} disabled={viewportSpan >= 1} onClick={() => zoomAt(1.25)}>
+          <span aria-hidden="true">−</span>
+        </button>
+        <button type="button" aria-label={translate(locale, "chart.zoomIn")} disabled={viewportSpan <= MIN_CHART_VIEWPORT_SPAN + 1e-6} onClick={() => zoomAt(0.8)}>
+          <span aria-hidden="true">+</span>
+        </button>
+        <button type="button" aria-label={translate(locale, "chart.resetRange")} disabled={viewportSpan >= 1} onClick={() => setViewport(FULL_CHART_VIEWPORT)}>
+          {translate(locale, "chart.resetRange")}
+        </button>
+      </div>
+      {overlayMode ? (
+        <OverlayChart
           locale={locale}
           assets={dailyAssets}
           trades={trades}
-          series={series}
+          series={selected}
+          samplesById={samplesById}
+          currency={currency}
+          thresholdValue={thresholdValue}
+          hasBuySignalObservations={hasBuySignalObservations}
+          viewport={viewport}
+          chartInteractionProps={chartInteractionProps}
         />
-      ))}
+      ) : selected.length === 0 ? (
+        <p className="chart-empty">{translate(locale, "chart.noVisibleSeries")}</p>
+      ) : (
+        selected.map((series) => (
+          <LineChart
+            key={series.id}
+            locale={locale}
+            assets={dailyAssets}
+            trades={trades}
+            series={series}
+            samples={samplesById.get(series.id) ?? []}
+            symbol={series.id === "price" ? assetSymbol : series.id === "vix" ? vixSymbol : undefined}
+            thresholdValue={thresholdValue}
+            hasBuySignalObservations={hasBuySignalObservations}
+            viewport={viewport}
+            chartInteractionProps={chartInteractionProps}
+          />
+        ))
+      )}
+      {overlayMode && selected.length < 2 && (
+        <p className="chart-empty">{translate(locale, "chart.noOverlaySeries")}</p>
+      )}
     </div>
   );
 }

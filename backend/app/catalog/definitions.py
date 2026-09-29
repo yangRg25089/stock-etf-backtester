@@ -47,6 +47,61 @@ class ParameterLevel(StrEnum):
     UI = "ui"
 
 
+class ParameterGroupDefinition(DomainModel):
+    """Localized display metadata for one stable family of form fields."""
+
+    id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    translation_key: str = Field(alias="translationKey")
+
+    @model_validator(mode="after")
+    def validate_translation_key(self) -> "ParameterGroupDefinition":
+        if not self.translation_key.startswith("parameterGroups."):
+            raise ValueError("translationKey must use the parameterGroups namespace")
+        return self
+
+
+PARAMETER_GROUP_DEFINITIONS: Final[tuple[ParameterGroupDefinition, ...]] = (
+    ParameterGroupDefinition(id="general", translationKey="parameterGroups.general"),
+    ParameterGroupDefinition(id="run", translationKey="parameterGroups.run"),
+    ParameterGroupDefinition(
+        id="contribution", translationKey="parameterGroups.contribution"
+    ),
+    ParameterGroupDefinition(id="data", translationKey="parameterGroups.data"),
+    ParameterGroupDefinition(
+        id="buy_limits", translationKey="parameterGroups.buy_limits"
+    ),
+    ParameterGroupDefinition(
+        id="signal_combination", translationKey="parameterGroups.signal_combination"
+    ),
+    ParameterGroupDefinition(
+        id="fixed_contribution", translationKey="parameterGroups.fixed_contribution"
+    ),
+    ParameterGroupDefinition(id="vix", translationKey="parameterGroups.vix"),
+    ParameterGroupDefinition(id="rsi", translationKey="parameterGroups.rsi"),
+    ParameterGroupDefinition(
+        id="moving_average", translationKey="parameterGroups.moving_average"
+    ),
+    ParameterGroupDefinition(
+        id="bollinger", translationKey="parameterGroups.bollinger"
+    ),
+    ParameterGroupDefinition(
+        id="interest_rate", translationKey="parameterGroups.interest_rate"
+    ),
+    ParameterGroupDefinition(
+        id="valuation", translationKey="parameterGroups.valuation"
+    ),
+    ParameterGroupDefinition(
+        id="sell_signals", translationKey="parameterGroups.sell_signals"
+    ),
+    ParameterGroupDefinition(id="trend", translationKey="parameterGroups.trend"),
+    ParameterGroupDefinition(
+        id="scheduled_funding", translationKey="parameterGroups.scheduled_funding"
+    ),
+    ParameterGroupDefinition(id="search", translationKey="parameterGroups.search"),
+    ParameterGroupDefinition(id="display", translationKey="parameterGroups.display"),
+)
+
+
 class ParameterValueIssue(StrEnum):
     """Stable reason categories for a rejected catalog-backed value."""
 
@@ -257,6 +312,7 @@ class ParameterDefinition(DomainModel):
     translation_key: str = Field(alias="translationKey")
     level: ParameterLevel = ParameterLevel.STRATEGY
     nullable: bool = False
+    group_id: str = Field(alias="groupId", pattern=r"^[a-z][a-z0-9_]*$")
 
     @model_validator(mode="after")
     def validate_metadata(self) -> "ParameterDefinition":
@@ -338,6 +394,7 @@ def _d(
     dependencies: Iterable[str] = (),
     level: ParameterLevel = ParameterLevel.STRATEGY,
     nullable: bool = False,
+    group_id: str,
 ) -> ParameterDefinition:
     """Construct a definition while deriving its translation key from its key."""
 
@@ -356,6 +413,7 @@ def _d(
         translationKey=f"parameters.{key}",
         level=level,
         nullable=nullable,
+        groupId=group_id,
     )
 
 
@@ -365,6 +423,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "run.symbol",
         ParameterType.SYMBOL,
         "QQQ",
+        group_id="run",
         unit="symbol",
         level=ParameterLevel.SHARED,
     ),
@@ -372,6 +431,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "run.startDate",
         ParameterType.DATE,
         date(2020, 1, 1),
+        group_id="run",
         unit="date",
         level=ParameterLevel.SHARED,
     ),
@@ -379,6 +439,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "run.endDate",
         ParameterType.DATE,
         None,
+        group_id="run",
         unit="date",
         level=ParameterLevel.SHARED,
         nullable=True,
@@ -387,6 +448,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "run.endMode",
         ParameterType.ENUM,
         "latest",
+        group_id="run",
         allowed_values=("fixed", "latest"),
         level=ParameterLevel.SHARED,
     ),
@@ -394,6 +456,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "contribution.day",
         ParameterType.INTEGER,
         1,
+        group_id="contribution",
         unit="day_of_month",
         minimum=1,
         maximum=31,
@@ -404,6 +467,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "contribution.amount",
         ParameterType.DECIMAL,
         Decimal("100"),
+        group_id="contribution",
         unit="currency",
         minimum=0,
         step="0.01",
@@ -413,6 +477,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "data.macroStalenessSessions",
         ParameterType.INTEGER,
         3,
+        group_id="data",
         unit="exchange_session",
         minimum=0,
         step=1,
@@ -422,6 +487,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "data.financialFactMaxAgeDays",
         ParameterType.INTEGER,
         550,
+        group_id="data",
         unit="calendar_day",
         minimum=1,
         step=1,
@@ -431,6 +497,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "data.etfHoldingsMaxAgeDays",
         ParameterType.INTEGER,
         180,
+        group_id="data",
         unit="calendar_day",
         minimum=1,
         step=1,
@@ -441,6 +508,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "accumulation.cashSafetyLimit",
         ParameterType.DECIMAL,
         Decimal("1200"),
+        group_id="buy_limits",
         presets=_ACCUMULATION_PRESETS,
         unit="currency",
         minimum=0,
@@ -451,6 +519,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "accumulation.maxSignalBuysPerMonth",
         ParameterType.INTEGER,
         1,
+        group_id="buy_limits",
         presets=_ACCUMULATION_PRESETS,
         unit="count",
         minimum=1,
@@ -461,6 +530,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "accumulation.conditionLogic",
         ParameterType.ENUM,
         "OR",
+        group_id="signal_combination",
         presets=_ACCUMULATION_PRESETS,
         allowed_values=("AND", "OR"),
     ),
@@ -468,12 +538,14 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "accumulation.fixedDcaEnabled",
         ParameterType.BOOLEAN,
         True,
+        group_id="fixed_contribution",
         presets=_COMPOSITE_PRESETS,
     ),
     _d(
         "accumulation.fixedDcaRatio",
         ParameterType.RATIO,
         Decimal("0.5"),
+        group_id="fixed_contribution",
         presets=_COMPOSITE_PRESETS,
         unit="ratio",
         minimum=0,
@@ -487,6 +559,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "vix.buyEnabled",
         ParameterType.BOOLEAN,
         True,
+        group_id="vix",
         presets=_ACCUMULATION_PRESETS,
         dependencies=("vix.symbol", "vix.buyThreshold"),
     ),
@@ -494,6 +567,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "vix.symbol",
         ParameterType.ENUM,
         "^VIX",
+        group_id="vix",
         presets=_ACCUMULATION_PRESETS,
         allowed_values=("^VIX", "^VXN", "^VXD"),
         dependencies=("vix.buyEnabled",),
@@ -502,6 +576,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "vix.buyThreshold",
         ParameterType.DECIMAL,
         Decimal("25"),
+        group_id="vix",
         presets=_ACCUMULATION_PRESETS,
         unit="index_point",
         minimum=0,
@@ -514,6 +589,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "rsi.buyEnabled",
         ParameterType.BOOLEAN,
         True,
+        group_id="rsi",
         presets=_COMPOSITE_PRESETS,
         dependencies=("rsi.period", "rsi.buyThreshold"),
     ),
@@ -521,6 +597,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "rsi.period",
         ParameterType.INTEGER,
         14,
+        group_id="rsi",
         presets=_COMPOSITE_PRESETS,
         unit="period",
         minimum=1,
@@ -531,6 +608,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "rsi.buyThreshold",
         ParameterType.DECIMAL,
         Decimal("30"),
+        group_id="rsi",
         presets=_COMPOSITE_PRESETS,
         unit="index_point",
         minimum=0,
@@ -542,6 +620,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "ma.buyEnabled",
         ParameterType.BOOLEAN,
         True,
+        group_id="moving_average",
         presets=_COMPOSITE_PRESETS,
         dependencies=("ma.period", "ma.buyDeviationPct"),
     ),
@@ -549,6 +628,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "ma.period",
         ParameterType.INTEGER,
         200,
+        group_id="moving_average",
         presets=(*_COMPOSITE_PRESETS, *_TREND_PRESETS),
         unit="period",
         minimum=1,
@@ -559,6 +639,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "ma.buyDeviationPct",
         ParameterType.PERCENT_POINT,
         Decimal("-1"),
+        group_id="moving_average",
         presets=_COMPOSITE_PRESETS,
         unit="percent_point",
         minimum=-100,
@@ -569,6 +650,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "bollinger.buyEnabled",
         ParameterType.BOOLEAN,
         True,
+        group_id="bollinger",
         presets=_COMPOSITE_PRESETS,
         dependencies=("bollinger.period", "bollinger.stddev"),
     ),
@@ -576,6 +658,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "bollinger.period",
         ParameterType.INTEGER,
         20,
+        group_id="bollinger",
         presets=_COMPOSITE_PRESETS,
         unit="period",
         minimum=1,
@@ -586,6 +669,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "bollinger.stddev",
         ParameterType.DECIMAL,
         Decimal("2"),
+        group_id="bollinger",
         presets=_COMPOSITE_PRESETS,
         unit="standard_deviation",
         minimum="0.01",
@@ -596,6 +680,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "rate.buyEnabled",
         ParameterType.BOOLEAN,
         False,
+        group_id="interest_rate",
         presets=_COMPOSITE_PRESETS,
         dependencies=("rate.symbol", "rate.thresholdPct", "rate.sourceUnit"),
     ),
@@ -603,6 +688,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "rate.symbol",
         ParameterType.SYMBOL,
         "^TNX",
+        group_id="interest_rate",
         presets=_COMPOSITE_PRESETS,
         unit="symbol",
         dependencies=("rate.buyEnabled",),
@@ -611,6 +697,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "rate.thresholdPct",
         ParameterType.PERCENT_POINT,
         Decimal("2.5"),
+        group_id="interest_rate",
         presets=_COMPOSITE_PRESETS,
         unit="percent_point",
         minimum=-100,
@@ -621,6 +708,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "rate.sourceUnit",
         ParameterType.ENUM,
         "auto",
+        group_id="interest_rate",
         presets=_COMPOSITE_PRESETS,
         allowed_values=("auto", "percent_point", "decimal", "basis_points"),
         dependencies=("rate.buyEnabled",),
@@ -629,6 +717,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "pe.buyEnabled",
         ParameterType.BOOLEAN,
         False,
+        group_id="valuation",
         presets=_COMPOSITE_PRESETS,
         dependencies=("pe.threshold", "pe.etfMinCoverage"),
     ),
@@ -636,6 +725,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "pe.threshold",
         ParameterType.DECIMAL,
         Decimal("25"),
+        group_id="valuation",
         presets=_COMPOSITE_PRESETS,
         unit="multiple",
         minimum="0.000001",
@@ -646,6 +736,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "pe.etfMinCoverage",
         ParameterType.RATIO,
         Decimal("0.80"),
+        group_id="valuation",
         presets=_COMPOSITE_PRESETS,
         unit="ratio",
         minimum=0,
@@ -657,12 +748,14 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.enabled",
         ParameterType.BOOLEAN,
         True,
+        group_id="sell_signals",
         presets=_ACCUMULATION_PRESETS,
     ),
     _d(
         "exit.vix.low1",
         ParameterType.DECIMAL,
         Decimal("12"),
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         unit="index_point",
         minimum=0,
@@ -674,6 +767,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.vix.ratio1",
         ParameterType.RATIO,
         Decimal("0.20"),
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         unit="ratio",
         minimum=0,
@@ -685,6 +779,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.vix.low2",
         ParameterType.DECIMAL,
         Decimal("10"),
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         unit="index_point",
         minimum=0,
@@ -696,6 +791,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.vix.ratio2",
         ParameterType.RATIO,
         Decimal("0.30"),
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         unit="ratio",
         minimum=0,
@@ -707,6 +803,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.rsi.enabled",
         ParameterType.BOOLEAN,
         False,
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         dependencies=("rsi.period",),
     ),
@@ -714,6 +811,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.rsi.threshold",
         ParameterType.DECIMAL,
         Decimal("70"),
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         unit="index_point",
         minimum=0,
@@ -725,6 +823,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.rsi.ratio",
         ParameterType.RATIO,
         Decimal("0.25"),
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         unit="ratio",
         minimum=0,
@@ -736,6 +835,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.bollinger.enabled",
         ParameterType.BOOLEAN,
         False,
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         dependencies=("bollinger.period", "bollinger.stddev"),
     ),
@@ -743,6 +843,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.bollinger.ratio",
         ParameterType.RATIO,
         Decimal("0.25"),
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         unit="ratio",
         minimum=0,
@@ -754,6 +855,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "exit.bollinger.vixCeiling",
         ParameterType.DECIMAL,
         Decimal("20"),
+        group_id="sell_signals",
         presets=_COMPOSITE_PRESETS,
         unit="index_point",
         minimum=0,
@@ -766,6 +868,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "trend.sellBelowOrEqualMa",
         ParameterType.BOOLEAN,
         True,
+        group_id="trend",
         presets=_TREND_PRESETS,
         level=ParameterLevel.PRESET,
     ),
@@ -773,6 +876,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "scheduled.fundingMode",
         ParameterType.ENUM,
         "monthly",
+        group_id="scheduled_funding",
         presets=_SCHEDULED_PRESETS,
         allowed_values=("monthly", "upfront"),
         level=ParameterLevel.PRESET,
@@ -788,6 +892,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
             "accumulation.cashSafetyLimit",
             "accumulation.fixedDcaRatio",
         ),
+        group_id="search",
         presets=_GRID_PRESET,
         allowed_values=(
             "vix.buyThreshold",
@@ -801,6 +906,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "search.maxCombinations",
         ParameterType.INTEGER,
         1000,
+        group_id="search",
         presets=_GRID_PRESET,
         unit="count",
         minimum=1,
@@ -814,6 +920,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "run.scope",
         ParameterType.ENUM,
         "active",
+        group_id="display",
         allowed_values=("active", "all_enabled"),
         level=ParameterLevel.UI,
     ),
@@ -821,12 +928,14 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         "display.showTrades",
         ParameterType.BOOLEAN,
         True,
+        group_id="display",
         level=ParameterLevel.UI,
     ),
     _d(
         "display.showChart",
         ParameterType.BOOLEAN,
         True,
+        group_id="display",
         level=ParameterLevel.UI,
     ),
 )

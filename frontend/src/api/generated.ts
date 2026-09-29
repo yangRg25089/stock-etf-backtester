@@ -14,6 +14,7 @@ export type APIErrorResponse = {
 export type Catalog = {
   version: string;
   parameters?: Array<ParameterDefinition>;
+  parameterGroups?: Array<ParameterGroupDefinition>;
   presets?: Array<PresetDefinition>;
 };
 
@@ -141,6 +142,12 @@ export type ParameterDefinition = {
   translationKey: string;
   level?: ParameterLevel;
   nullable?: boolean;
+  groupId: string;
+};
+
+export type ParameterGroupDefinition = {
+  id: string;
+  translationKey: string;
 };
 
 export type ParameterLevel = "shared" | "strategy" | "preset" | "search" | "ui";

@@ -1,4 +1,4 @@
-import type { Catalog, ParameterDefinition, PresetDefinition } from "./generated";
+import type { Catalog, ParameterDefinition, ParameterGroupDefinition, PresetDefinition } from "./generated";
 
 export class CatalogApiError extends Error {
   readonly status: number | null;
@@ -22,6 +22,15 @@ function isParameterDefinition(value: unknown): value is ParameterDefinition {
     "default" in value &&
     Array.isArray(value.applicablePresets) &&
     Array.isArray(value.dependencies) &&
+    typeof value.translationKey === "string" &&
+    typeof value.groupId === "string"
+  );
+}
+
+function isParameterGroupDefinition(value: unknown): value is ParameterGroupDefinition {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
     typeof value.translationKey === "string"
   );
 }
@@ -83,19 +92,27 @@ export function isCatalog(value: unknown): value is Catalog {
     !isRecord(value) ||
     typeof value.version !== "string" ||
     !Array.isArray(value.parameters) ||
+    !Array.isArray(value.parameterGroups) ||
     !Array.isArray(value.presets) ||
     !value.parameters.every(isParameterDefinition) ||
+    !value.parameterGroups.every(isParameterGroupDefinition) ||
     !value.presets.every(isPresetDefinition)
   ) {
     return false;
   }
 
   const parameters = value.parameters as ParameterDefinition[];
+  const groups = value.parameterGroups as ParameterGroupDefinition[];
   const presets = value.presets as PresetDefinition[];
   const parameterKeys = new Set(parameters.map(({ key }) => key));
+  const groupIds = new Set(groups.map(({ id }) => id));
+  const groupTranslationKeys = new Set(groups.map(({ translationKey }) => translationKey));
   const presetIds = new Set(presets.map(({ id }) => id));
   return (
     parameterKeys.size === parameters.length &&
+    groupIds.size === groups.length &&
+    groupTranslationKeys.size === groups.length &&
+    parameters.every(({ groupId }) => groupIds.has(groupId)) &&
     presetIds.size === presets.length &&
     presets.every(({ parameterKeys: keys }) => keys.every((key) => parameterKeys.has(key)))
   );

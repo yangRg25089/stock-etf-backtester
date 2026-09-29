@@ -48,6 +48,17 @@ test("initial workspace comes from the VIX preset and shared catalog defaults", 
   assert.equal(state.draft.shared.run.endDate, null);
   assert.equal(state.draft.shared.contribution.amount, "100");
   assert.equal(state.draft.shared.contribution.day, 1);
+  assert.equal(state.overlayMode, false);
+  assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown", "vix"]);
+});
+
+test("chart overlay layout preference is independent from selected series", () => {
+  let state = createInitialWorkspaceState(catalog);
+  state = workspaceReducer(state, { type: "chart.overlay", value: true });
+  state = workspaceReducer(state, { type: "chart.series", id: "vix", visible: false });
+
+  assert.equal(state.overlayMode, true);
+  assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown"]);
 });
 
 test("editor selection does not toggle, run, or replace another instance's parameters", () => {

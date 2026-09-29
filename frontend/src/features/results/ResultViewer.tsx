@@ -108,6 +108,7 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
             </div>
             {state.showChart && canShowSavedValues && (
               <ResultsCharts
+                key={focusedResult.id}
                 locale={locale}
                 dailyAssets={focusedResult.dailyAssets ?? []}
                 trades={focusedResult.trades ?? []}
@@ -116,7 +117,9 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
                 vixThreshold={savedParameterText(params, "vix.buyThreshold")}
                 assetSymbol={run.snapshot.config.shared.run.symbol}
                 visibleSeriesIds={state.visibleSeriesIds}
+                overlayMode={state.overlayMode}
                 onSeriesChange={(id, visible) => dispatch({ type: "chart.series", id, visible })}
+                onOverlayModeChange={(value) => dispatch({ type: "chart.overlay", value })}
               />
             )}
             {state.showChart && !canShowSavedValues && (

@@ -13,7 +13,9 @@ from app.domain.status import DomainModel
 from .definitions import (
     ALL_PARAMETER_DEFINITIONS,
     PARAMETER_DEFINITIONS,
+    PARAMETER_GROUP_DEFINITIONS,
     ParameterDefinition,
+    ParameterGroupDefinition,
     ParameterLevel,
     ParameterType,
     get_parameter_definition,
@@ -25,7 +27,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v3"
+CATALOG_VERSION: Final[str] = "catalog-v4"
 
 
 class Catalog(DomainModel):
@@ -33,6 +35,9 @@ class Catalog(DomainModel):
 
     version: str = Field(min_length=1)
     parameters: tuple[ParameterDefinition, ...] = ()
+    parameter_groups: tuple[ParameterGroupDefinition, ...] = Field(
+        default=PARAMETER_GROUP_DEFINITIONS, alias="parameterGroups"
+    )
     presets: tuple[PresetDefinition, ...] = ()
 
     @model_validator(mode="after")
@@ -40,6 +45,20 @@ class Catalog(DomainModel):
         definitions = {parameter.key: parameter for parameter in self.parameters}
         if len(definitions) != len(self.parameters):
             raise ValueError("catalog parameter keys must be unique")
+        groups = {group.id: group for group in self.parameter_groups}
+        if len(groups) != len(self.parameter_groups):
+            raise ValueError("catalog parameter group IDs must be unique")
+        group_translation_keys = {
+            group.translation_key for group in self.parameter_groups
+        }
+        if len(group_translation_keys) != len(self.parameter_groups):
+            raise ValueError("catalog parameter group translation keys must be unique")
+        for parameter in self.parameters:
+            if parameter.group_id not in groups:
+                raise ValueError(
+                    "parameter references unknown group: "
+                    f"{parameter.key} -> {parameter.group_id}"
+                )
         preset_ids = {preset.id for preset in self.presets}
         if len(preset_ids) != len(self.presets):
             raise ValueError("catalog preset IDs must be unique")
@@ -125,7 +144,7 @@ class Catalog(DomainModel):
     def __getitem__(self, key: str) -> object:
         """Provide read-only mapping-style access for API adapters."""
 
-        if key not in {"version", "parameters", "presets"}:
+        if key not in {"version", "parameters", "parameterGroups", "presets"}:
             raise KeyError(key)
         return getattr(self, key)
 

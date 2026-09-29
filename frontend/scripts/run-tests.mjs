@@ -55,6 +55,8 @@ try {
       "tests/runs-api.test.mjs",
       "tests/diagnostic-display.test.mjs",
       "tests/results-model.test.mjs",
+      "tests/chart-model.test.mjs",
+      "tests/chart-viewport.test.mjs",
       "tests/results-components.test.mjs",
       "tests/results-visuals.test.mjs",
       "tests/results-search-export.test.mjs",
