@@ -29,6 +29,8 @@ from app.domain.contracts import (
     Trade,
     TradeReason,
     TradeSide,
+    UnexecutedSignal,
+    UnexecutedSignalReason,
     ValuationObservation,
     ValuationSnapshot,
 )
@@ -84,6 +86,8 @@ __all__ = [
     "Trade",
     "TradeReason",
     "TradeSide",
+    "UnexecutedSignal",
+    "UnexecutedSignalReason",
     "ValuationObservation",
     "ValuationSnapshot",
     "can_transition",

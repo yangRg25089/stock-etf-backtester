@@ -78,6 +78,10 @@ class TradeReason(StrEnum):
     SAFETY_VALVE = "safety_valve"
 
 
+class UnexecutedSignalReason(StrEnum):
+    NO_FOLLOWING_BACKTEST_SESSION = "no_following_backtest_session"
+
+
 class MutableDomainModel(BaseModel):
     """Base for editable drafts; snapshots use the frozen models below."""
 
@@ -356,6 +360,14 @@ class SignalEvaluation(DomainModel):
         return self
 
 
+class UnexecutedSignal(DomainModel):
+    """A true close signal with no later session inside the requested run."""
+
+    signal_date: Date = Field(alias="signalDate")
+    signal_id: str = Field(alias="signalId", min_length=1)
+    reason: UnexecutedSignalReason
+
+
 class Trade(DomainModel):
     date: Date
     side: TradeSide
@@ -401,6 +413,9 @@ class StrategyRun(DomainModel):
     status: StrategyStatus = StrategyStatus.QUEUED
     diagnostics: tuple[Diagnostic, ...] = ()
     signals: tuple[SignalEvaluation, ...] = ()
+    unexecuted_signals: tuple[UnexecutedSignal, ...] = Field(
+        default=(), alias="unexecutedSignals"
+    )
     trades: tuple[Trade, ...] = ()
     daily_assets: tuple[DailyAsset, ...] = Field(default=(), alias="dailyAssets")
     metrics: MetricSummary | None = None
