@@ -27,6 +27,7 @@ export interface WorkspaceState {
   runScope: RunScope;
   runResponse: RunResponse | null;
   runRequestedEndMode: EndMode | null;
+  runRequestedScope: RunScope | null;
   focusedResultId: string | null;
   showChart: boolean;
   showTrades: boolean;
@@ -41,7 +42,7 @@ export type WorkspaceAction =
   | { type: "strategy.param"; id: string; key: string; value: unknown }
   | { type: "shared.change"; value: SharedDraft }
   | { type: "run.scope"; value: RunScope }
-  | { type: "run.update"; value: RunResponse; requestedEndMode?: EndMode }
+  | { type: "run.update"; value: RunResponse; requestedEndMode?: EndMode; requestedScope?: RunScope }
   | { type: "result.focus"; id: string | null }
   | { type: "display.chart"; value: boolean }
   | { type: "display.trades"; value: boolean }
@@ -113,6 +114,7 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
     runScope: "active",
     runResponse: null,
     runRequestedEndMode: null,
+    runRequestedScope: null,
     focusedResultId: null,
     showChart: uiBooleanDefault(catalog, "display.showChart", true),
     showTrades: uiBooleanDefault(catalog, "display.showTrades", true),
@@ -193,6 +195,7 @@ export function workspaceReducer(
         ...state,
         runResponse: action.value,
         runRequestedEndMode: action.requestedEndMode ?? state.runRequestedEndMode,
+        runRequestedScope: action.requestedScope ?? state.runRequestedScope,
         focusedResultId,
       };
       }

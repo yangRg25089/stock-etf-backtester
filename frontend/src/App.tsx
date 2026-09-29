@@ -182,7 +182,12 @@ function App() {
         createIdempotencyKey(),
         controller.signal,
       );
-      dispatch({ type: "run.update", value: response, requestedEndMode: submittedEndMode });
+      dispatch({
+        type: "run.update",
+        value: response,
+        requestedEndMode: submittedEndMode,
+        requestedScope: submittedScope,
+      });
       while (!isTerminal(response.status)) {
         await new Promise<void>((resolve) => window.setTimeout(resolve, 700));
         response = await fetchRun(response.runId, controller.signal);
