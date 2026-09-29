@@ -15,8 +15,12 @@ from app.domain.contracts import (
     MarketSnapshot,
     MetricSummary,
     ResultRole,
+    StrategyPresetId,
+    StrategyRun,
 )
 from app.domain.status import Diagnostic, DiagnosticCode, StrategyStatus
+from app.ledger import run_strategy
+from app.metrics import MetricsInput, calculate_metrics
 from app.search.engine import (
     GridSearchInput,
     build_heatmap_slice,
@@ -25,6 +29,7 @@ from app.search.engine import (
     run_grid_search,
 )
 from app.search.types import SearchCandidate
+from app.signals import evaluate_signals
 
 _DATES = (date(2024, 1, 2), date(2024, 1, 3))
 
@@ -190,6 +195,142 @@ def test_grid_search_covers_each_selected_value_and_keeps_base_parameters() -> N
     assert all(candidate.metrics is not None for candidate in result.candidates)
     assert all(candidate.role is ResultRole.STRATEGY for candidate in result.candidates)
     assert len(set(result.ranked_candidate_ids)) == 4
+
+
+def test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark() -> None:
+    grid_config = _config(
+        dimensions=["accumulation.fixedDcaRatio"],
+        overrides={
+            "accumulation.fixedDcaEnabled": True,
+            "vix.buyEnabled": False,
+            "rsi.buyEnabled": False,
+            "ma.buyEnabled": False,
+            "bollinger.buyEnabled": False,
+            "rate.buyEnabled": False,
+            "pe.buyEnabled": False,
+            "exit.enabled": False,
+        },
+    )
+    source = _input(grid_config)
+
+    search = run_grid_search(source)
+
+    candidate = next(
+        candidate
+        for candidate in search.candidates
+        if candidate.parameter_values["accumulation.fixedDcaRatio"] == Decimal("1")
+    )
+    assert candidate.status is StrategyStatus.COMPLETED
+    assert candidate.role is ResultRole.STRATEGY
+    candidate_params = {
+        key: value
+        for key, value in candidate.parameter_values.items()
+        if not key.startswith("search.")
+    }
+    ordinary_validation = validate_draft(
+        {
+            "shared": source.config.shared.model_dump(mode="python", by_alias=True),
+            "strategies": [
+                {
+                    "id": candidate.candidate_id,
+                    "presetId": "composite_dca",
+                    "enabled": True,
+                    "params": candidate_params,
+                }
+            ],
+        }
+    )
+    assert ordinary_validation.diagnostics_for() == ()
+    ordinary_config = ordinary_validation.config_for((candidate.candidate_id,))
+    assert ordinary_config is not None
+    ordinary_strategy = ordinary_config.strategies[0]
+    ordinary_signal_batch = evaluate_signals(
+        ordinary_config,
+        source.snapshot,
+        sessions=source.exchange_calendar.trading_dates,
+    )
+    ordinary_ledger = run_strategy(
+        ordinary_config,
+        ordinary_strategy,
+        source.schedule,
+        source.snapshot,
+        ordinary_signal_batch.strategy(candidate.candidate_id),
+        exchange_calendar=source.exchange_calendar,
+    )
+    ordinary_metrics = calculate_metrics(
+        MetricsInput(
+            strategy=ordinary_strategy,
+            schedule=source.schedule,
+            ledger=ordinary_ledger,
+            data_fingerprint=source.snapshot.fingerprint,
+        )
+    )
+
+    benchmark_validation = validate_draft(
+        {
+            "shared": source.config.shared.model_dump(mode="python", by_alias=True),
+            "strategies": [
+                {
+                    "id": "benchmark-monthly-dca",
+                    "presetId": "monthly_dca",
+                    "enabled": True,
+                    "params": {},
+                }
+            ],
+        }
+    )
+    assert benchmark_validation.diagnostics_for() == ()
+    benchmark_config = benchmark_validation.config_for(("benchmark-monthly-dca",))
+    assert benchmark_config is not None
+    benchmark_strategy = benchmark_config.strategies[0]
+    benchmark_signal_batch = evaluate_signals(
+        benchmark_config,
+        source.snapshot,
+        sessions=source.exchange_calendar.trading_dates,
+    )
+    benchmark_ledger = run_strategy(
+        benchmark_config,
+        benchmark_strategy,
+        source.schedule,
+        source.snapshot,
+        benchmark_signal_batch.strategy("benchmark-monthly-dca"),
+        exchange_calendar=source.exchange_calendar,
+    )
+    benchmark_metrics = calculate_metrics(
+        MetricsInput(
+            strategy=benchmark_strategy,
+            schedule=source.schedule,
+            ledger=benchmark_ledger,
+            data_fingerprint=source.snapshot.fingerprint,
+        )
+    )
+    ordinary_run = StrategyRun(
+        id=candidate.candidate_id,
+        presetId=StrategyPresetId.COMPOSITE_DCA,
+        role=ResultRole.STRATEGY,
+        status=StrategyStatus.COMPLETED,
+        trades=ordinary_ledger.trades,
+        dailyAssets=ordinary_metrics.daily_assets,
+        metrics=ordinary_metrics.summary,
+    )
+    benchmark_run = StrategyRun(
+        id="benchmark:monthly-dca",
+        presetId=StrategyPresetId.MONTHLY_DCA,
+        role=ResultRole.BENCHMARK,
+        status=StrategyStatus.COMPLETED,
+        trades=benchmark_ledger.trades,
+        dailyAssets=benchmark_metrics.daily_assets,
+        metrics=benchmark_metrics.summary,
+    )
+
+    assert ordinary_ledger.trades == benchmark_ledger.trades
+    assert ordinary_ledger.daily_assets == benchmark_ledger.daily_assets
+    assert ordinary_metrics.summary == benchmark_metrics.summary
+    assert candidate.metrics == ordinary_metrics.summary
+    assert ordinary_run.role is ResultRole.STRATEGY
+    assert benchmark_run.role is ResultRole.BENCHMARK
+    assert ordinary_run.daily_assets == benchmark_run.daily_assets
+    assert ordinary_run.metrics == benchmark_run.metrics
 
 
 def test_unavailable_candidates_keep_their_diagnostic_and_are_not_ranked() -> None:

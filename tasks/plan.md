@@ -273,9 +273,13 @@
 
 ### 检查点 C：内核口径冻结
 
-- [ ] 纯 fixture 下普通策略、基准、搜索候选均通过账本/指标一致性测试。
-- [ ] t+1 成交、现金流、PE 缺失和部分不可用行为均有回归保护。
-- [ ] 不再在 API 或前端新增交易算法分支。
+- [x] 纯 fixture 下普通策略、基准、搜索候选均通过账本/指标一致性测试。
+- [x] t+1 成交、现金流、PE 缺失和部分不可用行为均有回归保护。
+- [x] 不再在 API 或前端新增交易算法分支。
+
+**验收记录（2026-09-29）：** `backend/tests/search/test_search.py::test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark` 对照普通复合策略、月度 DCA 基准和固定比例 100% 的搜索候选，核对账本及指标一致性。已有回归分别覆盖 `backend/tests/ledger/test_engine.py::test_signal_buy_executes_on_the_next_session_at_that_session_price`、`backend/tests/metrics/test_metrics.py::test_xirr_uses_each_contribution_date_with_actual_365_day_count`、`backend/tests/metrics/test_metrics.py::test_upfront_investment_uses_one_first_day_cash_flow_for_xirr`、`backend/tests/signals/test_evaluate.py::test_any_enabled_unavailable_buy_blocks_the_whole_strategy_even_with_vix_true` 和 `backend/tests/signals/test_evaluate.py::test_unavailable_signal_only_marks_the_strategy_that_depends_on_it`；`backend/tests/domain/test_contracts.py::test_completed_zero_trade_strategy_and_partial_result_are_representable` 覆盖部分成功结果。`rg` 检查确认 API/前端没有账本、信号或指标算法实现。相关测试、Ruff、格式检查和 mypy 均通过。
+
+**执行顺序记录：** Task 13 在检查点 C 关闭前已完成并推送，违反计划顺序。保留该交付，不回滚；Task 14 暂缓至本次核验关闭 C 后再开始。
 
 ### 阶段 3：FastAPI 应用层
 
