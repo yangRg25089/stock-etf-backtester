@@ -11,7 +11,7 @@ import {
   validateDraft,
 } from "./api/runs";
 import type { RunProgressEvent } from "./api/runs";
-import { SharedSettingsForm } from "./features/config/SharedSettingsForm";
+import { SharedSettingsDialog } from "./features/config/SharedSettingsDialog";
 import { RunControls } from "./features/runs/RunControls";
 import { DiagnosticList } from "./features/runs/StatusView";
 import { ResultViewer } from "./features/results/ResultViewer";
@@ -75,7 +75,9 @@ function App() {
   const [configCollapsed, setConfigCollapsed] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches,
   );
+  const [sharedSettingsDialogOpen, setSharedSettingsDialogOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<"config" | "results">("results");
+  const sharedSettingsTriggerRef = useRef<HTMLButtonElement>(null);
   const strategySequence = useRef(2);
   const activeRunController = useRef<AbortController | null>(null);
   const submittedRunRef = useRef(false);
@@ -328,16 +330,16 @@ function App() {
               </div>
             </div>
             <div className="workbench-heading-actions">
-              {catalog && workspace && configCollapsed && (
+              {catalog && workspace && (
                 <button
                   className="button workbench-config-toggle icon-only-button"
                   type="button"
-                  aria-label={translate(locale, "workbench.showConfig")}
-                  title={translate(locale, "workbench.showConfig")}
-                  aria-expanded="false"
-                  onClick={() => setConfigCollapsed(false)}
+                  aria-label={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
+                  title={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
+                  aria-expanded={!configCollapsed}
+                  onClick={() => setConfigCollapsed((current) => !current)}
                 >
-                  <span aria-hidden="true">›</span>
+                  <span aria-hidden="true">{configCollapsed ? "›" : "‹"}</span>
                 </button>
               )}
               <span className="status-tag" role="status">
@@ -404,22 +406,11 @@ function App() {
                 <div className="workbench-config-fixed">
                   <div className="workbench-config-header">
                     <h2>{translate(locale, "workbench.configPanel")}</h2>
-                    <button
-                      className="button workbench-config-toggle"
-                      type="button"
-                      aria-label={translate(locale, "workbench.hideConfig")}
-                      title={translate(locale, "workbench.hideConfig")}
-                      aria-controls="workbench-config-panel"
-                      aria-expanded="true"
-                      onClick={() => setConfigCollapsed(true)}
-                    >
-                      <span aria-hidden="true">‹</span>
-                    </button>
                   </div>
-                  <details className="shared-settings-disclosure">
-                    <summary>
-                      <span className="shared-settings-disclosure-title">{translate(locale, "section.sharedSettings")}</span>
-                      <span className="shared-settings-disclosure-summary">
+                  <div className="shared-settings-summary">
+                    <div className="shared-settings-summary-copy">
+                      <strong>{translate(locale, "section.sharedSettings")}</strong>
+                      <span className="shared-settings-summary-text">
                         {workspace.draft.shared.run.symbol} · {workspace.draft.shared.run.startDate} → {workspace.draft.shared.run.endMode === "latest"
                           ? translate(locale, "end.latest")
                           : workspace.draft.shared.run.endDate ?? "—"}
@@ -429,24 +420,24 @@ function App() {
                           day: String(workspace.draft.shared.contribution.day ?? "—"),
                         })}
                       </span>
-                    </summary>
-                    <SharedSettingsForm
-                      catalog={catalog}
-                      value={{
-                        run: workspace.draft.shared.run,
-                        contribution: workspace.draft.shared.contribution,
-                      }}
-                      locale={locale}
-                      errors={currentValidation?.diagnostics ?? []}
-                      resolvedLatestEndDate={
-                        workspace.runRequestedEndMode === "latest" &&
-                        workspace.runResponse?.snapshot.config.shared.run.endMode === "fixed"
-                          ? workspace.runResponse.snapshot.config.shared.run.endDate
-                          : null
-                      }
-                      onChange={(value) => dispatch({ type: "shared.change", value })}
-                    />
-                  </details>
+                    </div>
+                    <button
+                      ref={sharedSettingsTriggerRef}
+                      className="button icon-only-button shared-settings-open-button"
+                      type="button"
+                      aria-label={translate(locale, "workbench.editSharedSettings")}
+                      title={translate(locale, "workbench.editSharedSettings")}
+                      aria-haspopup="dialog"
+                      onClick={() => setSharedSettingsDialogOpen(true)}
+                    >
+                      <span aria-hidden="true">
+                        <svg viewBox="0 0 20 20" focusable="false">
+                          <path d="M8.3 2.5h3.4l.5 1.9a6 6 0 0 1 1.3.8l1.9-.6 1.7 3-1.4 1.3a6 6 0 0 1 0 1.6l1.4 1.3-1.7 3-1.9-.6a6 6 0 0 1-1.3.8l-.5 1.9H8.3l-.5-1.9a6 6 0 0 1-1.3-.8l-1.9.6-1.7-3 1.4-1.3a6 6 0 0 1 0-1.6L2.9 7.6l1.7-3 1.9.6a6 6 0 0 1 1.3-.8l.5-1.9Z" />
+                          <circle cx="10" cy="9.7" r="2.3" />
+                        </svg>
+                      </span>
+                    </button>
+                  </div>
                   <StrategyNavigator
                     catalog={catalog}
                     locale={locale}
@@ -506,6 +497,23 @@ function App() {
           </div>
         )}
       </main>
+      {sharedSettingsDialogOpen && catalog && workspace && (
+        <SharedSettingsDialog
+          catalog={catalog}
+          value={workspace.draft.shared}
+          locale={locale}
+          errors={currentValidation?.diagnostics ?? []}
+          resolvedLatestEndDate={
+            workspace.runRequestedEndMode === "latest" &&
+            workspace.runResponse?.snapshot.config.shared.run.endMode === "fixed"
+              ? workspace.runResponse.snapshot.config.shared.run.endDate
+              : null
+          }
+          onChange={(value) => dispatch({ type: "shared.change", value })}
+          onClose={() => setSharedSettingsDialogOpen(false)}
+          returnFocusRef={sharedSettingsTriggerRef}
+        />
+      )}
     </div>
   );
 }

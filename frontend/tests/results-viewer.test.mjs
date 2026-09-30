@@ -116,7 +116,7 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
   assert.match(html, /data-export-kind="summary"/);
 });
 
-test("the result overview leads with five core KPIs, then compact run status and the main chart", () => {
+test("the result overview starts with compact run status, then core KPIs and the main chart", () => {
   const state = workspaceWithRun();
   state.showChart = true;
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -129,8 +129,8 @@ test("the result overview leads with five core KPIs, then compact run status and
   const runStatusPosition = html.indexOf('class="run-status-panel is-compact"');
   const chartPosition = html.indexOf("<svg ");
   const comparisonPosition = html.indexOf('id="result-comparison-heading"');
-  assert.ok(metricsPosition >= 0 && metricsPosition < chartPosition);
-  assert.ok(metricsPosition < runStatusPosition && runStatusPosition < chartPosition);
+  assert.ok(runStatusPosition >= 0 && runStatusPosition < metricsPosition);
+  assert.ok(metricsPosition < chartPosition);
   assert.ok(chartPosition >= 0 && chartPosition < comparisonPosition);
   const overviewMetrics = html.slice(metricsPosition, chartPosition);
   assert.equal((overviewMetrics.match(/class="metric-card"/g) ?? []).length, 5);

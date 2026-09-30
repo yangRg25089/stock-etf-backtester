@@ -46,7 +46,7 @@ test("all financial charts use readable lines and saved results mark trades", ()
     onSeriesChange() {},
   }));
 
-  assert.equal((html.match(/<svg /g) ?? []).length, 2);
+  assert.equal((html.match(/class="result-chart"/g) ?? []).length, 2);
   assert.equal((html.match(/<polyline /g) ?? []).length, 3);
   assert.equal((html.match(/class="price-trade-marker /g) ?? []).length, 2);
   assert.equal((html.match(/class="candlestick candlestick-/g) ?? []).length, 0);
@@ -184,7 +184,8 @@ test("chart legend only changes visible chart series", () => {
     visibleSeriesIds: ["totalAsset"],
     onSeriesChange() {},
   }));
-  assert.equal((html.match(/<svg /g) ?? []).length, 1);
+  assert.equal((html.match(/class="result-chart"/g) ?? []).length, 1);
+  assert.match(html, /class="icon-only-button chart-wheel-zoom-toggle"[^>]*aria-pressed="false"/);
   assert.match(html, /aria-pressed="false"><span/);
   assert.ok(html.includes("</span>回撤 (%)</button>"));
   assert.match(html, /aria-label="显示的图表"/);

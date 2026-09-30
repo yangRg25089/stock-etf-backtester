@@ -5,20 +5,18 @@ const VIEWPORTS = [320, 375, 767, 768, 1024, 1280, 1440, 1920];
 
 async function openSharedSettings(page) {
   if (await page.locator(".workbench-config").count() === 0) {
-    const mobileConfig = page.getByRole("button", { name: "設定" });
+    const mobileConfig = page.locator(".workbench-mobile-view").first();
     if (await mobileConfig.isVisible()) await mobileConfig.click();
     else await page.locator(".workbench-config-toggle").click();
   }
-  const disclosure = page.locator(".shared-settings-disclosure");
-  if (!(await disclosure.evaluate((element) => element.open))) {
-    await disclosure.locator("summary").click();
-  }
+  await page.locator(".shared-settings-open-button").click();
+  await expect(page.getByRole("dialog")).toBeVisible();
 }
 
 async function closeSharedSettings(page) {
-  const disclosure = page.locator(".shared-settings-disclosure");
-  if (await disclosure.evaluate((element) => element.open)) {
-    await disclosure.locator("summary").click();
+  const dialog = page.locator(".shared-settings-dialog");
+  if (await dialog.isVisible()) {
+    await dialog.locator(".dialog-done").click();
   }
 }
 
@@ -44,11 +42,8 @@ test.describe("responsive product shell", () => {
           await expect(page.locator(".workbench-config")).toHaveCount(0);
           await expect(page.locator(".workbench-results")).toBeVisible();
         }
+        if (locale === "zh") await page.getByRole("button", { name: "中文" }).click();
         await openSharedSettings(page);
-        await page.getByRole("button", { name: locale === "ja" ? "中文" : "中文" }).click();
-        if (locale === "ja") {
-          await page.getByRole("button", { name: "日本語" }).click();
-        }
         await expect(page.locator(".shared-settings-group legend")).toHaveText(
           locale === "ja" ? ["対象と期間", "入金計画"] : ["标的与区间", "投入计划"],
         );
@@ -65,10 +60,10 @@ test.describe("responsive product shell", () => {
           };
         });
         expect(sharedSettingsLayout.groupCount).toBe(2);
-        expect(sharedSettingsLayout.columns).toBe(1);
-        expect(sharedSettingsLayout.rangeColumns).toBe(1);
-        expect(sharedSettingsLayout.fundingColumns).toBe(1);
-        expect(sharedSettingsLayout.groupsInSeparateRows).toBe(true);
+        expect(sharedSettingsLayout.columns).toBe(width <= 900 ? 1 : 2);
+        expect(sharedSettingsLayout.rangeColumns).toBe(width <= 767 ? 1 : 3);
+        expect(sharedSettingsLayout.fundingColumns).toBe(width <= 767 ? 1 : 2);
+        expect(sharedSettingsLayout.groupsInSeparateRows).toBe(width <= 900);
         await closeSharedSettings(page);
 
         const layout = await page.evaluate(() => {
@@ -106,84 +101,88 @@ test.describe("responsive product shell", () => {
   }
 });
 
-test("settings stay in the workbench flow and their reopen control remains reachable", async ({ page }) => {
+test("shared settings dialog edits the draft, restores focus, and the sidebar toggle stays fixed", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await openSharedSettings(page);
-
-  const expandedLayout = await page.evaluate(() => {
-    const settings = document.querySelector(".shared-settings-disclosure").getBoundingClientRect();
-    const navigation = document.querySelector(".strategy-navigator").getBoundingClientRect();
-    const toggle = document.querySelector(".workbench-config .workbench-config-toggle").getBoundingClientRect();
-    return {
-      settingsBottom: settings.bottom,
-      navigationTop: navigation.top,
-      toggleBottom: toggle.bottom,
-      settingsTop: settings.top,
-      documentHeight: document.documentElement.scrollHeight,
-      viewportHeight: window.innerHeight,
-    };
-  });
-  expect(expandedLayout.settingsBottom).toBeLessThanOrEqual(expandedLayout.navigationTop);
-  expect(expandedLayout.toggleBottom).toBeLessThanOrEqual(expandedLayout.settingsTop + 60);
-  expect(expandedLayout.documentHeight).toBeLessThanOrEqual(expandedLayout.viewportHeight + 2);
-
-  await page.locator(".workbench-config .workbench-config-toggle").click();
+  const sidebarToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+  await expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(sidebarToggle).toHaveCSS("background-color", "rgb(20, 125, 104)");
+  const initialPosition = await sidebarToggle.boundingBox();
+  await sidebarToggle.click();
+  await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator(".workbench-config")).toHaveCount(0);
-  const resultsToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
-  await expect(resultsToggle).toBeVisible();
-  await expect(resultsToggle).toHaveAttribute("aria-expanded", "false");
-  await resultsToggle.click();
-  await expect(page.locator(".workbench-config")).toBeVisible();
-  await expect(page.locator(".workbench-config .workbench-config-toggle")).toHaveAttribute("aria-expanded", "true");
+  await expect(sidebarToggle).toBeVisible();
+  await sidebarToggle.click();
+  await expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
+  const reopenedPosition = await sidebarToggle.boundingBox();
+  expect(reopenedPosition?.x).toBe(initialPosition?.x);
+  expect(reopenedPosition?.y).toBe(initialPosition?.y);
 
-  await openSharedSettings(page);
-  await page.setViewportSize({ width: 1440, height: 600 });
-  const shortViewportNavigation = await page.locator(".strategy-card-list").evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    const parent = element.parentElement.getBoundingClientRect();
-    return {
-      clientHeight: element.clientHeight,
-      scrollHeight: element.scrollHeight,
-      height: rect.height,
-      parentHeight: parent.height,
-      parentDisplay: getComputedStyle(element.parentElement).display,
-    };
-  });
-  expect(shortViewportNavigation.clientHeight, JSON.stringify(shortViewportNavigation)).toBeGreaterThan(0);
-  await page.screenshot({ path: test.info().outputPath("settings-open-1440x600.png"), fullPage: true });
+  const trigger = page.locator(".shared-settings-open-button");
+  await expect(trigger).toHaveCSS("background-color", "rgb(229, 243, 239)");
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.locator(".shared-settings-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("aria-modal", "true");
+  await expect(dialog.getByRole("heading", { level: 2 })).toHaveCount(1);
+  expect(await dialog.evaluate((element) => element instanceof HTMLDialogElement && element.matches(":modal"))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 
-  for (const width of [768, 1024]) {
-    await page.setViewportSize({ width, height: 900 });
+  await trigger.click();
+  await dialog.locator(".shared-settings-dialog-close").click();
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  await page.locator("#field-contribution-amount").fill("250");
+  await dialog.locator(".dialog-done").click();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(page.locator("#field-contribution-amount")).toHaveValue("250");
+  await expect(dialog.locator(".dialog-done")).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("settings-dialog-1440.png"), fullPage: true });
+  await closeSharedSettings(page);
+
+  for (const width of [320, 768, 1024]) {
+    await page.setViewportSize({ width, height: 600 });
     await page.goto("/");
-    const stickyToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
-    await expect(stickyToggle).toBeVisible();
-    await stickyToggle.click();
-    const tabletLayout = await page.evaluate(() => {
-      const config = document.querySelector(".workbench-config").getBoundingClientRect();
-      const results = document.querySelector(".workbench-results").getBoundingClientRect();
-      return { configRight: config.right, resultsLeft: results.left };
-    });
-    expect(tabletLayout.configRight).toBeLessThanOrEqual(tabletLayout.resultsLeft);
-    await page.screenshot({ path: test.info().outputPath(`settings-open-${width}.png`), fullPage: true });
+    if (width >= 768) {
+      const tabletToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+      const before = await tabletToggle.boundingBox();
+      await tabletToggle.click();
+      const after = await tabletToggle.boundingBox();
+      expect(after?.x).toBe(before?.x);
+      expect(after?.y).toBe(before?.y);
+    }
     await openSharedSettings(page);
-    const expandedSettings = await page.evaluate(() => {
-      const settings = document.querySelector(".shared-settings-disclosure").getBoundingClientRect();
-      const navigation = document.querySelector(".strategy-navigator").getBoundingClientRect();
-      return { settingsBottom: settings.bottom, navigationTop: navigation.top };
+    const dialogGeometry = await dialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const scroller = element.querySelector(".shared-settings-dialog-content");
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        scrollHeight: scroller.scrollHeight,
+        clientHeight: scroller.clientHeight,
+      };
     });
-    expect(expandedSettings.settingsBottom).toBeLessThanOrEqual(expandedSettings.navigationTop);
-    await page.screenshot({ path: test.info().outputPath(`shared-settings-open-${width}.png`), fullPage: true });
-    const navigation = page.locator(".strategy-navigator");
-    await navigation.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-    await expect(page.locator(".strategy-navigator .strategy-add")).toBeInViewport();
+    expect(dialogGeometry.left).toBeGreaterThanOrEqual(0);
+    expect(dialogGeometry.right).toBeLessThanOrEqual(dialogGeometry.viewportWidth);
+    expect(dialogGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(dialogGeometry.bottom).toBeLessThanOrEqual(dialogGeometry.viewportHeight);
+    if (width === 320) {
+      expect(dialogGeometry.scrollHeight).toBeGreaterThan(dialogGeometry.clientHeight);
+    } else {
+      expect(dialogGeometry.scrollHeight).toBeLessThanOrEqual(dialogGeometry.clientHeight);
+    }
+    await expect(dialog.locator(".dialog-done")).toBeInViewport();
     await closeSharedSettings(page);
-    await page.locator(".workbench-config .workbench-config-toggle").click();
-    await expect(page.locator(".workbench-config")).toHaveCount(0);
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await expect(stickyToggle).toBeVisible();
-    await stickyToggle.click();
-    await expect(page.locator(".workbench-config")).toBeVisible();
   }
 });
 
@@ -245,7 +244,7 @@ test("mobile views switch between configuration and results while keeping the pa
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
   const views = page.getByRole("group", { name: "メイン画面" });
-  const configView = page.getByRole("button", { name: "設定" });
+  const configView = page.getByRole("button", { name: "設定", exact: true });
   const resultsView = page.getByRole("button", { name: "結果", exact: true });
   await expect(views).toBeVisible();
   await expect(resultsView).toHaveAttribute("aria-pressed", "true");
@@ -357,7 +356,7 @@ test("shared summary follows the single form and strategy selection preserves in
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await page.locator("#field-contribution-amount").fill("250");
   await page.locator("#field-contribution-day").fill("15");
-  const sharedSummary = page.locator(".shared-settings-disclosure-summary");
+  const sharedSummary = page.locator(".shared-settings-summary-text");
   await expect(sharedSummary).toContainText("SPY");
   await expect(sharedSummary).toContainText("2024-01-31");
   await expect(sharedSummary).toContainText("2024-02-02");
@@ -444,6 +443,11 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   });
   const runButton = page.getByRole("button", { name: "バックテストを実行" });
   await expect(runButton).toBeEnabled();
+  await expect(runButton).toHaveCSS("background-color", "rgb(20, 125, 104)");
+  await expect(runButton).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(runButton).toHaveText("");
+  await expect(runButton.locator("svg.run-play-icon")).toHaveCount(1);
+  await expect(runButton).toHaveAttribute("title", "バックテストを実行");
   await runButton.click();
   const savedResponse = await completedResponse;
   const saved = await savedResponse.json();
@@ -470,8 +474,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     chart: document.querySelector(".chart-panel.chart-overlay")?.getBoundingClientRect().top ?? Infinity,
     details: document.querySelector(".result-details")?.getBoundingClientRect().top ?? Infinity,
   }));
-  expect(overviewOrder.metrics).toBeLessThan(overviewOrder.runStatus);
-  expect(overviewOrder.runStatus).toBeLessThan(overviewOrder.chart);
+  expect(overviewOrder.runStatus).toBeLessThan(overviewOrder.metrics);
+  expect(overviewOrder.metrics).toBeLessThan(overviewOrder.chart);
   expect(overviewOrder.metrics).toBeLessThan(overviewOrder.chart);
   expect(overviewOrder.chart).toBeLessThan(overviewOrder.details);
   const firstScreen = await page.evaluate(() => ({
@@ -586,6 +590,19 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   };
   const wheelResetButton = page.getByRole("button", { name: "全期間に戻す" });
   const zoomSensitivityChart = page.locator(".chart-panel.chart-overlay .result-chart");
+  const wheelZoomMode = page.locator(".chart-wheel-zoom-toggle");
+  await expect(wheelZoomMode).toHaveAttribute("aria-pressed", "false");
+  await wheelZoomMode.click();
+  await expect(wheelZoomMode).toHaveAttribute("aria-pressed", "true");
+  await zoomSensitivityChart.hover();
+  const scrollBeforeWheelZoomMode = await page.locator(".workbench-results").evaluate((element) => element.scrollTop);
+  await page.mouse.wheel(0, -160);
+  await expect.poll(() => page.locator(".chart-panel.chart-overlay").getAttribute("data-window-start")).not.toBe("0");
+  await expect.poll(() => page.locator(".workbench-results").evaluate((element) => element.scrollTop)).toBe(scrollBeforeWheelZoomMode);
+  await expectSynchronizedWindows();
+  await wheelResetButton.click();
+  await wheelZoomMode.click();
+  await expect(wheelZoomMode).toHaveAttribute("aria-pressed", "false");
   await zoomSensitivityChart.hover();
   await controlWheel(page, -160);
   const singleEventWindows = await expectSynchronizedWindows();
@@ -651,8 +668,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     const nominalPan = (45 / bounds.width) * (plotGeometry.viewBoxWidth / plotGeometry.plotWidth)
       * (Number(zoomedWindow.end) - Number(zoomedWindow.start));
     expect(draggedStart).toBeGreaterThan(zoomedStart);
-    expect(draggedStart - zoomedStart).toBeGreaterThan(nominalPan * 0.4);
-    expect(draggedStart - zoomedStart).toBeLessThan(nominalPan * 0.6);
+    // Keep the viewport close to the full pointer distance while allowing browser pixel rounding.
+    expect(draggedStart - zoomedStart).toBeGreaterThan(nominalPan * 0.85);
+    expect(draggedStart - zoomedStart).toBeLessThan(nominalPan * 1.15);
     await expectBaselineInsidePlot();
   }
   const resetRangeButton = wheelResetButton;
@@ -762,7 +780,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(tradesCsv).toContain("date");
   expect(tradesCsv).toContain("quantity");
 
-  await page.getByRole("button", { name: "設定" }).click();
+  await page.getByRole("button", { name: "設定", exact: true }).click();
   await expect(page.locator(".workbench-config")).toBeVisible();
   await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("28");
   await page.getByRole("button", { name: "結果", exact: true }).click();
@@ -869,9 +887,10 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator(".workbench-config")).toBeVisible();
-  await page.locator(".workbench-config .workbench-config-toggle").click();
-  await expect(page.locator(".workbench-config")).toHaveCount(0);
   const persistentSettingsToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+  await persistentSettingsToggle.click();
+  await expect(persistentSettingsToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".workbench-config")).toHaveCount(0);
   await expect(persistentSettingsToggle).toBeVisible();
   const scrollState = await page.locator(".workbench-results").evaluate((element) => {
     element.scrollTop = element.scrollHeight;

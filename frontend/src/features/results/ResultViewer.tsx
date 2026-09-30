@@ -53,22 +53,11 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
   const canShowSavedValues = focusedResult !== null && SUCCESS_STATUSES.has(focusedResult.status ?? "queued");
   const diagnostics = resultDiagnostics(focusedResult);
   const params = focusedResult ? savedParameters(run, focusedResult) : {};
-  const resultRuns = run.result?.strategyRuns ?? [];
-  const runStatusDiagnostics = resultRuns.flatMap((result) => [
-    ...(result.diagnostics ?? []),
-    ...(result.metrics?.diagnostics ?? []),
-  ]) ?? [];
-  const prioritizeRunStatus = Boolean(
-    error ||
-    run.status !== "completed" ||
-    runStatusDiagnostics.length > 0 ||
-    resultRuns.some((result) => result.status !== "completed"),
-  );
   const runStatus = <StatusView locale={locale} run={run} error={error} />;
 
   return (
     <div className="result-content">
-      {prioritizeRunStatus && runStatus}
+      {runStatus}
       {focusedResult ? (
         <>
           <section aria-labelledby="focused-metrics-heading">
@@ -93,8 +82,6 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
               <span aria-hidden="true">↓</span>
             </a>
           </section>
-
-          {!prioritizeRunStatus && runStatus}
 
           <section aria-labelledby="result-display-heading">
             <div className="result-section-heading result-display-heading">
@@ -136,10 +123,7 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
           </section>
         </>
       ) : (
-        <>
-          <p className="metric-empty" role="status">{translate(locale, "results.focusPending")}</p>
-          {!prioritizeRunStatus && runStatus}
-        </>
+        <p className="metric-empty" role="status">{translate(locale, "results.focusPending")}</p>
       )}
       <ResultDetails
         key={`${run.runId}:${focusedResult?.id ?? "no-focused-result"}`}

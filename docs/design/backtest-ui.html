@@ -90,14 +90,26 @@
     #backtest-ui-preview .config-pane { display: grid; grid-template-rows: minmax(240px, .53fr) minmax(0, .47fr); gap: 9px; min-width: 0; min-height: 0; overflow: hidden; }
     #backtest-ui-preview .config-fixed { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; min-height: 0; overflow: hidden; }
     #backtest-ui-preview .config-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    #backtest-ui-preview .config-heading .button { min-height: 34px; color: white; background: var(--accent); border-color: var(--accent); font-size: 12px; font-weight: 650; }
+    #backtest-ui-preview .page-heading-actions { display: flex; align-items: center; gap: 8px; }
+    #backtest-ui-preview .workbench-toggle { display: grid; place-items: center; width: 40px; min-width: 40px; min-height: 40px; padding: 0; color: white; background: var(--accent); border-color: var(--accent); font-size: 21px; font-weight: 700; line-height: 1; }
+    #backtest-ui-preview .workbench-toggle:hover { background: #0f6856; }
     #backtest-ui-preview .results-heading-title { display: flex; align-items: center; gap: 9px; }
     #backtest-ui-preview .icon-only-button { width: 36px; min-width: 36px; padding: 0; font-size: 20px; }
-    #backtest-ui-preview .shared-settings { min-width: 0; padding: 9px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
-    #backtest-ui-preview .shared-settings[open] { position: relative; max-height: min(20vh, 260px); overflow-y: auto; }
-    #backtest-ui-preview .shared-settings summary { cursor: pointer; font-weight: 650; }
-    #backtest-ui-preview .shared-summary { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 400; }
-    #backtest-ui-preview .settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
+    #backtest-ui-preview .shared-settings-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 9px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+    #backtest-ui-preview .shared-summary-copy { display: grid; min-width: 0; gap: 3px; }
+    #backtest-ui-preview .shared-summary { color: var(--muted); font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
+    #backtest-ui-preview .shared-settings-open { display: grid; place-items: center; min-width: 40px; padding: 0; color: #125c4e; background: var(--accent-soft); border-color: #a9c8bd; }
+    #backtest-ui-preview .shared-settings-open svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+    #backtest-ui-preview .settings-dialog { width: min(760px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); margin: auto; padding: 0; overflow: hidden; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 20px 64px #101d1980; }
+    #backtest-ui-preview .settings-dialog::backdrop { background: #17211e80; backdrop-filter: blur(1px); }
+    #backtest-ui-preview .settings-dialog-shell { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: calc(100dvh - 32px); }
+    #backtest-ui-preview .settings-dialog-header,
+    #backtest-ui-preview .settings-dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; background: var(--surface); }
+    #backtest-ui-preview .settings-dialog-header { border-bottom: 1px solid var(--border); }
+    #backtest-ui-preview .settings-dialog-content { min-height: 0; padding: 14px 16px; overflow: auto; overscroll-behavior: contain; }
+    #backtest-ui-preview .settings-dialog-content .settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+    #backtest-ui-preview .settings-dialog-footer { justify-content: flex-end; border-top: 1px solid var(--border); }
+    #backtest-ui-preview .settings-dialog-footer .button-primary { min-width: 100px; }
     #backtest-ui-preview .field { display: grid; gap: 5px; min-width: 0; }
     #backtest-ui-preview .field label { font-size: 12px; font-weight: 650; }
     #backtest-ui-preview .input { width: 100%; min-height: 38px; padding: 6px 8px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; }
@@ -140,7 +152,12 @@
     #backtest-ui-preview .chart-controls button,
     #backtest-ui-preview .result-tabs button { min-height: 36px; padding: 5px 9px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; }
     #backtest-ui-preview .chart-controls button[aria-pressed="true"] { color: white; background: var(--accent); border-color: var(--accent); }
+    #backtest-ui-preview .wheel-zoom-toggle { display: grid; place-items: center; min-width: 36px; padding: 0; }
+    #backtest-ui-preview .wheel-zoom-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+    #backtest-ui-preview .wheel-zoom-toggle[aria-pressed="true"] { color: white; background: var(--accent); border-color: var(--accent); }
     #backtest-ui-preview .run-summary-card { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 8px; padding: 4px 8px; color: var(--muted); background: transparent; border: 0; font-size: 11px; }
+    #backtest-ui-preview .run-button { display: grid; place-items: center; width: 44px; min-width: 44px; padding: 0; box-shadow: 0 2px 5px #135d5033; }
+    #backtest-ui-preview .run-button svg { width: 17px; height: 17px; fill: currentColor; }
     #backtest-ui-preview .chart-figure { margin: 0; padding: 10px 8px 8px; overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
     #backtest-ui-preview .chart-figure figcaption { margin: 0 0 6px 62px; font-size: 12px; font-weight: 650; }
     #backtest-ui-preview .chart-figure svg { display: block; width: 100%; min-width: 600px; height: auto; }
@@ -165,6 +182,9 @@
     #backtest-ui-preview th:first-child,
     #backtest-ui-preview td:first-child { text-align: left; }
     #backtest-ui-preview thead th { color: var(--muted); background: #f7f9f8; }
+    #backtest-ui-preview .workbench-layout.is-config-collapsed { grid-template-columns: minmax(0, 1fr); }
+    #backtest-ui-preview .workbench-layout.is-config-collapsed .config-pane,
+    #backtest-ui-preview .workbench-layout.is-config-collapsed .divider { display: none; }
     @media (min-width: 768px) and (max-width: 1279px) {
       #backtest-ui-preview main { height: calc(100dvh - 60px); min-height: 0; }
       #backtest-ui-preview .top-context { top: 0; }
@@ -192,9 +212,13 @@
       #backtest-ui-preview .mobile-views button[aria-pressed="true"] { color: #125c4e; background: var(--accent-soft); }
       #backtest-ui-preview .page-heading { align-items: flex-start; }
       #backtest-ui-preview .run-controls { align-items: stretch; }
-      #backtest-ui-preview .run-button { width: 100%; }
+      #backtest-ui-preview .run-button { width: 44px; }
       #backtest-ui-preview .core-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       #backtest-ui-preview .parameter-fields { grid-template-columns: minmax(0, 1fr); }
+      #backtest-ui-preview .settings-dialog { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+      #backtest-ui-preview .settings-dialog-shell { max-height: calc(100dvh - 24px); }
+      #backtest-ui-preview .settings-dialog-content { padding: 12px; }
+      #backtest-ui-preview .settings-dialog-content .settings-fields { grid-template-columns: minmax(0, 1fr); }
     }
     @media (max-width: 420px) {
       #backtest-ui-preview .app-topbar { align-items: flex-start; }
@@ -212,7 +236,7 @@
       #backtest-ui-preview .input { min-height: 44px; }
       #backtest-ui-preview .workbench-layout { grid-template-columns: 350px 44px minmax(0, 1fr); }
       #backtest-ui-preview .divider { min-width: 44px; }
-      #backtest-ui-preview .shared-settings summary,
+      #backtest-ui-preview .shared-settings-open,
       #backtest-ui-preview .details-entry { min-height: 44px; }
       #backtest-ui-preview .input { font-size: 16px; }
     }
@@ -238,14 +262,17 @@
             <strong>QQQ</strong><span>2020-01-01</span><span aria-hidden="true">→</span><span>最新の完了日</span><span>·</span><span>毎月 $100・毎月 1 日</span>
           </div>
         </div>
-        <div><span class="status-tag">完了</span></div>
+        <div class="page-heading-actions">
+          <button id="prototype-workbench-toggle" class="button workbench-toggle" type="button" aria-label="設定を閉じる" title="設定を閉じる" aria-controls="prototype-config" aria-expanded="true"><span aria-hidden="true">‹</span></button>
+          <span class="status-tag">完了</span>
+        </div>
       </div>
       <div class="run-controls" aria-label="バックテスト実行">
         <div class="run-scope" role="group" aria-label="実行範囲">
           <button type="button" aria-pressed="false">編集中の戦略</button>
           <button type="button" aria-pressed="true">有効な戦略すべて</button>
         </div>
-        <button class="button button-primary" type="button">バックテストを実行</button>
+        <button class="button button-primary run-button" type="button" aria-label="バックテストを実行" title="バックテストを実行"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8c0-.7.8-1.1 1.4-.7l11 7.1a1 1 0 0 1 0 1.6l-11 7.1a.9.9 0 0 1-1.4-.7V2.8Z" /></svg></button>
       </div>
       <div class="mobile-views" role="group" aria-label="メイン画面">
         <button type="button" aria-pressed="false">設定</button>
@@ -256,17 +283,11 @@
     <div class="workbench-layout">
       <aside id="prototype-config" class="config-pane" aria-label="共通設定と戦略設定">
         <div class="config-fixed">
-          <div class="config-heading"><h2>設定</h2><button class="button icon-only-button" type="button" aria-label="設定を閉じる" title="設定を閉じる" aria-controls="prototype-config"><span aria-hidden="true">‹</span></button></div>
-          <details class="shared-settings">
-            <summary>共通設定<span class="shared-summary">QQQ · 2020-01-01 → 最新の完了日 · $100 / 月・毎月 1 日</span></summary>
-            <div class="settings-fields">
-              <div class="field"><label for="prototype-symbol">銘柄コード</label><input id="prototype-symbol" class="input" value="QQQ" /></div>
-              <div class="field"><label for="prototype-start">開始日</label><input id="prototype-start" class="input" type="date" value="2020-01-01" /></div>
-              <div class="field"><label for="prototype-end">終了日</label><input id="prototype-end" class="input" type="date" disabled /><span class="field-hint">最新の完了日を実行時に確定</span></div>
-              <div class="field"><label for="prototype-cash">毎月の投入額</label><input id="prototype-cash" class="input" type="number" value="100" /></div>
-              <div class="field"><label for="prototype-day">毎月の投入日</label><input id="prototype-day" class="input" type="number" min="1" max="31" value="1" /></div>
-            </div>
-          </details>
+          <div class="config-heading"><h2>設定</h2></div>
+          <div class="shared-settings-summary">
+            <div class="shared-summary-copy"><strong>共通設定</strong><span class="shared-summary">QQQ · 2020-01-01 → 最新の完了日 · $100 / 月・毎月 1 日</span></div>
+            <button id="prototype-open-settings" class="button shared-settings-open" type="button" aria-label="共通設定を編集" title="共通設定を編集" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.3 2.5h3.4l.5 1.9a6 6 0 0 1 1.3.8l1.9-.6 1.7 3-1.4 1.3a6 6 0 0 1 0 1.6l1.4 1.3-1.7 3-1.9-.6a6 6 0 0 1-1.3.8l-.5 1.9H8.3l-.5-1.9a6 6 0 0 1-1.3-.8l-1.9.6-1.7-3 1.4-1.3a6 6 0 0 1 0-1.6L2.9 7.6l1.7-3 1.9.6a6 6 0 0 1 1.3-.8l.5-1.9Z"/><circle cx="10" cy="9.7" r="2.3"/></svg></button>
+          </div>
           <nav class="strategy-nav" aria-label="実行する戦略">
             <div class="strategy-nav-heading"><h2>実行する戦略</h2><span class="strategy-count">2</span></div>
             <div class="strategy-list">
@@ -304,6 +325,7 @@
 
       <section class="results-pane" aria-label="保存済みの実行結果">
         <div class="result-heading"><div><h2>結果 · VIX シグナル積立</h2><p class="subhead">保存済みの実行 · 2020-01-01 — 2026-09-29</p></div><span class="status-tag">完了</span></div>
+        <div class="run-summary-card" role="status"><span class="status-tag">完了</span><span>実行 ID: 84a0c2c3-98d7-4a3b-b1c6-5d1a7b20d021</span><details><summary>実行した戦略とベンチマーク（3 件）</summary></details></div>
         <section class="result-card" aria-labelledby="prototype-kpi-heading">
           <h3 id="prototype-kpi-heading">選択中：VIX シグナル積立</h3>
           <dl class="core-metrics">
@@ -315,16 +337,15 @@
           </dl>
           <a class="details-entry" href="#prototype-result-details">結果詳細を見る <span aria-hidden="true">↓</span></a>
         </section>
-        <div class="run-summary-card" role="status"><span class="status-tag">完了</span><span>実行 ID: 84a0c2c3-98d7-4a3b-b1c6-5d1a7b20d021</span><details><summary>実行した戦略とベンチマーク（3 件）</summary></details></div>
         <section class="result-card" aria-labelledby="prototype-chart-heading">
           <div class="result-heading"><h3 id="prototype-chart-heading">QQQ・総資産 — 相対比較（開始値 = 100）</h3><button class="button" type="button" aria-pressed="true">チャートを表示</button></div>
           <div class="chart-controls" aria-label="チャート表示設定">
             <div class="series-toggles" role="group" aria-label="表示系列"><button type="button" aria-pressed="true">価格</button><button type="button" aria-pressed="true">総資産</button><button type="button" aria-pressed="false">ドローダウン</button><button type="button" aria-pressed="false">VIX</button></div>
             <div class="layout-toggles" role="group" aria-label="図の配置"><button type="button" aria-pressed="true">主グラフ</button><button type="button" aria-pressed="false">選択系列を重ねる</button></div>
-            <div class="range-toggles" role="group" aria-label="共通期間"><button type="button" aria-label="縮小" title="縮小">−</button><button type="button" aria-label="拡大" title="拡大">+</button><button class="icon-only-button" type="button" aria-label="全期間" title="全期間">↺</button></div>
+            <div class="range-toggles" role="group" aria-label="共通期間"><button type="button" class="icon-only-button wheel-zoom-toggle" aria-label="通常スクロールで拡大・縮小" title="通常スクロールで拡大・縮小" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg></button><button type="button" aria-label="縮小" title="縮小">−</button><button type="button" aria-label="拡大" title="拡大">+</button><button class="icon-only-button" type="button" aria-label="全期間" title="全期間">↺</button></div>
           </div>
           <figure class="chart-figure">
-              <figcaption>通常のスクロールは結果欄を移動し、Ctrl/Command + スクロールで全図を同期して拡大・縮小します。日付範囲はすべての図で同期します。</figcaption>
+              <figcaption>通常のスクロールは結果欄を移動します。拡大鏡ボタンで通常スクロールによる拡大・縮小を切り替えられ、Ctrl/Command + スクロールでも全図を同期して拡大・縮小します。ドラッグは指針に追従します。</figcaption>
             <svg viewBox="0 0 800 320" role="img" aria-label="QQQ 価格と総資産の開始値を100にそろえた推移。縦軸は相対指数、横軸は日付">
               <g fill="none">
                 <path class="grid-line" d="M92 20H774 M92 70H774 M92 120H774 M92 170H774 M92 220H774 M92 266H774 M160 20V266 M300 20V266 M440 20V266 M580 20V266 M720 20V266" />
@@ -349,4 +370,41 @@
       </section>
     </div>
   </main>
+  <dialog class="settings-dialog" aria-labelledby="prototype-settings-title">
+    <div class="settings-dialog-shell">
+      <header class="settings-dialog-header"><h2 id="prototype-settings-title">共通設定</h2><button id="prototype-close-settings" class="button icon-only-button" type="button" aria-label="閉じる" title="閉じる">×</button></header>
+      <div class="settings-dialog-content">
+        <div class="settings-fields">
+          <div class="field"><label for="prototype-symbol">銘柄コード</label><input id="prototype-symbol" class="input" value="QQQ" /></div>
+          <div class="field"><label for="prototype-start">開始日</label><input id="prototype-start" class="input" type="date" value="2020-01-01" /></div>
+          <div class="field"><label for="prototype-end">終了日</label><input id="prototype-end" class="input" type="date" disabled /><span class="field-hint">最新の完了日を実行時に確定</span></div>
+          <div class="field"><label for="prototype-cash">毎月の投入額</label><input id="prototype-cash" class="input" type="number" value="100" /></div>
+          <div class="field"><label for="prototype-day">毎月の投入日</label><input id="prototype-day" class="input" type="number" min="1" max="31" value="1" /></div>
+        </div>
+      </div>
+      <footer class="settings-dialog-footer"><button id="prototype-done-settings" class="button button-primary" type="button">完了</button></footer>
+    </div>
+  </dialog>
+  <script>
+    const prototypeRoot = document.querySelector("#backtest-ui-preview");
+    const settingsDialog = prototypeRoot.querySelector(".settings-dialog");
+    const workbenchToggle = prototypeRoot.querySelector("#prototype-workbench-toggle");
+    const updateToggle = (collapsed) => {
+      workbenchToggle.setAttribute("aria-expanded", String(!collapsed));
+      workbenchToggle.setAttribute("aria-label", collapsed ? "設定を表示" : "設定を閉じる");
+      workbenchToggle.title = collapsed ? "設定を表示" : "設定を閉じる";
+      workbenchToggle.querySelector("span").textContent = collapsed ? "›" : "‹";
+      prototypeRoot.querySelector(".workbench-layout").classList.toggle("is-config-collapsed", collapsed);
+    };
+    workbenchToggle.addEventListener("click", () => updateToggle(workbenchToggle.getAttribute("aria-expanded") === "true"));
+    prototypeRoot.querySelector("#prototype-open-settings").addEventListener("click", () => settingsDialog.showModal());
+    const closeSettings = () => settingsDialog.close();
+    prototypeRoot.querySelector("#prototype-close-settings").addEventListener("click", closeSettings);
+    prototypeRoot.querySelector("#prototype-done-settings").addEventListener("click", closeSettings);
+    settingsDialog.addEventListener("click", (event) => { if (event.target === settingsDialog) closeSettings(); });
+    prototypeRoot.querySelector(".wheel-zoom-toggle").addEventListener("click", (event) => {
+      const button = event.currentTarget;
+      button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
+    });
+  </script>
 </div>

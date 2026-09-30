@@ -61,7 +61,7 @@ interface ChartInteractionProps {
 
 interface PointerDragState {
   pointerId: number;
-  lastRatio: number;
+  startRatio: number;
   viewport: ChartViewport;
 }
 
@@ -73,7 +73,6 @@ const SERIES: SeriesDefinition[] = [
 ];
 const VIX_SIGNAL_IDS = new Set(["vix.buy", "vix.exit.low1", "vix.exit.low2", "bollinger.exit.vix"]);
 const CHART = { height: 320, left: 92, right: 26, top: 20, bottom: 54, width: 800 };
-const POINTER_PAN_SENSITIVITY = 0.5;
 
 function numericValue(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -643,6 +642,7 @@ export function ResultsCharts({
   onOverlayModeChange = () => {},
 }: ResultsChartsProps) {
   const [viewport, setViewport] = useState<ChartViewport>(FULL_CHART_VIEWPORT);
+  const [wheelZoomEnabled, setWheelZoomEnabled] = useState(false);
   const dragState = useRef<PointerDragState | null>(null);
   const samplesById = useMemo(
     () => new Map(SERIES.map(({ id }) => [id, samplesForSeries(id, dailyAssets, signals)])),
@@ -682,17 +682,15 @@ export function ResultsCharts({
     if (event.button !== 0) return;
     const position = pointerPosition(event);
     if (position.ratio < 0 || position.ratio > 1 || position.y < CHART.top || position.y > CHART.height - CHART.bottom) return;
-    dragState.current = { pointerId: event.pointerId, lastRatio: position.ratio, viewport };
+    dragState.current = { pointerId: event.pointerId, startRatio: position.ratio, viewport };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     const activeDrag = dragState.current;
     if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
     const position = pointerPosition(event);
-    const pointerDelta = position.ratio - activeDrag.lastRatio;
-    const nextViewport = panChartViewport(activeDrag.viewport, pointerDelta * POINTER_PAN_SENSITIVITY);
-    activeDrag.lastRatio = position.ratio;
-    activeDrag.viewport = nextViewport;
+    const pointerDelta = position.ratio - activeDrag.startRatio;
+    const nextViewport = panChartViewport(activeDrag.viewport, pointerDelta);
     setViewport(nextViewport);
   };
   const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -709,17 +707,17 @@ export function ResultsCharts({
     setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
   };
   const onWheel = useCallback((event: WheelEvent) => {
-    if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault();
-    if (event.deltaY === 0) return;
     const svg = event.target instanceof Element ? event.target.closest("svg.result-chart") : null;
     if (!(svg instanceof SVGSVGElement)) return;
+    if (!event.ctrlKey && !event.metaKey && !wheelZoomEnabled) return;
+    event.preventDefault();
+    if (event.deltaY === 0) return;
     const bounds = svg.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * CHART.width;
     const anchorRatio = (svgX - CHART.left) / plotWidth;
     const factor = wheelZoomFactor(event.deltaY, event.deltaMode);
     setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
-  }, [plotWidth]);
+  }, [plotWidth, wheelZoomEnabled]);
   const attachedWheelContainer = useRef<{ element: HTMLDivElement; handler: (event: WheelEvent) => void } | null>(null);
   const chartContainerRef: RefCallback<HTMLDivElement> = useCallback((element) => {
     const attached = attachedWheelContainer.current;
@@ -802,10 +800,25 @@ export function ResultsCharts({
         <span className="chart-range-label">
           {translate(locale, "chart.visibleRange", { start: visibleStartDate, end: visibleEndDate })}
         </span>
-        <button type="button" aria-label={translate(locale, "chart.zoomOut")} disabled={viewportSpan >= 1} onClick={() => zoomAt(1.25)}>
+        <button
+          className="icon-only-button chart-wheel-zoom-toggle"
+          type="button"
+          aria-label={translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom")}
+          title={translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom")}
+          aria-pressed={wheelZoomEnabled}
+          onClick={() => setWheelZoomEnabled((enabled) => !enabled)}
+        >
+          <span aria-hidden="true">
+            <svg viewBox="0 0 20 20" focusable="false">
+              <circle cx="8.5" cy="8.5" r="5.5" />
+              <path d="m13 13 4 4" />
+            </svg>
+          </span>
+        </button>
+        <button type="button" aria-label={translate(locale, "chart.zoomOut")} title={translate(locale, "chart.zoomOut")} disabled={viewportSpan >= 1} onClick={() => zoomAt(1.25)}>
           <span aria-hidden="true">−</span>
         </button>
-        <button type="button" aria-label={translate(locale, "chart.zoomIn")} disabled={viewportSpan <= MIN_CHART_VIEWPORT_SPAN + 1e-6} onClick={() => zoomAt(0.8)}>
+        <button type="button" aria-label={translate(locale, "chart.zoomIn")} title={translate(locale, "chart.zoomIn")} disabled={viewportSpan <= MIN_CHART_VIEWPORT_SPAN + 1e-6} onClick={() => zoomAt(0.8)}>
           <span aria-hidden="true">+</span>
         </button>
         <button className="icon-only-button chart-range-reset" type="button" aria-label={translate(locale, "chart.resetRange")} title={translate(locale, "chart.resetRange")} disabled={viewportSpan >= 1} onClick={() => setViewport(FULL_CHART_VIEWPORT)}>

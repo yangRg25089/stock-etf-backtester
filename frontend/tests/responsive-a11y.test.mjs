@@ -5,6 +5,8 @@ import test from "node:test";
 const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const prototype = readFileSync(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const settingsDialog = readFileSync(new URL("../src/features/config/SharedSettingsDialog.tsx", import.meta.url), "utf8");
+const runControls = readFileSync(new URL("../src/features/runs/RunControls.tsx", import.meta.url), "utf8");
 
 function luminance(hex) {
   const channels = hex.match(/[a-f\d]{2}/gi).map((channel) => parseInt(channel, 16) / 255);
@@ -112,23 +114,26 @@ test("mobile workbench exposes separate configuration and results views under th
 });
 
 test("the design prototype shows the fixed workbench and comparative lines fine", () => {
-  assert.match(prototype, /<details class="shared-settings">/);
+  assert.match(prototype, /<dialog class="settings-dialog"/);
+  assert.match(prototype, /class="shared-settings-summary"/);
   assert.match(prototype, /class="config-fixed"/);
   assert.match(prototype, /class="editor-scroll"/);
   assert.match(prototype, /class="results-pane"/);
+  assert.match(prototype, /class="button workbench-toggle"[^>]*aria-expanded="true"/);
   assert.match(prototype, /role="tablist" aria-label="結果詳細"/);
   assert.match(prototype, /\.price-line[^}]*stroke-width:\s*1\.8/);
   assert.match(prototype, /\.asset-line[^}]*stroke-width:\s*1\.8/);
   assert.match(prototype, /#backtest-ui-preview \.divider:focus-visible/);
-  assert.match(prototype, /#backtest-ui-preview \.shared-settings summary,[\s\S]*?#backtest-ui-preview \.details-entry \{ min-height: 44px; \}/);
+  assert.match(prototype, /#backtest-ui-preview \.shared-settings-open,[\s\S]*?#backtest-ui-preview \.details-entry \{ min-height: 44px; \}/);
   assert.match(prototype, /#backtest-ui-preview \.strategy-summary[^}]*font-size: 12px/);
   assert.match(prototype, /#backtest-ui-preview \.details-entry[^}]*font-size: 13px/);
   assert.match(prototype, /height:\s*calc\(100dvh - 60px\)/);
   assert.doesNotMatch(prototype, /height:\s*min\(900px,/);
   assert.match(prototype, /grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/);
-  assert.match(prototype, /通常のスクロールは結果欄を移動し、Ctrl\/Command \+ スクロール/);
-  assert.ok(prototype.indexOf('aria-labelledby="prototype-kpi-heading"') < prototype.indexOf('class="run-summary-card"'));
-  assert.ok(prototype.indexOf('class="run-summary-card"') < prototype.indexOf('aria-labelledby="prototype-chart-heading"'));
+  assert.match(prototype, /Ctrl\/Command \+ スクロールでも全図を同期して拡大・縮小/);
+  assert.ok(prototype.indexOf('class="run-summary-card"') < prototype.indexOf('aria-labelledby="prototype-kpi-heading"'));
+  assert.ok(prototype.indexOf('aria-labelledby="prototype-kpi-heading"') < prototype.indexOf('aria-labelledby="prototype-chart-heading"'));
+  assert.match(prototype, /通常のスクロールは結果欄を移動します。拡大鏡ボタン/);
 });
 
 test("wide data tables scroll inside their panels instead of widening the page", () => {
@@ -145,7 +150,7 @@ test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   assert.match(touch, /\.checkbox-control,[\s\S]*\.latest-toggle,[\s\S]*\.strategy-enabled-control\s*\{\s*min-height:\s*44px/);
   assert.match(touch, /\.input\s*\{\s*font-size:\s*16px/);
   assert.match(touch, /\.icon-button\s*\{\s*min-width:\s*44px/);
-  assert.match(touch, /\.shared-settings-disclosure > summary,[\s\S]*?\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
+  assert.match(touch, /\.shared-settings-open-button,[\s\S]*?\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
   assert.match(touch, /\.workbench-results \.legend-toggle,[\s\S]*?\.workbench-results \.chart-range-controls button,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
   assert.match(touch, /\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
 });
@@ -197,7 +202,7 @@ test("coarse-pointer workbench divider keeps a 44px hit area", () => {
 });
 
 test("workbench explanatory text meets the readable type scale", () => {
-  assert.match(blockFor(".shared-settings-disclosure-summary"), /font-size:\s*12px/);
+  assert.match(blockFor(".shared-settings-summary-text"), /font-size:\s*12px/);
   assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /font-size:\s*12px/);
   assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /-webkit-line-clamp:\s*2/);
   assert.match(blockFor(".result-details-entry"), /font-size:\s*13px/);
@@ -209,22 +214,28 @@ test("the fixed strategy navigator does not stretch cards to fill unused height"
   assert.match(blockFor(".strategy-navigator"), /overflow-y:\s*auto/);
 });
 
-test("expanded shared settings stay in the left pane flow with a nearby collapse control", () => {
-  assert.doesNotMatch(blockFor(".shared-settings-disclosure[open]"), /position:\s*absolute/);
-  assert.match(css, /\.workbench-config-header,[\s\S]*?display:\s*flex/);
-  assert.match(app, /className="workbench-config-header"[\s\S]*?className="button workbench-config-toggle"/);
+test("shared settings use a modal and the sidebar toggle has one fixed location", () => {
+  assert.match(app, /className="button icon-only-button shared-settings-open-button"[\s\S]*aria-haspopup="dialog"/);
+  assert.match(app, /<SharedSettingsDialog/);
+  assert.match(settingsDialog, /aria-modal="true"/);
+  assert.match(settingsDialog, /dialog\.showModal\(\)/);
+  assert.match(settingsDialog, /onCancel=\{/);
   assert.match(app, /className="workbench-heading-actions"[\s\S]*?className="button workbench-config-toggle icon-only-button"/);
-  assert.match(app, /aria-label=\{translate\(locale, "workbench\.showConfig"\)\}[\s\S]*aria-expanded="false"[\s\S]*setConfigCollapsed\(false\)/);
-  assert.doesNotMatch(app, /className="results-heading-title"[\s\S]*?workbench-config-toggle/);
+  assert.doesNotMatch(app, /className="workbench-config-header"[\s\S]*?workbench-config-toggle/);
+  assert.match(app, /aria-expanded=\{!configCollapsed\}[\s\S]*setConfigCollapsed\(\(current\) => !current\)/);
+  assert.doesNotMatch(app, /<details className="shared-settings-disclosure"/);
   const tablet = mediaBlock("@media (min-width: 768px) and (max-width: 1279px)");
   assert.match(tablet, /\.main-content\.workbench-main\s*\{[^}]*height:\s*calc\(100dvh - 60px\)/s);
   assert.match(tablet, /\.workbench-layout\s*\{[^}]*min-height:\s*0/s);
 });
 
 test("space-saving workbench controls retain an accessible text name", () => {
-  assert.match(app, /className="button workbench-config-toggle icon-only-button"[^>]*aria-label=\{translate\(locale, "workbench\.showConfig"\)\}/);
-  assert.match(app, /<span aria-hidden="true">›<\/span>/);
-  assert.match(app, /<span aria-hidden="true">‹<\/span>/);
+  assert.match(app, /className="button workbench-config-toggle icon-only-button"[^>]*aria-label=\{translate\(locale, configCollapsed \? "workbench\.showConfig" : "workbench\.hideConfig"\)\}/);
+  assert.match(app, /configCollapsed \? "›" : "‹"/);
+  assert.match(app, /aria-label=\{translate\(locale, configCollapsed \? "workbench\.showConfig" : "workbench\.hideConfig"\)\}/);
+  assert.match(runControls, /aria-label=\{translate\(locale, busy \? "run\.submitting" : "run\.submit"\)\}/);
+  assert.match(runControls, /className="run-play-icon"/);
+  assert.doesNotMatch(runControls, /translate\(locale, "run\.submit"\)<\/button>/);
   assert.match(css, /\.display-toggle\s*\{[^}]*width:\s*38px/s);
   assert.match(css, /\.display-toggle svg\s*\{[^}]*stroke:\s*currentColor/s);
 });
@@ -233,4 +244,23 @@ test("primary workbench actions use the accent fill and selected chart modes are
   assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-accent\)/);
   assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent-soft\)/);
   assert.match(blockFor(".chart-layout-controls button\[aria-pressed=\"true\"\]"), /background:\s*var\(--app-accent\)/);
+});
+
+test("base button styles precede and preserve emphasized action colors", () => {
+  const buttonRule = css.indexOf("\n.button {");
+  for (const selector of [".workbench-config-toggle", ".shared-settings-open-button", ".add-strategy-button", ".button-primary"]) {
+    assert.ok(css.indexOf(`\n${selector} {`) > buttonRule, `${selector} follows base button styles`);
+  }
+  assert.match(blockFor(".button-primary"), /background:\s*var\(--app-accent\)/);
+  assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-accent\)/);
+  assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent-soft\)/);
+  assert.match(blockFor(".shared-settings-open-button"), /background:\s*var\(--app-accent-soft\)/);
+});
+
+test("wheel zoom mode and primary run icon have clear visual affordances", () => {
+  assert.match(runControls, /className="run-play-icon"/);
+  assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-accent\)/);
+  assert.match(css, /\.workbench-context \.run-controls \.button-primary\s*\{[^}]*width:\s*44px/s);
+  assert.match(css, /\.chart-wheel-zoom-toggle\[aria-pressed="true"\]/);
+  assert.match(css, /\.shared-settings-dialog/);
 });

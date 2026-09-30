@@ -133,12 +133,9 @@ export function SharedSettingsForm({
   };
 
   return (
-    <section className="shared-settings" aria-labelledby="shared-settings-heading">
+    <section className="shared-settings" aria-label={translate(locale, "section.sharedSettings")}>
       <div className="section-heading shared-settings-heading">
-        <div>
-          <h2 id="shared-settings-heading">{translate(locale, "section.sharedSettings")}</h2>
-          <p className="section-subhead">{translate(locale, "section.sharedSettingsHelp")}</p>
-        </div>
+        <p className="section-subhead">{translate(locale, "section.sharedSettingsHelp")}</p>
       </div>
       <div className="shared-settings-grid">
         <fieldset className="shared-settings-group shared-settings-range-group">

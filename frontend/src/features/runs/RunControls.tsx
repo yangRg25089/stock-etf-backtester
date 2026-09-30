@@ -28,8 +28,22 @@ export function RunControls({
           <h2 id="run-controls-heading">{translate(locale, "run.title")}</h2>
           <p className="section-subhead">{translate(locale, "run.help")}</p>
         </div>
-        <button className="button button-primary" type="button" disabled={disabled} onClick={onRun}>
-          {busy ? translate(locale, "run.submitting") : translate(locale, "run.submit")}
+        <button
+          className="button button-primary run-submit-button"
+          type="button"
+          aria-label={translate(locale, busy ? "run.submitting" : "run.submit")}
+          title={translate(locale, busy ? "run.submitting" : "run.submit")}
+          aria-busy={busy}
+          disabled={disabled}
+          onClick={onRun}
+        >
+          {busy ? (
+            <span className="run-button-spinner" aria-hidden="true" />
+          ) : (
+            <svg className="run-play-icon" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+              <path d="M5 2.8c0-.7.8-1.1 1.4-.7l11 7.1a1 1 0 0 1 0 1.6l-11 7.1a.9.9 0 0 1-1.4-.7V2.8Z" />
+            </svg>
+          )}
         </button>
       </div>
       <div className="run-control-options">
