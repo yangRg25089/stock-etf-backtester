@@ -1,7 +1,8 @@
 import type { RunResponse, StrategyRun, StrategyStatus } from "../../api/generated";
+import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
-import { DiagnosticList } from "../runs/StatusView";
+import { DiagnosticList, StatusView } from "../runs/StatusView";
 import { findFocusedResult, isRunSnapshotStale } from "./model";
 import { ExportControls } from "./ExportControls";
 import { MetricGrid } from "./ResultSummary";
@@ -12,6 +13,7 @@ interface ResultViewerProps {
   locale: Locale;
   state: WorkspaceState;
   dispatch(action: WorkspaceAction): void;
+  error: RunApiError | null;
 }
 
 const SUCCESS_STATUSES = new Set<StrategyStatus>(["completed", "completed_with_warning"]);
@@ -36,11 +38,12 @@ function savedParameterText(params: Record<string, unknown>, key: string): strin
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
 }
 
-export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
+export function ResultViewer({ locale, state, dispatch, error }: ResultViewerProps) {
   const run: RunResponse | null = state.runResponse;
   if (!run) {
     return (
       <div className="result-content">
+        <StatusView locale={locale} run={null} error={error} />
         <ExportControls locale={locale} runId={null} result={null} />
       </div>
     );
@@ -50,12 +53,22 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
   const canShowSavedValues = focusedResult !== null && SUCCESS_STATUSES.has(focusedResult.status ?? "queued");
   const diagnostics = resultDiagnostics(focusedResult);
   const params = focusedResult ? savedParameters(run, focusedResult) : {};
+  const resultRuns = run.result?.strategyRuns ?? [];
+  const runStatusDiagnostics = resultRuns.flatMap((result) => [
+    ...(result.diagnostics ?? []),
+    ...(result.metrics?.diagnostics ?? []),
+  ]) ?? [];
+  const prioritizeRunStatus = Boolean(
+    error ||
+    run.status !== "completed" ||
+    runStatusDiagnostics.length > 0 ||
+    resultRuns.some((result) => result.status !== "completed"),
+  );
+  const runStatus = <StatusView locale={locale} run={run} error={error} />;
 
   return (
     <div className="result-content">
-      {isRunSnapshotStale(state) && (
-        <p className="snapshot-warning" role="status">{translate(locale, "results.snapshotStale")}</p>
-      )}
+      {prioritizeRunStatus && runStatus}
       {focusedResult ? (
         <>
           <section aria-labelledby="focused-metrics-heading">
@@ -66,6 +79,9 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
                 })}
               </h3>
             </div>
+            {isRunSnapshotStale(state) && (
+              <p className="snapshot-warning" role="status">{translate(locale, "results.snapshotStale")}</p>
+            )}
             <MetricGrid
               locale={locale}
               metrics={canShowSavedValues ? focusedResult.metrics : null}
@@ -78,16 +94,24 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
             </a>
           </section>
 
+          {!prioritizeRunStatus && runStatus}
+
           <section aria-labelledby="result-display-heading">
             <div className="result-section-heading result-display-heading">
               <h3 id="result-display-heading">{translate(locale, "results.displayTitle")}</h3>
               <button
                 className="display-toggle"
                 type="button"
+                aria-label={translate(locale, "chart.toggle")}
+                title={translate(locale, "chart.toggle")}
                 aria-pressed={state.showChart}
                 onClick={() => dispatch({ type: "display.chart", value: !state.showChart })}
               >
-                {translate(locale, "chart.toggle")}
+                <span aria-hidden="true">
+                  <svg viewBox="0 0 20 20" focusable="false">
+                    <path d="M2 17.5h16M3.5 14l4-4 3 2 5.5-7" />
+                  </svg>
+                </span>
               </button>
             </div>
             {state.showChart && canShowSavedValues && (
@@ -112,7 +136,10 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
           </section>
         </>
       ) : (
-        <p className="metric-empty" role="status">{translate(locale, "results.focusPending")}</p>
+        <>
+          <p className="metric-empty" role="status">{translate(locale, "results.focusPending")}</p>
+          {!prioritizeRunStatus && runStatus}
+        </>
       )}
       <ResultDetails
         key={`${run.runId}:${focusedResult?.id ?? "no-focused-result"}`}

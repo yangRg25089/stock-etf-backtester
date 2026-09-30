@@ -92,8 +92,15 @@ export function StatusView({ locale, run, error }: StatusViewProps) {
     run?.status !== "completed" ||
     resultRuns.some((strategyRun) => strategyRun.status !== "completed"),
   );
+  const compactSuccess = Boolean(
+    run &&
+    !error &&
+    run.status === "completed" &&
+    diagnostics.length === 0 &&
+    resultRuns.every((strategyRun) => strategyRun.status === "completed"),
+  );
   return (
-    <div className="run-status-panel" aria-live="polite">
+    <div className={`run-status-panel${compactSuccess ? " is-compact" : ""}`} aria-live="polite">
       {error && (
         <div className="catalog-error" role="alert">
           <div>

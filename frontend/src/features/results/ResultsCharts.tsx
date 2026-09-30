@@ -52,7 +52,6 @@ interface ChartScale {
 }
 
 interface ChartInteractionProps {
-  ref: RefCallback<SVGSVGElement>;
   onPointerDown(event: ReactPointerEvent<SVGSVGElement>): void;
   onPointerMove(event: ReactPointerEvent<SVGSVGElement>): void;
   onPointerUp(event: ReactPointerEvent<SVGSVGElement>): void;
@@ -710,9 +709,10 @@ export function ResultsCharts({
     setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
   };
   const onWheel = useCallback((event: WheelEvent) => {
+    if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     if (event.deltaY === 0) return;
-    const svg = event.currentTarget;
+    const svg = event.target instanceof Element ? event.target.closest("svg.result-chart") : null;
     if (!(svg instanceof SVGSVGElement)) return;
     const bounds = svg.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * CHART.width;
@@ -720,9 +720,18 @@ export function ResultsCharts({
     const factor = wheelZoomFactor(event.deltaY, event.deltaMode);
     setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
   }, [plotWidth]);
-  const chartRef: RefCallback<SVGSVGElement> = useCallback((svg) => {
-    // React's delegated wheel listener can be passive, so cancel the browser default here.
-    svg?.addEventListener("wheel", onWheel, { passive: false });
+  const attachedWheelContainer = useRef<{ element: HTMLDivElement; handler: (event: WheelEvent) => void } | null>(null);
+  const chartContainerRef: RefCallback<HTMLDivElement> = useCallback((element) => {
+    const attached = attachedWheelContainer.current;
+    if (attached) {
+      attached.element.removeEventListener("wheel", attached.handler);
+      attachedWheelContainer.current = null;
+    }
+    if (element) {
+      // React's delegated wheel listener can be passive; this native listener can cancel intentional zoom.
+      element.addEventListener("wheel", onWheel, { passive: false });
+      attachedWheelContainer.current = { element, handler: onWheel };
+    }
   }, [onWheel]);
   const onKeyDown = (event: ReactKeyboardEvent<SVGSVGElement>) => {
     if (event.key === "ArrowLeft") {
@@ -743,7 +752,6 @@ export function ResultsCharts({
     }
   };
   const chartInteractionProps: ChartInteractionProps = {
-    ref: chartRef,
     onPointerDown,
     onPointerMove,
     onPointerUp,
@@ -755,7 +763,7 @@ export function ResultsCharts({
   const visibleEndDate = dailyAssets[Math.round(range.end)]?.date ?? "—";
   const viewportSpan = viewport.end - viewport.start;
   return (
-    <div className="charts-content">
+    <div className="charts-content" ref={chartContainerRef}>
       <div className="chart-controls">
         <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
           {SERIES.map((series) => {
@@ -800,8 +808,8 @@ export function ResultsCharts({
         <button type="button" aria-label={translate(locale, "chart.zoomIn")} disabled={viewportSpan <= MIN_CHART_VIEWPORT_SPAN + 1e-6} onClick={() => zoomAt(0.8)}>
           <span aria-hidden="true">+</span>
         </button>
-        <button type="button" aria-label={translate(locale, "chart.resetRange")} disabled={viewportSpan >= 1} onClick={() => setViewport(FULL_CHART_VIEWPORT)}>
-          {translate(locale, "chart.resetRange")}
+        <button className="icon-only-button chart-range-reset" type="button" aria-label={translate(locale, "chart.resetRange")} title={translate(locale, "chart.resetRange")} disabled={viewportSpan >= 1} onClick={() => setViewport(FULL_CHART_VIEWPORT)}>
+          <span aria-hidden="true">↺</span>
         </button>
       </div>
       {selected.length === 0 ? (

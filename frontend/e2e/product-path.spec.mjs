@@ -22,6 +22,12 @@ async function closeSharedSettings(page) {
   }
 }
 
+async function controlWheel(page, deltaY) {
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, deltaY);
+  await page.keyboard.up("Control");
+}
+
 test.describe("responsive product shell", () => {
   for (const width of VIEWPORTS) {
     for (const locale of ["ja", "zh"]) {
@@ -98,6 +104,141 @@ test.describe("responsive product shell", () => {
       });
     }
   }
+});
+
+test("settings stay in the workbench flow and their reopen control remains reachable", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await openSharedSettings(page);
+
+  const expandedLayout = await page.evaluate(() => {
+    const settings = document.querySelector(".shared-settings-disclosure").getBoundingClientRect();
+    const navigation = document.querySelector(".strategy-navigator").getBoundingClientRect();
+    const toggle = document.querySelector(".workbench-config .workbench-config-toggle").getBoundingClientRect();
+    return {
+      settingsBottom: settings.bottom,
+      navigationTop: navigation.top,
+      toggleBottom: toggle.bottom,
+      settingsTop: settings.top,
+      documentHeight: document.documentElement.scrollHeight,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(expandedLayout.settingsBottom).toBeLessThanOrEqual(expandedLayout.navigationTop);
+  expect(expandedLayout.toggleBottom).toBeLessThanOrEqual(expandedLayout.settingsTop + 60);
+  expect(expandedLayout.documentHeight).toBeLessThanOrEqual(expandedLayout.viewportHeight + 2);
+
+  await page.locator(".workbench-config .workbench-config-toggle").click();
+  await expect(page.locator(".workbench-config")).toHaveCount(0);
+  const resultsToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+  await expect(resultsToggle).toBeVisible();
+  await expect(resultsToggle).toHaveAttribute("aria-expanded", "false");
+  await resultsToggle.click();
+  await expect(page.locator(".workbench-config")).toBeVisible();
+  await expect(page.locator(".workbench-config .workbench-config-toggle")).toHaveAttribute("aria-expanded", "true");
+
+  await openSharedSettings(page);
+  await page.setViewportSize({ width: 1440, height: 600 });
+  const shortViewportNavigation = await page.locator(".strategy-card-list").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const parent = element.parentElement.getBoundingClientRect();
+    return {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      height: rect.height,
+      parentHeight: parent.height,
+      parentDisplay: getComputedStyle(element.parentElement).display,
+    };
+  });
+  expect(shortViewportNavigation.clientHeight, JSON.stringify(shortViewportNavigation)).toBeGreaterThan(0);
+  await page.screenshot({ path: test.info().outputPath("settings-open-1440x600.png"), fullPage: true });
+
+  for (const width of [768, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    const stickyToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+    await expect(stickyToggle).toBeVisible();
+    await stickyToggle.click();
+    const tabletLayout = await page.evaluate(() => {
+      const config = document.querySelector(".workbench-config").getBoundingClientRect();
+      const results = document.querySelector(".workbench-results").getBoundingClientRect();
+      return { configRight: config.right, resultsLeft: results.left };
+    });
+    expect(tabletLayout.configRight).toBeLessThanOrEqual(tabletLayout.resultsLeft);
+    await page.screenshot({ path: test.info().outputPath(`settings-open-${width}.png`), fullPage: true });
+    await openSharedSettings(page);
+    const expandedSettings = await page.evaluate(() => {
+      const settings = document.querySelector(".shared-settings-disclosure").getBoundingClientRect();
+      const navigation = document.querySelector(".strategy-navigator").getBoundingClientRect();
+      return { settingsBottom: settings.bottom, navigationTop: navigation.top };
+    });
+    expect(expandedSettings.settingsBottom).toBeLessThanOrEqual(expandedSettings.navigationTop);
+    await page.screenshot({ path: test.info().outputPath(`shared-settings-open-${width}.png`), fullPage: true });
+    const navigation = page.locator(".strategy-navigator");
+    await navigation.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await expect(page.locator(".strategy-navigator .strategy-add")).toBeInViewport();
+    await closeSharedSettings(page);
+    await page.locator(".workbench-config .workbench-config-toggle").click();
+    await expect(page.locator(".workbench-config")).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect(stickyToggle).toBeVisible();
+    await stickyToggle.click();
+    await expect(page.locator(".workbench-config")).toBeVisible();
+  }
+});
+
+test("workbench avoids reserved blank space across width and height breakpoints", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await page.goto("/");
+  await expect(page.locator(".workbench-layout")).toBeVisible();
+
+  const measurements = [];
+  for (const width of [768, 1024, 1150, 1280, 1440, 1920]) {
+    for (const height of [600, 720, 900, 1080, 1440, 1920]) {
+      await page.setViewportSize({ width, height });
+      const dimensions = await page.evaluate(() => {
+        const main = document.querySelector(".main-content.workbench-main").getBoundingClientRect();
+        const layout = document.querySelector(".workbench-layout").getBoundingClientRect();
+        const results = document.querySelector(".workbench-results");
+        return {
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          documentHeight: document.documentElement.scrollHeight,
+          mainBottom: main.bottom,
+          mainHeight: main.height,
+          layoutBottom: layout.bottom,
+          resultsClientHeight: results.clientHeight,
+          resultsContentHeight: results.scrollHeight,
+          unusedAfterResults: Math.max(0, layout.bottom - results.getBoundingClientRect().bottom),
+        };
+      });
+      measurements.push(dimensions);
+      expect(dimensions.resultsClientHeight, JSON.stringify(dimensions)).toBeGreaterThan(0);
+      expect(dimensions.unusedAfterResults, JSON.stringify(dimensions)).toBeLessThanOrEqual(1);
+      expect(dimensions.documentHeight, JSON.stringify(dimensions)).toBeLessThanOrEqual(height + 2);
+      expect(dimensions.mainBottom, JSON.stringify(dimensions)).toBeLessThanOrEqual(height + 2);
+    }
+  }
+  expect(measurements).toHaveLength(36);
+});
+
+test("touch tablets keep the configuration and results in two in-flow columns", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 900 }, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto("/");
+  await page.locator(".workbench-heading-actions .workbench-config-toggle").click();
+  const geometry = await page.evaluate(() => ({
+    coarse: window.matchMedia("(pointer: coarse)").matches,
+    columns: getComputedStyle(document.querySelector(".workbench-layout")).gridTemplateColumns.split(" ").length,
+    dividerDisplay: getComputedStyle(document.querySelector(".workbench-divider")).display,
+    configRight: document.querySelector(".workbench-config").getBoundingClientRect().right,
+    resultsLeft: document.querySelector(".workbench-results").getBoundingClientRect().left,
+  }));
+  expect(geometry.coarse).toBe(true);
+  expect(geometry.columns).toBe(2);
+  expect(geometry.dividerDisplay).toBe("none");
+  expect(geometry.configRight).toBeLessThanOrEqual(geometry.resultsLeft);
+  await context.close();
 });
 
 test("mobile views switch between configuration and results while keeping the page contained", async ({ page }) => {
@@ -316,12 +457,21 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
-  await expect(page.locator(".metric-grid-core .metric-card")).toHaveCount(4);
+  await expect(page.locator(".metric-grid-core .metric-card")).toHaveCount(5);
+  await expect(page.locator(".metric-grid-core")).toContainText("実際の投入額");
+  await expect(page.locator(".run-status-panel")).toHaveClass(/is-compact/);
+  const chartVisibilityButton = page.getByRole("button", { name: "資産チャートを表示" });
+  await expect(chartVisibilityButton).toHaveAttribute("aria-pressed", "true");
+  await expect(chartVisibilityButton.locator("svg")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "全期間に戻す" })).toBeVisible();
   const overviewOrder = await page.evaluate(() => ({
     metrics: document.querySelector(".metric-grid-core")?.getBoundingClientRect().top ?? Infinity,
+    runStatus: document.querySelector(".run-status-panel")?.getBoundingClientRect().top ?? Infinity,
     chart: document.querySelector(".chart-panel.chart-overlay")?.getBoundingClientRect().top ?? Infinity,
     details: document.querySelector(".result-details")?.getBoundingClientRect().top ?? Infinity,
   }));
+  expect(overviewOrder.metrics).toBeLessThan(overviewOrder.runStatus);
+  expect(overviewOrder.runStatus).toBeLessThan(overviewOrder.chart);
   expect(overviewOrder.metrics).toBeLessThan(overviewOrder.chart);
   expect(overviewOrder.chart).toBeLessThan(overviewOrder.details);
   const firstScreen = await page.evaluate(() => ({
@@ -345,6 +495,32 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(firstScreen.chartVisibleHeight).toBeGreaterThan(120);
   expect(firstScreen.detailsTop).toBeLessThan(firstScreen.resultsBottom);
   expect(firstScreen.detailsBottom).toBeLessThanOrEqual(firstScreen.resultsBottom);
+
+  const viewportMeasurements = [];
+  for (const height of [600, 720, 900, 1080, 1440, 1920, 2644]) {
+    await page.setViewportSize({ width: 1440, height });
+    const measurements = await page.evaluate(() => {
+      const pane = document.querySelector(".workbench-results");
+      const mainElement = document.querySelector(".main-content.workbench-main");
+      const layoutElement = document.querySelector(".workbench-layout");
+      const main = mainElement.getBoundingClientRect();
+      return {
+        viewportHeight: window.innerHeight,
+        documentHeight: document.documentElement.scrollHeight,
+        mainBottom: main.bottom,
+        mainScrollHeight: mainElement.scrollHeight,
+        layoutScrollHeight: layoutElement.scrollHeight,
+        paneClientHeight: pane.clientHeight,
+        paneScrollHeight: pane.scrollHeight,
+        unusedPaneHeight: Math.max(0, pane.clientHeight - pane.scrollHeight),
+      };
+    });
+    viewportMeasurements.push(measurements);
+    expect(measurements.mainBottom, JSON.stringify(measurements)).toBeLessThanOrEqual(height + 2);
+    expect(measurements.unusedPaneHeight, JSON.stringify(measurements)).toBeLessThanOrEqual(1);
+  }
+  expect(viewportMeasurements).toHaveLength(7);
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({ path: test.info().outputPath("workbench-1440-first-screen.png") });
   const detailsEntry = page.getByRole("link", { name: "結果詳細を見る" });
   await expect(detailsEntry).toBeVisible();
@@ -411,13 +587,13 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const wheelResetButton = page.getByRole("button", { name: "全期間に戻す" });
   const zoomSensitivityChart = page.locator(".chart-panel.chart-overlay .result-chart");
   await zoomSensitivityChart.hover();
-  await page.mouse.wheel(0, -160);
+  await controlWheel(page, -160);
   const singleEventWindows = await expectSynchronizedWindows();
   const singleEventSpan = Number(singleEventWindows.end) - Number(singleEventWindows.start);
   await wheelResetButton.click();
   await zoomSensitivityChart.hover();
   for (let index = 0; index < 16; index += 1) {
-    await page.mouse.wheel(0, -10);
+    await controlWheel(page, -10);
   }
   const splitEventWindows = await expectSynchronizedWindows();
   const splitEventSpan = Number(splitEventWindows.end) - Number(splitEventWindows.start);
@@ -429,12 +605,25 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     const chart = page.locator(`.chart-panel.${chartSelector} .result-chart`);
     await chart.hover();
     await expect(chart).toHaveCSS("touch-action", "none");
+    const resultsPane = page.locator(".workbench-results");
+    const beforePlainWheel = await expectSynchronizedWindows();
+    const scrollBeforePlainWheel = await resultsPane.evaluate((element) => element.scrollTop);
     const pageViewportBeforeWheel = await page.evaluate(() => ({
       scrollY: window.scrollY,
       scale: window.visualViewport?.scale,
     }));
-    await page.mouse.wheel(0, -160);
+    await page.mouse.wheel(0, 160);
+    await expect.poll(() => resultsPane.evaluate((element) => element.scrollTop)).toBeGreaterThan(scrollBeforePlainWheel);
+    const afterPlainWheel = await expectSynchronizedWindows();
+    expect(afterPlainWheel.start).toBe(beforePlainWheel.start);
+    expect(afterPlainWheel.end).toBe(beforePlainWheel.end);
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageViewportBeforeWheel.scrollY);
+
+    await chart.hover();
+    const scrollBeforeZoom = await resultsPane.evaluate((element) => element.scrollTop);
+    await controlWheel(page, -160);
     await expect.poll(async () => page.locator(`.chart-panel.${chartSelector}`).getAttribute("data-window-start")).not.toBe("0");
+    await expect.poll(() => resultsPane.evaluate((element) => element.scrollTop)).toBe(scrollBeforeZoom);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(pageViewportBeforeWheel.scrollY);
     expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(pageViewportBeforeWheel.scale);
     const zoomedWindow = await expectSynchronizedWindows();
@@ -677,6 +866,21 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(resumedEvents).toHaveLength(1);
   expect(resumedResultGets).toHaveLength(1);
   await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator(".workbench-config")).toBeVisible();
+  await page.locator(".workbench-config .workbench-config-toggle").click();
+  await expect(page.locator(".workbench-config")).toHaveCount(0);
+  const persistentSettingsToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+  await expect(persistentSettingsToggle).toBeVisible();
+  const scrollState = await page.locator(".workbench-results").evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return { top: element.scrollTop, max: element.scrollHeight - element.clientHeight };
+  });
+  if (scrollState.max > 0) expect(scrollState.top).toBe(scrollState.max);
+  await expect(persistentSettingsToggle).toBeVisible();
+  await persistentSettingsToggle.click();
+  await expect(page.locator(".workbench-config")).toBeVisible();
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
   expect(nonLocalRequests).toEqual([]);

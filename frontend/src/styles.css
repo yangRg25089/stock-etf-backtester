@@ -218,9 +218,30 @@ summary:focus-visible,
 .workbench-config-toggle {
   min-height: 38px;
   padding: 0 12px;
-  color: var(--app-accent);
-  background: var(--app-surface);
-  border-color: #b5d2c9;
+  color: #fff;
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  font-weight: 600;
+}
+
+.workbench-config-toggle:hover {
+  background: #0f6856;
+  border-color: #0f6856;
+}
+
+.icon-only-button {
+  width: 38px;
+  min-width: 38px;
+  padding-inline: 0;
+}
+
+.workbench-config-header .workbench-config-toggle {
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 21px;
+  line-height: 1;
 }
 
 .workbench-mobile-views {
@@ -259,11 +280,33 @@ summary:focus-visible,
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 9px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 8px;
   min-width: 0;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
+}
+
+.workbench-config-header,
+.results-heading-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workbench-config-header h2 {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.workbench-config-header .workbench-config-toggle {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding-inline: 9px;
+  font-size: 12px;
 }
 
 .workbench-editor-scroll,
@@ -367,14 +410,10 @@ summary:focus-visible,
 }
 
 .shared-settings-disclosure[open] {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 4;
-  max-height: min(68vh, 620px);
+  position: relative;
+  max-height: min(20vh, 260px);
   overflow-y: auto;
-  box-shadow: 0 8px 28px #19232120;
+  box-shadow: none;
 }
 
 .shared-settings-disclosure .shared-settings-heading {
@@ -405,7 +444,9 @@ summary:focus-visible,
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .strategy-navigator-heading {
@@ -430,7 +471,7 @@ summary:focus-visible,
   flex: 1 1 0;
   align-content: start;
   gap: 4px;
-  min-height: 0;
+  min-height: 56px;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1105,9 +1146,15 @@ h2 {
   grid-row: 2;
   justify-self: stretch;
   min-height: 40px;
-  color: var(--app-accent);
-  background: var(--app-surface);
-  border-color: var(--app-accent);
+  color: #125c4e;
+  background: var(--app-accent-soft);
+  border-color: #a9c8bd;
+  font-weight: 650;
+}
+
+.add-strategy-button:hover:not(:disabled) {
+  background: #d6ece5;
+  border-color: #82b6a6;
 }
 
 .add-strategy-button:disabled {
@@ -1289,6 +1336,17 @@ h2 {
   border-radius: var(--app-radius);
 }
 
+.run-status-panel.is-compact {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 4px 8px;
+  background: transparent;
+  border-color: transparent;
+}
+
 .run-strategy-details {
   margin: 0 0 8px;
 }
@@ -1312,6 +1370,20 @@ h2 {
   padding: 13px 0;
 }
 
+.run-status-panel.is-compact .run-status-heading {
+  flex: 0 1 auto;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0;
+}
+
+.run-status-panel.is-compact .run-status-heading > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
 .run-status-heading .status-tag + .status-tag {
   margin-left: 7px;
 }
@@ -1327,6 +1399,15 @@ h2 {
   color: var(--app-muted);
   font-size: 11px;
   overflow-wrap: anywhere;
+}
+
+.run-status-panel.is-compact .run-id,
+.run-status-panel.is-compact .progress-copy {
+  margin: 0;
+}
+
+.run-status-panel.is-compact .run-strategy-details {
+  margin: 0;
 }
 
 .run-strategy-statuses {
@@ -1440,6 +1521,10 @@ h2 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 9px;
   margin: 0;
+}
+
+.metric-grid-core {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .metric-grid-core .metric-card {
@@ -1661,9 +1746,9 @@ h2 {
 }
 
 .chart-layout-controls button[aria-pressed="true"] {
-  color: #125c4e;
-  background: #e5f2ee;
-  border-color: #9fc7ba;
+  color: #fff;
+  background: var(--app-accent);
+  border-color: var(--app-accent);
 }
 
 .chart-layout-controls button:disabled {
@@ -1983,8 +2068,12 @@ h2 {
 }
 
 .display-toggle {
-  min-height: 44px;
-  padding: 6px 10px;
+  display: inline-grid;
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  place-items: center;
+  padding: 0;
   color: var(--app-muted);
   background: var(--app-surface);
   border: 1px solid var(--app-border);
@@ -1992,10 +2081,20 @@ h2 {
   cursor: pointer;
 }
 
+.display-toggle svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
 .display-toggle[aria-pressed="true"] {
-  color: #125c4e;
-  background: var(--app-accent-soft);
-  border-color: #a9c8bd;
+  color: #fff;
+  background: var(--app-accent);
+  border-color: var(--app-accent);
 }
 
 .export-controls {
@@ -2105,14 +2204,104 @@ h2 {
   }
 }
 
-@media (max-width: 1279px) {
+@media (min-width: 768px) and (max-width: 1279px) {
+  .app-frame {
+    min-height: 0;
+  }
+
   .main-content.workbench-main {
-    display: block;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     width: calc(100% - 32px);
     max-width: none;
+    height: calc(100dvh - 60px);
+    min-height: 0;
+    padding: 10px 0 14px;
+    overflow: hidden;
+  }
+
+  .workbench-context {
+    position: sticky;
+    top: 0;
+  }
+
+  .workbench-layout {
+    display: grid;
+    grid-template-columns: minmax(265px, var(--workbench-config-width, 350px)) minmax(0, 1fr);
+    overflow: hidden;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .workbench-layout.is-config-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workbench-config {
+    position: relative;
+    display: grid;
+    grid-template-rows: minmax(190px, 0.52fr) minmax(0, 0.48fr);
+    width: auto;
+    height: 100%;
+    padding-right: 10px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .workbench-config-fixed {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .shared-settings-disclosure[open] {
+    position: relative;
+    max-height: min(18vh, 160px);
+    box-shadow: none;
+  }
+
+  .workbench-divider {
+    display: none;
+  }
+
+  .workbench-results {
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-left: 1px solid var(--app-border);
+    padding: 0 0 16px 10px;
+  }
+
+  .workbench-editor-scroll {
+    padding: 0 4px 12px 0;
+    overflow-y: auto;
+  }
+
+  .workbench-heading-actions .workbench-config-toggle {
+    min-height: 38px;
+  }
+}
+
+@media (max-height: 720px) {
+  .shared-settings-disclosure[open] {
+    max-height: min(12vh, 72px);
+  }
+
+  .workbench-config-fixed {
+    grid-template-rows: auto minmax(72px, auto) minmax(72px, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .app-frame {
+    min-height: 0;
+  }
+
+  .main-content.workbench-main {
+    display: block;
     height: auto;
-    min-height: calc(100dvh - 60px);
-    padding: 14px 0 24px;
+    min-height: 0;
+    padding-bottom: 24px;
     overflow: visible;
   }
 
@@ -2126,36 +2315,20 @@ h2 {
     position: relative;
     display: block;
     overflow: visible;
-    min-height: calc(100dvh - 230px);
+    min-height: 0;
   }
 
   .workbench-config {
-    position: absolute;
-    z-index: 12;
-    top: 0;
-    left: 0;
-    display: grid;
-    grid-template-rows: minmax(240px, 0.6fr) minmax(180px, 0.4fr);
-    width: min(420px, calc(100vw - 32px));
-    height: min(76dvh, 760px);
-    padding: 9px;
-    background: var(--app-bg);
-    border: 1px solid var(--app-border);
-    border-radius: 8px;
-    box-shadow: 0 12px 34px #19232130;
-  }
-
-  .workbench-config-fixed {
     position: relative;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    overflow: visible;
+    width: 100%;
+    height: min(76dvh, 760px);
+    min-height: 460px;
+    padding: 0;
+    box-shadow: none;
   }
 
   .shared-settings-disclosure[open] {
-    position: relative;
-    max-height: none;
-    box-shadow: none;
+    max-height: min(22vh, 280px);
   }
 
   .workbench-divider {
@@ -2165,17 +2338,12 @@ h2 {
   .workbench-results {
     overflow: visible;
     border: 0;
+    padding: 10px 0 20px;
   }
 
   .workbench-editor-scroll {
     padding: 10px 0 0;
-    overflow-y: auto;
   }
-
-  .workbench-results {
-    padding: 14px 0 0;
-  }
-
 }
 
 @media (max-width: 767px) {
@@ -2423,6 +2591,13 @@ h2 {
     padding: 7px 10px;
   }
 
+  .workbench-results .run-status-panel.is-compact {
+    margin: 0;
+    padding: 4px 8px;
+    background: transparent;
+    border-color: transparent;
+  }
+
   .workbench-results .run-status-heading {
     padding: 2px 0;
   }
@@ -2529,6 +2704,11 @@ h2 {
     min-height: 44px;
   }
 
+  .workbench-config-header .workbench-config-toggle,
+  .workbench-heading-actions .workbench-config-toggle {
+    min-width: 44px;
+  }
+
   .workbench-layout {
     grid-template-columns: var(--workbench-config-width, 350px) 44px minmax(0, 1fr);
   }
@@ -2543,6 +2723,20 @@ h2 {
 
   .strategy-nav-card .strategy-remove {
     min-width: 44px;
+  }
+}
+
+@media (pointer: coarse) and (min-width: 768px) and (max-width: 1279px) {
+  .workbench-layout {
+    grid-template-columns: minmax(265px, var(--workbench-config-width, 350px)) minmax(0, 1fr);
+  }
+
+  .workbench-layout.is-config-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workbench-divider {
+    display: none;
   }
 }
 

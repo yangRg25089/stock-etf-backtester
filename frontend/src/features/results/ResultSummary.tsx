@@ -62,7 +62,7 @@ export function MetricGrid({ locale, metrics, variant = "full" }: MetricGridProp
     },
   ];
   const visibleCards = variant === "core"
-    ? cards.filter((card) => ["endingEquity", "returnOnContributions", "xirr", "maximumDrawdown"].includes(card.key))
+    ? cards.filter((card) => ["totalContributed", "endingEquity", "returnOnContributions", "xirr", "maximumDrawdown"].includes(card.key))
     : cards;
   return (
     <dl className={`metric-grid${variant === "core" ? " metric-grid-core" : ""}`} aria-label={translate(locale, "results.metricsTitle")}>

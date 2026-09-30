@@ -13,7 +13,7 @@ import {
 import type { RunProgressEvent } from "./api/runs";
 import { SharedSettingsForm } from "./features/config/SharedSettingsForm";
 import { RunControls } from "./features/runs/RunControls";
-import { DiagnosticList, StatusView } from "./features/runs/StatusView";
+import { DiagnosticList } from "./features/runs/StatusView";
 import { ResultViewer } from "./features/results/ResultViewer";
 import {
   createInitialWorkspaceState,
@@ -328,14 +328,16 @@ function App() {
               </div>
             </div>
             <div className="workbench-heading-actions">
-              {catalog && workspace && (
+              {catalog && workspace && configCollapsed && (
                 <button
-                  className="button workbench-config-toggle"
+                  className="button workbench-config-toggle icon-only-button"
                   type="button"
-                  aria-expanded={!configCollapsed}
-                  onClick={() => setConfigCollapsed((collapsed) => !collapsed)}
+                  aria-label={translate(locale, "workbench.showConfig")}
+                  title={translate(locale, "workbench.showConfig")}
+                  aria-expanded="false"
+                  onClick={() => setConfigCollapsed(false)}
                 >
-                  {translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
+                  <span aria-hidden="true">›</span>
                 </button>
               )}
               <span className="status-tag" role="status">
@@ -400,6 +402,20 @@ function App() {
             {(!configCollapsed || mobilePanel === "config") && (
               <aside id="workbench-config-panel" className="workbench-config" aria-label={translate(locale, "section.sharedSettings")}>
                 <div className="workbench-config-fixed">
+                  <div className="workbench-config-header">
+                    <h2>{translate(locale, "workbench.configPanel")}</h2>
+                    <button
+                      className="button workbench-config-toggle"
+                      type="button"
+                      aria-label={translate(locale, "workbench.hideConfig")}
+                      title={translate(locale, "workbench.hideConfig")}
+                      aria-controls="workbench-config-panel"
+                      aria-expanded="true"
+                      onClick={() => setConfigCollapsed(true)}
+                    >
+                      <span aria-hidden="true">‹</span>
+                    </button>
+                  </div>
                   <details className="shared-settings-disclosure">
                     <summary>
                       <span className="shared-settings-disclosure-title">{translate(locale, "section.sharedSettings")}</span>
@@ -484,8 +500,7 @@ function App() {
                     <p className="section-subhead">{translate(locale, "section.resultsHelp")}</p>
                   </div>
                 </div>
-                <StatusView locale={locale} run={workspace.runResponse} error={runError} />
-                <ResultViewer locale={locale} state={workspace} dispatch={dispatch} />
+                <ResultViewer locale={locale} state={workspace} dispatch={dispatch} error={runError} />
               </section>
             </section>
           </div>

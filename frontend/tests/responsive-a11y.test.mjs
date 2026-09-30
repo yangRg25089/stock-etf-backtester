@@ -4,6 +4,7 @@ import test from "node:test";
 
 const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const prototype = readFileSync(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
+const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 
 function luminance(hex) {
   const channels = hex.match(/[a-f\d]{2}/gi).map((channel) => parseInt(channel, 16) / 255);
@@ -57,17 +58,16 @@ function mediaBlock(query) {
 
 test("320px, 768px, and 1024px widths follow the responsive layout rules", () => {
   const phone = mediaBlock("@media (max-width: 420px)");
-  const narrow = mediaBlock("@media (max-width: 767px)");
   const tablet = mediaBlock("@media (max-width: 900px)");
   assert.match(blockFor("body"), /min-width:\s*320px/);
   assert.match(blockFor(".main-content"), /width:\s*min\(100% - 48px, 1180px\)/);
-  assert.match(narrow, /\.main-content\s*\{[^}]*width:\s*min\(100% - 30px, 1180px\)/s);
+  assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.main-content\s*\{[^}]*width:\s*min\(100% - 30px, 1180px\)/s);
   assert.match(phone, /\.main-content\s*\{[^}]*width:\s*min\(100% - 24px, 1180px\)/s);
   assert.match(phone, /\.strategy-parameter-grid\s*\{[^}]*minmax\(0, 1fr\)/s);
   assert.match(blockFor(".shared-settings-grid"), /grid-template-columns:\s*minmax\(0, 1\.35fr\) minmax\(0, 1fr\)/);
   assert.match(blockFor(".shared-settings-fields-range"), /grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(tablet, /\.shared-settings-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
-  assert.match(narrow, /\.shared-settings-fields-range\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
+  assert.match(css, /\.shared-settings-fields-range\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
   assert.match(blockFor(".shared-settings-fields-funding"), /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(phone, /\.shared-settings-fields-range\s*\{[^}]*minmax\(0, 1fr\)/s);
   assert.match(phone, /\.shared-settings-fields-funding\s*\{[^}]*minmax\(0, 1fr\)/s);
@@ -93,7 +93,10 @@ test("desktop workbench keeps top and selectors fixed with independent editor an
   assert.match(results, /min-height:\s*0/);
   assert.match(results, /overflow-y:\s*auto/);
   assert.match(divider, /touch-action:\s*none/);
-  assert.match(mediaBlock("@media (max-width: 1279px)"), /\.workbench-layout/);
+  const tablet = mediaBlock("@media (min-width: 768px) and (max-width: 1279px)");
+  assert.match(tablet, /\.workbench-layout\s*\{[^}]*display:\s*grid/s);
+  assert.match(tablet, /\.workbench-config\s*\{[^}]*position:\s*relative/s);
+  assert.match(tablet, /\.workbench-results\s*\{[^}]*overflow-y:\s*auto/s);
   assert.match(blockFor(".workbench-context"), /position:\s*sticky/);
 });
 
@@ -101,9 +104,9 @@ test("mobile workbench exposes separate configuration and results views under th
   const mobile = mediaBlock("@media (max-width: 767px)");
   const phone = mediaBlock("@media (max-width: 420px)");
   assert.match(blockFor(".workbench-mobile-views"), /display:\s*none/);
-  assert.match(mobile, /\.workbench-mobile-views\s*\{[^}]*display:\s*grid/s);
-  assert.match(mobile, /\.workbench-config-toggle\s*\{\s*display:\s*none/s);
-  assert.match(mobile, /\.workbench-context\s*\{\s*top:\s*60px/s);
+  assert.match(css, /\.workbench-mobile-views\s*\{[^}]*display:\s*grid/s);
+  assert.match(css, /\.workbench-config-toggle\s*\{\s*display:\s*none/s);
+  assert.match(mobile, /\.workbench-context\s*\{[^}]*top:\s*60px/s);
   assert.match(phone, /\.workbench-context\s*\{\s*top:\s*104px/s);
   assert.match(prototype, /class="mobile-views"/);
 });
@@ -120,6 +123,12 @@ test("the design prototype shows the fixed workbench and comparative lines fine"
   assert.match(prototype, /#backtest-ui-preview \.shared-settings summary,[\s\S]*?#backtest-ui-preview \.details-entry \{ min-height: 44px; \}/);
   assert.match(prototype, /#backtest-ui-preview \.strategy-summary[^}]*font-size: 12px/);
   assert.match(prototype, /#backtest-ui-preview \.details-entry[^}]*font-size: 13px/);
+  assert.match(prototype, /height:\s*calc\(100dvh - 60px\)/);
+  assert.doesNotMatch(prototype, /height:\s*min\(900px,/);
+  assert.match(prototype, /grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(prototype, /通常のスクロールは結果欄を移動し、Ctrl\/Command \+ スクロール/);
+  assert.ok(prototype.indexOf('aria-labelledby="prototype-kpi-heading"') < prototype.indexOf('class="run-summary-card"'));
+  assert.ok(prototype.indexOf('class="run-summary-card"') < prototype.indexOf('aria-labelledby="prototype-chart-heading"'));
 });
 
 test("wide data tables scroll inside their panels instead of widening the page", () => {
@@ -161,6 +170,7 @@ test("keyboard focus, skip navigation, and reduced motion remain visible and sup
 
 test("semantic text colors meet WCAG AA contrast against their surfaces", () => {
   const pairs = [
+    ["#ffffff", "#147d68"],
     ["#192321", "#f4f6f5"],
     ["#5d6a65", "#f4f6f5"],
     ["#147d68", "#ffffff"],
@@ -181,6 +191,9 @@ test("coarse-pointer workbench divider keeps a 44px hit area", () => {
   const touch = mediaBlock("@media (pointer: coarse)");
   assert.match(touch, /\.workbench-layout\s*\{\s*grid-template-columns:\s*var\(--workbench-config-width,\s*350px\)\s+44px\s+minmax\(0,\s*1fr\)/);
   assert.match(touch, /\.workbench-divider\s*\{\s*min-width:\s*44px/);
+  const tabletTouch = mediaBlock("@media (pointer: coarse) and (min-width: 768px) and (max-width: 1279px)");
+  assert.match(tabletTouch, /grid-template-columns:\s*minmax\(265px, var\(--workbench-config-width, 350px\)\) minmax\(0, 1fr\)/);
+  assert.match(tabletTouch, /\.workbench-divider\s*\{\s*display:\s*none/);
 });
 
 test("workbench explanatory text meets the readable type scale", () => {
@@ -192,4 +205,32 @@ test("workbench explanatory text meets the readable type scale", () => {
 
 test("the fixed strategy navigator does not stretch cards to fill unused height", () => {
   assert.match(blockFor(".strategy-navigator .strategy-card-list"), /align-content:\s*start/);
+  assert.match(blockFor(".strategy-navigator .strategy-card-list"), /min-height:\s*56px/);
+  assert.match(blockFor(".strategy-navigator"), /overflow-y:\s*auto/);
+});
+
+test("expanded shared settings stay in the left pane flow with a nearby collapse control", () => {
+  assert.doesNotMatch(blockFor(".shared-settings-disclosure[open]"), /position:\s*absolute/);
+  assert.match(css, /\.workbench-config-header,[\s\S]*?display:\s*flex/);
+  assert.match(app, /className="workbench-config-header"[\s\S]*?className="button workbench-config-toggle"/);
+  assert.match(app, /className="workbench-heading-actions"[\s\S]*?className="button workbench-config-toggle icon-only-button"/);
+  assert.match(app, /aria-label=\{translate\(locale, "workbench\.showConfig"\)\}[\s\S]*aria-expanded="false"[\s\S]*setConfigCollapsed\(false\)/);
+  assert.doesNotMatch(app, /className="results-heading-title"[\s\S]*?workbench-config-toggle/);
+  const tablet = mediaBlock("@media (min-width: 768px) and (max-width: 1279px)");
+  assert.match(tablet, /\.main-content\.workbench-main\s*\{[^}]*height:\s*calc\(100dvh - 60px\)/s);
+  assert.match(tablet, /\.workbench-layout\s*\{[^}]*min-height:\s*0/s);
+});
+
+test("space-saving workbench controls retain an accessible text name", () => {
+  assert.match(app, /className="button workbench-config-toggle icon-only-button"[^>]*aria-label=\{translate\(locale, "workbench\.showConfig"\)\}/);
+  assert.match(app, /<span aria-hidden="true">›<\/span>/);
+  assert.match(app, /<span aria-hidden="true">‹<\/span>/);
+  assert.match(css, /\.display-toggle\s*\{[^}]*width:\s*38px/s);
+  assert.match(css, /\.display-toggle svg\s*\{[^}]*stroke:\s*currentColor/s);
+});
+
+test("primary workbench actions use the accent fill and selected chart modes are easy to spot", () => {
+  assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-accent\)/);
+  assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent-soft\)/);
+  assert.match(blockFor(".chart-layout-controls button\[aria-pressed=\"true\"\]"), /background:\s*var\(--app-accent\)/);
 });

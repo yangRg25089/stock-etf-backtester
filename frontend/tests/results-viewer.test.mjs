@@ -116,7 +116,7 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
   assert.match(html, /data-export-kind="summary"/);
 });
 
-test("the result overview leads with four core KPIs and the main chart before comparison details", () => {
+test("the result overview leads with five core KPIs, then compact run status and the main chart", () => {
   const state = workspaceWithRun();
   state.showChart = true;
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -126,16 +126,33 @@ test("the result overview leads with four core KPIs and the main chart before co
   }));
 
   const metricsPosition = html.indexOf('id="focused-metrics-heading"');
+  const runStatusPosition = html.indexOf('class="run-status-panel is-compact"');
   const chartPosition = html.indexOf("<svg ");
   const comparisonPosition = html.indexOf('id="result-comparison-heading"');
   assert.ok(metricsPosition >= 0 && metricsPosition < chartPosition);
+  assert.ok(metricsPosition < runStatusPosition && runStatusPosition < chartPosition);
   assert.ok(chartPosition >= 0 && chartPosition < comparisonPosition);
   const overviewMetrics = html.slice(metricsPosition, chartPosition);
-  assert.equal((overviewMetrics.match(/class="metric-card"/g) ?? []).length, 4);
+  assert.equal((overviewMetrics.match(/class="metric-card"/g) ?? []).length, 5);
+  assert.match(overviewMetrics, /实际投入金额/);
   assert.match(html, /期末资产/);
   assert.match(html, /投入回报率/);
   assert.match(html, /年化回报/);
   assert.match(html, /最大回撤/);
+});
+
+test("warning runs keep execution diagnostics ahead of the selected result card", () => {
+  const state = workspaceWithRun();
+  state.runResponse.status = "completed_with_warning";
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh",
+    state,
+    dispatch() {},
+  }));
+  const runStatusPosition = html.indexOf('class="run-status-panel"');
+  const metricsPosition = html.indexOf('id="focused-metrics-heading"');
+  assert.ok(runStatusPosition >= 0 && runStatusPosition < metricsPosition);
+  assert.doesNotMatch(html, /class="run-status-panel is-compact"/);
 });
 
 test("saved result details have accessible tabs with comparison selected first and search gated by result data", () => {
@@ -180,7 +197,7 @@ test("chart and trade display controls are independent and chart legend remains 
   }));
   assert.match(chartOnly, /<svg /);
   assert.doesNotMatch(chartOnly, /class="data-table trade-table"/);
-  assert.match(chartOnly, /aria-pressed="true">資産チャートを表示/);
+  assert.match(chartOnly, /class="display-toggle"[^>]*aria-label="資産チャートを表示"[^>]*aria-pressed="true"/);
   assert.match(chartOnly, /aria-pressed="false">取引明細を表示/);
 
   state.showChart = false;
@@ -190,7 +207,7 @@ test("chart and trade display controls are independent and chart legend remains 
     state,
     dispatch() {},
   }));
-  assert.doesNotMatch(tradesOnly, /<svg /);
+  assert.doesNotMatch(tradesOnly, /class="chart-panel/);
   assert.match(tradesOnly, /class="data-table trade-table"/);
 });
 
