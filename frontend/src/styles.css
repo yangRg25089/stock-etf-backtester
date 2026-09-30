@@ -1144,7 +1144,7 @@ h2 {
   height: auto;
   min-width: 680px;
   overflow: visible;
-  touch-action: pan-y;
+  touch-action: none;
   cursor: grab;
 }
 

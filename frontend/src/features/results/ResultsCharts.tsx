@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefCallback } from "react";
 import type { DailyAsset, SignalEvaluation, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import {
@@ -51,11 +51,11 @@ interface ChartScale {
 }
 
 interface ChartInteractionProps {
+  ref: RefCallback<SVGSVGElement>;
   onPointerDown(event: ReactPointerEvent<SVGSVGElement>): void;
   onPointerMove(event: ReactPointerEvent<SVGSVGElement>): void;
   onPointerUp(event: ReactPointerEvent<SVGSVGElement>): void;
   onPointerCancel(event: ReactPointerEvent<SVGSVGElement>): void;
-  onWheel(event: ReactWheelEvent<SVGSVGElement>): void;
   onKeyDown(event: ReactKeyboardEvent<SVGSVGElement>): void;
 }
 
@@ -249,7 +249,14 @@ function samplesForSeries(
         ? asset.totalAsset
         : asset.drawdown;
     const value = numericValue(rawValue);
-    return value === null ? [] : [{ date: asset.date, index, value }];
+    if (value === null) return [];
+    const normalizationValue = seriesId === "totalAsset" ? numericValue(asset.unitNav) : null;
+    return [{
+      date: asset.date,
+      index,
+      value,
+      ...(normalizationValue === null ? {} : { normalizationValue }),
+    }];
   });
 }
 
@@ -475,8 +482,14 @@ function OverlayChart({
     const result = normalizeSeriesToBase100(definition.id, samplesById.get(definition.id) ?? []);
     return result ? [{ definition, result }] : [];
   }), [samplesById, series]);
+  const assetPerformanceUnavailable = series.some(({ id }) => id === "totalAsset")
+    && !normalized.some(({ definition }) => definition.id === "totalAsset");
   if (normalized.length === 0) {
-    return <p className="chart-empty">{translate(locale, "chart.noOverlaySeries")}</p>;
+    return (
+      <p className="chart-empty" role={assetPerformanceUnavailable ? "status" : undefined}>
+        {translate(locale, assetPerformanceUnavailable ? "chart.cashflowAdjustedValueUnavailable" : "chart.noOverlaySeries")}
+      </p>
+    );
   }
 
   const dateCount = assets.length;
@@ -514,6 +527,9 @@ function OverlayChart({
         {translate(locale, "chart.overlayTitle")}
       </figcaption>
       <p className="chart-overlay-description">{translate(locale, "chart.overlayDescription")}</p>
+      {assetPerformanceUnavailable && (
+        <p className="chart-empty" role="status">{translate(locale, "chart.cashflowAdjustedValueUnavailable")}</p>
+      )}
       <svg
         {...chartInteractionProps}
         className="result-chart"
@@ -654,7 +670,7 @@ export function ResultsCharts({
     signal.signalId === "vix.buy" && numericValue(signal.observedValue) !== null,
   );
   const plotWidth = CHART.width - CHART.left - CHART.right;
-  const pointerPosition = (event: ReactPointerEvent<SVGSVGElement> | ReactWheelEvent<SVGSVGElement>) => {
+  const pointerPosition = (event: ReactPointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * CHART.width;
     const svgY = ((event.clientY - bounds.top) / bounds.height) * CHART.height;
@@ -689,11 +705,20 @@ export function ResultsCharts({
   const zoomAt = (factor: number, anchorRatio = 0.5) => {
     setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
   };
-  const onWheel = (event: ReactWheelEvent<SVGSVGElement>) => {
+  const onWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
     if (event.deltaY === 0) return;
-    zoomAt(event.deltaY < 0 ? 0.8 : 1.25, pointerPosition(event).ratio);
-  };
+    const svg = event.currentTarget;
+    if (!(svg instanceof SVGSVGElement)) return;
+    const bounds = svg.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * CHART.width;
+    const anchorRatio = (svgX - CHART.left) / plotWidth;
+    setViewport((current) => zoomChartViewport(current, event.deltaY < 0 ? 0.8 : 1.25, anchorRatio));
+  }, [plotWidth]);
+  const chartRef: RefCallback<SVGSVGElement> = useCallback((svg) => {
+    // React's delegated wheel listener can be passive, so cancel the browser default here.
+    svg?.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
   const onKeyDown = (event: ReactKeyboardEvent<SVGSVGElement>) => {
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -713,11 +738,11 @@ export function ResultsCharts({
     }
   };
   const chartInteractionProps: ChartInteractionProps = {
+    ref: chartRef,
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onPointerCancel,
-    onWheel,
     onKeyDown,
   };
   const range = visibleIndexRange(dailyAssets.length, viewport);

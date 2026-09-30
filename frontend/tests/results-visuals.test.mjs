@@ -9,9 +9,9 @@ const { ResultsCharts } = require("../.test-output/features/results/ResultsChart
 const { TradeTable } = require("../.test-output/features/results/TradeTable.js");
 
 const dailyAssets = [
-  { date: "2024-01-02", simulationOpen: "98", simulationHigh: "110", simulationLow: "95", simulationPrice: "100", currency: "USD", totalAsset: "100", drawdown: "0" },
-  { date: "2024-01-03", simulationOpen: "100", simulationHigh: "116", simulationLow: "99", simulationPrice: "112", currency: "USD", totalAsset: "112", drawdown: "-0.05" },
-  { date: "2024-01-04", simulationOpen: "112", simulationHigh: "114", simulationLow: "101", simulationPrice: "104", currency: "USD", totalAsset: "104", drawdown: "-0.12" },
+  { date: "2024-01-02", simulationOpen: "98", simulationHigh: "110", simulationLow: "95", simulationPrice: "100", currency: "USD", totalAsset: "100", unitNav: "1", drawdown: "0" },
+  { date: "2024-01-03", simulationOpen: "100", simulationHigh: "116", simulationLow: "99", simulationPrice: "112", currency: "USD", totalAsset: "112", unitNav: "1.12", drawdown: "-0.05" },
+  { date: "2024-01-04", simulationOpen: "112", simulationHigh: "114", simulationLow: "101", simulationPrice: "104", currency: "USD", totalAsset: "104", unitNav: "1.04", drawdown: "-0.12" },
 ];
 const trades = [
   {
@@ -125,6 +125,43 @@ test("core comparison starts at 100 and keeps original total-asset currency in t
   assert.match(html, /chart-baseline-label[^>]*>開始値 100<\/text>/);
   assert.match(html, /総資産 \(USD\)/);
   assert.match(html, /\$104/);
+});
+
+test("cash contributions do not flatten the QQQ comparison line", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh",
+    dailyAssets: [
+      { date: "2024-01-02", simulationPrice: "100", currency: "USD", totalAsset: "100", unitNav: "1" },
+      { date: "2024-02-01", simulationPrice: "105", currency: "USD", totalAsset: "5000", unitNav: "1.05" },
+      { date: "2024-03-01", simulationPrice: "110", currency: "USD", totalAsset: "10000", unitNav: "1.1" },
+    ],
+    trades: [],
+    assetSymbol: "QQQ",
+    visibleSeriesIds: ["price", "totalAsset"],
+    onSeriesChange() {},
+  }));
+  const priceLine = html.match(/class="overlay-series-line overlay-price" points="([^"]+)"/)?.[1];
+  assert.ok(priceLine, "expected a QQQ price polyline");
+  const yCoordinates = priceLine.split(" ").map((point) => Number(point.split(",")[1]));
+  assert.ok(Math.max(...yCoordinates) - Math.min(...yCoordinates) > 20);
+  assert.match(html, /10,000/);
+});
+
+test("saved results without unit NAV explain why the total-asset relative curve is unavailable", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh",
+    dailyAssets: [
+      { date: "2024-01-02", simulationPrice: "100", currency: "USD", totalAsset: "100" },
+      { date: "2024-02-01", simulationPrice: "105", currency: "USD", totalAsset: "5000" },
+    ],
+    trades: [],
+    visibleSeriesIds: ["price", "totalAsset"],
+    onSeriesChange() {},
+  }));
+
+  assert.match(html, /此保存结果缺少现金流调整后的净值数据/);
+  assert.match(html, /overlay-series-line overlay-price/);
+  assert.doesNotMatch(html, /overlay-series-line overlay-totalAsset/);
 });
 
 test("indicator overlay is disabled when no auxiliary series is selected", () => {

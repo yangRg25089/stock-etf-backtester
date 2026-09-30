@@ -106,4 +106,11 @@
 
 **Task 31 验收记录（2026-09-30）：** 后端 311 项全量测试（含真实 Yahoo + SQLite QQQ/VIX API 回归）、Ruff check/format、mypy 通过；前端 78 项测试、typecheck、lint、build 和 12 项 Playwright E2E 通过。E2E 覆盖 320/768/1024/1440px、双语、axe、图表缩放/拖动同步与 100 基准线；未发现页面错误或非本地请求。
 
+## 阶段 9：图表尺度与滚轮隔离
+
+- [x] Task 32：用现金流调整单位净值显示总资产相对表现；滚轮/触控图表操作不再带动页面滚动或浏览器缩放
+- [x] Task 32 验收：注资不拉伸相对收益纵轴，实际总资产仍可查看；所有图同步缩放且页面/视口不动，键盘操作、响应式和 axe 回归通过
+
+**Task 32 验收记录（2026-09-30）：** 前端 82 项单测、typecheck、lint、build 和 12 项 Playwright E2E 通过；图表核心回归另定向重跑通过。覆盖现金流调整单位净值与原始资产 tooltip、缺少单位净值时明确不可用、3 张图的滚轮缩放同步、页面滚动/Control+滚轮视口缩放隔离、触屏 CSS 行为和 axe。
+
 Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及阶段 6 的图表和参数表单后续优化见 [`tasks/plan.md`](plan.md) 和 [`docs/development.md`](../docs/development.md)。

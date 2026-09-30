@@ -225,8 +225,15 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
     const chart = page.locator(`.chart-panel.${chartSelector} .result-chart`);
     await chart.hover();
+    await expect(chart).toHaveCSS("touch-action", "none");
+    const pageViewportBeforeWheel = await page.evaluate(() => ({
+      scrollY: window.scrollY,
+      scale: window.visualViewport?.scale,
+    }));
     await page.mouse.wheel(0, -160);
     await expect.poll(async () => page.locator(`.chart-panel.${chartSelector}`).getAttribute("data-window-start")).not.toBe("0");
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(pageViewportBeforeWheel.scrollY);
+    expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(pageViewportBeforeWheel.scale);
     const zoomedWindow = await expectSynchronizedWindows();
     await expectBaselineInsidePlot();
 
@@ -243,6 +250,26 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     await expectBaselineInsidePlot();
   }
   const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
+  if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
+  const coreChartSvg = page.locator(".chart-panel.chart-overlay .result-chart");
+  await coreChartSvg.hover();
+  const browserViewBeforeCtrlWheel = await page.evaluate(() => ({
+    scrollY: window.scrollY,
+    innerWidth: window.innerWidth,
+    devicePixelRatio: window.devicePixelRatio,
+    scale: window.visualViewport?.scale,
+  }));
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -160);
+  await page.keyboard.up("Control");
+  await expect.poll(() => page.locator(".chart-panel.chart-overlay").getAttribute("data-window-start")).not.toBe("0");
+  expect(await page.evaluate(() => ({
+    scrollY: window.scrollY,
+    innerWidth: window.innerWidth,
+    devicePixelRatio: window.devicePixelRatio,
+    scale: window.visualViewport?.scale,
+  }))).toEqual(browserViewBeforeCtrlWheel);
+  await expectSynchronizedWindows();
   if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
   await page.getByRole("button", { name: "期間を拡大" }).click();
   const keyboardZoomedWindow = await expectSynchronizedWindows();

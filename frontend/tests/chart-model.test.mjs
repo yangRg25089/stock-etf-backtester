@@ -18,6 +18,26 @@ test("positive price, portfolio, and VIX series use their first positive value a
   assert.deepEqual(normalized.points.map((point) => point.indexValue), [100, 120]);
 });
 
+test("total-asset comparison normalizes cashflow-adjusted unit NAV, not contributions", () => {
+  const normalized = normalizeSeriesToBase100("totalAsset", [
+    { date: "2024-01-02", index: 0, value: 100, normalizationValue: 1 },
+    { date: "2024-02-01", index: 1, value: 5_000, normalizationValue: 1.05 },
+    { date: "2024-03-01", index: 2, value: 10_000, normalizationValue: 1.1 },
+  ]);
+
+  assert.equal(normalized.baseValue, 1);
+  assert.deepEqual(normalized.points.map(({ value }) => value), [100, 5_000, 10_000]);
+  assert.ok(Math.abs(normalized.points[1].indexValue - 105) < 1e-9);
+  assert.ok(Math.abs(normalized.points[2].indexValue - 110) < 1e-9);
+});
+
+test("total-asset comparison does not fall back to contributed account balances", () => {
+  assert.equal(normalizeSeriesToBase100("totalAsset", [
+    { date: "2024-01-02", index: 0, value: 100 },
+    { date: "2024-02-01", index: 1, value: 5_000 },
+  ]), null);
+});
+
 test("drawdown overlays start at 100 and express drawdown as peak-relative value", () => {
   const normalized = normalizeSeriesToBase100("drawdown", [
     { date: "2024-01-02", index: 0, value: 0 },
