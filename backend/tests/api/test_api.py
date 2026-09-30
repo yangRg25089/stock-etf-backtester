@@ -15,7 +15,7 @@ from app.domain.status import StrategyStatus
 from app.main import app
 from app.runs.manager import RunManager
 from app.runs.sqlite_store import SQLiteRunStore
-from app.runs.store import IdempotencyConflict, InMemoryRunStore
+from app.runs.store import IdempotencyConflict, InMemoryRunStore, RunChange
 
 
 class _FakeRunService:
@@ -65,6 +65,20 @@ class _ConflictingRunService(_FakeRunService):
     ) -> RunResponse:
         del submission, idempotency_key
         raise IdempotencyConflict("submission differs from the original request")
+
+
+class _EventRunService(_FakeRunService):
+    def wait_for_run_change(
+        self, run_id: str, after_version: int, timeout_seconds: float
+    ) -> RunChange | None:
+        del timeout_seconds
+        response = self.responses.get(run_id)
+        if response is None or after_version >= 1:
+            return None
+        return RunChange(
+            version=1,
+            response=response.model_copy(update={"status": StrategyStatus.COMPLETED}),
+        )
 
 
 def _request(
@@ -220,6 +234,37 @@ def test_latest_run_is_null_when_no_run_has_been_saved() -> None:
 
     assert response.status_code == 200
     assert response.json() is None
+
+
+def test_run_events_endpoint_emits_terminal_status_without_full_result() -> None:
+    service = _EventRunService()
+    accepted = _request(
+        "POST",
+        "/api/v1/runs",
+        service=service,
+        headers={"Idempotency-Key": "sse-run"},
+        json_body={
+            "draft": _draft([_strategy("sse-strategy")]),
+            "scope": "active",
+            "activeStrategyId": "sse-strategy",
+        },
+    )
+    run_id = accepted.json()["runId"]
+
+    events = _request("GET", f"/api/v1/runs/{run_id}/events", service=service)
+
+    assert events.status_code == 200
+    assert events.headers["content-type"].startswith("text/event-stream")
+    assert 'event: terminal\ndata: {"runId":"run-1","status":"completed"' in events.text
+    assert "strategyStatuses" in events.text
+    assert "dailyAssets" not in events.text
+
+
+def test_run_events_endpoint_returns_standard_not_found_for_unknown_run() -> None:
+    response = _request("GET", "/api/v1/runs/missing/events", service=_FakeRunService())
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "run_not_found"
 
 
 def test_default_local_manager_accepts_and_exposes_a_run_record() -> None:

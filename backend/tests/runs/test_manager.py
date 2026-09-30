@@ -26,11 +26,29 @@ from app.domain.status import (
     StrategyStatus,
 )
 from app.runs.data import StrategyDataLoad
-from app.runs.manager import RunManager
+from app.runs.manager import RunManager, _calculation_diagnostic
 from app.runs.store import IdempotencyConflict, InMemoryRunStore
 from app.runs.types import RunResponse, RunSubmission
 
 _DATES = (date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4))
+
+
+def test_calculation_diagnostic_exposes_only_safe_stage_and_run_identity() -> None:
+    diagnostic = _calculation_diagnostic(
+        ValueError("provider token and internal path must stay hidden"),
+        run_id="run-safe-1",
+        stage="strategy",
+        strategy_id="strategy-vix-1",
+    )
+
+    assert diagnostic.message_key == "diagnostics.calculation_failed"
+    assert diagnostic.field_path is None
+    assert diagnostic.details == {
+        "runId": "run-safe-1",
+        "stage": "strategy",
+        "strategyId": "strategy-vix-1",
+    }
+    assert "provider token" not in str(diagnostic.details)
 
 
 class _ManualExecutor:

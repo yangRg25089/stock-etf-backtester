@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 
 from app.main import app
 from app.runs.manager import RunManager
-from app.runs.store import InMemoryRunStore
+from app.runs.sqlite_store import SQLiteRunStore
 from app.runs.yahoo_data import YahooRunDataProvider
 
 
@@ -27,10 +27,11 @@ class _InlineExecutor(Executor):
         return future
 
 
-def test_live_qqq_volatility_index_runs_use_real_yahoo_observations() -> None:
+def test_live_qqq_volatility_index_runs_use_real_yahoo_observations(tmp_path) -> None:
     previous_service = app.state.run_service
+    store = SQLiteRunStore(tmp_path / "live-yahoo-runs.sqlite3")
     app.state.run_service = RunManager(
-        store=InMemoryRunStore(),
+        store=store,
         data_provider=YahooRunDataProvider(),
         executor=_InlineExecutor(),
     )
@@ -79,6 +80,7 @@ def test_live_qqq_volatility_index_runs_use_real_yahoo_observations() -> None:
         result = asyncio.run(submit_and_read())
     finally:
         app.state.run_service = previous_service
+        store.close()
 
     assert result["snapshot"]["dataProvenance"]["sources"] == ["yahoo"]
     assert result["snapshot"]["config"]["shared"]["run"]["endDate"] is not None
@@ -88,7 +90,14 @@ def test_live_qqq_volatility_index_runs_use_real_yahoo_observations() -> None:
             for item in result["result"]["strategyRuns"]
             if item["id"] == f"live-yahoo-{symbol[1:].lower()}"
         )
-        assert strategy["status"] == "completed", strategy.get("diagnostics")
+        assert strategy["status"] in {
+            "completed",
+            "completed_with_warning",
+        }, strategy.get("diagnostics")
+        assert all(
+            diagnostic["severity"] == "warning"
+            for diagnostic in strategy.get("diagnostics", [])
+        )
         assert strategy["metrics"]["relativeToDca"] is not None
         vix_signals = [
             item for item in strategy["signals"] if item["signalId"] == "vix.buy"
@@ -98,10 +107,11 @@ def test_live_qqq_volatility_index_runs_use_real_yahoo_observations() -> None:
         assert any(item.get("observedValue") is not None for item in vix_signals)
 
 
-def test_live_fixed_qqq_vix_run_matches_the_reported_date_range() -> None:
+def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> None:
     previous_service = app.state.run_service
+    store = SQLiteRunStore(tmp_path / "live-yahoo-fixed-runs.sqlite3")
     app.state.run_service = RunManager(
-        store=InMemoryRunStore(),
+        store=store,
         data_provider=YahooRunDataProvider(),
         executor=_InlineExecutor(),
     )
@@ -149,6 +159,7 @@ def test_live_fixed_qqq_vix_run_matches_the_reported_date_range() -> None:
         result = asyncio.run(submit_and_read())
     finally:
         app.state.run_service = previous_service
+        store.close()
 
     assert result["snapshot"]["config"]["shared"]["run"]["endDate"] == "2026-09-28"
     strategy = next(

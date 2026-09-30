@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from threading import Event, RLock
+from threading import Condition, Event, RLock
+from time import monotonic
 from typing import Protocol
 from uuid import uuid4
 
@@ -26,6 +27,14 @@ class RunReservation:
     owner: bool
 
 
+@dataclass(frozen=True, slots=True)
+class RunChange:
+    """A versioned lightweight notification source for run status subscribers."""
+
+    version: int
+    response: RunResponse
+
+
 class RunStore(Protocol):
     """Storage operations required by the local run manager."""
 
@@ -45,6 +54,10 @@ class RunStore(Protocol):
 
     def get_latest(self) -> RunResponse | None: ...
 
+    def wait_for_change(
+        self, run_id: str, after_version: int, timeout_seconds: float
+    ) -> RunChange | None: ...
+
 
 @dataclass(slots=True)
 class _ReservationState:
@@ -59,8 +72,10 @@ class InMemoryRunStore:
 
     def __init__(self) -> None:
         self._lock = RLock()
+        self._changed = Condition(self._lock)
         self._reservations: dict[str, _ReservationState] = {}
         self._records: dict[str, RunResponse] = {}
+        self._versions: dict[str, int] = {}
         self._latest_run_id: str | None = None
 
     def reserve(self, idempotency_key: str, request_fingerprint: str) -> RunReservation:
@@ -104,8 +119,12 @@ class InMemoryRunStore:
         with self._lock:
             state = self._state_for(reservation)
             self._records[reservation.run_id] = response
+            self._versions[reservation.run_id] = (
+                self._versions.get(reservation.run_id, 0) + 1
+            )
             self._latest_run_id = reservation.run_id
             state.ready.set()
+            self._changed.notify_all()
 
     def abort(self, reservation: RunReservation, error: BaseException) -> None:
         """Wake duplicate callers if acceptance failed before a record existed."""
@@ -138,6 +157,8 @@ class InMemoryRunStore:
             if response.run_id not in self._records:
                 raise KeyError(f"unknown run: {response.run_id}")
             self._records[response.run_id] = response
+            self._versions[response.run_id] = self._versions.get(response.run_id, 0) + 1
+            self._changed.notify_all()
 
     def get(self, run_id: str) -> RunResponse | None:
         with self._lock:
@@ -148,6 +169,25 @@ class InMemoryRunStore:
             if self._latest_run_id is None:
                 return None
             return self._records.get(self._latest_run_id)
+
+    def wait_for_change(
+        self, run_id: str, after_version: int, timeout_seconds: float
+    ) -> RunChange | None:
+        """Wait for a newer run response without repeatedly loading full JSON."""
+
+        deadline = monotonic() + max(0.0, timeout_seconds)
+        with self._changed:
+            while True:
+                response = self._records.get(run_id)
+                if response is None:
+                    return None
+                version = self._versions.get(run_id, 0)
+                if version > after_version:
+                    return RunChange(version=version, response=response)
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    return None
+                self._changed.wait(remaining)
 
     def _state_for(self, reservation: RunReservation) -> _ReservationState:
         state = self._reservations.get(reservation.idempotency_key)

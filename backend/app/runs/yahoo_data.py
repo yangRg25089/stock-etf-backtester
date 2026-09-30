@@ -33,7 +33,7 @@ from app.domain.contracts import (
     FrozenStrategyInstance,
     SharedSettings,
 )
-from app.domain.status import Diagnostic, DiagnosticCode
+from app.domain.status import Diagnostic, DiagnosticCode, DiagnosticSeverity
 from app.runs.data import StrategyDataLoad
 
 _LOGGER = logging.getLogger(__name__)
@@ -312,21 +312,42 @@ class YahooRunDataProvider:
         actual_latest_quote = max(
             (bar.date for bar in base_snapshot.market.bars), default=None
         )
+        effective_calendar_dates, effective_market_diagnostics = (
+            _apply_latest_quote_fallback(
+                calendar_dates,
+                market_result.diagnostics,
+                end_mode=shared.run.end_mode,
+                scheduled_end=request_end,
+                latest_quote=(
+                    actual_latest_quote
+                    if actual_latest_quote is not None
+                    and actual_latest_quote >= shared.run.start_date
+                    else None
+                ),
+                symbol=shared.run.symbol,
+            )
+        )
         final_calendar = ExchangeCalendar.from_dates(
-            calendar_dates,
+            effective_calendar_dates,
             as_of_date=as_of_date,
             latest_complete_date=actual_latest_quote,
             calendar_coverage_end_date=as_of_date,
         )
+        effective_request = request.model_copy(
+            update={
+                "end_date": effective_calendar_dates[-1],
+                "exchange_calendar": final_calendar,
+            }
+        )
         macro_results = self._load_macro_results(
-            request, strategies, strategy_requirements
+            effective_request, strategies, strategy_requirements
         )
         return self._build_strategy_loads(
             strategies=strategies,
             strategy_requirements=strategy_requirements,
             base_snapshot=base_snapshot,
             calendar=final_calendar,
-            market_diagnostics=market_result.diagnostics,
+            market_diagnostics=effective_market_diagnostics,
             macro_results=macro_results,
         )
 
@@ -619,6 +640,105 @@ def _unique_diagnostics(
         seen.add(key)
         unique.append(diagnostic)
     return tuple(unique)
+
+
+def _apply_latest_quote_fallback(
+    calendar_dates: tuple[Date, ...],
+    diagnostics: tuple[Diagnostic, ...],
+    *,
+    end_mode: EndMode,
+    scheduled_end: Date,
+    latest_quote: Date | None,
+    symbol: str,
+) -> tuple[tuple[Date, ...], tuple[Diagnostic, ...]]:
+    """Trim unpublished sessions only when the run explicitly asks for latest."""
+
+    if end_mode is not EndMode.LATEST or latest_quote is None:
+        return calendar_dates, diagnostics
+
+    unavailable_tail: set[Date] = set()
+    retained: list[Diagnostic] = []
+    for diagnostic in diagnostics:
+        if (
+            diagnostic.code is DiagnosticCode.PRICE_BASIS_UNAVAILABLE
+            and diagnostic.as_of is not None
+            and latest_quote < diagnostic.as_of <= scheduled_end
+        ):
+            unavailable_tail.add(diagnostic.as_of)
+            continue
+
+        if (
+            diagnostic.code is DiagnosticCode.REQUIRED_DATA_UNAVAILABLE
+            and diagnostic.message_key == "market.missing_sessions"
+        ):
+            raw_missing = diagnostic.details.get("missingSessions")
+            if not isinstance(raw_missing, (list, tuple)) or not raw_missing:
+                retained.append(diagnostic)
+                continue
+            missing_dates = tuple(
+                parsed
+                for item in raw_missing
+                if (parsed := _parse_diagnostic_date(item)) is not None
+            )
+            if len(missing_dates) != len(raw_missing):
+                retained.append(diagnostic)
+                continue
+            tail_dates = {
+                item for item in missing_dates if latest_quote < item <= scheduled_end
+            }
+            unavailable_tail.update(tail_dates)
+            interior_dates = tuple(
+                item for item in missing_dates if item not in tail_dates
+            )
+            if interior_dates:
+                details = dict(diagnostic.details)
+                details["missingSessions"] = [
+                    item.isoformat() for item in interior_dates
+                ]
+                retained.append(
+                    Diagnostic(
+                        code=diagnostic.code,
+                        severity=diagnostic.severity,
+                        messageKey=diagnostic.message_key,
+                        fieldPath=diagnostic.field_path,
+                        asOf=diagnostic.as_of,
+                        source=diagnostic.source,
+                        details=details,
+                    )
+                )
+            continue
+
+        retained.append(diagnostic)
+
+    effective_dates = tuple(day for day in calendar_dates if day <= latest_quote)
+    if not unavailable_tail or not effective_dates:
+        return calendar_dates, diagnostics
+
+    warning = Diagnostic(
+        code=DiagnosticCode.SOURCE_QUALITY_WARNING,
+        severity=DiagnosticSeverity.WARNING,
+        messageKey="market.latest_quote_delayed",
+        asOf=latest_quote,
+        source="yahoo",
+        details={
+            "symbol": symbol,
+            "requestedEndDate": scheduled_end.isoformat(),
+            "effectiveEndDate": latest_quote.isoformat(),
+            "unavailableSessions": [
+                day.isoformat() for day in sorted(unavailable_tail)
+            ],
+        },
+    )
+    return effective_dates, (*retained, warning)
+
+
+def _parse_diagnostic_date(value: object) -> Date | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return Date.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 __all__ = ["YahooRunDataProvider"]

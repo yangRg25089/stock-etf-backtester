@@ -5,7 +5,7 @@ from threading import Barrier
 
 import pytest
 
-from app.catalog.service import default_data_settings
+from app.catalog.service import CATALOG_VERSION, default_data_settings
 from app.domain.contracts import (
     ContributionSettings,
     FrozenRunConfig,
@@ -52,7 +52,7 @@ def _response(
     snapshot = RunSnapshot(
         runId=run_id,
         config=config,
-        catalogVersion="catalog-v1",
+        catalogVersion=CATALOG_VERSION,
         dataFingerprint="data-v1",
         engineVersion="engine-v1",
     )
@@ -136,6 +136,92 @@ def test_sqlite_store_restores_completed_results_and_idempotency_after_reopen(
     assert reopened.get_latest() == saved
     with pytest.raises(IdempotencyConflict):
         reopened.reserve("retry-key", "different-fingerprint")
+    reopened.close()
+
+
+def test_sqlite_store_preserves_decimal_strategy_parameters_after_reopen(
+    tmp_path,
+) -> None:
+    path = tmp_path / "runs.sqlite3"
+    store = SQLiteRunStore(path)
+    reservation = _reservation(store)
+    response = _response(reservation.run_id)
+    strategy = response.snapshot.config.strategies[0].model_copy(
+        update={
+            "params": {
+                "vix.buyThreshold": Decimal("25.00"),
+                "accumulation.maxSignalBuysPerMonth": 1,
+                "vix.buyEnabled": True,
+                "vix.symbol": "^VIX",
+                "search.dimensions": (Decimal("24.50"), Decimal("25.00")),
+            }
+        }
+    )
+    config = response.snapshot.config.model_copy(update={"strategies": (strategy,)})
+    snapshot = response.snapshot.model_copy(update={"config": config})
+    response = response.model_copy(update={"snapshot": snapshot})
+    store.publish(reservation, response)
+    store.close()
+
+    reopened = SQLiteRunStore(path)
+    restored = reopened.get(reservation.run_id)
+
+    assert restored is not None
+    assert restored == response
+    value = restored.snapshot.config.strategies[0].params["vix.buyThreshold"]
+    assert value == Decimal("25.00")
+    assert isinstance(value, Decimal)
+    restored_params = restored.snapshot.config.strategies[0].params
+    assert type(restored_params["accumulation.maxSignalBuysPerMonth"]) is int
+    assert restored_params["vix.buyEnabled"] is True
+    assert restored_params["vix.symbol"] == "^VIX"
+    assert restored_params["search.dimensions"] == (Decimal("24.50"), Decimal("25.00"))
+    assert (
+        response.model_dump(mode="json", by_alias=True)["snapshot"]["config"][
+            "strategies"
+        ][0]["params"]["vix.buyThreshold"]
+        == "25.00"
+    )
+    assert (
+        restored.model_dump(mode="json", by_alias=True)["snapshot"]["config"][
+            "strategies"
+        ][0]["params"]["vix.buyThreshold"]
+        == "25.00"
+    )
+    reopened.close()
+
+
+def test_sqlite_store_upgrades_legacy_json_decimal_parameters_on_read(tmp_path) -> None:
+    path = tmp_path / "runs.sqlite3"
+    store = SQLiteRunStore(path)
+    reservation = _reservation(store)
+    response = _response(reservation.run_id)
+    strategy = response.snapshot.config.strategies[0].model_copy(
+        update={
+            "params": {
+                "vix.buyThreshold": Decimal("25.00"),
+                "vix.symbol": "25",
+            }
+        }
+    )
+    config = response.snapshot.config.model_copy(update={"strategies": (strategy,)})
+    snapshot = response.snapshot.model_copy(update={"config": config})
+    response = response.model_copy(update={"snapshot": snapshot})
+    store.publish(reservation, response)
+    store._connection.execute(
+        "UPDATE run_records SET response_json = ? WHERE run_id = ?",
+        (response.model_dump_json(by_alias=True), reservation.run_id),
+    )
+    store.close()
+
+    reopened = SQLiteRunStore(path)
+    restored = reopened.get(reservation.run_id)
+
+    assert restored is not None
+    value = restored.snapshot.config.strategies[0].params["vix.buyThreshold"]
+    assert isinstance(value, Decimal)
+    assert value == Decimal("25.00")
+    assert restored.snapshot.config.strategies[0].params["vix.symbol"] == "25"
     reopened.close()
 
 

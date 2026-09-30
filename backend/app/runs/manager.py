@@ -40,7 +40,7 @@ from app.domain.status import (
 from app.ledger import run_strategy
 from app.metrics import MetricsInput, calculate_metrics
 from app.runs.data import RunDataProvider, StrategyDataLoad, UnconfiguredRunDataProvider
-from app.runs.store import RunStore
+from app.runs.store import RunChange, RunStore
 from app.runs.types import RunProgress, RunResponse, RunSubmission
 from app.search import GridSearchInput, run_grid_search
 from app.signals import evaluate_signals
@@ -128,7 +128,9 @@ class RunManager:
                     "exception_type": type(error).__name__,
                 },
             )
-            diagnostic = _calculation_diagnostic(error)
+            diagnostic = _calculation_diagnostic(
+                error, run_id=reservation.run_id, stage="queue"
+            )
             self._fail_unfinished(reservation.run_id, diagnostic)
             current = self._store.get(reservation.run_id)
             return response if current is None else current
@@ -139,6 +141,11 @@ class RunManager:
 
     def get_latest_run(self) -> RunResponse | None:
         return self._store.get_latest()
+
+    def wait_for_run_change(
+        self, run_id: str, after_version: int, timeout_seconds: float
+    ) -> RunChange | None:
+        return self._store.wait_for_change(run_id, after_version, timeout_seconds)
 
     def _load_strategy_data(
         self, submission: RunSubmission
@@ -379,7 +386,13 @@ class RunManager:
                         dca_baseline=None,
                     )
                 except Exception as error:
-                    dca_outcome = _failure_outcome((_calculation_diagnostic(error),))
+                    dca_outcome = _failure_outcome(
+                        (
+                            _calculation_diagnostic(
+                                error, run_id=run_id, stage="monthly_dca"
+                            ),
+                        )
+                    )
                     baseline_input = None
                 self._complete_run(run_id, _BENCHMARKS[0][0], dca_outcome)
                 try:
@@ -391,7 +404,13 @@ class RunManager:
                         dca_baseline=baseline_input,
                     )
                 except Exception as error:
-                    lump_outcome = _failure_outcome((_calculation_diagnostic(error),))
+                    lump_outcome = _failure_outcome(
+                        (
+                            _calculation_diagnostic(
+                                error, run_id=run_id, stage="lump_sum"
+                            ),
+                        )
+                    )
                 self._complete_run(run_id, _BENCHMARKS[1][0], lump_outcome)
 
             validation_by_id = {
@@ -421,7 +440,16 @@ class RunManager:
                             baseline_input=baseline_input,
                         )
                 except Exception as error:
-                    outcome = _failure_outcome((_calculation_diagnostic(error),))
+                    outcome = _failure_outcome(
+                        (
+                            _calculation_diagnostic(
+                                error,
+                                run_id=run_id,
+                                stage="strategy",
+                                strategy_id=strategy.id,
+                            ),
+                        )
+                    )
                 self._complete_run(run_id, strategy.id, outcome)
 
             self._clear_current(run_id)
@@ -451,7 +479,10 @@ class RunManager:
                     "exception_type": type(error).__name__,
                 },
             )
-            self._fail_unfinished(run_id, _calculation_diagnostic(error))
+            self._fail_unfinished(
+                run_id,
+                _calculation_diagnostic(error, run_id=run_id, stage="execution"),
+            )
 
     def _run_benchmark(
         self,
@@ -935,13 +966,31 @@ def _provider_diagnostic(strategy_id: str, error: Exception) -> Diagnostic:
     )
 
 
-def _calculation_diagnostic(error: Exception) -> Diagnostic:
+def _calculation_diagnostic(
+    error: Exception,
+    *,
+    run_id: str,
+    stage: str,
+    strategy_id: str | None = None,
+) -> Diagnostic:
+    _LOGGER.warning(
+        "Run calculation stage failed",
+        extra={
+            "event": "run_calculation_stage_failed",
+            "run_id": run_id,
+            "stage": stage,
+            "strategy_id": strategy_id,
+            "exception_type": type(error).__name__,
+        },
+    )
+    details: dict[str, object] = {"runId": run_id, "stage": stage}
+    if strategy_id is not None:
+        details["strategyId"] = strategy_id
     return Diagnostic(
         code=DiagnosticCode.CALCULATION_FAILED,
         severity=DiagnosticSeverity.ERROR,
         messageKey="diagnostics.calculation_failed",
-        fieldPath="runs.execution",
-        details={"exceptionType": type(error).__name__},
+        details=details,
     )
 
 

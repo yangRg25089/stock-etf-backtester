@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from threading import Event, RLock
+from threading import Condition, Event, RLock
+from time import monotonic
 from uuid import uuid4
 
+from app.catalog.definitions import ALL_PARAMETER_DEFINITIONS, ParameterType
+from app.catalog.service import CATALOG_VERSION
 from app.domain.contracts import ResultRole, RunResult, StrategyRun
 from app.domain.status import (
     Diagnostic,
@@ -20,10 +25,14 @@ from app.domain.status import (
 )
 from app.runs.store import (
     IdempotencyConflict,
+    RunChange,
     RunInitializationError,
     RunReservation,
 )
 from app.runs.types import RunProgress, RunResponse
+
+_STORAGE_FORMAT_VERSION = 1
+_STORAGE_TYPE_KEY = "__run_store_value_type__"
 
 
 @dataclass(slots=True)
@@ -41,8 +50,10 @@ class SQLiteRunStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._lock = RLock()
+        self._changed = Condition(self._lock)
         self._closed = False
         self._states: dict[str, _SQLiteReservationState] = {}
+        self._versions: dict[str, int] = {}
         self._connection = sqlite3.connect(
             self.path,
             timeout=5,
@@ -139,7 +150,7 @@ class SQLiteRunStore:
 
         if response.run_id != reservation.run_id:
             raise ValueError("published response must match its reservation")
-        payload = response.model_dump_json(by_alias=True)
+        payload = _serialize_response(response)
         with self._lock, self._transaction():
             self._ensure_open()
             state = self._state_for(reservation)
@@ -159,6 +170,10 @@ class SQLiteRunStore:
             if cursor.rowcount != 1:
                 raise ValueError("run reservation is no longer valid")
             state.ready.set()
+            self._versions[reservation.run_id] = (
+                self._versions.get(reservation.run_id, 0) + 1
+            )
+            self._changed.notify_all()
 
     def abort(self, reservation: RunReservation, error: BaseException) -> None:
         """Remove an unaccepted claim and wake local duplicate submitters."""
@@ -205,13 +220,15 @@ class SQLiteRunStore:
                 WHERE run_id = ? AND response_json IS NOT NULL
                 """,
                 (
-                    response.model_dump_json(by_alias=True),
+                    _serialize_response(response),
                     time.time_ns(),
                     response.run_id,
                 ),
             )
             if cursor.rowcount != 1:
                 raise KeyError(f"unknown run: {response.run_id}")
+            self._versions[response.run_id] = self._versions.get(response.run_id, 0) + 1
+            self._changed.notify_all()
 
     def get(self, run_id: str) -> RunResponse | None:
         with self._lock:
@@ -232,7 +249,7 @@ class SQLiteRunStore:
             ).fetchone()
             if row is None:
                 return None
-            return RunResponse.model_validate_json(row["response_json"])
+            return _deserialize_response(row["response_json"])
 
     def close(self) -> None:
         """Close the database handle; callers may reopen the same path later."""
@@ -246,6 +263,7 @@ class SQLiteRunStore:
                         "the run store closed before the run was accepted"
                     )
                     state.ready.set()
+            self._changed.notify_all()
             self._connection.close()
             self._closed = True
 
@@ -256,7 +274,27 @@ class SQLiteRunStore:
         ).fetchone()
         if row is None or row["response_json"] is None:
             return None
-        return RunResponse.model_validate_json(row["response_json"])
+        return _deserialize_response(row["response_json"])
+
+    def wait_for_change(
+        self, run_id: str, after_version: int, timeout_seconds: float
+    ) -> RunChange | None:
+        """Wait on local store updates; timeout lets SSE emit keepalives."""
+
+        deadline = monotonic() + max(0.0, timeout_seconds)
+        with self._changed:
+            while True:
+                self._ensure_open()
+                version = self._versions.get(run_id, 0)
+                if version > after_version:
+                    response = self._get_locked(run_id)
+                    if response is None:
+                        return None
+                    return RunChange(version=version, response=response)
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    return None
+                self._changed.wait(remaining)
 
     def _state_for(self, reservation: RunReservation) -> _SQLiteReservationState:
         state = self._states.get(reservation.idempotency_key)
@@ -284,7 +322,8 @@ class SQLiteRunStore:
                 """
             ).fetchall()
             for row in rows:
-                response = RunResponse.model_validate_json(row["response_json"])
+                response = _deserialize_response(row["response_json"])
+                self._versions[row["run_id"]] = 1
                 recovered = _recover_interrupted_response(response)
                 if recovered != response:
                     self._connection.execute(
@@ -294,11 +333,12 @@ class SQLiteRunStore:
                         WHERE run_id = ?
                         """,
                         (
-                            recovered.model_dump_json(by_alias=True),
+                            _serialize_response(recovered),
                             time.time_ns(),
                             row["run_id"],
                         ),
                     )
+                    self._versions[row["run_id"]] += 1
 
     def _ensure_open(self) -> None:
         if self._closed:
@@ -358,6 +398,104 @@ def _recover_interrupted_response(response: RunResponse) -> RunResponse:
             ),
         }
     )
+
+
+def _serialize_response(response: RunResponse) -> str:
+    """Store Decimal strategy parameters with tags without changing API JSON."""
+
+    payload = response.model_dump(mode="json", by_alias=True)
+    stored_strategies = payload["snapshot"]["config"]["strategies"]
+    for stored, strategy in zip(
+        stored_strategies,
+        response.snapshot.config.strategies,
+        strict=True,
+    ):
+        stored["params"] = _encode_parameter_value(strategy.params)
+    envelope = {"storageFormatVersion": _STORAGE_FORMAT_VERSION, "response": payload}
+    return json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
+
+
+def _deserialize_response(serialized: str) -> RunResponse:
+    """Read current tagged records or upgrade a legacy response in memory."""
+
+    payload = json.loads(serialized)
+    if isinstance(payload, dict) and "storageFormatVersion" in payload:
+        if payload["storageFormatVersion"] != _STORAGE_FORMAT_VERSION:
+            raise ValueError("unsupported SQLite run storage format")
+        response_data = payload.get("response")
+        if not isinstance(response_data, dict):
+            raise ValueError("SQLite run storage response must be an object")
+        for strategy in response_data["snapshot"]["config"]["strategies"]:
+            strategy["params"] = _decode_parameter_value(strategy["params"])
+        return RunResponse.model_validate(response_data)
+
+    if not isinstance(payload, dict):
+        raise ValueError("legacy SQLite run response must be an object")
+    _restore_legacy_decimal_parameters(payload)
+    return RunResponse.model_validate(payload)
+
+
+def _encode_parameter_value(value: object) -> object:
+    if isinstance(value, Decimal):
+        return {_STORAGE_TYPE_KEY: "decimal", "value": str(value)}
+    if isinstance(value, Mapping):
+        return {key: _encode_parameter_value(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_encode_parameter_value(item) for item in value]
+    return value
+
+
+def _decode_parameter_value(value: object) -> object:
+    if isinstance(value, dict):
+        if set(value) == {_STORAGE_TYPE_KEY, "value"}:
+            if value[_STORAGE_TYPE_KEY] != "decimal":
+                raise ValueError("unsupported SQLite strategy parameter type")
+            return Decimal(str(value["value"]))
+        return {key: _decode_parameter_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_decode_parameter_value(item) for item in value]
+    return value
+
+
+def _restore_legacy_decimal_parameters(payload: dict[str, object]) -> None:
+    snapshot = payload.get("snapshot")
+    if (
+        not isinstance(snapshot, dict)
+        or snapshot.get("catalogVersion") != CATALOG_VERSION
+    ):
+        return
+    config = snapshot.get("config")
+    if not isinstance(config, dict):
+        return
+    strategies = config.get("strategies")
+    if not isinstance(strategies, list):
+        return
+
+    decimal_keys = {
+        definition.key
+        for definition in ALL_PARAMETER_DEFINITIONS
+        if definition.type
+        in {ParameterType.DECIMAL, ParameterType.RATIO, ParameterType.PERCENT_POINT}
+    }
+    for strategy in strategies:
+        if not isinstance(strategy, dict):
+            continue
+        params = strategy.get("params")
+        if not isinstance(params, dict):
+            continue
+        for key in decimal_keys:
+            value = params.get(key)
+            if not isinstance(value, str):
+                continue
+            try:
+                decimal_value = Decimal(value)
+            except InvalidOperation as error:
+                raise ValueError(
+                    "legacy SQLite decimal parameter is invalid"
+                ) from error
+            if not decimal_value.is_finite():
+                raise ValueError("legacy SQLite decimal parameter is not finite")
+            params[key] = decimal_value
 
 
 def _fail_interrupted_strategy(run_id: str, strategy_run: StrategyRun) -> StrategyRun:

@@ -1,9 +1,12 @@
 """Versioned draft validation and run submission/query endpoints."""
 
-from collections.abc import Mapping
+import asyncio
+import json
+from collections.abc import AsyncIterator, Mapping
 from typing import Protocol, cast
 
 from fastapi import APIRouter, Header, Request, Response
+from fastapi.responses import StreamingResponse
 
 from app.catalog.service import Catalog, get_catalog
 from app.config.validation import (
@@ -17,9 +20,14 @@ from app.domain.contracts import (
     RunScope,
     StrategyInstance,
 )
-from app.domain.status import Diagnostic, DiagnosticCode, DiagnosticSeverity
+from app.domain.status import (
+    Diagnostic,
+    DiagnosticCode,
+    DiagnosticSeverity,
+    is_terminal,
+)
 from app.engine_version import ENGINE_VERSION
-from app.runs.store import IdempotencyConflict
+from app.runs.store import IdempotencyConflict, RunChange
 
 from .errors import APIException
 from .types import (
@@ -48,6 +56,10 @@ class RunService(Protocol):
     def get_run(self, run_id: str) -> RunResponse | None: ...
 
     def get_latest_run(self) -> RunResponse | None: ...
+
+    def wait_for_run_change(
+        self, run_id: str, after_version: int, timeout_seconds: float
+    ) -> RunChange | None: ...
 
 
 @router.post(
@@ -126,6 +138,68 @@ def read_run(run_id: str, request: Request) -> RunResponse:
             "api.errors.run_not_found",
         )
     return record
+
+
+@router.get(
+    "/runs/{run_id}/events",
+    responses={404: {"model": APIErrorResponse}, 503: {"model": APIErrorResponse}},
+)
+async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
+    """Stream small run status updates; fetch the full result once at terminal."""
+
+    service = _run_service(request)
+    if service.get_run(run_id) is None:
+        raise APIException(
+            404,
+            "run_not_found",
+            "api.errors.run_not_found",
+        )
+
+    async def events() -> AsyncIterator[str]:
+        version = 0
+        while not await request.is_disconnected():
+            change = await asyncio.to_thread(
+                service.wait_for_run_change,
+                run_id,
+                version,
+                15.0,
+            )
+            if change is None:
+                yield ": keep-alive\n\n"
+                continue
+            version = change.version
+            payload = _run_event_payload(change)
+            event = "terminal" if is_terminal(change.response.status) else "progress"
+            serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            yield (f"id: {change.version}\nevent: {event}\ndata: {serialized}\n\n")
+            if event == "terminal":
+                return
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _run_event_payload(change: RunChange) -> dict[str, object]:
+    response = change.response
+    strategy_runs = () if response.result is None else response.result.strategy_runs
+    return {
+        "runId": response.run_id,
+        "status": response.status.value,
+        "progress": (
+            None
+            if response.progress is None
+            else response.progress.model_dump(mode="json", by_alias=True)
+        ),
+        "strategyStatuses": {
+            strategy_run.id: strategy_run.status.value for strategy_run in strategy_runs
+        },
+    }
 
 
 def _build_submission(
