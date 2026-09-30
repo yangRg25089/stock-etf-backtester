@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from "react
 import type { RunResponse, StrategyRun } from "../../api/generated";
 import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
+import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
 import { StatusView } from "../runs/StatusView";
 import { ExportControls } from "./ExportControls";
@@ -55,6 +56,7 @@ export function ResultDetails({
   const tabs: ResultTab[] = run ? ["overview", "comparison", "trades", "metrics"] : [];
   if (searchAvailable) tabs.push("search");
   const [selectedTab, setSelectedTab] = useState<ResultTab>("overview");
+  const [expanded, setExpanded] = useState(true);
   const visibleTab = tabs.includes(selectedTab) ? selectedTab : "overview";
 
   useEffect(() => {
@@ -85,44 +87,51 @@ export function ResultDetails({
   const tabId = (tab: ResultTab) => `result-tab-${tab}`;
   const contextLabel = savedRunLabel(run);
 
+  const headerDetails = (
+    <div className="result-saved-context">
+      {contextLabel && <strong className="result-saved-range">{contextLabel}</strong>}
+      {run && <code className="result-run-id">{run.runId}</code>}
+      {snapshotStale && (
+        <p className="snapshot-warning" role="status">{translate(locale, "results.snapshotStale")}</p>
+      )}
+    </div>
+  );
+  const headerActions = (
+    <div className="result-context-actions">
+      <label className="sr-only" htmlFor="result-focus-select">
+        {translate(locale, "results.focusSelector")}
+      </label>
+      <select
+        id="result-focus-select"
+        className="result-focus-select"
+        aria-label={translate(locale, "results.focusSelector")}
+        value={focusedResult?.id ?? ""}
+        disabled={!run || strategyRuns.length === 0}
+        onChange={focusResult}
+      >
+        {strategyRuns.length === 0 ? (
+          <option value="">{translate(locale, "results.focusPending")}</option>
+        ) : strategyRuns.map((result) => (
+          <option key={`${result.role}-${result.id}`} value={result.id}>
+            {resultOptionLabel(locale, result)}
+          </option>
+        ))}
+      </select>
+      <ExportControls locale={locale} runId={run?.runId ?? null} result={focusedResult} />
+    </div>
+  );
+
   return (
-    <section id="result-details" className="result-details" aria-labelledby="result-details-heading" tabIndex={-1}>
-      <h3 id="result-details-heading" className="sr-only">{translate(locale, "results.details")}</h3>
-
-      <header className="result-details-header">
-        <div className="result-saved-context">
-          {contextLabel && <strong className="result-saved-range">{contextLabel}</strong>}
-          {run && <code className="result-run-id">{run.runId}</code>}
-          {snapshotStale && (
-            <p className="snapshot-warning" role="status">{translate(locale, "results.snapshotStale")}</p>
-          )}
-        </div>
-        <div className="result-context-actions">
-          <label className="sr-only" htmlFor="result-focus-select">
-            {translate(locale, "results.focusSelector")}
-          </label>
-          <select
-            id="result-focus-select"
-            className="result-focus-select"
-            aria-label={translate(locale, "results.focusSelector")}
-            value={focusedResult?.id ?? ""}
-            disabled={!run || strategyRuns.length === 0}
-            onChange={focusResult}
-          >
-            {strategyRuns.length === 0 ? (
-              <option value="">{translate(locale, "results.focusPending")}</option>
-            ) : strategyRuns.map((result) => (
-              <option key={`${result.role}-${result.id}`} value={result.id}>
-                {resultOptionLabel(locale, result)}
-              </option>
-            ))}
-          </select>
-          <ExportControls locale={locale} runId={run?.runId ?? null} result={focusedResult} />
-        </div>
-      </header>
-
-      <StatusView locale={locale} run={run} error={error} hideCleanSuccess />
-
+    <CollapsiblePanel
+      id="result-details"
+      className="result-details"
+      title={translate(locale, "results.details")}
+      expanded={expanded}
+      onExpandedChange={setExpanded}
+      headerDetails={headerDetails}
+      headerActions={headerActions}
+      alwaysVisible={<StatusView locale={locale} run={run} error={error} hideCleanSuccess />}
+    >
       {tabs.length > 0 && (
         <>
           <div className="result-tabs" role="tablist" aria-label={translate(locale, "results.details")}>
@@ -233,6 +242,6 @@ export function ResultDetails({
           ))}
         </>
       )}
-    </section>
+    </CollapsiblePanel>
   );
 }

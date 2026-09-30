@@ -1597,17 +1597,105 @@ h2 {
   border-radius: var(--app-radius);
 }
 
+.result-content > .collapsible-panel {
+  padding: 0;
+}
+
+.collapsible-panel {
+  min-width: 0;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  overflow: hidden;
+}
+
+.collapsible-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.collapsible-panel-heading {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.collapsible-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 3px 4px;
+  color: var(--app-foreground);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.collapsible-panel-toggle:hover {
+  color: var(--app-accent-strong);
+}
+
+.collapsible-panel-chevron {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  transition: transform 140ms ease;
+}
+
+.collapsible-panel-toggle[aria-expanded="true"] .collapsible-panel-chevron {
+  transform: rotate(90deg);
+}
+
+.collapsible-panel-details {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.collapsible-panel-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.collapsible-panel-always-visible {
+  padding: 0 12px;
+}
+
+.collapsible-panel-body {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.collapsible-panel-body[hidden] {
+  display: none;
+}
+
+.collapsible-panel-always-visible:empty {
+  display: none;
+}
+
 .result-details {
   scroll-margin-top: 10px;
 }
 
-.result-details-header {
-  display: flex;
+.result-details .collapsible-panel-header {
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--app-border);
 }
 
 .result-saved-context {
@@ -1643,6 +1731,7 @@ h2 {
   justify-content: flex-end;
   gap: 7px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .result-focus-select {
@@ -1660,13 +1749,35 @@ h2 {
   padding-top: 0;
 }
 
-.result-details > .run-status-panel {
-  margin: 10px 0 0;
+.result-details .collapsible-panel-always-visible > .run-status-panel {
+  margin: 0;
   padding: 9px 11px;
 }
 
-.result-details > .empty-results {
-  margin-top: 10px;
+.result-details .collapsible-panel-always-visible > .empty-results {
+  margin: 9px 0;
+}
+
+.result-details .collapsible-panel-body {
+  gap: 0;
+  padding-top: 0;
+}
+
+.result-chart-panel .chart-panel.chart-overlay {
+  padding: 7px 0 0;
+  background: transparent;
+  border: 0;
+}
+
+.chart-aux-panel .collapsible-panel-body {
+  padding: 0 12px 12px;
+}
+
+.chart-aux-panel .chart-panel {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .snapshot-warning {
@@ -2672,9 +2783,15 @@ h2 {
     scroll-snap-type: x proximity;
   }
 
-  .result-details-header {
+  .collapsible-panel-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .collapsible-panel-details,
+  .collapsible-panel-actions {
+    flex: 1 1 auto;
+    width: 100%;
   }
 
   .result-context-actions {
@@ -2683,6 +2800,10 @@ h2 {
 
   .result-context-actions .export-controls {
     flex: 1 1 100%;
+  }
+
+  .chart-aux-panel .chart-panel {
+    padding: 0;
   }
 
   .result-tab {

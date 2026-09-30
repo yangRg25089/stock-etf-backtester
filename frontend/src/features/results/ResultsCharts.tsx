@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefCallback } from "react";
 import type { DailyAsset, SignalEvaluation, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
+import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import {
   normalizeSeriesToBase100,
   normalizeValueToBase100,
@@ -346,6 +347,7 @@ function LineChart({
   hasBuySignalObservations,
   viewport,
   chartInteractionProps,
+  showCaption = true,
 }: {
   locale: Locale;
   assets: DailyAsset[];
@@ -357,6 +359,7 @@ function LineChart({
   hasBuySignalObservations: boolean;
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
+  showCaption?: boolean;
 }) {
   if (samples.length === 0) return null;
   const range = visibleIndexRange(assets.length, viewport);
@@ -385,7 +388,9 @@ function LineChart({
   const plotClipId = `chart-plot-${series.id}`;
   return (
     <figure className={figureClass} data-window-start={viewport.start} data-window-end={viewport.end}>
-      <figcaption>{symbolLabel ? `${symbolLabel} · ` : ""}{seriesLabel(locale, series, currency)}</figcaption>
+      <figcaption className={showCaption ? undefined : "sr-only"}>
+        {symbolLabel ? `${symbolLabel} · ` : ""}{seriesLabel(locale, series, currency)}
+      </figcaption>
       <svg
         {...chartInteractionProps}
         className="result-chart"
@@ -643,6 +648,7 @@ export function ResultsCharts({
 }: ResultsChartsProps) {
   const [viewport, setViewport] = useState<ChartViewport>(FULL_CHART_VIEWPORT);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState(false);
+  const [expandedIndicators, setExpandedIndicators] = useState<Set<ChartSeriesId>>(() => new Set());
   const dragState = useRef<PointerDragState | null>(null);
   const samplesById = useMemo(
     () => new Map(SERIES.map(({ id }) => [id, samplesForSeries(id, dailyAssets, signals)])),
@@ -858,21 +864,41 @@ export function ResultsCharts({
               chartInteractionProps={chartInteractionProps}
             />
           )}
-          {indicatorSeries.map((series) => (
-            <LineChart
-              key={series.id}
-              locale={locale}
-              assets={dailyAssets}
-              trades={trades}
-              series={series}
-              samples={samplesById.get(series.id) ?? []}
-              symbol={series.id === "vix" ? vixSymbol : undefined}
-              thresholdValue={thresholdValue}
-              hasBuySignalObservations={hasBuySignalObservations}
-              viewport={viewport}
-              chartInteractionProps={chartInteractionProps}
-            />
-          ))}
+          {indicatorSeries.map((series) => {
+            const expanded = expandedIndicators.has(series.id);
+            const title = series.id === "vix" && vixSymbol
+              ? `${vixSymbol} · ${seriesLabel(locale, series, currency)}`
+              : seriesLabel(locale, series, currency);
+            return (
+              <CollapsiblePanel
+                id={`chart-aux-${series.id}`}
+                className="chart-aux-panel"
+                key={series.id}
+                title={title}
+                expanded={expanded}
+                onExpandedChange={(nextExpanded) => setExpandedIndicators((current) => {
+                  const next = new Set(current);
+                  if (nextExpanded) next.add(series.id);
+                  else next.delete(series.id);
+                  return next;
+                })}
+              >
+                <LineChart
+                  locale={locale}
+                  assets={dailyAssets}
+                  trades={trades}
+                  series={series}
+                  samples={samplesById.get(series.id) ?? []}
+                  symbol={series.id === "vix" ? vixSymbol : undefined}
+                  thresholdValue={thresholdValue}
+                  hasBuySignalObservations={hasBuySignalObservations}
+                  viewport={viewport}
+                  chartInteractionProps={chartInteractionProps}
+                  showCaption={false}
+                />
+              </CollapsiblePanel>
+            );
+          })}
         </>
       )}
     </div>

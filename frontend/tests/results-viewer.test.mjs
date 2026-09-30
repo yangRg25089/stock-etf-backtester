@@ -79,8 +79,8 @@ function workspaceWithRun() {
     status: "completed",
     metrics: metrics("130.00"),
     dailyAssets: [
-      { date: "2024-02-01", totalAsset: "110", drawdown: "0" },
-      { date: "2024-02-02", totalAsset: "130", drawdown: "-0.02" },
+      { date: "2024-02-01", simulationPrice: "100", currency: "USD", totalAsset: "110", unitNav: "1", drawdown: "0" },
+      { date: "2024-02-02", simulationPrice: "105", currency: "USD", totalAsset: "130", unitNav: "1.1", drawdown: "-0.02" },
     ],
     trades: [trade("focused-benchmark-trade", "2024-02-02")],
     diagnostics: [],
@@ -123,6 +123,8 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
   assert.doesNotMatch(html, /active-vix-trade/);
   assert.match(html, /2024-02-02/);
   assert.match(html, /data-export-kind="summary"/);
+  assert.match(html, /class="collapsible-panel-toggle"[^>]*aria-expanded="true"[^>]*aria-controls="result-details-content"/);
+  assert.match(html, /id="result-details-content" class="collapsible-panel-body"/);
 });
 
 test("the result details card leads, clean success status is omitted, and overview holds five core KPIs", () => {
@@ -136,7 +138,7 @@ test("the result details card leads, clean success status is omitted, and overvi
 
   const detailsPosition = html.indexOf('id="result-details"');
   const metricsPosition = html.indexOf('id="result-panel-overview"');
-  const chartPosition = html.indexOf('id="result-display-heading"');
+  const chartPosition = html.indexOf('id="result-chart-panel"');
   assert.ok(detailsPosition >= 0 && detailsPosition < chartPosition);
   assert.ok(metricsPosition > detailsPosition && metricsPosition < chartPosition);
   assert.ok(chartPosition >= 0);
@@ -145,6 +147,7 @@ test("the result details card leads, clean success status is omitted, and overvi
   assert.match(html, /QQQ · 2020-01-01 — 2024-02-02/);
   assert.match(html, /<code class="result-run-id">saved-run<\/code>/);
   assert.match(html, /aria-label="查看结果"/);
+  assert.match(html, /aria-controls="result-chart-panel-content"[^>]*aria-expanded="true"|aria-expanded="true"[^>]*aria-controls="result-chart-panel-content"/);
   assert.match(html, /value="benchmark-dca"/);
   assert.match(html, /data-export-kind="summary"/);
   const overviewMetrics = html.slice(metricsPosition, html.indexOf('id="result-panel-comparison"'));
@@ -165,9 +168,12 @@ test("warning status and diagnostics stay inside the result details card", () =>
     dispatch() {},
   }));
   const detailsPosition = html.indexOf('id="result-details"');
+  const alwaysVisiblePosition = html.indexOf('class="collapsible-panel-always-visible"');
   const runStatusPosition = html.indexOf('class="run-status-panel"');
+  const detailsBodyPosition = html.indexOf('id="result-details-content"');
   const metricsPosition = html.indexOf('id="result-panel-overview"');
   assert.ok(detailsPosition >= 0 && detailsPosition < runStatusPosition);
+  assert.ok(alwaysVisiblePosition < runStatusPosition && runStatusPosition < detailsBodyPosition);
   assert.ok(runStatusPosition < metricsPosition);
   assert.doesNotMatch(html, /class="run-status-panel is-compact"/);
 });
@@ -201,6 +207,7 @@ test("request failures, partial failures, and stale-snapshot notices stay with t
     dispatch() {},
   }));
   assert.ok(partialHtml.indexOf('id="result-details"') < partialHtml.indexOf('class="run-status-panel"'));
+  assert.ok(partialHtml.indexOf('class="run-status-panel"') < partialHtml.indexOf('id="result-details-content"'));
   assert.match(partialHtml, /部分策略已完成/);
   assert.match(partialHtml, /计算过程中发生错误/);
   assert.equal((partialHtml.match(/计算过程中发生错误/g) ?? []).length, 1);
@@ -267,7 +274,8 @@ test("chart and trade display controls are independent and chart legend remains 
   }));
   assert.match(chartOnly, /<svg /);
   assert.doesNotMatch(chartOnly, /class="data-table trade-table"/);
-  assert.match(chartOnly, /class="display-toggle"[^>]*aria-label="資産チャートを表示"[^>]*aria-pressed="true"/);
+  assert.match(chartOnly, /id="result-chart-panel-toggle"[^>]*aria-expanded="true"/);
+  assert.match(chartOnly, /id="result-chart-panel-heading"[^>]*>.*?<span>資産推移<\/span>/s);
   assert.match(chartOnly, /aria-pressed="false">取引明細を表示/);
 
   state.showChart = false;
@@ -277,7 +285,9 @@ test("chart and trade display controls are independent and chart legend remains 
     state,
     dispatch() {},
   }));
-  assert.doesNotMatch(tradesOnly, /class="chart-panel/);
+  assert.match(tradesOnly, /aria-expanded="false"[^>]*aria-controls="result-chart-panel-content"/);
+  assert.match(tradesOnly, /id="result-chart-panel-content" class="collapsible-panel-body"[^>]*hidden=""/);
+  assert.match(tradesOnly, /class="chart-panel chart-overlay/);
   assert.match(tradesOnly, /class="data-table trade-table"/);
 });
 

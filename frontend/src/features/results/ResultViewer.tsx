@@ -1,6 +1,7 @@
 import type { RunResponse, StrategyRun, StrategyStatus } from "../../api/generated";
 import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
+import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
 import { findFocusedResult, isRunSnapshotStale } from "./model";
 import { ResultsCharts } from "./ResultsCharts";
@@ -48,25 +49,14 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
       />
 
       {run && focusedResult && (
-        <section aria-labelledby="result-display-heading">
-          <div className="result-section-heading result-display-heading">
-            <h3 id="result-display-heading">{translate(locale, "results.displayTitle")}</h3>
-            <button
-              className="display-toggle"
-              type="button"
-              aria-label={translate(locale, "chart.toggle")}
-              title={translate(locale, "chart.toggle")}
-              aria-pressed={state.showChart}
-              onClick={() => dispatch({ type: "display.chart", value: !state.showChart })}
-            >
-              <span aria-hidden="true">
-                <svg viewBox="0 0 20 20" focusable="false">
-                  <path d="M2 17.5h16M3.5 14l4-4 3 2 5.5-7" />
-                </svg>
-              </span>
-            </button>
-          </div>
-          {state.showChart && canShowSavedValues && (
+        <CollapsiblePanel
+          id="result-chart-panel"
+          className="result-chart-panel"
+          title={translate(locale, "chart.panelTitle")}
+          expanded={state.showChart}
+          onExpandedChange={(value) => dispatch({ type: "display.chart", value })}
+        >
+          {canShowSavedValues ? (
             <ResultsCharts
               key={focusedResult.id}
               locale={locale}
@@ -81,11 +71,10 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
               onSeriesChange={(id, visible) => dispatch({ type: "chart.series", id, visible })}
               onOverlayModeChange={(value) => dispatch({ type: "chart.overlay", value })}
             />
-          )}
-          {state.showChart && !canShowSavedValues && (
+          ) : (
             <p className="metric-empty">{translate(locale, "results.metricsUnavailable")}</p>
           )}
-        </section>
+        </CollapsiblePanel>
       )}
     </div>
   );

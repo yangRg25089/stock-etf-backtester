@@ -514,9 +514,9 @@ test("shared summary follows the single form and strategy editing preserves inde
   const benchmark = page.locator("button.result-select").filter({ hasText: "benchmark:monthly-dca" });
   await benchmark.click();
   await expect(benchmark).toHaveAttribute("aria-pressed", "true");
-  const chartToggle = page.getByRole("button", { name: "資産チャートを表示" });
+  const chartToggle = page.getByRole("button", { name: "資産推移" });
   await chartToggle.click();
-  await expect(chartToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(chartToggle).toHaveAttribute("aria-expanded", "false");
 
   await page.locator(".strategy-card-open").filter({ hasText: "VIX シグナル積立" }).click();
   await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("VIX シグナル積立");
@@ -524,7 +524,7 @@ test("shared summary follows the single form and strategy editing preserves inde
   await expect(page.locator(".strategy-card").filter({ hasText: "毎月定額積立" }).locator(".strategy-run-target")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#run-scope-select")).toHaveValue("all_enabled");
   await expect(benchmark).toHaveAttribute("aria-pressed", "true");
-  await expect(chartToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(chartToggle).toHaveAttribute("aria-expanded", "false");
 
   await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("26");
   await closeStrategyDialog(page);
@@ -682,8 +682,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(resultFocus).toHaveValue(benchmark.id);
   await resultFocus.selectOption(initialFocus);
   await expect(resultFocus).toHaveValue(initialFocus);
-  const chartVisibilityButton = page.getByRole("button", { name: "資産チャートを表示" });
-  await expect(chartVisibilityButton).toHaveAttribute("aria-pressed", "true");
+  const chartVisibilityButton = page.getByRole("button", { name: "資産推移" });
+  await expect(chartVisibilityButton).toHaveAttribute("aria-expanded", "true");
   await expect(chartVisibilityButton.locator("svg")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "全期間に戻す" })).toBeVisible();
   const overviewOrder = await page.evaluate(() => ({
@@ -761,6 +761,23 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   }
   expect(savedResultViewports).toHaveLength(5);
 
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.locator(".workbench-mobile-view").filter({ hasText: "結果" }).click();
+  const mobileDetailsHeader = page.locator("#result-details .collapsible-panel-header");
+  await expect(mobileDetailsHeader).toBeVisible();
+  const mobileHeaderBounds = await mobileDetailsHeader.evaluate((header) => {
+    const bounds = header.getBoundingClientRect();
+    return {
+      clientWidth: header.clientWidth,
+      scrollWidth: header.scrollWidth,
+      right: bounds.right,
+      childrenWithinHeader: [...header.querySelectorAll("button, select")].every((control) =>
+        control.getBoundingClientRect().right <= bounds.right + 1),
+    };
+  });
+  expect(mobileHeaderBounds.scrollWidth).toBeLessThanOrEqual(mobileHeaderBounds.clientWidth + 1);
+  expect(mobileHeaderBounds.childrenWithinHeader).toBe(true);
+
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.locator(".workbench-results").evaluate((element) => { element.scrollTop = 0; });
   await page.mouse.move(2, 700);
@@ -772,6 +789,17 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await page.screenshot({ path: test.info().outputPath("workbench-1440-first-screen.png") });
   const resultDetails = page.locator("#result-details");
   await expect(resultDetails).toBeVisible();
+  const detailsToggle = page.getByRole("button", { name: "実行結果" });
+  await expect(detailsToggle).toHaveAttribute("aria-expanded", "true");
+  await detailsToggle.focus();
+  await page.keyboard.press("Space");
+  await expect(detailsToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(detailsToggle).toBeFocused();
+  await expect(page.locator("#result-details-content")).toBeHidden();
+  await expect(page.locator("#result-focus-select")).toBeVisible();
+  await expect(page.locator('[data-export-kind="summary"]')).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(detailsToggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("tablist", { name: "実行結果" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "概要" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "その他の指標" }).click();
@@ -783,8 +811,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await benchmarkButton.click();
   await expect(benchmarkButton).toHaveAttribute("aria-pressed", "true");
 
-  const chartToggle = page.getByRole("button", { name: "資産チャートを表示" });
-  await expect(chartToggle).toHaveAttribute("aria-pressed", "true");
+  const chartToggle = page.getByRole("button", { name: "資産推移" });
+  await expect(chartToggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("svg[role=img]").first()).toBeVisible();
   const coreChart = page.locator(".chart-panel.chart-overlay").first();
   await expect(coreChart.locator(".overlay-series-line.overlay-price")).toBeVisible();
@@ -798,12 +826,19 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(coreChart.locator(".overlay-legend")).toContainText("総資産 (USD)");
   expect(await coreChart.locator(".chart-gridline").count()).toBeGreaterThan(7);
   await expect(coreChart.locator(".candlestick")).toHaveCount(0);
+  const chartWindowBeforeCollapse = {
+    start: await coreChart.getAttribute("data-window-start"),
+    end: await coreChart.getAttribute("data-window-end"),
+  };
   await chartToggle.click();
-  await expect(chartToggle).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator("svg[role=img]")).toHaveCount(0);
+  await expect(chartToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(coreChart).toBeHidden();
+  await expect(page.locator(".chart-panel.chart-overlay")).toHaveCount(1);
   await chartToggle.click();
-  await expect(chartToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(chartToggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("svg[role=img]").first()).toBeVisible();
+  await expect(coreChart).toHaveAttribute("data-window-start", chartWindowBeforeCollapse.start);
+  await expect(coreChart).toHaveAttribute("data-window-end", chartWindowBeforeCollapse.end);
   const strategyButton = page.locator("button.result-select").filter({ hasText: "strategy-vix_dca-1" });
   await strategyButton.click();
   await expect(page.locator(".chart-panel.chart-vix")).toContainText("25");
@@ -856,6 +891,32 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(splitEventSpan).toBeCloseTo(singleEventSpan, 2);
   await wheelResetButton.click();
   for (const chartSelector of ["chart-overlay", "chart-drawdown", "chart-vix"]) {
+    if (chartSelector === "chart-drawdown" || chartSelector === "chart-vix") {
+      const auxiliaryToggle = page.locator(chartSelector === "chart-drawdown"
+        ? "#chart-aux-drawdown-toggle"
+        : "#chart-aux-vix-toggle");
+      await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "false");
+      if (chartSelector === "chart-drawdown") {
+        const panel = page.locator(".chart-panel.chart-drawdown");
+        const originalWindow = {
+          start: await panel.getAttribute("data-window-start"),
+          end: await panel.getAttribute("data-window-end"),
+        };
+        await auxiliaryToggle.click();
+        await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "true");
+        await expect(panel).toBeVisible();
+        await auxiliaryToggle.click();
+        await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "false");
+        await expect(panel).toBeHidden();
+        await auxiliaryToggle.click();
+        await expect(panel).toBeVisible();
+        await expect(panel).toHaveAttribute("data-window-start", originalWindow.start);
+        await expect(panel).toHaveAttribute("data-window-end", originalWindow.end);
+      } else {
+        await auxiliaryToggle.click();
+        await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "true");
+      }
+    }
     const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
     if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
     const chart = page.locator(`.chart-panel.${chartSelector} .result-chart`);

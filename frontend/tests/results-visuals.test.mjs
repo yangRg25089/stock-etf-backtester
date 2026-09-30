@@ -58,6 +58,10 @@ test("all financial charts use readable lines and saved results mark trades", ()
   assert.match(html, /QQQ · 価格 \(USD\)/);
   assert.match(html, /総資産/);
   assert.match(html, /ドローダウン/);
+  assert.match(html, /id="chart-aux-drawdown" class="collapsible-panel chart-aux-panel"/);
+  assert.match(html, /aria-expanded="false"[^>]*aria-controls="chart-aux-drawdown-content"/);
+  assert.match(html, /id="chart-aux-drawdown-content" class="collapsible-panel-body"[^>]*hidden=""/);
+  assert.match(html, /class="chart-panel chart-drawdown/);
 });
 
 test("saved snapshots render a close-price trend line without requiring OHLC", () => {
