@@ -520,10 +520,37 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
       };
     });
     viewportMeasurements.push(measurements);
+    expect(measurements.documentHeight, JSON.stringify(measurements)).toBeLessThanOrEqual(height + 2);
     expect(measurements.mainBottom, JSON.stringify(measurements)).toBeLessThanOrEqual(height + 2);
     expect(measurements.unusedPaneHeight, JSON.stringify(measurements)).toBeLessThanOrEqual(1);
   }
   expect(viewportMeasurements).toHaveLength(7);
+
+  const savedResultViewports = [];
+  for (const [width, height] of [[1920, 1080], [1536, 864], [1280, 720], [1024, 720], [768, 720]]) {
+    await page.setViewportSize({ width, height });
+    const measurements = await page.evaluate(() => ({
+      viewportHeight: window.innerHeight,
+      documentHeight: document.documentElement.scrollHeight,
+      mainBottom: document.querySelector(".main-content.workbench-main").getBoundingClientRect().bottom,
+      resultsClientHeight: document.querySelector(".workbench-results").clientHeight,
+      resultsScrollHeight: document.querySelector(".workbench-results").scrollHeight,
+    }));
+    savedResultViewports.push({ width, ...measurements });
+    expect(measurements.documentHeight, JSON.stringify({ width, ...measurements })).toBeLessThanOrEqual(height + 2);
+    expect(measurements.mainBottom, JSON.stringify({ width, ...measurements })).toBeLessThanOrEqual(height + 2);
+    expect(measurements.resultsClientHeight).toBeGreaterThan(0);
+    expect(measurements.resultsScrollHeight).toBeGreaterThan(measurements.resultsClientHeight);
+  }
+  expect(savedResultViewports).toHaveLength(5);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.locator(".workbench-results").evaluate((element) => { element.scrollTop = 0; });
+  await page.mouse.move(2, 700);
+  await page.mouse.wheel(0, 560);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect.poll(() => page.locator(".workbench-results").evaluate((element) => element.scrollTop)).toBe(0);
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({ path: test.info().outputPath("workbench-1440-first-screen.png") });
   const detailsEntry = page.getByRole("link", { name: "結果詳細を見る" });

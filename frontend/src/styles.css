@@ -334,6 +334,7 @@ summary:focus-visible,
 }
 
 .workbench-results {
+  position: relative;
   padding: 0 0 16px 10px;
   border-left: 1px solid var(--app-border);
 }
@@ -2281,6 +2282,8 @@ h2 {
 
 .sr-only {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   padding: 0;

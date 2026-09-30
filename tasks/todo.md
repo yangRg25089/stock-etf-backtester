@@ -204,9 +204,11 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 
 ## 阶段 14：工作台扁平化与有效视口修复
 
-**状态（2026-09-30）：** 审计和计划已完成，应用实现未开始。布局/交互目标见 [扁平化方案](../docs/design/workbench-flattening-proposal.md)，详细验收与门禁见 [实施计划](plan.md) 阶段 14。每 Task 按 loop-engineering 循环验收，检查点不跳过；全部交付后执行 stabilization-loop。
+**状态（2026-09-30）：** Task 47 已完成；布局/交互目标见 [扁平化方案](../docs/design/workbench-flattening-proposal.md)，详细验收与门禁见 [实施计划](plan.md) 阶段 14。每 Task 按 loop-engineering 循环验收，检查点不跳过；全部交付后执行 stabilization-loop。
 
-- [ ] Task 47：修复外层滚动产生的底部空白
+- [x] Task 47：修复外层滚动产生的底部空白
+
+  验收：隐藏内容限定在结果滚动区内，document 与工作区不越过视口；保存运行在五种宽度和七种高度的几何检查通过，结果区独立滚动，外围滚动不误触发结果面板。前端单测 101/101、typecheck、lint、build、相关 E2E 2/2 通过。
 
 - [ ] Task 48：将执行入口整合到唯一常驻顶栏
 
