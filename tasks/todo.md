@@ -99,4 +99,11 @@
 
 **Task 30 验收（2026-09-30）：** 后端 309 项全量测试通过（含真实 Yahoo + 临时 SQLite QQQ/VIX 回归；6 条 yfinance 弃用警告）；Ruff check/format 与 mypy 全部通过。前端 77 项单测、typecheck、lint、build 和 12 项 Playwright E2E 全部通过。浏览器请求计数确认提交和恢复各使用一次 SSE，并各使用一次带 run ID 的终态结果 GET；启动时单独的 `/runs/latest` 查询不计作运行结果 GET。
 
+## 阶段 8：行情缺口静默处理与核心曲线合图
+
+- [x] Task 31：移除最新行情延迟警告；孤立单日缺口从共享交易日历中跳过且不造价；价格与总资产在相对指数图中始终合并显示
+- [x] Task 31 验收：最新尾部、孤立单日、连续多日缺口的确定性测试；核心价格/资产同图、100 基准线、辅助指标布局和浏览器交互回归
+
+**Task 31 验收记录（2026-09-30）：** 后端 311 项全量测试（含真实 Yahoo + SQLite QQQ/VIX API 回归）、Ruff check/format、mypy 通过；前端 78 项测试、typecheck、lint、build 和 12 项 Playwright E2E 通过。E2E 覆盖 320/768/1024/1440px、双语、axe、图表缩放/拖动同步与 100 基准线；未发现页面错误或非本地请求。
+
 Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及阶段 6 的图表和参数表单后续优化见 [`tasks/plan.md`](plan.md) 和 [`docs/development.md`](../docs/development.md)。

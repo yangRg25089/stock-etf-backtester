@@ -41,18 +41,21 @@ test("all financial charts use readable lines and saved results mark trades", ()
     locale: "ja",
     dailyAssets,
     trades,
+    assetSymbol: "QQQ",
     visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
     onSeriesChange() {},
   }));
 
-  assert.equal((html.match(/<svg /g) ?? []).length, 3);
+  assert.equal((html.match(/<svg /g) ?? []).length, 2);
   assert.equal((html.match(/<polyline /g) ?? []).length, 3);
-  assert.equal((html.match(/class="trade-marker /g) ?? []).length, 2);
+  assert.equal((html.match(/class="price-trade-marker /g) ?? []).length, 2);
   assert.equal((html.match(/class="candlestick candlestick-/g) ?? []).length, 0);
-  assert.match(html, /class="chart-series-line price-close-line"/);
+  assert.match(html, /class="overlay-series overlay-price"/);
+  assert.match(html, /class="overlay-series overlay-totalAsset"/);
+  assert.match(html, /class="chart-baseline-line"[^>]*data-baseline="100"/);
   assert.ok((html.match(/class="chart-gridline/g) ?? []).length >= 12);
   assert.match(html, /chart-axis-title/);
-  assert.match(html, /価格 \(USD\)/);
+  assert.match(html, /QQQ · 価格 \(USD\)/);
   assert.match(html, /総資産/);
   assert.match(html, /ドローダウン/);
 });
@@ -68,7 +71,7 @@ test("saved snapshots render a close-price trend line without requiring OHLC", (
     onSeriesChange() {},
   }));
 
-  assert.match(html, /price-close-line/);
+  assert.match(html, /overlay-series overlay-price/);
   assert.doesNotMatch(html, /class="candlestick candlestick-/);
   assert.match(html, /<polyline[^>]*tabindex="0"[^>]*aria-label="価格 \(USD\) · 2024-01-04/);
 });
@@ -98,6 +101,7 @@ test("overlay mode combines selected series on a base-100 index", () => {
 
   assert.equal((html.match(/class="overlay-series-line /g) ?? []).length, 4);
   assert.match(html, /起点 = 100/);
+  assert.match(html, /data-baseline="100"/);
   assert.match(html, /class="chart-panel chart-overlay"/);
   assert.doesNotMatch(html, /class="candlestick candlestick-/);
   assert.doesNotMatch(html, /class="chart-panel chart-price"/);
@@ -106,7 +110,7 @@ test("overlay mode combines selected series on a base-100 index", () => {
   assert.match(html, /aria-label="价格 \(USD\) · 2024-01-04 · US\$80/);
 });
 
-test("total-asset chart keeps its currency axis at zero or above", () => {
+test("core comparison starts at 100 and keeps original total-asset currency in the legend", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja",
     dailyAssets: dailyAssets.map((asset, index) => ({
@@ -117,12 +121,22 @@ test("total-asset chart keeps its currency axis at zero or above", () => {
     visibleSeriesIds: ["totalAsset"],
     onSeriesChange() {},
   }));
-  const assetChart = html.match(/<figure class="chart-panel chart-totalAsset"[^>]*>([\s\S]*?)<\/figure>/)?.[1] ?? "";
-  const yTickLabels = [...assetChart.matchAll(/class="chart-tick-label chart-y-tick"[^>]*>(.*?)<\/text>/g)]
-    .map((match) => match[1] ?? "");
+  assert.match(html, /chart-y-axis-title/);
+  assert.match(html, /chart-baseline-label[^>]*>開始値 100<\/text>/);
+  assert.match(html, /総資産 \(USD\)/);
+  assert.match(html, /\$104/);
+});
 
-  assert.ok(yTickLabels.length > 0);
-  assert.ok(yTickLabels.every((label) => !label.includes("-") && !label.includes("−")));
+test("indicator overlay is disabled when no auxiliary series is selected", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "ja",
+    dailyAssets,
+    trades: [],
+    visibleSeriesIds: ["price", "totalAsset"],
+    onSeriesChange() {},
+  }));
+
+  assert.match(html, /aria-pressed="false" disabled="">選択した指標も重ねる<\/button>/);
 });
 
 test("chart legend only changes visible chart series", () => {
@@ -137,7 +151,7 @@ test("chart legend only changes visible chart series", () => {
   assert.match(html, /aria-pressed="false"><span/);
   assert.ok(html.includes("</span>回撤 (%)</button>"));
   assert.match(html, /aria-label="显示的图表"/);
-  assert.match(html, /重叠显示所选图表/);
+  assert.match(html, /将其他所选曲线也叠加/);
 });
 
 test("VIX chart uses saved observed signal values and frozen threshold", () => {

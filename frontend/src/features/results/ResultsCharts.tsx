@@ -262,6 +262,16 @@ function seriesLabel(locale: Locale, series: SeriesDefinition, currency?: string
   return `${translate(locale, series.labelKey)}${units ? ` (${units})` : ""}`;
 }
 
+function overlaySeriesLabel(
+  locale: Locale,
+  series: SeriesDefinition,
+  currency: string | undefined,
+  assetSymbol: string | undefined,
+): string {
+  const label = seriesLabel(locale, series, currency);
+  return series.id === "price" && assetSymbol ? `${assetSymbol} · ${label}` : label;
+}
+
 function lineCoordinates(
   points: SeriesSample[],
   scale: ChartScale,
@@ -440,6 +450,7 @@ function OverlayChart({
   locale,
   assets,
   trades,
+  assetSymbol,
   series,
   samplesById,
   currency,
@@ -451,6 +462,7 @@ function OverlayChart({
   locale: Locale;
   assets: DailyAsset[];
   trades: Trade[];
+  assetSymbol?: string;
   series: SeriesDefinition[];
   samplesById: Map<ChartSeriesId, SeriesSample[]>;
   currency?: string;
@@ -463,7 +475,7 @@ function OverlayChart({
     const result = normalizeSeriesToBase100(definition.id, samplesById.get(definition.id) ?? []);
     return result ? [{ definition, result }] : [];
   }), [samplesById, series]);
-  if (normalized.length < 2) {
+  if (normalized.length === 0) {
     return <p className="chart-empty">{translate(locale, "chart.noOverlaySeries")}</p>;
   }
 
@@ -475,7 +487,10 @@ function OverlayChart({
     chartPoints: samplesInViewport(result.points, viewport, dateCount),
     visiblePoints: result.points.filter((point) => point.index >= range.start && point.index <= range.end),
   }));
-  const values = visibleNormalized.flatMap(({ chartPoints }) => chartPoints.map((point) => point.indexValue));
+  const values = [
+    100,
+    ...visibleNormalized.flatMap(({ chartPoints }) => chartPoints.map((point) => point.indexValue)),
+  ];
   const scale = chartScale(values);
   const thresholdIndex = normalized.some(({ definition }) => definition.id === "vix") && hasBuySignalObservations && thresholdValue !== null
     ? normalizeValueToBase100("vix", thresholdValue, normalized.find(({ definition }) => definition.id === "vix")?.result.baseValue ?? 0)
@@ -494,7 +509,10 @@ function OverlayChart({
   const plotClipId = "chart-plot-overlay";
   return (
     <figure className="chart-panel chart-overlay" data-window-start={viewport.start} data-window-end={viewport.end}>
-      <figcaption>{translate(locale, "chart.overlayTitle")}</figcaption>
+      <figcaption>
+        {assetSymbol ? `${assetSymbol} · ` : ""}
+        {translate(locale, "chart.overlayTitle")}
+      </figcaption>
       <p className="chart-overlay-description">{translate(locale, "chart.overlayDescription")}</p>
       <svg
         {...chartInteractionProps}
@@ -518,6 +536,22 @@ function OverlayChart({
           </clipPath>
         </defs>
         <g clipPath={`url(#${plotClipId})`}>
+          <line
+            className="chart-baseline-line"
+            data-baseline="100"
+            x1={CHART.left}
+            y1={scale.y(100)}
+            x2={CHART.width - CHART.right}
+            y2={scale.y(100)}
+          />
+          <text
+            className="chart-baseline-label"
+            x={CHART.width - CHART.right - 4}
+            y={scale.y(100) - 5}
+            textAnchor="end"
+          >
+            {translate(locale, "chart.baseReference")}
+          </text>
           {thresholdY !== null && (
             <line className="chart-threshold-line" x1={CHART.left} y1={thresholdY} x2={CHART.width - CHART.right} y2={thresholdY}>
               <title>{translate(locale, "chart.threshold", { threshold: String(thresholdValue) })}</title>
@@ -531,8 +565,8 @@ function OverlayChart({
           }));
           const lastPoint = visiblePoints.at(-1);
           const lastTitle = lastPoint
-            ? `${seriesLabel(locale, definition, currency)} · ${lastPoint.date} · ${formatAxisValue(lastPoint.value, locale, definition.id, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: lastPoint.indexValue.toFixed(1) })}`
-            : `${seriesLabel(locale, definition, currency)} · ${translate(locale, "chart.noSeriesInWindow")}`;
+            ? `${overlaySeriesLabel(locale, definition, currency, assetSymbol)} · ${lastPoint.date} · ${formatAxisValue(lastPoint.value, locale, definition.id, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: lastPoint.indexValue.toFixed(1) })}`
+            : `${overlaySeriesLabel(locale, definition, currency, assetSymbol)} · ${translate(locale, "chart.noSeriesInWindow")}`;
           return (
             <g className={`overlay-series overlay-${definition.id}`} key={definition.id}>
               {points.length > 1 ? (
@@ -569,7 +603,7 @@ function OverlayChart({
         {normalized.map(({ definition }) => (
           <span className="overlay-legend-item" role="listitem" key={definition.id}>
             <i className="overlay-legend-swatch" style={{ backgroundColor: definition.color }} aria-hidden="true" />
-            {seriesLabel(locale, definition, currency)}
+            {overlaySeriesLabel(locale, definition, currency, assetSymbol)}
           </span>
         ))}
       </div>
@@ -603,6 +637,16 @@ export function ResultsCharts({
   const selected = useMemo(
     () => available.filter((series) => visibleSeriesIds.includes(series.id)),
     [available, visibleSeriesIds],
+  );
+  const canOverlaySelection = selected.length >= 2 && selected.some(
+    (series) => series.id === "drawdown" || series.id === "vix",
+  );
+  const combinedOverlay = overlayMode && canOverlaySelection;
+  const coreSeries = selected.filter(
+    (series) => series.id === "price" || series.id === "totalAsset",
+  );
+  const indicatorSeries = selected.filter(
+    (series) => series.id === "drawdown" || series.id === "vix",
   );
   const currency = dailyAssets[0]?.currency;
   const thresholdValue = numericValue(vixThreshold);
@@ -703,13 +747,13 @@ export function ResultsCharts({
           })}
         </div>
         <div className="chart-layout-controls" role="group" aria-label={translate(locale, "chart.layout")}>
-          <button type="button" aria-pressed={!overlayMode} onClick={() => onOverlayModeChange(false)}>
+          <button type="button" aria-pressed={!combinedOverlay} onClick={() => onOverlayModeChange(false)}>
             {translate(locale, "chart.layout.separate")}
           </button>
           <button
             type="button"
-            aria-pressed={overlayMode}
-            disabled={selected.length < 2}
+            aria-pressed={combinedOverlay}
+            disabled={!canOverlaySelection}
             onClick={() => onOverlayModeChange(true)}
           >
             {translate(locale, "chart.layout.overlay")}
@@ -730,11 +774,14 @@ export function ResultsCharts({
           {translate(locale, "chart.resetRange")}
         </button>
       </div>
-      {overlayMode ? (
+      {selected.length === 0 ? (
+        <p className="chart-empty">{translate(locale, "chart.noVisibleSeries")}</p>
+      ) : combinedOverlay ? (
         <OverlayChart
           locale={locale}
           assets={dailyAssets}
           trades={trades}
+          assetSymbol={assetSymbol}
           series={selected}
           samplesById={samplesById}
           currency={currency}
@@ -743,27 +790,39 @@ export function ResultsCharts({
           viewport={viewport}
           chartInteractionProps={chartInteractionProps}
         />
-      ) : selected.length === 0 ? (
-        <p className="chart-empty">{translate(locale, "chart.noVisibleSeries")}</p>
       ) : (
-        selected.map((series) => (
-          <LineChart
-            key={series.id}
-            locale={locale}
-            assets={dailyAssets}
-            trades={trades}
-            series={series}
-            samples={samplesById.get(series.id) ?? []}
-            symbol={series.id === "price" ? assetSymbol : series.id === "vix" ? vixSymbol : undefined}
-            thresholdValue={thresholdValue}
-            hasBuySignalObservations={hasBuySignalObservations}
-            viewport={viewport}
-            chartInteractionProps={chartInteractionProps}
-          />
-        ))
-      )}
-      {overlayMode && selected.length < 2 && (
-        <p className="chart-empty">{translate(locale, "chart.noOverlaySeries")}</p>
+        <>
+          {coreSeries.length > 0 && (
+            <OverlayChart
+              locale={locale}
+              assets={dailyAssets}
+              trades={trades}
+              assetSymbol={assetSymbol}
+              series={coreSeries}
+              samplesById={samplesById}
+              currency={currency}
+              thresholdValue={thresholdValue}
+              hasBuySignalObservations={hasBuySignalObservations}
+              viewport={viewport}
+              chartInteractionProps={chartInteractionProps}
+            />
+          )}
+          {indicatorSeries.map((series) => (
+            <LineChart
+              key={series.id}
+              locale={locale}
+              assets={dailyAssets}
+              trades={trades}
+              series={series}
+              samples={samplesById.get(series.id) ?? []}
+              symbol={series.id === "vix" ? vixSymbol : undefined}
+              thresholdValue={thresholdValue}
+              hasBuySignalObservations={hasBuySignalObservations}
+              viewport={viewport}
+              chartInteractionProps={chartInteractionProps}
+            />
+          ))}
+        </>
       )}
     </div>
   );

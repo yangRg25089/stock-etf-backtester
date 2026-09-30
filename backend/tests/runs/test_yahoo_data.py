@@ -1,11 +1,11 @@
 from datetime import date
 
 from app.domain.contracts import EndMode
-from app.domain.status import Diagnostic, DiagnosticCode, DiagnosticSeverity
-from app.runs.yahoo_data import _apply_latest_quote_fallback
+from app.domain.status import Diagnostic, DiagnosticCode
+from app.runs.yahoo_data import _apply_market_gap_policy
 
 
-def test_latest_end_trims_only_trailing_unpublished_quote_sessions() -> None:
+def test_latest_end_trims_trailing_unpublished_quote_sessions_without_warning() -> None:
     sessions = (date(2026, 9, 28), date(2026, 9, 29))
     diagnostics = (
         Diagnostic(
@@ -23,25 +23,19 @@ def test_latest_end_trims_only_trailing_unpublished_quote_sessions() -> None:
         ),
     )
 
-    effective_sessions, effective_diagnostics = _apply_latest_quote_fallback(
+    effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         sessions,
         diagnostics,
         end_mode=EndMode.LATEST,
         scheduled_end=date(2026, 9, 29),
         latest_quote=date(2026, 9, 28),
-        symbol="QQQ",
     )
 
     assert effective_sessions == (date(2026, 9, 28),)
-    assert len(effective_diagnostics) == 1
-    warning = effective_diagnostics[0]
-    assert warning.code is DiagnosticCode.SOURCE_QUALITY_WARNING
-    assert warning.severity is DiagnosticSeverity.WARNING
-    assert warning.message_key == "market.latest_quote_delayed"
-    assert warning.details["unavailableSessions"] == ("2026-09-29",)
+    assert effective_diagnostics == ()
 
 
-def test_latest_end_keeps_interior_market_gaps_as_errors() -> None:
+def test_latest_end_skips_an_isolated_interior_session_without_filling_prices() -> None:
     diagnostics = (
         Diagnostic(
             code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
@@ -51,20 +45,19 @@ def test_latest_end_keeps_interior_market_gaps_as_errors() -> None:
         ),
     )
 
-    effective_sessions, effective_diagnostics = _apply_latest_quote_fallback(
-        (date(2026, 9, 28), date(2026, 9, 29)),
+    effective_sessions, effective_diagnostics = _apply_market_gap_policy(
+        (date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30)),
         diagnostics,
         end_mode=EndMode.LATEST,
-        scheduled_end=date(2026, 9, 29),
-        latest_quote=date(2026, 9, 29),
-        symbol="QQQ",
+        scheduled_end=date(2026, 9, 30),
+        latest_quote=date(2026, 9, 30),
     )
 
-    assert effective_sessions == (date(2026, 9, 28), date(2026, 9, 29))
-    assert effective_diagnostics == diagnostics
+    assert effective_sessions == (date(2026, 9, 29), date(2026, 9, 30))
+    assert effective_diagnostics == ()
 
 
-def test_latest_end_reports_tail_delay_without_hiding_an_interior_gap() -> None:
+def test_latest_end_skips_one_interior_gap_and_trims_unpublished_tail() -> None:
     diagnostics = (
         Diagnostic(
             code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
@@ -81,33 +74,19 @@ def test_latest_end_reports_tail_delay_without_hiding_an_interior_gap() -> None:
         ),
     )
 
-    effective_sessions, effective_diagnostics = _apply_latest_quote_fallback(
+    effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         (date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30)),
         diagnostics,
         end_mode=EndMode.LATEST,
         scheduled_end=date(2026, 9, 30),
         latest_quote=date(2026, 9, 29),
-        symbol="QQQ",
     )
 
-    assert effective_sessions == (date(2026, 9, 28), date(2026, 9, 29))
-    assert len(effective_diagnostics) == 2
-    missing = next(
-        item
-        for item in effective_diagnostics
-        if item.message_key == "market.missing_sessions"
-    )
-    warning = next(
-        item
-        for item in effective_diagnostics
-        if item.message_key == "market.latest_quote_delayed"
-    )
-    assert missing.details["missingSessions"] == ("2026-09-28",)
-    assert warning.severity is DiagnosticSeverity.WARNING
-    assert warning.details["unavailableSessions"] == ("2026-09-30",)
+    assert effective_sessions == (date(2026, 9, 29),)
+    assert effective_diagnostics == ()
 
 
-def test_fixed_end_does_not_trim_missing_quote_sessions() -> None:
+def test_fixed_end_skips_isolated_missing_session_without_inventing_price() -> None:
     diagnostics = (
         Diagnostic(
             code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
@@ -117,20 +96,19 @@ def test_fixed_end_does_not_trim_missing_quote_sessions() -> None:
         ),
     )
 
-    effective_sessions, effective_diagnostics = _apply_latest_quote_fallback(
+    effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         (date(2026, 9, 28), date(2026, 9, 29)),
         diagnostics,
         end_mode=EndMode.FIXED,
         scheduled_end=date(2026, 9, 29),
         latest_quote=date(2026, 9, 28),
-        symbol="QQQ",
     )
 
-    assert effective_sessions == (date(2026, 9, 28), date(2026, 9, 29))
-    assert effective_diagnostics == diagnostics
+    assert effective_sessions == (date(2026, 9, 28),)
+    assert effective_diagnostics == ()
 
 
-def test_latest_end_does_not_guess_numeric_looking_symbol_is_missing_data() -> None:
+def test_consecutive_missing_sessions_remain_a_required_data_error() -> None:
     diagnostics = (
         Diagnostic(
             code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
@@ -140,13 +118,71 @@ def test_latest_end_does_not_guess_numeric_looking_symbol_is_missing_data() -> N
         ),
     )
 
-    effective_sessions, effective_diagnostics = _apply_latest_quote_fallback(
+    effective_sessions, effective_diagnostics = _apply_market_gap_policy(
+        (date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30)),
+        diagnostics,
+        end_mode=EndMode.FIXED,
+        scheduled_end=date(2026, 9, 30),
+        latest_quote=date(2026, 9, 30),
+    )
+
+    assert effective_sessions == (
+        date(2026, 9, 28),
+        date(2026, 9, 29),
+        date(2026, 9, 30),
+    )
+    assert effective_diagnostics == diagnostics
+
+
+def test_separate_single_session_gaps_are_each_skipped() -> None:
+    sessions = (
+        date(2026, 9, 28),
+        date(2026, 9, 29),
+        date(2026, 9, 30),
+        date(2026, 10, 1),
+        date(2026, 10, 2),
+    )
+    diagnostics = (
+        Diagnostic(
+            code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+            messageKey="market.missing_sessions",
+            source="yahoo",
+            details={"missingSessions": ["2026-09-29", "2026-10-01"]},
+        ),
+    )
+
+    effective_sessions, effective_diagnostics = _apply_market_gap_policy(
+        sessions,
+        diagnostics,
+        end_mode=EndMode.FIXED,
+        scheduled_end=date(2026, 10, 2),
+        latest_quote=date(2026, 10, 2),
+    )
+
+    assert effective_sessions == (
+        date(2026, 9, 28),
+        date(2026, 9, 30),
+        date(2026, 10, 2),
+    )
+    assert effective_diagnostics == ()
+
+
+def test_latest_end_keeps_original_calendar_when_quote_precedes_every_session() -> None:
+    diagnostics = (
+        Diagnostic(
+            code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+            messageKey="market.missing_sessions",
+            source="yahoo",
+            details={"missingSessions": ["2026-09-28", "2026-09-29"]},
+        ),
+    )
+
+    effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         (date(2026, 9, 28), date(2026, 9, 29)),
         diagnostics,
         end_mode=EndMode.LATEST,
         scheduled_end=date(2026, 9, 29),
         latest_quote=date(2026, 9, 27),
-        symbol="QQQ",
     )
 
     assert effective_sessions == (date(2026, 9, 28), date(2026, 9, 29))

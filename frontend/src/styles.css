@@ -1200,6 +1200,18 @@ h2 {
   stroke-width: 1.5;
 }
 
+.chart-baseline-line {
+  stroke: #81918b;
+  stroke-dasharray: 4 4;
+  stroke-width: 1.25;
+}
+
+.chart-baseline-label {
+  fill: #53625d;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .chart-threshold-label {
   margin: 4px 0 0;
   color: #8b631f;

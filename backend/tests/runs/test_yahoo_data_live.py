@@ -98,6 +98,14 @@ def test_live_qqq_volatility_index_runs_use_real_yahoo_observations(tmp_path) ->
             diagnostic["severity"] == "warning"
             for diagnostic in strategy.get("diagnostics", [])
         )
+        assert all(
+            diagnostic["messageKey"] != "market.latest_quote_delayed"
+            for diagnostic in strategy.get("diagnostics", [])
+        )
+        assert (
+            strategy["dailyAssets"][-1]["date"]
+            == result["snapshot"]["config"]["shared"]["run"]["endDate"]
+        )
         assert strategy["metrics"]["relativeToDca"] is not None
         vix_signals = [
             item for item in strategy["signals"] if item["signalId"] == "vix.buy"

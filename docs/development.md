@@ -85,7 +85,7 @@ SEC_USER_AGENT='Stock ETF Backtester contact@example.com' \
 
 没有 `SEC_USER_AGENT` 时命令会在发出请求前安全失败。检查只请求 SEC 官方 CompanyFacts JSON 地址一次；报告、日志和诊断不会包含 User-Agent、响应正文或请求 URL。SEC 要求使用可识别的 User-Agent，并要求遵守 fair-access 速率限制；这个单次 smoke 不会自动重试。
 
-关闭 `--live` 时 smoke 命令不会调用供应商。provider 的超时、限流、缺少配置和脱敏边界通过 fake provider/HTTP opener 精确检查；另有真实 Yahoo API 回归保证默认 QQQ/VIX 数据链实际可用。回测本身在用户按下运行后会访问 Yahoo；若数据缺失，服务不会前向填充 VIX 或把行情缺口当成休市。
+关闭 `--live` 时 smoke 命令不会调用供应商。provider 的超时、限流、缺少配置和脱敏边界通过 fake provider/HTTP opener 精确检查；另有真实 Yahoo API 回归保证默认 QQQ/VIX 数据链实际可用。回测本身在用户按下运行后会访问 Yahoo；VIX 不会前向填充。单个缺失行情日会从共享回测日历中跳过且不造价，连续缺失两日及以上仍作为行情不可用处理。
 
 ## Fixture 更新流程
 

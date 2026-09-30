@@ -182,10 +182,15 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const chartToggle = page.getByRole("button", { name: "資産チャートを表示" });
   await expect(chartToggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("svg[role=img]").first()).toBeVisible();
-  await expect(page.locator(".chart-panel.chart-price .chart-axis-title").first()).toContainText("価格 (USD)");
-  expect(await page.locator(".chart-panel.chart-price .chart-gridline").count()).toBeGreaterThan(7);
-  await expect(page.locator(".chart-panel.chart-price .price-close-line")).toBeVisible();
-  await expect(page.locator(".chart-panel.chart-price .candlestick")).toHaveCount(0);
+  const coreChart = page.locator(".chart-panel.chart-overlay").first();
+  await expect(coreChart.locator(".overlay-series-line.overlay-price")).toBeVisible();
+  await expect(coreChart.locator(".overlay-series-line.overlay-totalAsset")).toBeVisible();
+  await expect(coreChart.locator(".overlay-series-line")).toHaveCount(2);
+  await expect(coreChart.locator(".chart-baseline-line")).toHaveAttribute("data-baseline", "100");
+  await expect(coreChart.locator(".overlay-legend")).toContainText("QQQ · 価格 (USD)");
+  await expect(coreChart.locator(".overlay-legend")).toContainText("総資産 (USD)");
+  expect(await coreChart.locator(".chart-gridline").count()).toBeGreaterThan(7);
+  await expect(coreChart.locator(".candlestick")).toHaveCount(0);
   await chartToggle.click();
   await expect(chartToggle).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("svg[role=img]")).toHaveCount(0);
@@ -196,7 +201,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await strategyButton.click();
   await expect(page.locator(".chart-panel.chart-vix")).toContainText("25");
   await expect(page.locator(".chart-panel.chart-vix .chart-threshold-line")).toHaveCount(1);
-  const readChartWindows = () => page.locator(".chart-panel:not(.chart-overlay)").evaluateAll((panels) =>
+  const readChartWindows = () => page.locator(".chart-panel").evaluateAll((panels) =>
     panels.map((panel) => ({
       start: panel.getAttribute("data-window-start"),
       end: panel.getAttribute("data-window-end"),
@@ -205,12 +210,17 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   );
   const expectSynchronizedWindows = async () => {
     const windows = await readChartWindows();
-    expect(windows).toHaveLength(4);
+    expect(windows).toHaveLength(3);
     expect(new Set(windows.map(({ start, end }) => `${start}:${end}`)).size).toBe(1);
     expect(new Set(windows.map(({ ticks }) => ticks.join("|"))).size).toBe(1);
     return windows[0];
   };
-  for (const chartSelector of ["chart-price", "chart-totalAsset", "chart-vix"]) {
+  const expectBaselineInsidePlot = async () => {
+    const baselineY = await page.locator(".chart-panel.chart-overlay .chart-baseline-line").getAttribute("y1");
+    expect(Number(baselineY)).toBeGreaterThanOrEqual(20);
+    expect(Number(baselineY)).toBeLessThanOrEqual(266);
+  };
+  for (const chartSelector of ["chart-overlay", "chart-drawdown", "chart-vix"]) {
     const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
     if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
     const chart = page.locator(`.chart-panel.${chartSelector} .result-chart`);
@@ -218,6 +228,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     await page.mouse.wheel(0, -160);
     await expect.poll(async () => page.locator(`.chart-panel.${chartSelector}`).getAttribute("data-window-start")).not.toBe("0");
     const zoomedWindow = await expectSynchronizedWindows();
+    await expectBaselineInsidePlot();
 
     const bounds = await chart.boundingBox();
     expect(bounds).toBeTruthy();
@@ -229,25 +240,26 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     await page.mouse.up();
     const draggedWindow = await expectSynchronizedWindows();
     expect(draggedWindow.start).not.toBe(zoomedWindow.start);
+    await expectBaselineInsidePlot();
   }
   const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
   if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
   await page.getByRole("button", { name: "期間を拡大" }).click();
   const keyboardZoomedWindow = await expectSynchronizedWindows();
-  await page.locator(".chart-panel.chart-price .result-chart").focus();
+  await page.locator(".chart-panel.chart-overlay .result-chart").focus();
   await page.keyboard.press("ArrowRight");
   const keyboardPannedWindow = await expectSynchronizedWindows();
   expect(keyboardPannedWindow.start).not.toBe(keyboardZoomedWindow.start);
   await page.keyboard.press("Home");
-  await expect(page.locator(".chart-panel.chart-price")).toHaveAttribute("data-window-start", "0");
-  const overlayButton = page.getByRole("button", { name: "選択したチャートを重ねる" });
+  await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-start", "0");
+  const overlayButton = page.getByRole("button", { name: "選択した指標も重ねる" });
   await overlayButton.click();
   await expect(page.locator(".chart-panel.chart-overlay .overlay-series-line")).toHaveCount(4);
   await expect(page.locator(".chart-panel.chart-overlay .chart-y-axis-title")).toContainText("100");
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-start", "0");
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-end", "1");
-  await page.getByRole("button", { name: "個別表示" }).click();
-  await expect(page.locator(".chart-panel.chart-price")).toBeVisible();
+  await page.getByRole("button", { name: "価格・総資産を同じ図で比較" }).click();
+  await expect(page.locator(".chart-panel.chart-overlay .overlay-series-line")).toHaveCount(2);
   const chartAccessibility = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
@@ -257,7 +269,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const chartLayout = await page.evaluate(() => ({
     viewport: window.innerWidth,
     document: document.documentElement.scrollWidth,
-    pricePanel: document.querySelector(".chart-panel.chart-price")?.getBoundingClientRect().width,
+    corePanel: document.querySelector(".chart-panel.chart-overlay")?.getBoundingClientRect().width,
   }));
   expect(chartLayout.document, JSON.stringify(chartLayout)).toBeLessThanOrEqual(chartLayout.viewport);
   await benchmarkButton.click();

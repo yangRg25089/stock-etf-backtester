@@ -33,7 +33,7 @@ from app.domain.contracts import (
     FrozenStrategyInstance,
     SharedSettings,
 )
-from app.domain.status import Diagnostic, DiagnosticCode, DiagnosticSeverity
+from app.domain.status import Diagnostic, DiagnosticCode
 from app.runs.data import StrategyDataLoad
 
 _LOGGER = logging.getLogger(__name__)
@@ -313,7 +313,7 @@ class YahooRunDataProvider:
             (bar.date for bar in base_snapshot.market.bars), default=None
         )
         effective_calendar_dates, effective_market_diagnostics = (
-            _apply_latest_quote_fallback(
+            _apply_market_gap_policy(
                 calendar_dates,
                 market_result.diagnostics,
                 end_mode=shared.run.end_mode,
@@ -324,7 +324,6 @@ class YahooRunDataProvider:
                     and actual_latest_quote >= shared.run.start_date
                     else None
                 ),
-                symbol=shared.run.symbol,
             )
         )
         final_calendar = ExchangeCalendar.from_dates(
@@ -642,29 +641,37 @@ def _unique_diagnostics(
     return tuple(unique)
 
 
-def _apply_latest_quote_fallback(
+def _apply_market_gap_policy(
     calendar_dates: tuple[Date, ...],
     diagnostics: tuple[Diagnostic, ...],
     *,
     end_mode: EndMode,
     scheduled_end: Date,
     latest_quote: Date | None,
-    symbol: str,
 ) -> tuple[tuple[Date, ...], tuple[Diagnostic, ...]]:
-    """Trim unpublished sessions only when the run explicitly asks for latest."""
+    """Skip isolated missing sessions and trim a delayed dynamic end without filling."""
 
-    if end_mode is not EndMode.LATEST or latest_quote is None:
+    latest_mode = end_mode is EndMode.LATEST and latest_quote is not None
+    if latest_mode:
+        assert latest_quote is not None
+        effective_dates = tuple(day for day in calendar_dates if day <= latest_quote)
+    else:
+        effective_dates = calendar_dates
+    if not effective_dates:
         return calendar_dates, diagnostics
 
-    unavailable_tail: set[Date] = set()
+    date_indices = {day: index for index, day in enumerate(calendar_dates)}
+    effective_date_set = set(effective_dates)
+    skipped_dates: set[Date] = set()
     retained: list[Diagnostic] = []
     for diagnostic in diagnostics:
         if (
-            diagnostic.code is DiagnosticCode.PRICE_BASIS_UNAVAILABLE
+            latest_mode
+            and diagnostic.code is DiagnosticCode.PRICE_BASIS_UNAVAILABLE
             and diagnostic.as_of is not None
+            and latest_quote is not None
             and latest_quote < diagnostic.as_of <= scheduled_end
         ):
-            unavailable_tail.add(diagnostic.as_of)
             continue
 
         if (
@@ -680,20 +687,47 @@ def _apply_latest_quote_fallback(
                 for item in raw_missing
                 if (parsed := _parse_diagnostic_date(item)) is not None
             )
-            if len(missing_dates) != len(raw_missing):
+            if len(missing_dates) != len(raw_missing) or len(set(missing_dates)) != len(
+                missing_dates
+            ):
                 retained.append(diagnostic)
                 continue
-            tail_dates = {
-                item for item in missing_dates if latest_quote < item <= scheduled_end
-            }
-            unavailable_tail.update(tail_dates)
-            interior_dates = tuple(
-                item for item in missing_dates if item not in tail_dates
-            )
-            if interior_dates:
+
+            unresolved: set[Date] = set()
+            missing_indices: list[int] = []
+            for missing_date in missing_dates:
+                if (
+                    latest_mode
+                    and latest_quote is not None
+                    and latest_quote < missing_date <= scheduled_end
+                ):
+                    continue
+                index = date_indices.get(missing_date)
+                if index is None or missing_date not in effective_date_set:
+                    unresolved.add(missing_date)
+                    continue
+                missing_indices.append(index)
+
+            missing_indices.sort()
+            gap_run: list[int] = []
+            for index in missing_indices:
+                if gap_run and index != gap_run[-1] + 1:
+                    if len(gap_run) == 1:
+                        skipped_dates.add(calendar_dates[gap_run[0]])
+                    else:
+                        unresolved.update(calendar_dates[item] for item in gap_run)
+                    gap_run = []
+                gap_run.append(index)
+            if gap_run:
+                if len(gap_run) == 1:
+                    skipped_dates.add(calendar_dates[gap_run[0]])
+                else:
+                    unresolved.update(calendar_dates[item] for item in gap_run)
+
+            if unresolved:
                 details = dict(diagnostic.details)
                 details["missingSessions"] = [
-                    item.isoformat() for item in interior_dates
+                    item.isoformat() for item in missing_dates if item in unresolved
                 ]
                 retained.append(
                     Diagnostic(
@@ -710,26 +744,10 @@ def _apply_latest_quote_fallback(
 
         retained.append(diagnostic)
 
-    effective_dates = tuple(day for day in calendar_dates if day <= latest_quote)
-    if not unavailable_tail or not effective_dates:
+    adjusted_dates = tuple(day for day in effective_dates if day not in skipped_dates)
+    if not adjusted_dates:
         return calendar_dates, diagnostics
-
-    warning = Diagnostic(
-        code=DiagnosticCode.SOURCE_QUALITY_WARNING,
-        severity=DiagnosticSeverity.WARNING,
-        messageKey="market.latest_quote_delayed",
-        asOf=latest_quote,
-        source="yahoo",
-        details={
-            "symbol": symbol,
-            "requestedEndDate": scheduled_end.isoformat(),
-            "effectiveEndDate": latest_quote.isoformat(),
-            "unavailableSessions": [
-                day.isoformat() for day in sorted(unavailable_tail)
-            ],
-        },
-    )
-    return effective_dates, (*retained, warning)
+    return adjusted_dates, tuple(retained)
 
 
 def _parse_diagnostic_date(value: object) -> Date | None:
