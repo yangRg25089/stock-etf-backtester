@@ -60,19 +60,17 @@ function mediaBlock(query) {
 
 test("320px, 768px, and 1024px widths follow the responsive layout rules", () => {
   const phone = mediaBlock("@media (max-width: 420px)");
-  const tablet = mediaBlock("@media (max-width: 900px)");
   assert.match(blockFor("body"), /min-width:\s*320px/);
   assert.match(blockFor(".main-content"), /width:\s*min\(100% - 48px, 1180px\)/);
   assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.main-content\s*\{[^}]*width:\s*min\(100% - 30px, 1180px\)/s);
   assert.match(phone, /\.main-content\s*\{[^}]*width:\s*min\(100% - 24px, 1180px\)/s);
   assert.match(phone, /\.strategy-parameter-grid\s*\{[^}]*minmax\(0, 1fr\)/s);
-  assert.match(blockFor(".shared-settings-grid"), /grid-template-columns:\s*minmax\(0, 1\.35fr\) minmax\(0, 1fr\)/);
-  assert.match(blockFor(".shared-settings-fields-range"), /grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(tablet, /\.shared-settings-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+  assert.match(blockFor(".shared-settings-grid"), /grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(blockFor(".shared-settings-fields-asset"), /grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(blockFor(".shared-settings-fields-range"), /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.shared-settings-fields-range\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
   assert.match(blockFor(".shared-settings-fields-funding"), /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(phone, /\.shared-settings-fields-range\s*\{[^}]*minmax\(0, 1fr\)/s);
-  assert.match(phone, /\.shared-settings-fields-funding\s*\{[^}]*minmax\(0, 1fr\)/s);
+  assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.shared-settings-dialog \.shared-settings-fields-range,[\s\S]*?\.shared-settings-dialog \.shared-settings-fields-funding\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
   assert.match(blockFor(".shared-settings-group"), /min-width:\s*0/);
   assert.match(blockFor(".strategy-card-name"), /overflow-wrap:\s*anywhere/);
   assert.match(blockFor(".strategy-card-summary,\n.strategy-description"), /overflow-wrap:\s*anywhere/);
@@ -217,7 +215,9 @@ test("the fixed strategy navigator does not stretch cards to fill unused height"
 });
 
 test("shared settings use a modal and the sidebar toggle has one fixed location", () => {
-  assert.match(app, /className="button icon-only-button shared-settings-open-button"[\s\S]*aria-haspopup="dialog"/);
+  assert.match(app, /className="button shared-settings-summary shared-settings-open-button"[\s\S]*aria-haspopup="dialog"[\s\S]*aria-describedby="shared-settings-summary-detail"/);
+  assert.match(app, /className="shared-settings-summary-text"\s+id="shared-settings-summary-detail"/);
+  assert.doesNotMatch(app, /className="button icon-only-button shared-settings-open-button"/);
   assert.match(app, /<SharedSettingsDialog/);
   assert.match(settingsDialog, /aria-modal="true"/);
   assert.match(settingsDialog, /dialog\.showModal\(\)/);
@@ -258,7 +258,7 @@ test("base button styles precede and preserve emphasized action colors", () => {
   assert.match(blockFor(".button-primary"), /background:\s*var\(--app-accent\)/);
   assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-accent\)/);
   assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent-soft\)/);
-  assert.match(blockFor(".shared-settings-open-button"), /background:\s*var\(--app-accent-soft\)/);
+  assert.match(blockFor(".shared-settings-summary-icon"), /background:\s*var\(--app-accent-soft\)/);
 });
 
 test("wheel zoom mode and primary run icon have clear visual affordances", () => {

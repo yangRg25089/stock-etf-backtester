@@ -138,10 +138,15 @@ export function SharedSettingsForm({
         <p className="section-subhead">{translate(locale, "section.sharedSettingsHelp")}</p>
       </div>
       <div className="shared-settings-grid">
-        <fieldset className="shared-settings-group shared-settings-range-group">
-          <legend>{translate(locale, "section.sharedSettingsRange")}</legend>
-          <div className="shared-settings-fields shared-settings-fields-range">
+        <fieldset className="shared-settings-group shared-settings-asset-group">
+          <legend>{translate(locale, "section.sharedSettingsAsset")}</legend>
+          <div className="shared-settings-fields shared-settings-fields-asset">
             {field("run.symbol")}
+          </div>
+        </fieldset>
+        <fieldset className="shared-settings-group shared-settings-range-group">
+          <legend>{translate(locale, "section.sharedSettingsPeriod")}</legend>
+          <div className="shared-settings-fields shared-settings-fields-range">
             {field("run.startDate")}
             {field("run.endDate", {
               disabled: isLatest,

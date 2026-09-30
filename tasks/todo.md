@@ -204,7 +204,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 
 ## 阶段 14：工作台扁平化与有效视口修复
 
-**状态（2026-09-30）：** Task 47–48 已完成；布局/交互目标见 [扁平化方案](../docs/design/workbench-flattening-proposal.md)，详细验收与门禁见 [实施计划](plan.md) 阶段 14。每 Task 按 loop-engineering 循环验收，检查点不跳过；全部交付后执行 stabilization-loop。
+**状态（2026-09-30）：** Task 47–49 与检查点 L 已完成；布局/交互目标见 [扁平化方案](../docs/design/workbench-flattening-proposal.md)，详细验收与门禁见 [实施计划](plan.md) 阶段 14。每 Task 按 loop-engineering 循环验收，检查点不跳过；全部交付后执行 stabilization-loop。
 
 - [x] Task 47：修复外层滚动产生的底部空白
 
@@ -214,13 +214,15 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 
   验收：可见页面标题/摘要行和独立运行条已移除；55px 顶栏中保留播放按钮、all_enabled 默认范围和固定设置开关。平板高度配平，active/all_enabled 请求语义保持；双击只提交一次。中日文与 320–1920px E2E 通过。
 
-- [ ] Task 49：让共通设置整块可点并舒展 dialog
+- [x] Task 49：让共通设置整块可点并舒展 dialog
+
+  验收：设置摘要整体按钮支持鼠标及 Enter/Space，无嵌套交互项；标的/区间/投入计划分组，结束日模式归在区间中；手机单列、宽屏日期及投入最多双列；草稿关闭重开保留，Escape/关闭/完成返回焦点。单测 101/101、typecheck、lint、build、Playwright E2E 27/27（含 axe）通过，1440px 弹窗截图复核。
 
 ### 检查点 L：视口及基础操作
 
-- [ ] 隐藏元素不撑大 document，外缘滚动无空白，面板填满有效视口
-- [ ] 唯一顶栏执行/范围及固定侧栏开关完整，共通设置整块开窗且可读
-- [ ] Task 47–49 实际门禁、浏览器与焦点检查通过
+- [x] 隐藏元素不撑大 document，外缘滚动无空白，面板填满有效视口
+- [x] 唯一顶栏执行/范围及固定侧栏开关完整，共通设置整块开窗且可读
+- [x] Task 47–49 实际门禁、浏览器与焦点检查通过
 
 - [ ] Task 50：将策略配置迁移到卡片 dialog
 

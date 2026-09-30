@@ -45,25 +45,29 @@ test.describe("responsive product shell", () => {
         if (locale === "zh") await page.getByRole("button", { name: "中文" }).click();
         await openSharedSettings(page);
         await expect(page.locator(".shared-settings-group legend")).toHaveText(
-          locale === "ja" ? ["対象と期間", "入金計画"] : ["标的与区间", "投入计划"],
+          locale === "ja" ? ["対象", "期間", "入金計画"] : ["标的", "区间", "投入计划"],
         );
         const sharedSettingsLayout = await page.locator(".shared-settings-grid").evaluate((grid) => {
           const groups = [...grid.querySelectorAll(".shared-settings-group")];
+          const assetFields = grid.querySelector(".shared-settings-fields-asset");
           const rangeFields = grid.querySelector(".shared-settings-fields-range");
           const fundingFields = grid.querySelector(".shared-settings-fields-funding");
           return {
             columns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+            assetColumns: assetFields ? getComputedStyle(assetFields).gridTemplateColumns.split(" ").length : 0,
             rangeColumns: rangeFields ? getComputedStyle(rangeFields).gridTemplateColumns.split(" ").length : 0,
             fundingColumns: fundingFields ? getComputedStyle(fundingFields).gridTemplateColumns.split(" ").length : 0,
             groupCount: groups.length,
-            groupsInSeparateRows: groups[0]?.getBoundingClientRect().bottom <= groups[1]?.getBoundingClientRect().top,
+            groupsInSeparateRows: groups.every((group, index) => index === 0 ||
+              groups[index - 1].getBoundingClientRect().bottom <= group.getBoundingClientRect().top),
           };
         });
-        expect(sharedSettingsLayout.groupCount).toBe(2);
-        expect(sharedSettingsLayout.columns).toBe(width <= 900 ? 1 : 2);
-        expect(sharedSettingsLayout.rangeColumns).toBe(width <= 767 ? 1 : 3);
+        expect(sharedSettingsLayout.groupCount).toBe(3);
+        expect(sharedSettingsLayout.columns).toBe(1);
+        expect(sharedSettingsLayout.assetColumns).toBe(1);
+        expect(sharedSettingsLayout.rangeColumns).toBe(width <= 767 ? 1 : 2);
         expect(sharedSettingsLayout.fundingColumns).toBe(width <= 767 ? 1 : 2);
-        expect(sharedSettingsLayout.groupsInSeparateRows).toBe(width <= 900);
+        expect(sharedSettingsLayout.groupsInSeparateRows).toBe(true);
         await closeSharedSettings(page);
 
         const layout = await page.evaluate(() => {
@@ -118,15 +122,30 @@ test("shared settings dialog edits the draft, restores focus, and the sidebar to
   expect(reopenedPosition?.x).toBe(initialPosition?.x);
   expect(reopenedPosition?.y).toBe(initialPosition?.y);
 
-  const trigger = page.locator(".shared-settings-open-button");
-  await expect(trigger).toHaveCSS("background-color", "rgb(229, 243, 239)");
+  const trigger = page.locator(".shared-settings-summary");
+  await expect(trigger).toHaveCount(1);
+  await expect(trigger.locator("button, input, select, a")).toHaveCount(0);
+  await expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+  await expect(trigger).toHaveAttribute("aria-describedby", "shared-settings-summary-detail");
+  await page.locator(".shared-settings-summary-text").click();
+  const dialog = page.locator(".shared-settings-dialog");
+  await expect(dialog).toBeVisible();
+  await closeSharedSettings(page);
+  await expect(trigger).toBeFocused();
+
+  await expect(trigger.locator(".shared-settings-summary-icon")).toHaveCSS("background-color", "rgb(229, 243, 239)");
   await trigger.focus();
   await page.keyboard.press("Enter");
-  const dialog = page.locator(".shared-settings-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAttribute("aria-modal", "true");
   await expect(dialog.getByRole("heading", { level: 2 })).toHaveCount(1);
   expect(await dialog.evaluate((element) => element instanceof HTMLDialogElement && element.matches(":modal"))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("Space");
+  await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
@@ -143,6 +162,17 @@ test("shared settings dialog edits the draft, restores focus, and the sidebar to
   await trigger.click();
   await expect(page.locator("#field-contribution-amount")).toHaveValue("250");
   await expect(dialog.locator(".dialog-done")).toBeVisible();
+  const wideLayout = await dialog.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const symbol = element.querySelector("#field-run-symbol").getBoundingClientRect();
+    const startDate = element.querySelector("#field-run-startDate").getBoundingClientRect();
+    const endDate = element.querySelector("#field-run-endDate").getBoundingClientRect();
+    return { width: bounds.width, symbolWidth: symbol.width, startWidth: startDate.width, endWidth: endDate.width };
+  });
+  expect(wideLayout.width).toBeGreaterThanOrEqual(800);
+  expect(wideLayout.symbolWidth).toBeGreaterThan(280);
+  expect(wideLayout.startWidth).toBeGreaterThan(280);
+  expect(wideLayout.endWidth).toBeGreaterThan(280);
   await page.screenshot({ path: test.info().outputPath("settings-dialog-1440.png"), fullPage: true });
   await closeSharedSettings(page);
 
@@ -176,11 +206,12 @@ test("shared settings dialog edits the draft, restores focus, and the sidebar to
     expect(dialogGeometry.right).toBeLessThanOrEqual(dialogGeometry.viewportWidth);
     expect(dialogGeometry.top).toBeGreaterThanOrEqual(0);
     expect(dialogGeometry.bottom).toBeLessThanOrEqual(dialogGeometry.viewportHeight);
-    if (width === 320) {
-      expect(dialogGeometry.scrollHeight).toBeGreaterThan(dialogGeometry.clientHeight);
-    } else {
-      expect(dialogGeometry.scrollHeight).toBeLessThanOrEqual(dialogGeometry.clientHeight);
-    }
+    expect(dialogGeometry.scrollHeight).toBeGreaterThan(dialogGeometry.clientHeight);
+    await dialog.locator(".shared-settings-dialog-content").evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect(dialog.locator(".shared-settings-dialog-heading")).toBeInViewport();
+    await expect(dialog.locator(".shared-settings-dialog-footer")).toBeInViewport();
     await expect(dialog.locator(".dialog-done")).toBeInViewport();
     await closeSharedSettings(page);
   }

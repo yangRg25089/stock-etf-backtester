@@ -400,10 +400,19 @@ function App() {
                   <div className="workbench-config-header">
                     <h2>{translate(locale, "workbench.configPanel")}</h2>
                   </div>
-                  <div className="shared-settings-summary">
-                    <div className="shared-settings-summary-copy">
+                  <button
+                    ref={sharedSettingsTriggerRef}
+                    className="button shared-settings-summary shared-settings-open-button"
+                    type="button"
+                    aria-label={translate(locale, "workbench.editSharedSettings")}
+                    title={translate(locale, "workbench.editSharedSettings")}
+                    aria-haspopup="dialog"
+                    aria-describedby="shared-settings-summary-detail"
+                    onClick={() => setSharedSettingsDialogOpen(true)}
+                  >
+                    <span className="shared-settings-summary-copy">
                       <strong>{translate(locale, "section.sharedSettings")}</strong>
-                      <span className="shared-settings-summary-text">
+                      <span className="shared-settings-summary-text" id="shared-settings-summary-detail">
                         {workspace.draft.shared.run.symbol} · {workspace.draft.shared.run.startDate} → {workspace.draft.shared.run.endMode === "latest"
                           ? translate(locale, "end.latest")
                           : workspace.draft.shared.run.endDate ?? "—"}
@@ -413,24 +422,14 @@ function App() {
                           day: String(workspace.draft.shared.contribution.day ?? "—"),
                         })}
                       </span>
-                    </div>
-                    <button
-                      ref={sharedSettingsTriggerRef}
-                      className="button icon-only-button shared-settings-open-button"
-                      type="button"
-                      aria-label={translate(locale, "workbench.editSharedSettings")}
-                      title={translate(locale, "workbench.editSharedSettings")}
-                      aria-haspopup="dialog"
-                      onClick={() => setSharedSettingsDialogOpen(true)}
-                    >
-                      <span aria-hidden="true">
-                        <svg viewBox="0 0 20 20" focusable="false">
-                          <path d="M8.3 2.5h3.4l.5 1.9a6 6 0 0 1 1.3.8l1.9-.6 1.7 3-1.4 1.3a6 6 0 0 1 0 1.6l1.4 1.3-1.7 3-1.9-.6a6 6 0 0 1-1.3.8l-.5 1.9H8.3l-.5-1.9a6 6 0 0 1-1.3-.8l-1.9.6-1.7-3 1.4-1.3a6 6 0 0 1 0-1.6L2.9 7.6l1.7-3 1.9.6a6 6 0 0 1 1.3-.8l.5-1.9Z" />
-                          <circle cx="10" cy="9.7" r="2.3" />
-                        </svg>
-                      </span>
-                    </button>
-                  </div>
+                    </span>
+                    <span className="shared-settings-summary-icon" aria-hidden="true">
+                      <svg viewBox="0 0 20 20" focusable="false">
+                        <path d="M8.3 2.5h3.4l.5 1.9a6 6 0 0 1 1.3.8l1.9-.6 1.7 3-1.4 1.3a6 6 0 0 1 0 1.6l1.4 1.3-1.7 3-1.9-.6a6 6 0 0 1-1.3.8l-.5 1.9H8.3l-.5-1.9a6 6 0 0 1-1.3-.8l-1.9.6-1.7-3 1.4-1.3a6 6 0 0 1 0-1.6L2.9 7.6l1.7-3 1.9.6a6 6 0 0 1 1.3-.8l.5-1.9Z" />
+                        <circle cx="10" cy="9.7" r="2.3" />
+                      </svg>
+                    </span>
+                  </button>
                   <StrategyNavigator
                     catalog={catalog}
                     locale={locale}
