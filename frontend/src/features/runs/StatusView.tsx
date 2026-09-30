@@ -19,6 +19,7 @@ interface StatusViewProps {
   locale: Locale;
   run: RunResponse | null;
   error: RunApiError | null;
+  hideCleanSuccess?: boolean;
 }
 
 export function DiagnosticList({ locale, diagnostics }: { locale: Locale; diagnostics: Diagnostic[] }) {
@@ -68,7 +69,7 @@ function CalculationContext({
   );
 }
 
-export function StatusView({ locale, run, error }: StatusViewProps) {
+export function StatusView({ locale, run, error, hideCleanSuccess = false }: StatusViewProps) {
   if (!run && !error) {
     return (
       <div className="empty-results" role="status" aria-live="polite">
@@ -82,10 +83,25 @@ export function StatusView({ locale, run, error }: StatusViewProps) {
   }
 
   const resultRuns = run?.result?.strategyRuns ?? [];
-  const diagnostics = [
+  const candidates = [
     ...(error?.diagnostics ?? []),
-    ...resultRuns.flatMap((strategyRun) => strategyRun.diagnostics ?? []),
+    ...resultRuns.flatMap((strategyRun) => [
+      ...(strategyRun.diagnostics ?? []),
+      ...(strategyRun.metrics?.diagnostics ?? []),
+    ]),
   ];
+  const seenDiagnostics = new Set<string>();
+  const diagnostics = candidates.filter((diagnostic) => {
+    const key = JSON.stringify([
+      diagnostic.code,
+      diagnostic.fieldPath ?? null,
+      diagnostic.messageKey,
+      diagnostic.details ?? null,
+    ]);
+    if (seenDiagnostics.has(key)) return false;
+    seenDiagnostics.add(key);
+    return true;
+  });
   const expandStrategyDetails = Boolean(
     error ||
     diagnostics.length > 0 ||
@@ -96,9 +112,11 @@ export function StatusView({ locale, run, error }: StatusViewProps) {
     run &&
     !error &&
     run.status === "completed" &&
+    resultRuns.length > 0 &&
     diagnostics.length === 0 &&
     resultRuns.every((strategyRun) => strategyRun.status === "completed"),
   );
+  if (hideCleanSuccess && compactSuccess) return null;
   return (
     <div className={`run-status-panel${compactSuccess ? " is-compact" : ""}`} aria-live="polite">
       {error && (

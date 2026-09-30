@@ -668,26 +668,31 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(saved.status).toBe("completed");
   expect(strategy.status).toBe("completed");
   expect(benchmark.role).toBe("benchmark");
-  await expect(page.locator(".run-status-heading .status-tag").first()).toContainText("完了");
+  await expect(page.locator(".run-status-panel")).toHaveCount(0);
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
   await expect(page.locator(".metric-grid-core .metric-card")).toHaveCount(5);
   await expect(page.locator(".metric-grid-core")).toContainText("実際の投入額");
-  await expect(page.locator(".run-status-panel")).toHaveClass(/is-compact/);
+  await expect(page.locator("#result-details")).toBeVisible();
+  await expect(page.locator(".result-run-id")).toContainText(saved.runId);
+  await expect(page.locator("#result-focus-select option")).toHaveCount(saved.result.strategyRuns.length);
+  const resultFocus = page.locator("#result-focus-select");
+  const initialFocus = await resultFocus.inputValue();
+  await resultFocus.selectOption(benchmark.id);
+  await expect(resultFocus).toHaveValue(benchmark.id);
+  await resultFocus.selectOption(initialFocus);
+  await expect(resultFocus).toHaveValue(initialFocus);
   const chartVisibilityButton = page.getByRole("button", { name: "資産チャートを表示" });
   await expect(chartVisibilityButton).toHaveAttribute("aria-pressed", "true");
   await expect(chartVisibilityButton.locator("svg")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "全期間に戻す" })).toBeVisible();
   const overviewOrder = await page.evaluate(() => ({
     metrics: document.querySelector(".metric-grid-core")?.getBoundingClientRect().top ?? Infinity,
-    runStatus: document.querySelector(".run-status-panel")?.getBoundingClientRect().top ?? Infinity,
     chart: document.querySelector(".chart-panel.chart-overlay")?.getBoundingClientRect().top ?? Infinity,
     details: document.querySelector(".result-details")?.getBoundingClientRect().top ?? Infinity,
   }));
-  expect(overviewOrder.runStatus).toBeLessThan(overviewOrder.metrics);
+  expect(overviewOrder.details).toBeLessThan(overviewOrder.metrics);
   expect(overviewOrder.metrics).toBeLessThan(overviewOrder.chart);
-  expect(overviewOrder.metrics).toBeLessThan(overviewOrder.chart);
-  expect(overviewOrder.chart).toBeLessThan(overviewOrder.details);
   const firstScreen = await page.evaluate(() => ({
     resultsTop: document.querySelector(".workbench-results").getBoundingClientRect().top,
     resultsBottom: document.querySelector(".workbench-results").getBoundingClientRect().bottom,
@@ -702,8 +707,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
       const plotHeight = Number(plot.getAttribute("height")) / viewBox.height * bounds.height;
       return Math.max(0, Math.min(plotTop + plotHeight, pane.bottom) - Math.max(plotTop, pane.top));
     })(),
-    detailsTop: document.querySelector(".result-details-entry").getBoundingClientRect().top,
-    detailsBottom: document.querySelector(".result-details-entry").getBoundingClientRect().bottom,
+    detailsTop: document.querySelector(".result-details").getBoundingClientRect().top,
+    detailsBottom: document.querySelector(".result-details").getBoundingClientRect().bottom,
   }));
   expect(firstScreen.metricsTop).toBeLessThan(firstScreen.resultsBottom);
   expect(firstScreen.chartVisibleHeight).toBeGreaterThan(120);
@@ -765,17 +770,12 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({ path: test.info().outputPath("workbench-1440-first-screen.png") });
-  const detailsEntry = page.getByRole("link", { name: "結果詳細を見る" });
-  await expect(detailsEntry).toBeVisible();
-  await detailsEntry.focus();
-  await detailsEntry.press("Enter");
-  await expect(page.locator("#result-details")).toBeFocused();
-  await expect(page.locator("#result-details")).toHaveCSS("outline-style", "solid");
-  await expect.poll(() => page.locator(".workbench-results").evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-  await expect(page.getByRole("tablist", { name: "結果詳細" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "戦略比較" })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("tab", { name: "全指標" }).click();
-  await expect(page.locator("#result-panel-metrics .metric-card")).toHaveCount(8);
+  const resultDetails = page.locator("#result-details");
+  await expect(resultDetails).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "実行結果" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "概要" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "その他の指標" }).click();
+  await expect(page.locator("#result-panel-metrics .metric-card")).toHaveCount(3);
   await page.getByRole("tab", { name: "戦略比較" }).click();
   await page.locator(".workbench-results").evaluate((element) => element.scrollTo(0, 0));
 
@@ -863,13 +863,18 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     await expect(chart).toHaveCSS("touch-action", "none");
     const resultsPane = page.locator(".workbench-results");
     const beforePlainWheel = await expectSynchronizedWindows();
-    const scrollBeforePlainWheel = await resultsPane.evaluate((element) => element.scrollTop);
+    const plainWheel = await resultsPane.evaluate((element) => ({
+      scrollTop: element.scrollTop,
+      maxScroll: element.scrollHeight - element.clientHeight,
+    }));
+    const scrollBeforePlainWheel = plainWheel.scrollTop;
+    const plainWheelDelta = plainWheel.scrollTop >= plainWheel.maxScroll - 1 ? -160 : 160;
     const pageViewportBeforeWheel = await page.evaluate(() => ({
       scrollY: window.scrollY,
       scale: window.visualViewport?.scale,
     }));
-    await page.mouse.wheel(0, 160);
-    await expect.poll(() => resultsPane.evaluate((element) => element.scrollTop)).toBeGreaterThan(scrollBeforePlainWheel);
+    await page.mouse.wheel(0, plainWheelDelta);
+    await expect.poll(() => resultsPane.evaluate((element) => element.scrollTop)).not.toBe(scrollBeforePlainWheel);
     const afterPlainWheel = await expectSynchronizedWindows();
     expect(afterPlainWheel.start).toBe(beforePlainWheel.start);
     expect(afterPlainWheel.end).toBe(beforePlainWheel.end);
@@ -970,9 +975,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const tradeTab = page.getByRole("tab", { name: "取引明細" });
   await tradeTab.focus();
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("tab", { name: "全指標" })).toBeFocused();
+  await expect(page.getByRole("tab", { name: "その他の指標" })).toBeFocused();
   await page.keyboard.press("Home");
-  await expect(page.getByRole("tab", { name: "戦略比較" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "概要" })).toHaveAttribute("aria-selected", "true");
   await tradeTab.click();
   await expect(tradeTab).toHaveAttribute("aria-selected", "true");
   const tradeToggle = page.getByRole("button", { name: "取引明細を表示" });
@@ -985,7 +990,6 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(tradeToggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("table").last()).toBeVisible();
 
-  await page.getByRole("tab", { name: "CSV 出力" }).click();
   await expect(page.locator("[data-export-kind]")).toHaveCount(4);
   await expect(page.locator('[data-export-kind="summary"]')).toBeEnabled();
   await expect(page.locator('[data-export-kind="daily-assets"]')).toBeEnabled();
@@ -1021,7 +1025,10 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
 
   await page.getByRole("button", { name: "設定", exact: true }).click();
   await expect(page.locator(".workbench-config")).toBeVisible();
-  await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("28");
+  await page.locator(".strategy-card-open").filter({ hasText: "VIX シグナル積立" }).click();
+  await expect(page.locator(".strategy-dialog")).toBeVisible();
+  await page.locator(".strategy-dialog #field-strategy-vix_dca-1-vix-buyThreshold").fill("28");
+  await closeStrategyDialog(page);
   await page.getByRole("button", { name: "結果", exact: true }).click();
   await expect(page.locator(".snapshot-warning")).toBeVisible();
   const staleDownloadPromise = page.waitForEvent("download");
@@ -1042,10 +1049,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await page.reload();
   const restoredResponse = await latestResponse;
   const restored = await restoredResponse.json();
-  await page.getByRole("tab", { name: "CSV 出力" }).click();
   expect(restored.runId).toBe(saved.runId);
   expect(restored.status).toBe("completed");
-  await expect(page.locator(".run-status-heading .status-tag").first()).toContainText("完了");
+  await expect(page.locator(".run-status-panel")).toHaveCount(0);
   const restoredStrategy = restored.result.strategyRuns.find(
     (item) => item.id === "strategy-vix_dca-1",
   );
@@ -1064,7 +1070,6 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(restoredExport.resultId).toBe(restoredStrategy.id);
   expect(restoredExport.endingEquity).toBe(String(restoredStrategy.metrics.endingEquity));
 
-  await page.getByRole("tab", { name: "全指標" }).click();
   const nextSavedResponse = page.waitForResponse(async (response) => {
     if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url()) || !response.ok()) {
       return false;
@@ -1075,7 +1080,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await page.getByRole("button", { name: "バックテストを実行" }).click();
   const nextSaved = await (await nextSavedResponse).json();
   expect(nextSaved.runId).not.toBe(saved.runId);
-  await expect(page.getByRole("tab", { name: "戦略比較" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "概要" })).toHaveAttribute("aria-selected", "true");
 
   const pending = structuredClone(saved);
   pending.status = "running";
@@ -1122,7 +1127,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await resumedResultResponse;
   expect(resumedEvents).toHaveLength(1);
   expect(resumedResultGets).toHaveLength(1);
-  await expect(page.locator(".run-status-heading .status-tag").first()).toContainText("完了");
+  await expect(page.locator(".run-status-panel")).toHaveCount(0);
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator(".workbench-config")).toBeVisible();

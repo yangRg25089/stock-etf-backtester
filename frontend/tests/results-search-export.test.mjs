@@ -101,6 +101,31 @@ test("CSV API binds kind, run, and focused result and parses the server filename
   }
 });
 
+test("all four CSV kinds use the same saved run and focused result identity", async () => {
+  const originalFetch = globalThis.fetch;
+  const urls = [];
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+    return new Response("header\nvalue\n", {
+      status: 200,
+      headers: { "Content-Type": "text/csv; charset=utf-8" },
+    });
+  };
+  try {
+    for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {
+      await fetchCsvExport("saved-run-51", "focused-result-51", kind);
+    }
+    assert.deepEqual(urls, [
+      "/api/v1/runs/saved-run-51/export/summary?focusedResultId=focused-result-51",
+      "/api/v1/runs/saved-run-51/export/daily-assets?focusedResultId=focused-result-51",
+      "/api/v1/runs/saved-run-51/export/trades?focusedResultId=focused-result-51",
+      "/api/v1/runs/saved-run-51/export/search-results?focusedResultId=focused-result-51",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("CSV API preserves structured export diagnostics", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({

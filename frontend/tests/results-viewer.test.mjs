@@ -6,6 +6,7 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
+const { RunApiError } = require("../.test-output/api/runs.js");
 const { StatusView } = require("../.test-output/features/runs/StatusView.js");
 const statusViewSource = readFileSync(new URL("../src/features/runs/StatusView.tsx", import.meta.url), "utf8");
 const { ExportControls } = require("../.test-output/features/results/ExportControls.js");
@@ -45,6 +46,14 @@ function trade(signalId, date) {
 
 function workspaceWithRun() {
   const initial = createInitialWorkspaceState(catalog);
+  const savedRunSettings = {
+    ...initial.draft.shared.run,
+    symbol: "QQQ",
+    startDate: "2020-01-01",
+    endDate: "2024-02-02",
+    endMode: "fixed",
+  };
+  initial.draft.shared.run = structuredClone(savedRunSettings);
   const primaryId = initial.draft.strategies[0].id;
   const primary = {
     id: primaryId,
@@ -85,7 +94,7 @@ function workspaceWithRun() {
       config: {
         shared: {
           ...structuredClone(initial.draft.shared),
-          run: { ...initial.draft.shared.run, symbol: "QQQ" },
+          run: savedRunSettings,
         },
         strategies: structuredClone(initial.draft.strategies),
       },
@@ -109,14 +118,14 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
     dispatch() {},
   }));
 
-  assert.match(html, /当前结果：每月定额定投/);
+  assert.match(html, /每月定额定投 · 基准/);
   assert.match(html, /focused-benchmark-trade/);
   assert.doesNotMatch(html, /active-vix-trade/);
   assert.match(html, /2024-02-02/);
   assert.match(html, /data-export-kind="summary"/);
 });
 
-test("the result overview starts with compact run status, then core KPIs and the main chart", () => {
+test("the result details card leads, clean success status is omitted, and overview holds five core KPIs", () => {
   const state = workspaceWithRun();
   state.showChart = true;
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -125,14 +134,20 @@ test("the result overview starts with compact run status, then core KPIs and the
     dispatch() {},
   }));
 
-  const metricsPosition = html.indexOf('id="focused-metrics-heading"');
-  const runStatusPosition = html.indexOf('class="run-status-panel is-compact"');
-  const chartPosition = html.indexOf("<svg ");
-  const comparisonPosition = html.indexOf('id="result-comparison-heading"');
-  assert.ok(runStatusPosition >= 0 && runStatusPosition < metricsPosition);
-  assert.ok(metricsPosition < chartPosition);
-  assert.ok(chartPosition >= 0 && chartPosition < comparisonPosition);
-  const overviewMetrics = html.slice(metricsPosition, chartPosition);
+  const detailsPosition = html.indexOf('id="result-details"');
+  const metricsPosition = html.indexOf('id="result-panel-overview"');
+  const chartPosition = html.indexOf('id="result-display-heading"');
+  assert.ok(detailsPosition >= 0 && detailsPosition < chartPosition);
+  assert.ok(metricsPosition > detailsPosition && metricsPosition < chartPosition);
+  assert.ok(chartPosition >= 0);
+  assert.doesNotMatch(html, /class="run-status-panel/);
+  assert.doesNotMatch(html, /results\.detailsEntry/);
+  assert.match(html, /QQQ · 2020-01-01 — 2024-02-02/);
+  assert.match(html, /<code class="result-run-id">saved-run<\/code>/);
+  assert.match(html, /aria-label="查看结果"/);
+  assert.match(html, /value="benchmark-dca"/);
+  assert.match(html, /data-export-kind="summary"/);
+  const overviewMetrics = html.slice(metricsPosition, html.indexOf('id="result-panel-comparison"'));
   assert.equal((overviewMetrics.match(/class="metric-card"/g) ?? []).length, 5);
   assert.match(overviewMetrics, /实际投入金额/);
   assert.match(html, /期末资产/);
@@ -141,7 +156,7 @@ test("the result overview starts with compact run status, then core KPIs and the
   assert.match(html, /最大回撤/);
 });
 
-test("warning runs keep execution diagnostics ahead of the selected result card", () => {
+test("warning status and diagnostics stay inside the result details card", () => {
   const state = workspaceWithRun();
   state.runResponse.status = "completed_with_warning";
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -149,25 +164,80 @@ test("warning runs keep execution diagnostics ahead of the selected result card"
     state,
     dispatch() {},
   }));
+  const detailsPosition = html.indexOf('id="result-details"');
   const runStatusPosition = html.indexOf('class="run-status-panel"');
-  const metricsPosition = html.indexOf('id="focused-metrics-heading"');
-  assert.ok(runStatusPosition >= 0 && runStatusPosition < metricsPosition);
+  const metricsPosition = html.indexOf('id="result-panel-overview"');
+  assert.ok(detailsPosition >= 0 && detailsPosition < runStatusPosition);
+  assert.ok(runStatusPosition < metricsPosition);
   assert.doesNotMatch(html, /class="run-status-panel is-compact"/);
 });
 
-test("saved result details have accessible tabs with comparison selected first and search gated by result data", () => {
+test("request failures, partial failures, and stale-snapshot notices stay with the saved result context", () => {
+  const emptyState = createInitialWorkspaceState(catalog);
+  const requestError = new RunApiError("provider_request_failed", "api.errors.connection_failed", [], 503);
+  const requestFailureHtml = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh",
+    state: emptyState,
+    dispatch() {},
+    error: requestError,
+  }));
+  assert.ok(requestFailureHtml.indexOf('id="result-details"') < requestFailureHtml.indexOf('class="catalog-error"'));
+  assert.match(requestFailureHtml, /无法连接到 API/);
+
+  const partialState = workspaceWithRun();
+  partialState.runResponse.status = "completed_with_warning";
+  const failedResult = partialState.runResponse.result.strategyRuns[0];
+  failedResult.status = "failed";
+  failedResult.diagnostics = [{
+    code: "calculation_failed",
+    severity: "error",
+    messageKey: "diagnostics.calculation_failed",
+    details: { stage: "strategy", strategyId: failedResult.id, runId: partialState.runResponse.runId },
+  }];
+  failedResult.metrics.diagnostics = structuredClone(failedResult.diagnostics);
+  const partialHtml = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh",
+    state: partialState,
+    dispatch() {},
+  }));
+  assert.ok(partialHtml.indexOf('id="result-details"') < partialHtml.indexOf('class="run-status-panel"'));
+  assert.match(partialHtml, /部分策略已完成/);
+  assert.match(partialHtml, /计算过程中发生错误/);
+  assert.equal((partialHtml.match(/计算过程中发生错误/g) ?? []).length, 1);
+  assert.equal((partialHtml.match(/class="metric-card"/g) ?? []).length, 8);
+
+  const staleState = workspaceWithRun();
+  staleState.draft.shared.run.symbol = "SPY";
+  const staleHtml = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh",
+    state: staleState,
+    dispatch() {},
+  }));
+  assert.match(staleHtml, /当前设置与保存此结果时不同/);
+  assert.ok(staleHtml.indexOf('class="result-saved-context"') < staleHtml.indexOf('class="snapshot-warning"'));
+  assert.match(staleHtml, /QQQ · 2020-01-01 — 2024-02-02/);
+});
+
+test("saved result details default to overview, keep other metrics separate, and gate search by result data", () => {
   const state = workspaceWithRun();
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "ja",
     state,
     dispatch() {},
   }));
-  assert.match(html, /role="tablist" aria-label="結果詳細"/);
+  assert.match(html, /role="tablist" aria-label="実行結果"/);
   assert.match(html, /id="result-details"[^>]*tabindex="-1"/);
-  assert.ok(resultViewerSource.includes('key={`${run.runId}:${focusedResult?.id ?? "no-focused-result"}`}'));
-  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>戦略比較/);
+  assert.ok(resultViewerSource.includes('key={run?.runId ?? "no-run"}'));
+  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>概要/);
+  assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>戦略比較/);
   assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>取引明細/);
   assert.doesNotMatch(html, /role="tab"[^>]*>検索結果/);
+  const metricsPosition = html.indexOf('id="result-panel-metrics"');
+  const metricsEnd = html.indexOf("</section></div>", metricsPosition);
+  const additionalMetrics = html.slice(metricsPosition, metricsEnd);
+  assert.equal((additionalMetrics.match(/class="metric-card"/g) ?? []).length, 3);
+  assert.doesNotMatch(additionalMetrics, /実際の投入額|期末資産|投入額に対する利益率|年率リターン|最大ドローダウン/);
+  assert.doesNotMatch(html, /CSV 出力<\/button>/);
 
   const result = state.runResponse.result.strategyRuns.find((item) => item.id === state.focusedResultId);
   result.presetId = "grid_search";
@@ -240,6 +310,18 @@ test("CSV eligibility includes completed zero-trade results and limits search ex
   assert.equal(isExportAvailable(emptyTradeResult, "trades"), true);
   assert.equal(isExportAvailable(emptyTradeResult, "summary"), true);
   assert.equal(isExportAvailable(emptyTradeResult, "search-results"), false);
+  const searchResult = {
+    ...emptyTradeResult,
+    presetId: "grid_search",
+    searchResult: {
+      strategyId: emptyTradeResult.id,
+      dimensions: [],
+      totalCandidateCount: 0,
+      candidates: [],
+      rankedCandidateIds: [],
+    },
+  };
+  assert.equal(isExportAvailable(searchResult, "search-results"), true);
 
   const html = renderToStaticMarkup(React.createElement(ExportControls, {
     locale: "zh",
@@ -251,12 +333,14 @@ test("CSV eligibility includes completed zero-trade results and limits search ex
   assert.match(html, /role="group" aria-label="导出结果 CSV"/);
 });
 
-test("an empty workspace keeps every CSV kind visible and disabled", () => {
+test("an empty workspace keeps the details card first and every CSV kind visible and disabled", () => {
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "zh",
     state: createInitialWorkspaceState(catalog),
     dispatch() {},
   }));
+  assert.ok(html.indexOf('id="result-details"') >= 0);
+  assert.match(html, /还没有结果/);
   assert.equal((html.match(/<button[^>]*disabled/g) ?? []).length, 4);
   assert.match(html, /data-export-kind="summary" disabled/);
   assert.match(html, /data-export-kind="search-results" disabled/);

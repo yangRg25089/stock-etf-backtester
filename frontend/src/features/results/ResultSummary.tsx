@@ -5,7 +5,7 @@ import { formatCurrency, formatMultiple, formatPercent } from "./format";
 interface MetricGridProps {
   locale: Locale;
   metrics: MetricSummary | null | undefined;
-  variant?: "core" | "full";
+  variant?: "core" | "additional" | "full";
 }
 
 interface ResultComparisonProps {
@@ -61,11 +61,14 @@ export function MetricGrid({ locale, metrics, variant = "full" }: MetricGridProp
       value: formatCurrency(metrics.relativeToDca, metrics.currency, locale),
     },
   ];
+  const coreKeys = ["totalContributed", "endingEquity", "returnOnContributions", "xirr", "maximumDrawdown"];
   const visibleCards = variant === "core"
-    ? cards.filter((card) => ["totalContributed", "endingEquity", "returnOnContributions", "xirr", "maximumDrawdown"].includes(card.key))
-    : cards;
+    ? cards.filter((card) => coreKeys.includes(card.key))
+    : variant === "additional"
+      ? cards.filter((card) => !coreKeys.includes(card.key))
+      : cards;
   return (
-    <dl className={`metric-grid${variant === "core" ? " metric-grid-core" : ""}`} aria-label={translate(locale, "results.metricsTitle")}>
+    <dl className={`metric-grid${variant === "core" ? " metric-grid-core" : ""}${variant === "additional" ? " metric-grid-additional" : ""}`} aria-label={translate(locale, variant === "additional" ? "results.additionalMetricsTitle" : "results.metricsTitle")}>
       {visibleCards.map((card) => (
         <div className="metric-card" key={card.key}>
           <dt>{translate(locale, card.label)}</dt>

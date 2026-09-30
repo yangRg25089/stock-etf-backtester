@@ -1094,11 +1094,11 @@
 **描述：** ResultDetails 置顶，五项 KPI 合入默认概览，保存标的/期间、结果焦点和导出集中在同一上下文；移除独立 KPI 跳转及正常成功状态卡，异常改为上下文诊断。
 
 **验收标准：**
-- [ ] 首卡为结果详情，概览只有一份本金/期末资产/收益率/XIRR/最大回撤；比较、交易、搜索及额外指标可访问。
-- [ ] 成功卡不常驻，empty、运行中、请求失败、局部失败、unavailable、零交易和旧输入有可读原因入口。
-- [ ] 结果选择与四类 CSV 读取同一冻结快照；左侧编辑不改结果焦点，新运行页签初始化正确。
+- [x] 首卡为结果详情，概览只有一份本金/期末资产/收益率/XIRR/最大回撤；比较、交易、搜索及额外指标可访问。
+- [x] 成功卡不常驻，empty、运行中、请求失败、局部失败、unavailable、零交易和旧输入有可读原因入口。
+- [x] 结果选择与四类 CSV 读取同一冻结快照；左侧编辑不改结果焦点，新运行页签初始化正确。
 
-**验证：** 按概览、状态、导出三个内部切片逐一验证顺序、重复 KPI、全部状态、旧草稿/保存来源和四类导出，执行共有门禁。
+**验证：** 104 项前端单元测试、typecheck、lint、build 全通过；Chromium `default VIX can run to a focused saved result, display toggles, and matching CSV` 通过，覆盖焦点下拉、详情置顶、指标、策略编辑后仍从保存快照导出、运行恢复和新运行重置概览；单测验证四种 CSV 均绑定同一 run/result ID，浏览器下载验证 summary、daily-assets、trades，普通策略的 search-results 正确禁用。浏览器测试使用本地 fixture API，并在授权的临时 localhost 端口启动。
 
 **依赖：** Task 50。**可能触及：** `ResultViewer.tsx`、`ResultDetails.tsx`、`ResultSummary.tsx`、`ExportControls.tsx`、`StatusView.tsx` 及对应行为测试。**范围：** 中，分内部切片循环。
 

@@ -152,9 +152,8 @@ test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   assert.match(touch, /\.icon-button\s*\{\s*min-width:\s*44px/);
   assert.match(touch, /\.strategy-nav-card \.strategy-enabled-control\s*\{\s*min-width:\s*44px/);
   assert.match(touch, /\.strategy-nav-card \.strategy-run-target\s*\{\s*min-width:\s*44px/);
-  assert.match(touch, /\.shared-settings-open-button,[\s\S]*?\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
+  assert.match(touch, /\.workbench-results \.result-focus-select,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
   assert.match(touch, /\.workbench-results \.legend-toggle,[\s\S]*?\.workbench-results \.chart-range-controls button,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
-  assert.match(touch, /\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
 });
 
 test("catalog fields use aligned bold labels, 40px controls, and in-field units", () => {
@@ -207,7 +206,8 @@ test("workbench explanatory text meets the readable type scale", () => {
   assert.match(blockFor(".shared-settings-summary-text"), /font-size:\s*12px/);
   assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /font-size:\s*12px/);
   assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /-webkit-line-clamp:\s*2/);
-  assert.match(blockFor(".result-details-entry"), /font-size:\s*13px/);
+  assert.match(blockFor(".result-saved-range"), /font-size:\s*13px/);
+  assert.match(blockFor(".result-focus-select"), /min-height:\s*36px/);
 });
 
 test("the fixed strategy navigator does not stretch cards to fill unused height", () => {
