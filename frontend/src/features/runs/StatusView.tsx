@@ -86,6 +86,12 @@ export function StatusView({ locale, run, error }: StatusViewProps) {
     ...(error?.diagnostics ?? []),
     ...resultRuns.flatMap((strategyRun) => strategyRun.diagnostics ?? []),
   ];
+  const expandStrategyDetails = Boolean(
+    error ||
+    diagnostics.length > 0 ||
+    run?.status !== "completed" ||
+    resultRuns.some((strategyRun) => strategyRun.status !== "completed"),
+  );
   return (
     <div className="run-status-panel" aria-live="polite">
       {error && (
@@ -115,15 +121,18 @@ export function StatusView({ locale, run, error }: StatusViewProps) {
             )}
           </div>
           {resultRuns.length > 0 && (
-            <ul className="run-strategy-statuses">
-              {resultRuns.map((strategyRun) => (
-                <li key={`${strategyRun.role}-${strategyRun.id}`}>
-                  <span>{translate(locale, `presets.${strategyRun.presetId}.name`)}</span>
-                  <code>{strategyRun.id}</code>
-                  <span className="status-tag">{translate(locale, `status.${strategyRun.status}`)}</span>
-                </li>
-              ))}
-            </ul>
+            <details className="run-strategy-details" key={run?.runId ?? "no-run"} open={expandStrategyDetails}>
+              <summary>{translate(locale, "run.resultDetails", { count: String(resultRuns.length) })}</summary>
+              <ul className="run-strategy-statuses">
+                {resultRuns.map((strategyRun) => (
+                  <li key={`${strategyRun.role}-${strategyRun.id}`}>
+                    <span>{translate(locale, `presets.${strategyRun.presetId}.name`)}</span>
+                    <code>{strategyRun.id}</code>
+                    <span className="status-tag">{translate(locale, `status.${strategyRun.status}`)}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </>
       )}

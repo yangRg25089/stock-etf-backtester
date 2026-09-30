@@ -4,10 +4,9 @@ import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
 import { DiagnosticList } from "../runs/StatusView";
 import { findFocusedResult, isRunSnapshotStale } from "./model";
 import { ExportControls } from "./ExportControls";
-import { MetricGrid, ResultComparison } from "./ResultSummary";
+import { MetricGrid } from "./ResultSummary";
 import { ResultsCharts } from "./ResultsCharts";
-import { SearchResults } from "./SearchResults";
-import { TradeTable } from "./TradeTable";
+import { ResultDetails } from "./ResultDetails";
 
 interface ResultViewerProps {
   locale: Locale;
@@ -47,7 +46,6 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
     );
   }
 
-  const strategyRuns = run.result?.strategyRuns ?? [];
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const canShowSavedValues = focusedResult !== null && SUCCESS_STATUSES.has(focusedResult.status ?? "queued");
   const diagnostics = resultDiagnostics(focusedResult);
@@ -58,18 +56,6 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
       {isRunSnapshotStale(state) && (
         <p className="snapshot-warning" role="status">{translate(locale, "results.snapshotStale")}</p>
       )}
-      <section aria-labelledby="result-comparison-heading">
-        <div className="result-section-heading">
-          <h3 id="result-comparison-heading">{translate(locale, "results.comparisonTitle")}</h3>
-        </div>
-        <ResultComparison
-          locale={locale}
-          strategyRuns={strategyRuns}
-          focusedResultId={state.focusedResultId}
-          onFocus={(id) => dispatch({ type: "result.focus", id })}
-        />
-      </section>
-
       {focusedResult ? (
         <>
           <section aria-labelledby="focused-metrics-heading">
@@ -80,31 +66,29 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
                 })}
               </h3>
             </div>
-            <MetricGrid locale={locale} metrics={canShowSavedValues ? focusedResult.metrics : null} />
+            <MetricGrid
+              locale={locale}
+              metrics={canShowSavedValues ? focusedResult.metrics : null}
+              variant="core"
+            />
             <DiagnosticList locale={locale} diagnostics={diagnostics} />
+            <a className="result-details-entry" href="#result-details">
+              {translate(locale, "results.detailsEntry")}
+              <span aria-hidden="true">↓</span>
+            </a>
           </section>
 
           <section aria-labelledby="result-display-heading">
             <div className="result-section-heading result-display-heading">
               <h3 id="result-display-heading">{translate(locale, "results.displayTitle")}</h3>
-              <div className="result-display-toggles">
-                <button
-                  className="display-toggle"
-                  type="button"
-                  aria-pressed={state.showChart}
-                  onClick={() => dispatch({ type: "display.chart", value: !state.showChart })}
-                >
-                  {translate(locale, "chart.toggle")}
-                </button>
-                <button
-                  className="display-toggle"
-                  type="button"
-                  aria-pressed={state.showTrades}
-                  onClick={() => dispatch({ type: "display.trades", value: !state.showTrades })}
-                >
-                  {translate(locale, "trade.toggle")}
-                </button>
-              </div>
+              <button
+                className="display-toggle"
+                type="button"
+                aria-pressed={state.showChart}
+                onClick={() => dispatch({ type: "display.chart", value: !state.showChart })}
+              >
+                {translate(locale, "chart.toggle")}
+              </button>
             </div>
             {state.showChart && canShowSavedValues && (
               <ResultsCharts
@@ -125,23 +109,19 @@ export function ResultViewer({ locale, state, dispatch }: ResultViewerProps) {
             {state.showChart && !canShowSavedValues && (
               <p className="metric-empty">{translate(locale, "results.metricsUnavailable")}</p>
             )}
-            {state.showTrades && (
-              <TradeTable
-                locale={locale}
-                status={focusedResult.status}
-                trades={focusedResult.trades ?? []}
-              />
-            )}
           </section>
-
-          {focusedResult.searchResult && focusedResult.presetId === "grid_search" && (
-            <SearchResults locale={locale} searchResult={focusedResult.searchResult} />
-          )}
         </>
       ) : (
         <p className="metric-empty" role="status">{translate(locale, "results.focusPending")}</p>
       )}
-      <ExportControls key={focusedResult?.id ?? "no-focused-result"} locale={locale} runId={run.runId} result={focusedResult} />
+      <ResultDetails
+        key={`${run.runId}:${focusedResult?.id ?? "no-focused-result"}`}
+        locale={locale}
+        run={run}
+        focusedResult={focusedResult}
+        state={state}
+        dispatch={dispatch}
+      />
     </div>
   );
 }

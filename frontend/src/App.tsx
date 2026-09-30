@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { CatalogApiError, fetchCatalog } from "./api/catalog";
 import type { Catalog, Diagnostic, StrategyPresetId, StrategyStatus } from "./api/generated";
 import {
@@ -24,9 +24,10 @@ import {
   type WorkspaceAction,
   type WorkspaceState,
 } from "./features/strategies/model";
-import { StrategyWorkspace } from "./features/strategies/StrategyWorkspace";
-import { translate, type Locale } from "./i18n/messages";
+import { StrategyEditor, StrategyNavigator } from "./features/strategies/StrategyWorkspace";
+import { interpolate, translate, type Locale } from "./i18n/messages";
 import { LocaleControl } from "./shared/ui/LocaleControl";
+import { WorkbenchDivider } from "./shared/ui/WorkbenchDivider";
 
 type CatalogState =
   | { status: "loading" }
@@ -70,6 +71,11 @@ function App() {
   const [validationState, setValidationState] = useState<ValidationState | null>(null);
   const [runError, setRunError] = useState<RunApiError | null>(null);
   const [runBusy, setRunBusy] = useState(false);
+  const [configWidth, setConfigWidth] = useState(350);
+  const [configCollapsed, setConfigCollapsed] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches,
+  );
+  const [mobilePanel, setMobilePanel] = useState<"config" | "results">("results");
   const strategySequence = useRef(2);
   const activeRunController = useRef<AbortController | null>(null);
   const submittedRunRef = useRef(false);
@@ -87,6 +93,22 @@ function App() {
     document.documentElement.lang = locale === "ja" ? "ja" : "zh-Hans";
     document.title = translate(locale, "app.documentTitle");
   }, [locale]);
+
+  useEffect(() => {
+    const responsive = window.matchMedia("(max-width: 1279px)");
+    const syncConfigVisibility = (event: MediaQueryListEvent) => setConfigCollapsed(event.matches);
+    responsive.addEventListener("change", syncConfigVisibility);
+    return () => responsive.removeEventListener("change", syncConfigVisibility);
+  }, []);
+
+  useEffect(() => {
+    const desktopView = window.matchMedia("(min-width: 768px)");
+    const resetMobilePanel = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobilePanel("results");
+    };
+    desktopView.addEventListener("change", resetMobilePanel);
+    return () => desktopView.removeEventListener("change", resetMobilePanel);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -264,6 +286,10 @@ function App() {
     }
   };
 
+  const workbenchStyle = {
+    "--workbench-config-width": `${configCollapsed ? 0 : configWidth}px`,
+  } as CSSProperties & { "--workbench-config-width": string };
+
   return (
     <div className="app-frame" lang={locale === "ja" ? "ja" : "zh-Hans"}>
       <a className="skip-link" href="#main-content">{translate(locale, "app.skipToMain")}</a>
@@ -278,74 +304,66 @@ function App() {
         </div>
       </header>
 
-      <main id="main-content" className="main-content">
-        <div className="page-heading">
-          <div>
-            <h1>{translate(locale, "page.title")}</h1>
-            <p className="section-subhead">{translate(locale, "page.subtitle")}</p>
-          </div>
-          <span className="status-tag" role="status">
-            {translate(locale, workspace?.runResponse ? `status.${workspace.runResponse.status}` : "status.empty")}
-          </span>
-        </div>
-
-        {catalogState.status === "loading" && (
-          <div className="catalog-notice" role="status" aria-live="polite">
-            <span className="loading-indicator" aria-hidden="true" />
-            {translate(locale, "catalog.loading")}
-          </div>
-        )}
-
-        {catalogState.status === "failed" && (
-          <div className="catalog-error" role="alert">
+      <main id="main-content" className="main-content workbench-main" style={workbenchStyle}>
+        <div className="workbench-context">
+          <div className="page-heading">
             <div>
-              <strong>{translate(locale, "catalog.unavailable")}</strong>
-              <p>{translate(locale, catalogState.error.message)}</p>
+              <h1>{translate(locale, "page.title")}</h1>
+              <div className="workbench-run-summary" aria-label={translate(locale, "page.subtitle")}>
+                <strong>{workspace?.draft.shared.run.symbol ?? "—"}</strong>
+                <span>{workspace?.draft.shared.run.startDate ?? "—"}</span>
+                <span aria-hidden="true">→</span>
+                <span>
+                  {workspace?.draft.shared.run.endMode === "latest"
+                    ? translate(locale, "end.latest")
+                    : workspace?.draft.shared.run.endDate ?? "—"}
+                </span>
+                <span className="workbench-summary-separator" aria-hidden="true">·</span>
+                <span>
+                  {interpolate(translate(locale, "workbench.funding"), {
+                    amount: workspace?.draft.shared.contribution.amount ?? "—",
+                    day: String(workspace?.draft.shared.contribution.day ?? "—"),
+                  })}
+                </span>
+              </div>
             </div>
-            <button className="button" type="button" onClick={() => setRetryCount((count) => count + 1)}>
-              {translate(locale, "catalog.retry")}
-            </button>
+            <div className="workbench-heading-actions">
+              {catalog && workspace && (
+                <button
+                  className="button workbench-config-toggle"
+                  type="button"
+                  aria-expanded={!configCollapsed}
+                  onClick={() => setConfigCollapsed((collapsed) => !collapsed)}
+                >
+                  {translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
+                </button>
+              )}
+              <span className="status-tag" role="status">
+                {translate(locale, workspace?.runResponse ? `status.${workspace.runResponse.status}` : "status.empty")}
+              </span>
+            </div>
           </div>
-        )}
 
-        {catalog && workspace && (
-          <>
-            <SharedSettingsForm
-              catalog={catalog}
-              value={{
-                run: workspace.draft.shared.run,
-                contribution: workspace.draft.shared.contribution,
-              }}
-              locale={locale}
-              errors={currentValidation?.diagnostics ?? []}
-              resolvedLatestEndDate={
-                workspace.runRequestedEndMode === "latest" &&
-                workspace.runResponse?.snapshot.config.shared.run.endMode === "fixed"
-                  ? workspace.runResponse.snapshot.config.shared.run.endDate
-                  : null
-              }
-              onChange={(value) => dispatch({ type: "shared.change", value })}
-            />
+          {catalogState.status === "loading" && (
+            <div className="catalog-notice" role="status" aria-live="polite">
+              <span className="loading-indicator" aria-hidden="true" />
+              {translate(locale, "catalog.loading")}
+            </div>
+          )}
 
-            <StrategyWorkspace
-              catalog={catalog}
-              locale={locale}
-              state={workspace}
-              validation={currentValidation}
-              dispatch={dispatch}
-              onAdd={handleAdd}
-            />
+          {catalogState.status === "failed" && (
+            <div className="catalog-error" role="alert">
+              <div>
+                <strong>{translate(locale, "catalog.unavailable")}</strong>
+                <p>{translate(locale, catalogState.error.message)}</p>
+              </div>
+              <button className="button" type="button" onClick={() => setRetryCount((count) => count + 1)}>
+                {translate(locale, "catalog.retry")}
+              </button>
+            </div>
+          )}
 
-            {currentValidation && validationDiagnostics(currentValidation).length > 0 && (
-              <section className="validation-diagnostics" aria-labelledby="validation-diagnostics-heading">
-                <h2 id="validation-diagnostics-heading">{translate(locale, "diagnostics.title")}</h2>
-                <DiagnosticList locale={locale} diagnostics={validationDiagnostics(currentValidation)} />
-              </section>
-            )}
-            {validationState?.draft === workspace.draft && validationState.error && (
-              <p className="field-error" role="alert">{translate(locale, "run.validationFailed")}</p>
-            )}
-
+          {catalog && workspace && (
             <RunControls
               locale={locale}
               runScope={workspace.runScope}
@@ -354,18 +372,123 @@ function App() {
               onScopeChange={(runScope) => dispatch({ type: "run.scope", value: runScope })}
               onRun={() => void handleRun()}
             />
+          )}
+          {catalog && workspace && (
+            <div className="workbench-mobile-views" role="group" aria-label={translate(locale, "workbench.mobile.label")}>
+              <button
+                className="workbench-mobile-view"
+                type="button"
+                aria-pressed={mobilePanel === "config"}
+                onClick={() => setMobilePanel("config")}
+              >
+                {translate(locale, "workbench.mobile.config")}
+              </button>
+              <button
+                className="workbench-mobile-view"
+                type="button"
+                aria-pressed={mobilePanel === "results"}
+                onClick={() => setMobilePanel("results")}
+              >
+                {translate(locale, "workbench.mobile.results")}
+              </button>
+            </div>
+          )}
+        </div>
 
-            <section className="results" aria-labelledby="results-heading">
-              <div className="results-heading">
-                <div>
-                  <h2 id="results-heading">{translate(locale, "section.results")}</h2>
-                  <p className="section-subhead">{translate(locale, "section.resultsHelp")}</p>
+        {catalog && workspace && (
+          <div className={`workbench-layout${configCollapsed ? " is-config-collapsed" : ""}`} data-mobile-panel={mobilePanel}>
+            {(!configCollapsed || mobilePanel === "config") && (
+              <aside id="workbench-config-panel" className="workbench-config" aria-label={translate(locale, "section.sharedSettings")}>
+                <div className="workbench-config-fixed">
+                  <details className="shared-settings-disclosure">
+                    <summary>
+                      <span className="shared-settings-disclosure-title">{translate(locale, "section.sharedSettings")}</span>
+                      <span className="shared-settings-disclosure-summary">
+                        {workspace.draft.shared.run.symbol} · {workspace.draft.shared.run.startDate} → {workspace.draft.shared.run.endMode === "latest"
+                          ? translate(locale, "end.latest")
+                          : workspace.draft.shared.run.endDate ?? "—"}
+                        {" · "}
+                        {interpolate(translate(locale, "workbench.funding"), {
+                          amount: workspace.draft.shared.contribution.amount ?? "—",
+                          day: String(workspace.draft.shared.contribution.day ?? "—"),
+                        })}
+                      </span>
+                    </summary>
+                    <SharedSettingsForm
+                      catalog={catalog}
+                      value={{
+                        run: workspace.draft.shared.run,
+                        contribution: workspace.draft.shared.contribution,
+                      }}
+                      locale={locale}
+                      errors={currentValidation?.diagnostics ?? []}
+                      resolvedLatestEndDate={
+                        workspace.runRequestedEndMode === "latest" &&
+                        workspace.runResponse?.snapshot.config.shared.run.endMode === "fixed"
+                          ? workspace.runResponse.snapshot.config.shared.run.endDate
+                          : null
+                      }
+                      onChange={(value) => dispatch({ type: "shared.change", value })}
+                    />
+                  </details>
+                  <StrategyNavigator
+                    catalog={catalog}
+                    locale={locale}
+                    state={workspace}
+                    validation={currentValidation}
+                    dispatch={dispatch}
+                    onAdd={handleAdd}
+                  />
                 </div>
-              </div>
-              <StatusView locale={locale} run={workspace.runResponse} error={runError} />
-              <ResultViewer locale={locale} state={workspace} dispatch={dispatch} />
+                <div
+                  className="workbench-editor-scroll"
+                  role="region"
+                  aria-label={translate(locale, "section.strategyWorkspace")}
+                >
+                  <StrategyEditor
+                    catalog={catalog}
+                    locale={locale}
+                    state={workspace}
+                    validation={currentValidation}
+                    dispatch={dispatch}
+                  />
+                </div>
+              </aside>
+            )}
+            {!configCollapsed && (
+              <WorkbenchDivider
+                width={configWidth}
+                onWidthChange={setConfigWidth}
+                label={translate(locale, "workbench.resizeConfig")}
+              />
+            )}
+            <section
+              id="workbench-results-panel"
+              className="workbench-results"
+              aria-label={translate(locale, "section.results")}
+              hidden={mobilePanel === "config"}
+            >
+              {currentValidation && validationDiagnostics(currentValidation).length > 0 && (
+                <section className="validation-diagnostics" aria-labelledby="validation-diagnostics-heading">
+                  <h2 id="validation-diagnostics-heading">{translate(locale, "diagnostics.title")}</h2>
+                  <DiagnosticList locale={locale} diagnostics={validationDiagnostics(currentValidation)} />
+                </section>
+              )}
+              {validationState?.draft === workspace.draft && validationState.error && (
+                <p className="field-error" role="alert">{translate(locale, "run.validationFailed")}</p>
+              )}
+              <section className="results" aria-labelledby="results-heading">
+                <div className="results-heading">
+                  <div>
+                    <h2 id="results-heading">{translate(locale, "section.results")}</h2>
+                    <p className="section-subhead">{translate(locale, "section.resultsHelp")}</p>
+                  </div>
+                </div>
+                <StatusView locale={locale} run={workspace.runResponse} error={runError} />
+                <ResultViewer locale={locale} state={workspace} dispatch={dispatch} />
+              </section>
             </section>
-          </>
+          </div>
         )}
       </main>
     </div>

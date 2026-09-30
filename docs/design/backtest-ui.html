@@ -1,267 +1,209 @@
 <div id="backtest-ui-preview" aria-label="株式とETFのバックテスト画面モックアップ">
   <style>
     #backtest-ui-preview {
-      --app-bg: light-dark(#f4f6f5, #171c1b);
-      --app-surface: light-dark(#ffffff, #202725);
-      --app-foreground: light-dark(#192321, #edf3f0);
-      --app-muted: light-dark(#65736f, #a6b2ad);
-      --app-border: light-dark(#dce3df, #394541);
-      --app-accent: light-dark(#147d68, #56c7a7);
-      --app-accent-soft: light-dark(#e5f3ef, #263d36);
-      --app-orange: light-dark(#c37534, #eda766);
-      --app-red: light-dark(#b54e50, #f08080);
-      color-scheme: light dark;
-      color: var(--app-foreground);
+      --bg: #f4f6f5;
+      --surface: #fff;
+      --text: #192321;
+      --muted: #5d6a65;
+      --border: #dce3df;
+      --accent: #147d68;
+      --accent-soft: #e5f3ef;
+      color: var(--text);
+      background: var(--bg);
       font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-      background: var(--app-bg);
-      border: 1px solid var(--app-border);
+      border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
-      width: 100%;
+      min-width: 0;
     }
     #backtest-ui-preview * { box-sizing: border-box; }
-    #backtest-ui-preview .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-    #backtest-ui-preview button,
-    #backtest-ui-preview input,
-    #backtest-ui-preview select { font: inherit; }
-    #backtest-ui-preview .app-topbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 14px 22px;
-      background: var(--app-surface);
-      border-bottom: 1px solid var(--app-border);
-    }
-    #backtest-ui-preview .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    #backtest-ui-preview .brand-mark {
-      display: grid;
-      place-items: center;
-      width: 30px;
-      height: 30px;
-      color: #fff;
-      background: #147d68;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 700;
-    }
-    #backtest-ui-preview .brand-name { font-weight: 650; overflow-wrap: anywhere; }
-    #backtest-ui-preview .topbar-right { display: flex; align-items: center; gap: 14px; }
-    #backtest-ui-preview .local-tag { color: var(--app-muted); font-size: 12px; }
-    #backtest-ui-preview .locale-switch { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--app-border); border-radius: 6px; }
-    #backtest-ui-preview .locale-switch button,
-    #backtest-ui-preview .run-scope button { min-height: 32px; padding: 5px 8px; color: var(--app-muted); background: transparent; border: 0; border-radius: 4px; font-size: 12px; }
-    #backtest-ui-preview .locale-switch button[aria-pressed="true"],
-    #backtest-ui-preview .run-scope button[aria-pressed="true"] { color: var(--app-foreground); background: var(--app-accent-soft); }
-    #backtest-ui-preview main { max-width: 1180px; margin: 0 auto; padding: 24px 24px 30px; }
-    #backtest-ui-preview .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
     #backtest-ui-preview h1,
     #backtest-ui-preview h2,
     #backtest-ui-preview h3,
-    #backtest-ui-preview p { margin: 0; }
-    #backtest-ui-preview h1 { font-size: 21px; line-height: 1.25; font-weight: 650; }
-    #backtest-ui-preview h2 { font-size: 15px; font-weight: 650; }
-    #backtest-ui-preview h3 { font-size: 14px; font-weight: 600; }
-    #backtest-ui-preview .subhead { margin-top: 5px; color: var(--app-muted); font-size: 12px; }
-    #backtest-ui-preview .global-settings {
-      display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-      gap: 12px;
-      padding: 14px 0 18px;
-      border-bottom: 1px solid var(--app-border);
-    }
-    #backtest-ui-preview .setting-group {
-      min-width: 0;
-      margin: 0;
-      padding: 6px 12px 12px;
-      border: 1px solid var(--app-border);
-      border-radius: var(--app-radius);
-      background: var(--app-surface);
-    }
-    #backtest-ui-preview .setting-group legend { padding: 0 5px; color: var(--app-muted); font-size: 12px; font-weight: 650; }
-    #backtest-ui-preview .settings-fields { display: grid; gap: 12px; }
-    #backtest-ui-preview .settings-fields-range { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    #backtest-ui-preview .settings-fields-funding { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    #backtest-ui-preview .field { display: grid; align-content: start; gap: 8px; min-width: 0; }
-    #backtest-ui-preview .field > label,
-    #backtest-ui-preview .field-label { color: var(--app-foreground); font-size: 13px; font-weight: 650; }
-    #backtest-ui-preview .field-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; }
-    #backtest-ui-preview .field-label .end-mode { display: inline-flex; align-items: center; gap: 4px; color: var(--app-foreground); white-space: nowrap; }
-    #backtest-ui-preview .end-mode input { margin: 0; accent-color: var(--app-accent); }
-    #backtest-ui-preview .input {
-      width: 100%;
-      min-width: 0;
-      min-height: 40px;
-      padding: 7px 10px;
-      color: var(--app-foreground);
-      background: var(--app-surface);
-      border: 1px solid var(--app-border);
-      border-radius: 5px;
-    }
-    #backtest-ui-preview .unit-field { position: relative; min-width: 0; }
-    #backtest-ui-preview .unit-field .input { padding-right: 54px; }
-    #backtest-ui-preview .unit { position: absolute; top: 50%; right: 11px; color: var(--app-muted); font-size: 12px; transform: translateY(-50%); pointer-events: none; }
-    #backtest-ui-preview .field-hint { color: var(--app-muted); font-size: 12px; line-height: 1.45; }
-    #backtest-ui-preview .input:disabled { color: var(--app-muted); background: var(--app-bg); }
-    #backtest-ui-preview .strategy-workspace {
-      padding: 20px 0 22px;
-      border-bottom: 1px solid var(--app-border);
-    }
-    #backtest-ui-preview .workspace-cards { display: grid; gap: 14px; }
-    #backtest-ui-preview .strategy-card {
-      min-width: 0;
-      padding: 16px;
-      background: var(--app-surface);
-      border: 1px solid var(--app-border);
-      border-radius: 8px;
-    }
-    #backtest-ui-preview .strategy-card.is-active { border-color: #83b3a5; box-shadow: 0 0 0 2px var(--app-accent-soft); }
-    #backtest-ui-preview .strategy-card-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-    #backtest-ui-preview .strategy-select { display: grid; min-width: 0; gap: 4px; padding: 0; color: var(--app-foreground); background: transparent; border: 0; text-align: left; cursor: pointer; }
-    #backtest-ui-preview .strategy-name { font-size: 16px; font-weight: 650; }
-    #backtest-ui-preview .strategy-summary,
-    #backtest-ui-preview .strategy-description { color: var(--app-muted); font-size: 12px; overflow-wrap: anywhere; }
-    #backtest-ui-preview .strategy-description { margin-top: 9px; font-size: 13px; }
-    #backtest-ui-preview .strategy-actions { display: flex; align-items: center; gap: 8px; }
-    #backtest-ui-preview .switch-line { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; color: var(--app-foreground); font-size: 12px; }
-    #backtest-ui-preview .switch-line input { accent-color: var(--app-accent); width: 16px; height: 16px; margin: 0; }
-    #backtest-ui-preview .parameter-groups {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid var(--app-border);
-    }
-    #backtest-ui-preview .parameter-group { min-width: 0; padding: 12px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-bg); }
-    #backtest-ui-preview .parameter-group h3 { margin-bottom: 12px; color: var(--app-foreground); font-size: 13px; }
-    #backtest-ui-preview .parameter-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
-    #backtest-ui-preview .add-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: end;
-      gap: 8px 12px;
-      max-width: 520px;
-      margin-top: 15px;
-      padding: 14px;
-      background: var(--app-surface);
-      border: 1px solid var(--app-border);
-      border-radius: 6px;
-    }
-    #backtest-ui-preview .add-row .field { grid-column: 1; }
-    #backtest-ui-preview .add-row > label { grid-column: 1 / -1; }
-    #backtest-ui-preview .run-actions {
+    #backtest-ui-preview p,
+    #backtest-ui-preview dl { margin: 0; }
+    #backtest-ui-preview button,
+    #backtest-ui-preview input,
+    #backtest-ui-preview select { font: inherit; }
+    #backtest-ui-preview button:focus-visible,
+    #backtest-ui-preview input:focus-visible,
+    #backtest-ui-preview select:focus-visible,
+    #backtest-ui-preview a:focus-visible,
+    #backtest-ui-preview summary:focus-visible,
+    #backtest-ui-preview .divider:focus-visible,
+    #backtest-ui-preview #prototype-result-details:focus-visible { outline: 3px solid #148b75; outline-offset: 2px; }
+    #backtest-ui-preview .app-topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      padding: 16px 0;
-      border-bottom: 1px solid var(--app-border);
+      gap: 12px 20px;
+      min-height: 60px;
+      padding: 10px 18px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
     }
-    #backtest-ui-preview .run-scope { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--app-border); border-radius: 6px; }
-    #backtest-ui-preview .run-scope button { min-height: 38px; padding: 5px 10px; color: var(--app-muted); background: transparent; border: 0; border-radius: 4px; }
-    #backtest-ui-preview .run-scope button[aria-pressed="true"] { color: var(--app-foreground); background: var(--app-accent-soft); }
-    #backtest-ui-preview .run-button { min-height: 44px; padding: 0 18px; color: #fff; background: #147d68; border: 1px solid #147d68; border-radius: 5px; font-weight: 600; }
-    #backtest-ui-preview .result-panels { display: grid; gap: 14px; padding-top: 14px; }
-    #backtest-ui-preview .result-panel {
-      min-width: 0;
-      padding: 14px;
-      background: var(--app-surface);
-      border: 1px solid var(--app-border);
-      border-radius: 6px;
+    #backtest-ui-preview .brand,
+    #backtest-ui-preview .topbar-right,
+    #backtest-ui-preview .locale-switch { display: flex; align-items: center; gap: 9px; }
+    #backtest-ui-preview .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; color: white; background: var(--accent); border-radius: 6px; font-weight: 700; }
+    #backtest-ui-preview .brand-name { font-weight: 650; }
+    #backtest-ui-preview .local-tag { color: var(--muted); font-size: 12px; }
+    #backtest-ui-preview .locale-switch { gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 6px; }
+    #backtest-ui-preview .locale-switch button { min-height: 34px; padding: 4px 8px; color: var(--muted); background: transparent; border: 0; border-radius: 4px; }
+    #backtest-ui-preview .locale-switch button[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); }
+    #backtest-ui-preview main {
+      display: grid;
+      grid-template-rows: auto minmax(540px, 1fr);
+      gap: 10px;
+      width: 100%;
+      height: min(900px, calc(100dvh - 60px));
+      min-height: 680px;
+      padding: 10px 16px 14px;
     }
-    #backtest-ui-preview .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
-    #backtest-ui-preview .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-      min-height: 36px;
-      padding: 0 12px;
-      color: var(--app-foreground);
-      background: var(--app-surface);
-      border: 1px solid var(--app-border);
-      border-radius: 5px;
-      white-space: nowrap;
+    #backtest-ui-preview .top-context {
+      position: sticky;
+      z-index: 10;
+      top: 60px;
+      display: grid;
+      gap: 10px;
+      padding: 4px 0 8px;
+      background: var(--bg);
     }
-    #backtest-ui-preview .button i { display: inline-flex; width: 15px; height: 15px; }
-    #backtest-ui-preview .button-primary { color: #fff; background: #147d68; border-color: #147d68; font-weight: 600; }
-    #backtest-ui-preview .button-small { padding: 0 9px; font-size: 12px; }
-    #backtest-ui-preview .icon-button { display: grid; place-items: center; flex: none; width: 32px; height: 32px; color: var(--app-muted); background: transparent; border: 0; border-radius: 5px; }
-    #backtest-ui-preview .icon-button i { width: 15px; height: 15px; }
-    #backtest-ui-preview .status-tag { color: var(--app-accent); background: var(--app-accent-soft); padding: 4px 7px; border-radius: 3px; font-size: 11px; }
-    #backtest-ui-preview .results { padding-top: 20px; }
-    #backtest-ui-preview .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 15px; }
-    #backtest-ui-preview .result-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-    #backtest-ui-preview .chart-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0 4px; }
-    #backtest-ui-preview .chart-controls-group { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; border: 1px solid var(--app-border); border-radius: 6px; }
-    #backtest-ui-preview .chart-controls button { min-height: 36px; padding: 5px 9px; color: var(--app-muted); background: var(--app-surface); border: 1px solid transparent; border-radius: 4px; }
-    #backtest-ui-preview .chart-controls button[aria-pressed="true"] { color: var(--app-foreground); background: var(--app-accent-soft); }
-    #backtest-ui-preview .chart-control-help { flex-basis: 100%; color: var(--app-muted); font-size: 12px; }
-    #backtest-ui-preview .display-toggle { min-height: 40px; padding: 6px 10px; color: var(--app-muted); background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 5px; }
-    #backtest-ui-preview .display-toggle[aria-pressed="true"] { color: #125c4e; background: var(--app-accent-soft); border-color: #a9c8bd; }
-    #backtest-ui-preview button:disabled { opacity: .45; }
-    #backtest-ui-preview .empty-results { display: grid; place-items: center; min-height: 150px; padding: 18px; color: var(--app-muted); background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 6px; text-align: center; }
-    #backtest-ui-preview .empty-results i { display: block; width: 23px; height: 23px; margin: 0 auto 10px; }
-    #backtest-ui-preview .result-state { margin-bottom: 14px; padding: 12px 14px; background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 6px; }
-    #backtest-ui-preview .result-state p { margin-top: 4px; color: var(--app-muted); font-size: 12px; }
-    #backtest-ui-preview .chart-example-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
-    #backtest-ui-preview .chart-example { min-width: 0; margin: 0; padding: 12px; overflow-x: auto; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); }
-    #backtest-ui-preview .chart-example figcaption { margin-bottom: 8px; font-size: 12px; font-weight: 650; }
-    #backtest-ui-preview .chart-example svg { display: block; width: 100%; min-width: 610px; height: auto; }
-    #backtest-ui-preview .chart-grid { stroke: #dce3df; stroke-width: 1; }
-    #backtest-ui-preview .chart-tick { fill: var(--app-muted); font-size: 11px; }
-    #backtest-ui-preview .chart-axis-label { fill: var(--app-foreground); font-size: 11px; font-weight: 600; }
-    #backtest-ui-preview .chart-line-price { fill: none; stroke: #147d68; stroke-width: 1.8; }
-    #backtest-ui-preview .chart-line-asset { fill: none; stroke: #276d9b; stroke-width: 1.8; }
-    #backtest-ui-preview .chart-baseline { stroke: #74817b; stroke-width: 1.5; stroke-dasharray: 6 4; }
-    #backtest-ui-preview .chart-baseline-label { fill: var(--app-muted); font-size: 10px; }
-    #backtest-ui-preview .chart-example-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; color: var(--app-muted); font-size: 11px; }
-    #backtest-ui-preview .chart-example-legend span { display: inline-flex; align-items: center; gap: 6px; }
-    #backtest-ui-preview .chart-example-legend i { width: 12px; height: 3px; background: #147d68; }
-    #backtest-ui-preview .chart-example-legend .asset-swatch { background: #276d9b; }
-    #backtest-ui-preview .chart-example-legend .baseline-swatch { height: 0; background: transparent; border-top: 1px dashed #74817b; }
-    #backtest-ui-preview .chart-trade-buy { fill: #147d68; stroke: #fff; stroke-width: 1.5; }
-    #backtest-ui-preview .chart-trade-sell { fill: #a7373a; stroke: #fff; stroke-width: 1.5; }
-    @media (max-width: 900px) {
-      #backtest-ui-preview .global-settings { grid-template-columns: minmax(0, 1fr); }
+    #backtest-ui-preview .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    #backtest-ui-preview h1 { font-size: 20px; line-height: 1.25; font-weight: 650; }
+    #backtest-ui-preview h2 { font-size: 15px; font-weight: 650; }
+    #backtest-ui-preview h3 { font-size: 14px; font-weight: 650; }
+    #backtest-ui-preview .run-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; margin-top: 4px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    #backtest-ui-preview .run-summary strong { color: var(--accent); font-size: 14px; }
+    #backtest-ui-preview .button { min-height: 40px; padding: 0 12px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; }
+    #backtest-ui-preview .button-primary { color: white; background: var(--accent); border-color: var(--accent); font-weight: 650; }
+    #backtest-ui-preview .run-controls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    #backtest-ui-preview .run-scope { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 6px; }
+    #backtest-ui-preview .run-scope button { min-height: 36px; padding: 5px 10px; color: var(--muted); background: transparent; border: 0; border-radius: 4px; }
+    #backtest-ui-preview .run-scope button[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); }
+    #backtest-ui-preview .mobile-views { display: none; }
+    #backtest-ui-preview .workbench-layout { display: grid; grid-template-columns: 350px 12px minmax(0, 1fr); min-height: 0; overflow: hidden; }
+    #backtest-ui-preview .config-pane { display: grid; grid-template-rows: minmax(240px, .53fr) minmax(0, .47fr); gap: 9px; min-width: 0; min-height: 0; overflow: hidden; }
+    #backtest-ui-preview .config-fixed { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; min-height: 0; }
+    #backtest-ui-preview .shared-settings { min-width: 0; padding: 9px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+    #backtest-ui-preview .shared-settings summary { cursor: pointer; font-weight: 650; }
+    #backtest-ui-preview .shared-summary { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 400; }
+    #backtest-ui-preview .settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
+    #backtest-ui-preview .field { display: grid; gap: 5px; min-width: 0; }
+    #backtest-ui-preview .field label { font-size: 12px; font-weight: 650; }
+    #backtest-ui-preview .input { width: 100%; min-height: 38px; padding: 6px 8px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; }
+    #backtest-ui-preview .field-hint { color: var(--muted); font-size: 11px; }
+    #backtest-ui-preview .strategy-nav { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 7px; min-height: 0; }
+    #backtest-ui-preview .strategy-nav-heading { display: flex; justify-content: space-between; align-items: center; }
+    #backtest-ui-preview .strategy-count { color: var(--muted); font-size: 12px; }
+    #backtest-ui-preview .strategy-list { display: grid; align-content: start; gap: 5px; min-height: 0; overflow-y: auto; }
+    #backtest-ui-preview .strategy-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 8px 9px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+    #backtest-ui-preview .strategy-row[aria-current="true"] { border-color: #83b3a5; background: var(--accent-soft); }
+    #backtest-ui-preview .strategy-select { min-width: 0; padding: 0; color: var(--text); background: transparent; border: 0; text-align: left; font-weight: 650; }
+    #backtest-ui-preview .strategy-summary { display: -webkit-box; margin-top: 2px; color: var(--muted); font-size: 12px; font-weight: 400; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+    #backtest-ui-preview .strategy-actions { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+    #backtest-ui-preview .strategy-actions input { accent-color: var(--accent); }
+    #backtest-ui-preview .add-strategy { display: flex; gap: 7px; }
+    #backtest-ui-preview .editor-scroll,
+    #backtest-ui-preview .results-pane { min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    #backtest-ui-preview .editor-scroll { padding: 2px 5px 12px 0; }
+    #backtest-ui-preview .editor-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+    #backtest-ui-preview .subhead { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    #backtest-ui-preview .parameter-group { margin: 0 0 9px; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+    #backtest-ui-preview .parameter-group legend { padding: 0 5px; color: var(--muted); font-size: 12px; font-weight: 650; }
+    #backtest-ui-preview .parameter-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 13px; }
+    #backtest-ui-preview .divider { display: grid; place-items: center; cursor: col-resize; }
+    #backtest-ui-preview .divider::before { width: 2px; height: 100%; background: var(--border); content: ""; }
+    #backtest-ui-preview .results-pane { padding: 2px 0 16px 10px; border-left: 1px solid var(--border); }
+    #backtest-ui-preview .result-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    #backtest-ui-preview .status-tag { padding: 4px 7px; color: #3e6258; background: var(--accent-soft); border-radius: 4px; font-size: 11px; }
+    #backtest-ui-preview .result-card { margin-bottom: 10px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+    #backtest-ui-preview .core-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
+    #backtest-ui-preview .metric { min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: 5px; }
+    #backtest-ui-preview .metric dt { color: var(--muted); font-size: 11px; }
+    #backtest-ui-preview .metric dd { margin: 4px 0 0; font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    #backtest-ui-preview .details-entry { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; margin-top: 8px; padding: 0 9px; color: #125c4e; background: var(--accent-soft); border: 1px solid #a9c8bd; border-radius: 5px; font-size: 13px; font-weight: 650; text-decoration: none; }
+    #backtest-ui-preview .chart-controls { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 9px 0; }
+    #backtest-ui-preview .series-toggles,
+    #backtest-ui-preview .layout-toggles,
+    #backtest-ui-preview .range-toggles { display: flex; flex-wrap: wrap; gap: 4px; }
+    #backtest-ui-preview .chart-controls button,
+    #backtest-ui-preview .result-tabs button { min-height: 36px; padding: 5px 9px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; }
+    #backtest-ui-preview .chart-controls button[aria-pressed="true"] { color: #125c4e; background: var(--accent-soft); border-color: #a9c8bd; }
+    #backtest-ui-preview .chart-figure { margin: 0; padding: 10px 8px 8px; overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+    #backtest-ui-preview .chart-figure figcaption { margin: 0 0 6px 62px; font-size: 12px; font-weight: 650; }
+    #backtest-ui-preview .chart-figure svg { display: block; width: 100%; min-width: 600px; height: auto; }
+    #backtest-ui-preview .grid-line { stroke: #dce3df; stroke-width: 1; }
+    #backtest-ui-preview .tick { fill: var(--muted); font-size: 10px; }
+    #backtest-ui-preview .axis-title { fill: var(--text); font-size: 10px; font-weight: 600; }
+    #backtest-ui-preview .price-line { fill: none; stroke: #276d9b; stroke-width: 1.8; }
+    #backtest-ui-preview .asset-line { fill: none; stroke: #147d68; stroke-width: 1.8; }
+    #backtest-ui-preview .base-line { stroke: #81918b; stroke-width: 1; stroke-dasharray: 4 4; }
+    #backtest-ui-preview .legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin: 4px 0 0 62px; color: var(--muted); font-size: 11px; }
+    #backtest-ui-preview .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    #backtest-ui-preview .swatch { width: 15px; height: 2px; background: #276d9b; }
+    #backtest-ui-preview .swatch.asset { background: #147d68; }
+    #backtest-ui-preview .swatch.baseline { height: 0; background: transparent; border-top: 1px dashed #81918b; }
+    #backtest-ui-preview .result-tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto; border-bottom: 1px solid var(--border); }
+    #backtest-ui-preview .result-tabs button { flex: 0 0 auto; border: 0; border-bottom: 2px solid transparent; border-radius: 0; }
+    #backtest-ui-preview .result-tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+    #backtest-ui-preview .compare-preview { margin-top: 9px; overflow-x: auto; }
+    #backtest-ui-preview table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
+    #backtest-ui-preview th,
+    #backtest-ui-preview td { padding: 8px; border-bottom: 1px solid var(--border); text-align: right; }
+    #backtest-ui-preview th:first-child,
+    #backtest-ui-preview td:first-child { text-align: left; }
+    #backtest-ui-preview thead th { color: var(--muted); background: #f7f9f8; }
+    @media (max-width: 1279px) {
+      #backtest-ui-preview main { display: block; height: auto; min-height: calc(100dvh - 60px); }
+      #backtest-ui-preview .top-context { top: 60px; }
+      #backtest-ui-preview .workbench-layout { display: block; min-height: 500px; overflow: visible; }
+      #backtest-ui-preview .config-pane,
+      #backtest-ui-preview .divider { display: none; }
+      #backtest-ui-preview .results-pane { padding: 0; border: 0; overflow: visible; }
+      #backtest-ui-preview .config-button { display: inline-flex; }
     }
-    @media (max-width: 760px) {
-      #backtest-ui-preview .app-topbar { padding: 12px 15px; }
+    @media (max-width: 767px) {
+      #backtest-ui-preview .app-topbar { padding: 10px 14px; }
       #backtest-ui-preview .local-tag { display: none; }
-      #backtest-ui-preview main { padding: 18px 15px 24px; }
-      #backtest-ui-preview .settings-fields-range { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      #backtest-ui-preview .settings-fields-range > .field:first-child { grid-column: 1 / -1; }
+      #backtest-ui-preview main { padding: 8px 12px 16px; }
+      #backtest-ui-preview .top-context { top: 60px; }
+      #backtest-ui-preview .mobile-views { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 8px 0 10px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+      #backtest-ui-preview .mobile-views button { min-height: 40px; color: var(--muted); background: transparent; border: 0; border-radius: 4px; }
+      #backtest-ui-preview .mobile-views button[aria-pressed="true"] { color: #125c4e; background: var(--accent-soft); }
+      #backtest-ui-preview .page-heading { align-items: flex-start; }
+      #backtest-ui-preview .run-controls { align-items: stretch; }
+      #backtest-ui-preview .run-button { width: 100%; }
+      #backtest-ui-preview .core-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #backtest-ui-preview .parameter-fields { grid-template-columns: minmax(0, 1fr); }
     }
     @media (max-width: 420px) {
-      #backtest-ui-preview h1 { font-size: 18px; }
-      #backtest-ui-preview .page-heading { align-items: center; }
-      #backtest-ui-preview .settings-fields-range,
-      #backtest-ui-preview .settings-fields-funding,
-      #backtest-ui-preview .parameter-groups,
-      #backtest-ui-preview .parameter-fields { grid-template-columns: minmax(0, 1fr); }
-      #backtest-ui-preview .settings-fields-range > .field:first-child { grid-column: auto; }
-      #backtest-ui-preview .chart-example-grid { grid-template-columns: minmax(0, 1fr); }
-      #backtest-ui-preview .results-head { align-items: flex-start; flex-direction: column; }
-      #backtest-ui-preview .run-actions { align-items: stretch; flex-direction: column; }
-      #backtest-ui-preview .run-button { width: 100%; }
+      #backtest-ui-preview .app-topbar { align-items: flex-start; }
+      #backtest-ui-preview .brand,
+      #backtest-ui-preview .topbar-right { width: 100%; }
+      #backtest-ui-preview .topbar-right { justify-content: flex-end; }
+      #backtest-ui-preview .top-context { top: 100px; }
+      #backtest-ui-preview .run-summary { gap: 3px 6px; }
+      #backtest-ui-preview .core-metrics { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      #backtest-ui-preview .metric dd { font-size: 15px; }
+      #backtest-ui-preview .result-heading { align-items: flex-start; }
     }
     @media (pointer: coarse) {
-      #backtest-ui-preview .input,
-      #backtest-ui-preview .button,
-      #backtest-ui-preview .locale-switch button,
-      #backtest-ui-preview .run-scope button,
-      #backtest-ui-preview .icon-button { min-height: 44px; }
+      #backtest-ui-preview button,
+      #backtest-ui-preview .input { min-height: 44px; }
+      #backtest-ui-preview .workbench-layout { grid-template-columns: 350px 44px minmax(0, 1fr); }
+      #backtest-ui-preview .divider { min-width: 44px; }
+      #backtest-ui-preview .shared-settings summary,
+      #backtest-ui-preview .details-entry { min-height: 44px; }
       #backtest-ui-preview .input { font-size: 16px; }
     }
   </style>
-  <div class="app-topbar">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true">B</div>
-      <div class="brand-name">株式・ETF バックテスター</div>
-    </div>
+
+  <header class="app-topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">B</span><span class="brand-name">株式・ETF バックテスター</span></div>
     <div class="topbar-right">
       <span class="local-tag">ローカル実行</span>
       <div class="locale-switch" role="group" aria-label="表示言語">
@@ -269,146 +211,123 @@
         <button type="button" aria-pressed="false">中文</button>
       </div>
     </div>
-  </div>
+  </header>
+
   <main>
-    <div class="page-heading">
-      <div>
-        <h1>バックテスト</h1>
-        <p class="subhead">投資対象と期間を設定</p>
+    <div class="top-context">
+      <div class="page-heading">
+        <div>
+          <h1>バックテスト</h1>
+          <div class="run-summary" aria-label="対象と期間">
+            <strong>QQQ</strong><span>2020-01-01</span><span aria-hidden="true">→</span><span>最新の完了日</span><span>·</span><span>毎月 $100・毎月 1 日</span>
+          </div>
+        </div>
+        <div><span class="status-tag">完了</span></div>
+      </div>
+      <div class="run-controls" aria-label="バックテスト実行">
+        <div class="run-scope" role="group" aria-label="実行範囲">
+          <button type="button" aria-pressed="false">編集中の戦略</button>
+          <button type="button" aria-pressed="true">有効な戦略すべて</button>
+        </div>
+        <button class="button button-primary" type="button">バックテストを実行</button>
+      </div>
+      <div class="mobile-views" role="group" aria-label="メイン画面">
+        <button type="button" aria-pressed="false">設定</button>
+        <button type="button" aria-pressed="true">結果</button>
       </div>
     </div>
-    <section class="global-settings" aria-label="共通設定">
-      <fieldset class="setting-group range-group">
-        <legend>対象と期間</legend>
-        <div class="settings-fields settings-fields-range">
-          <div class="field"><label for="ticker">銘柄コード</label><input class="input" id="ticker" value="QQQ" /></div>
-          <div class="field date-field"><label for="date-start">開始日</label><input class="input" id="date-start" type="date" value="2020-01-01" /></div>
-          <div class="field date-field"><div class="field-label"><label for="date-end">終了日</label><label class="end-mode"><input type="checkbox" checked aria-label="最新の完了日まで" />最新の完了日まで</label></div><input class="input" id="date-end" type="date" value="2026-09-29" disabled /><p class="field-hint">この実行で確定した終了日：2026-09-29</p></div>
+
+    <div class="workbench-layout">
+      <aside class="config-pane" aria-label="共通設定と戦略設定">
+        <div class="config-fixed">
+          <details class="shared-settings">
+            <summary>共通設定<span class="shared-summary">QQQ · 2020-01-01 → 最新の完了日 · $100 / 月・毎月 1 日</span></summary>
+            <div class="settings-fields">
+              <div class="field"><label for="prototype-symbol">銘柄コード</label><input id="prototype-symbol" class="input" value="QQQ" /></div>
+              <div class="field"><label for="prototype-start">開始日</label><input id="prototype-start" class="input" type="date" value="2020-01-01" /></div>
+              <div class="field"><label for="prototype-end">終了日</label><input id="prototype-end" class="input" type="date" disabled /><span class="field-hint">最新の完了日を実行時に確定</span></div>
+              <div class="field"><label for="prototype-cash">毎月の投入額</label><input id="prototype-cash" class="input" type="number" value="100" /></div>
+              <div class="field"><label for="prototype-day">毎月の投入日</label><input id="prototype-day" class="input" type="number" min="1" max="31" value="1" /></div>
+            </div>
+          </details>
+          <nav class="strategy-nav" aria-label="実行する戦略">
+            <div class="strategy-nav-heading"><h2>実行する戦略</h2><span class="strategy-count">2</span></div>
+            <div class="strategy-list">
+              <div class="strategy-row" aria-current="true">
+                <button type="button" class="strategy-select">VIX シグナル積立<span class="strategy-summary">VIX: ^VIX ≥ 25、月間最大 1 回</span></button>
+                <div class="strategy-actions"><label><input type="checkbox" checked aria-label="VIX シグナル積立を有効にする" /> 有効</label><button type="button" aria-label="VIX シグナル積立を削除">×</button></div>
+              </div>
+              <div class="strategy-row" aria-current="false">
+                <button type="button" class="strategy-select">複合シグナル積立<span class="strategy-summary">有効な買付条件を組み合わせる</span></button>
+                <div class="strategy-actions"><label><input type="checkbox" checked aria-label="複合シグナル積立を有効にする" /> 有効</label><button type="button" aria-label="複合シグナル積立を削除">×</button></div>
+              </div>
+            </div>
+            <div class="add-strategy"><select class="input" aria-label="カタログから追加"><option>戦略を選択...</option></select><button class="button" type="button">追加</button></div>
+          </nav>
         </div>
-      </fieldset>
-      <fieldset class="setting-group funding-group">
-        <legend>入金計画</legend>
-        <div class="settings-fields settings-fields-funding">
-          <div class="field"><label for="monthly-cash">毎月の投入額</label><input class="input" id="monthly-cash" type="number" min="0" value="100" /><p class="field-hint">投入額は銘柄の取引通貨で指定します。通貨は実行時にデータ提供元で確認します。</p></div>
-          <div class="field"><label for="deposit-day">毎月の投入日</label><div class="unit-field"><input class="input" id="deposit-day" type="number" min="1" max="31" value="1" /><span class="unit">日</span></div></div>
-        </div>
-      </fieldset>
-    </section>
-    <section class="strategy-workspace" aria-labelledby="strategy-config-heading">
-      <div class="section-heading"><div><h2 id="strategy-config-heading">戦略設定</h2><p class="subhead">各戦略は独立したカードで編集できます。</p></div></div>
-      <div class="workspace-cards">
-        <article class="strategy-card is-active">
-          <div class="strategy-card-heading">
-            <button type="button" class="strategy-select" aria-current="true"><span class="strategy-name">VIX シグナル積立</span><span class="strategy-summary">VIX: ^VIX ≥ 25、月間最大 1 回</span></button>
-            <div class="strategy-actions"><label class="switch-line"><input type="checkbox" checked aria-label="VIX シグナル積立を有効にする" />有効</label><button type="button" class="icon-button" aria-label="VIX シグナル積立を削除">×</button></div>
-          </div>
-          <p class="strategy-description">ボラティリティ指数の買付条件に応じて積み立てます。</p>
-          <div class="parameter-groups">
-            <section class="parameter-group" aria-labelledby="vix-signal-group"><h3 id="vix-signal-group">VIX シグナル</h3><div class="parameter-fields">
-              <div class="field"><label for="vix-index">参照するボラティリティ指数</label><select class="input" id="vix-index"><option selected>VIX — S&amp;P 500 ボラティリティ指数</option><option>VXN — Nasdaq 100 ボラティリティ指数</option><option>VXD — Dow Jones ボラティリティ指数</option></select><p class="field-hint">VIX は S&amp;P 500、VXN は Nasdaq 100、VXD は Dow Jones の変動見通しを表します。</p></div>
-              <div class="field"><label for="vix-threshold">VIX買付しきい値</label><div class="unit-field"><input class="input" id="vix-threshold" type="number" min="0" step="0.01" value="25" /><span class="unit">ポイント</span></div><p class="field-hint">終値がしきい値以上の日に、次の取引日で買付します。</p></div>
-            </div></section>
-            <section class="parameter-group" aria-labelledby="buy-limits-group"><h3 id="buy-limits-group">買付上限と資金</h3><div class="parameter-fields">
-              <div class="field"><label for="max-buys">月間シグナル買付上限</label><div class="unit-field"><input class="input" id="max-buys" type="number" min="1" step="1" value="1" /><span class="unit">回</span></div><p class="field-hint">固定定投を除き、1 か月に約定するシグナル買付の上限です。</p></div>
-              <div class="field"><label for="cash-limit">現金安全上限</label><div class="unit-field"><input class="input" id="cash-limit" type="number" min="0" step="100" value="1200" /></div><p class="field-hint">金額は銘柄の取引通貨で指定します。</p></div>
-            </div></section>
-          </div>
-        </article>
-        <article class="strategy-card">
-          <div class="strategy-card-heading">
-            <button type="button" class="strategy-select"><span class="strategy-name">複合シグナル積立</span><span class="strategy-summary">有効な買付条件を組み合わせる</span></button>
-            <div class="strategy-actions"><label class="switch-line"><input type="checkbox" checked aria-label="複合シグナル積立を有効にする" />有効</label><button type="button" class="icon-button" aria-label="複合シグナル積立を削除">×</button></div>
-          </div>
-          <p class="strategy-description">RSI、移動平均、ボリンジャー、VIX などを組み合わせます。</p>
-          <div class="parameter-groups">
-            <section class="parameter-group" aria-labelledby="signal-logic-group"><h3 id="signal-logic-group">シグナル条件</h3><div class="parameter-fields">
-              <div class="field"><label for="condition-logic">買付条件の組み合わせ</label><select class="input" id="condition-logic"><option>いずれかを満たす（OR）</option><option>すべて満たす（AND）</option></select><p class="field-hint">この戦略で有効になっている買付条件すべてに適用します。AND はすべて満たす、OR はいずれかを満たす条件です。</p></div>
-              <div class="field"><label for="fixed-ratio">固定定投の比率</label><div class="unit-field"><input class="input" id="fixed-ratio" type="number" min="0" max="1" step="0.01" value="0.5" /><span class="unit">割合</span></div></div>
-            </div></section>
-          </div>
-        </article>
-      </div>
-      <div class="add-row">
-        <label for="strategy-add">カタログから追加</label>
-        <select class="input" id="strategy-add"><option>戦略を選択...</option><option>VIX シグナル積立</option><option>複合シグナル積立</option><option>移動平均トレンド（売買）</option><option>移動平均トレンド（買付のみ）</option><option>毎月定額積立</option><option>一括投資</option><option>グリッド検索</option></select>
-        <button class="button button-small" type="button" disabled aria-label="選択した戦略を追加">追加</button>
-      </div>
-    </section>
-    <section class="run-actions" aria-label="バックテスト実行">
-      <div class="run-scope" role="group" aria-label="実行範囲">
-        <button type="button" aria-pressed="false">編集中の戦略</button>
-        <button type="button" aria-pressed="true">有効な戦略すべて</button>
-      </div>
-      <button class="run-button" type="button">バックテストを実行</button>
-    </section>
-    <section class="results" aria-labelledby="results-heading">
-      <div class="results-head">
-        <div><h2 id="results-heading">結果</h2><p class="subhead">実行後に比較を表示</p></div>
-        <div class="result-actions" role="group" aria-label="CSV と表示設定">
-          <button class="display-toggle" type="button" aria-pressed="true">資産曲線</button>
-          <button class="display-toggle" type="button" aria-pressed="true">取引明細</button>
-          <button class="button button-small" type="button" disabled aria-label="結果の CSV を書き出す">CSV</button>
-        </div>
-      </div>
-      <div class="result-state" role="status"><strong>未実行</strong><p>戦略を実行すると、保存された結果がここに表示されます。</p></div>
-      <div class="result-panels">
-        <section class="result-panel" aria-labelledby="compare-heading">
-          <h3 id="compare-heading">実行結果の比較</h3>
-          <div class="empty-results" role="status">比較する結果がまだありません。</div>
+
+        <section class="editor-scroll" aria-label="現在の戦略パラメーター">
+          <div class="editor-heading"><div><h2>VIX シグナル積立</h2><p class="subhead">ボラティリティ指数の買付条件に応じて積み立てます。</p></div><span class="status-tag">有効</span></div>
+          <fieldset class="parameter-group"><legend>VIX シグナル</legend><div class="parameter-fields">
+            <div class="field"><label for="prototype-vix-symbol">参照するボラティリティ指数</label><select class="input" id="prototype-vix-symbol"><option>VIX — S&amp;P 500 ボラティリティ指数</option><option>VXN — Nasdaq 100 ボラティリティ指数</option><option>VXD — Dow Jones ボラティリティ指数</option></select><span class="field-hint">買付・売却シグナルで参照します。</span></div>
+            <div class="field"><label for="prototype-vix-threshold">VIX 買付しきい値</label><input class="input" id="prototype-vix-threshold" type="number" value="25" /><span class="field-hint">終値がしきい値以上の日の次の取引日に買付。</span></div>
+          </div></fieldset>
+          <fieldset class="parameter-group"><legend>買付上限と資金</legend><div class="parameter-fields">
+            <div class="field"><label for="prototype-month-cap">月間シグナル買付上限</label><input class="input" id="prototype-month-cap" type="number" value="1" /><span class="field-hint">固定定投を除く月間の買付回数です。</span></div>
+            <div class="field"><label for="prototype-cash-limit">現金安全上限</label><input class="input" id="prototype-cash-limit" type="number" value="1200" /><span class="field-hint">投入額と同じ取引通貨で指定します。</span></div>
+          </div></fieldset>
+          <fieldset class="parameter-group"><legend>売却条件</legend><div class="parameter-fields">
+            <div class="field"><label><input type="checkbox" /> 売却シグナルを有効にする</label><span class="field-hint">無効にしても入力値は保持されます。</span></div>
+            <div class="field"><label for="prototype-exit-ratio">VIX 売却比率</label><input class="input" id="prototype-exit-ratio" type="number" value="0" /><span class="field-hint">同日の売却条件では最大比率を適用します。</span></div>
+          </div></fieldset>
         </section>
-        <section class="result-panel" aria-labelledby="metrics-heading">
-          <h3 id="metrics-heading">選択した結果の指標</h3>
-          <div class="empty-results" role="status">まだ結果がありません</div>
+      </aside>
+
+      <div class="divider" role="separator" aria-orientation="vertical" aria-label="設定パネル幅" tabindex="0"></div>
+
+      <section class="results-pane" aria-label="保存済みの実行結果">
+        <div class="result-heading"><div><h2>結果 · VIX シグナル積立</h2><p class="subhead">保存済みの実行 · 2020-01-01 — 2026-09-29</p></div><span class="status-tag">完了</span></div>
+        <section class="result-card" aria-labelledby="prototype-kpi-heading">
+          <h3 id="prototype-kpi-heading">主要指標</h3>
+          <dl class="core-metrics">
+            <div class="metric"><dt>期末資産</dt><dd>$16,622</dd></div>
+            <div class="metric"><dt>投入額に対する利益率</dt><dd>105.2%</dd></div>
+            <div class="metric"><dt>年率リターン（XIRR）</dt><dd>21.0%</dd></div>
+            <div class="metric"><dt>最大ドローダウン</dt><dd>35.1%</dd></div>
+          </dl>
+          <a class="details-entry" href="#prototype-result-details">結果詳細を見る <span aria-hidden="true">↓</span></a>
         </section>
-        <section class="result-panel" aria-labelledby="charts-heading">
-          <h3 id="charts-heading">グラフ表示例（実行後は保存済みデータを表示）</h3>
-          <div class="chart-controls" role="group" aria-label="グラフ系列と表示方法">
-            <div class="chart-controls-group" role="group" aria-label="表示する系列">
-              <button type="button" aria-pressed="true">価格</button><button type="button" aria-pressed="true">総資産</button><button type="button" aria-pressed="false">回撤</button><button type="button" aria-pressed="false">VIX</button>
-            </div>
-            <div class="chart-controls-group" role="group" aria-label="グラフの配置">
-              <button type="button" aria-pressed="true">価格・総資産を同じ図で表示</button><button type="button" aria-pressed="false">他の選択系列も重ねる</button>
-            </div>
-            <div class="chart-controls-group" role="group" aria-label="共通の期間">
-              <button type="button" aria-label="拡大">−</button><button type="button" aria-label="縮小">+</button><button type="button">全期間</button><span class="field-hint">2024-01 — 2024-12</span>
-            </div>
-            <p class="chart-control-help">価格と総資産は常に同じ相対指数図で比較します。破線は開始値 100 です。他の系列は個別表示か重ね表示を選べます。横ドラッグ・ホイールで期間を操作すると、すべての図が同期します。</p>
+        <section class="result-card" aria-labelledby="prototype-chart-heading">
+          <div class="result-heading"><h3 id="prototype-chart-heading">QQQ・総資産 — 相対比較（開始値 = 100）</h3><button class="button" type="button" aria-pressed="true">チャートを表示</button></div>
+          <div class="chart-controls" aria-label="チャート表示設定">
+            <div class="series-toggles" role="group" aria-label="表示系列"><button type="button" aria-pressed="true">価格</button><button type="button" aria-pressed="true">総資産</button><button type="button" aria-pressed="false">ドローダウン</button><button type="button" aria-pressed="false">VIX</button></div>
+            <div class="layout-toggles" role="group" aria-label="図の配置"><button type="button" aria-pressed="true">主グラフ</button><button type="button" aria-pressed="false">選択系列を重ねる</button></div>
+            <div class="range-toggles" role="group" aria-label="共通期間"><button type="button" aria-label="縮小">−</button><button type="button" aria-label="拡大">+</button><button type="button">全期間</button></div>
           </div>
-          <div class="chart-example-grid">
-            <figure class="chart-example">
-              <figcaption>相対比較（開始値 = 100）· 売買</figcaption>
-              <svg viewBox="0 0 700 260" role="img" aria-label="QQQ 終値と総資産を開始値100に正規化した推移、基準線、日付軸と売買マーカーの例">
-                <g class="chart-grid"><path d="M72 32H680 M72 78H680 M72 124H680 M72 170H680 M72 216H680 M120 24V216 M260 24V216 M400 24V216 M540 24V216 M680 24V216" fill="none" /></g>
-                <g class="chart-tick"><text x="8" y="36">160</text><text x="8" y="82">140</text><text x="8" y="128">120</text><text x="8" y="174">100</text><text x="8" y="220">80</text><text x="92" y="240">2024-01</text><text x="370" y="240">2024-06</text><text x="630" y="240">2024-12</text></g>
-                <line class="chart-baseline" x1="72" y1="170" x2="680" y2="170" /><text class="chart-baseline-label" x="675" y="164" text-anchor="end">開始値 100</text>
-                <polyline class="chart-line-price" points="120,170 180,156 260,163 330,135 400,144 470,117 540,126 610,99 680,64" />
-                <polyline class="chart-line-asset" points="120,170 180,145 260,129 330,113 400,122 470,94 540,85 610,67 680,32" />
-                <path class="chart-trade-buy" d="M260 150l-7 12h14z" /><path class="chart-trade-sell" d="M540 113l-7-12h14z" />
-                <text class="chart-axis-label" x="375" y="257" text-anchor="middle">日付</text><text class="chart-axis-label" transform="translate(18 130) rotate(-90)" text-anchor="middle">相対指数（開始値 = 100）</text>
-              </svg>
-              <div class="chart-example-legend" aria-label="グラフの凡例"><span><i></i>QQQ · 価格 (USD)</span><span><i class="asset-swatch"></i>総資産 (USD)</span><span><i class="baseline-swatch"></i>開始値 100</span></div>
-            </figure>
-            <figure class="chart-example">
-              <figcaption>回撤 (%)</figcaption>
-              <svg viewBox="0 0 700 260" role="img" aria-label="回撤曲線と日期及び百分比坐标的例">
-                <g class="chart-grid"><path d="M72 32H680 M72 78H680 M72 124H680 M72 170H680 M72 216H680 M120 24V216 M260 24V216 M400 24V216 M540 24V216 M680 24V216" fill="none" /></g>
-                <g class="chart-tick"><text x="18" y="36">0%</text><text x="18" y="82">-5%</text><text x="18" y="128">-10%</text><text x="18" y="174">-15%</text><text x="18" y="220">-20%</text><text x="92" y="240">2024-01</text><text x="370" y="240">2024-06</text><text x="630" y="240">2024-12</text></g>
-                <polyline points="120,42 260,108 400,82 540,184 680,132" fill="none" stroke="#a7373a" stroke-width="3" />
-                <text class="chart-axis-label" x="375" y="257" text-anchor="middle">日付</text><text class="chart-axis-label" transform="translate(18 130) rotate(-90)" text-anchor="middle">回撤 (%)</text>
-              </svg>
-            </figure>
-            <figure class="chart-example">
-              <figcaption>VIX 指数 · しきい値 25</figcaption>
-              <svg viewBox="0 0 700 260" role="img" aria-label="VIX の実測値と保存したしきい値、日付・数値軸の例">
-                <g class="chart-grid"><path d="M72 32H680 M72 78H680 M72 124H680 M72 170H680 M72 216H680 M120 24V216 M260 24V216 M400 24V216 M540 24V216 M680 24V216" fill="none" /></g>
-                <g class="chart-tick"><text x="24" y="36">40</text><text x="24" y="82">30</text><text x="24" y="128">20</text><text x="24" y="174">10</text><text x="92" y="240">2024-01</text><text x="370" y="240">2024-06</text><text x="630" y="240">2024-12</text></g>
-                <line x1="72" y1="101" x2="680" y2="101" stroke="#b27b24" stroke-width="2" stroke-dasharray="6 4" /><polyline points="120,150 260,100 400,172 540,62 680,126" fill="none" stroke="#7656a6" stroke-width="3" />
-                <text class="chart-axis-label" x="375" y="257" text-anchor="middle">日付</text><text class="chart-axis-label" transform="translate(18 130) rotate(-90)" text-anchor="middle">VIX 指数 (ポイント)</text>
-              </svg>
-            </figure>
+          <figure class="chart-figure">
+            <figcaption>価格とキャッシュフロー調整後の総資産。日付範囲はすべての図で同期します。</figcaption>
+            <svg viewBox="0 0 800 320" role="img" aria-label="QQQ 価格と総資産の開始値を100にそろえた推移。縦軸は相対指数、横軸は日付">
+              <g fill="none">
+                <path class="grid-line" d="M92 20H774 M92 70H774 M92 120H774 M92 170H774 M92 220H774 M92 266H774 M160 20V266 M300 20V266 M440 20V266 M580 20V266 M720 20V266" />
+                <line class="base-line" x1="92" y1="170" x2="774" y2="170" />
+              </g>
+              <g class="tick"><text x="46" y="24">180</text><text x="46" y="74">160</text><text x="46" y="124">140</text><text x="46" y="174">120</text><text x="46" y="224">100</text><text x="46" y="270">80</text><text x="112" y="292">2020-01</text><text x="365" y="292">2023-01</text><text x="670" y="292">2026-09</text></g>
+              <polyline class="price-line" points="92,220 160,205 230,212 300,180 370,188 440,154 510,162 580,130 650,138 720,105 774,72" />
+              <polyline class="asset-line" points="92,220 160,196 230,178 300,165 370,172 440,149 510,130 580,118 650,92 720,72 774,45" />
+              <g class="tick"><text x="718" y="163">開始値 100</text></g>
+              <text class="axis-title" transform="translate(20 144) rotate(-90)" text-anchor="middle">相対指数（開始値 = 100）</text>
+              <text class="axis-title" x="433" y="314" text-anchor="middle">日付</text>
+            </svg>
+            <div class="legend" role="list" aria-label="凡例"><span role="listitem"><i class="swatch"></i>QQQ · 価格 (USD)</span><span role="listitem"><i class="swatch asset"></i>総資産 (USD)</span><span role="listitem"><i class="swatch baseline"></i>開始値 = 100</span></div>
+          </figure>
+        </section>
+        <section id="prototype-result-details" class="result-card" aria-label="結果の詳細" tabindex="-1">
+          <div class="result-tabs" role="tablist" aria-label="結果詳細"><button type="button" role="tab" aria-selected="true">戦略比較</button><button type="button" role="tab" aria-selected="false">取引明細</button><button type="button" role="tab" aria-selected="false">全指標</button><button type="button" role="tab" aria-selected="false">CSV 出力</button></div>
+          <div class="compare-preview" role="tabpanel" aria-label="戦略比較">
+            <table><caption class="sr-only">実行結果の比較</caption><thead><tr><th>戦略</th><th>役割</th><th>状態</th><th>投入額</th><th>期末資産</th><th>投入額に対する利益率</th><th>XIRR</th><th>最大ドローダウン</th></tr></thead><tbody><tr><th>VIX シグナル積立</th><td>ユーザー戦略</td><td>完了</td><td>$8,100</td><td>$16,622</td><td>105.2%</td><td>21.0%</td><td>35.1%</td></tr><tr><th>毎月定額積立</th><td>ベンチマーク</td><td>完了</td><td>$8,100</td><td>$16,653</td><td>105.6%</td><td>21.1%</td><td>35.1%</td></tr></tbody></table>
           </div>
         </section>
-      </div>
-    </section>
+      </section>
+    </div>
   </main>
 </div>

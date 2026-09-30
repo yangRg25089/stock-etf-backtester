@@ -87,7 +87,7 @@ test("catalog selector renders every available preset with accessible controls",
   }
   assert.match(html, /aria-label="启用VIX 信号定投"/);
   assert.match(html, /aria-label="删除VIX 信号定投"/);
-  assert.match(html, /<article class="strategy-card is-active">/);
+  assert.match(html, /<article class="strategy-card strategy-nav-card is-active">/);
   assert.match(html, /买入条件的组合方式/);
   assert.match(html, /此设置适用于此策略中所有已启用的买入条件/);
 
@@ -103,7 +103,7 @@ test("catalog selector renders every available preset with accessible controls",
   assert.match(controls, /aria-pressed="true">当前策略/);
 });
 
-test("every strategy instance renders as its own card with independently editable settings", () => {
+test("strategy navigation lists every instance while the editor only expands the selected one", () => {
   const initial = createInitialWorkspaceState(catalog);
   const second = workspaceReducer(initial, {
     type: "strategy.add",
@@ -111,7 +111,8 @@ test("every strategy instance renders as its own card with independently editabl
     presetId: "composite_dca",
   }, catalog);
   const html = render(second, "zh");
-  assert.equal((html.match(/class="strategy-card(?: is-active)?"/g) ?? []).length, 2);
-  assert.match(html, /class="strategy-card is-active"/);
-  assert.match(html, /class="strategy-card"/);
+  assert.equal((html.match(/class="strategy-card strategy-nav-card(?: is-active)?"/g) ?? []).length, 2);
+  assert.match(html, /class="strategy-card strategy-nav-card is-active"/);
+  assert.match(html, /id="field-strategy-composite-1-accumulation-fixedDcaRatio"/);
+  assert.doesNotMatch(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
 });

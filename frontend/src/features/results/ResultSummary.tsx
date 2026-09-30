@@ -5,6 +5,7 @@ import { formatCurrency, formatMultiple, formatPercent } from "./format";
 interface MetricGridProps {
   locale: Locale;
   metrics: MetricSummary | null | undefined;
+  variant?: "core" | "full";
 }
 
 interface ResultComparisonProps {
@@ -14,7 +15,7 @@ interface ResultComparisonProps {
   onFocus(id: string): void;
 }
 
-export function MetricGrid({ locale, metrics }: MetricGridProps) {
+export function MetricGrid({ locale, metrics, variant = "full" }: MetricGridProps) {
   if (!metrics) {
     return <p className="metric-empty">{translate(locale, "results.metricsUnavailable")}</p>;
   }
@@ -60,9 +61,12 @@ export function MetricGrid({ locale, metrics }: MetricGridProps) {
       value: formatCurrency(metrics.relativeToDca, metrics.currency, locale),
     },
   ];
+  const visibleCards = variant === "core"
+    ? cards.filter((card) => ["endingEquity", "returnOnContributions", "xirr", "maximumDrawdown"].includes(card.key))
+    : cards;
   return (
-    <dl className="metric-grid" aria-label={translate(locale, "results.metricsTitle")}>
-      {cards.map((card) => (
+    <dl className={`metric-grid${variant === "core" ? " metric-grid-core" : ""}`} aria-label={translate(locale, "results.metricsTitle")}>
+      {visibleCards.map((card) => (
         <div className="metric-card" key={card.key}>
           <dt>{translate(locale, card.label)}</dt>
           <dd>{card.value}</dd>

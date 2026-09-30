@@ -21,7 +21,10 @@ function contrastRatio(foreground, background) {
 
 function blockFor(selector) {
   let start = css.indexOf(selector);
-  while (start !== -1 && !/^\s*\{/.test(css.slice(start + selector.length))) {
+  while (start !== -1 && (
+    css.slice(css.lastIndexOf("\n", start - 1) + 1, start).trim() !== "" ||
+    !/^\s*\{/.test(css.slice(start + selector.length))
+  )) {
     start = css.indexOf(selector, start + 1);
   }
   assert.notEqual(start, -1, `missing CSS block for ${selector}`);
@@ -54,7 +57,7 @@ function mediaBlock(query) {
 
 test("320px, 768px, and 1024px widths follow the responsive layout rules", () => {
   const phone = mediaBlock("@media (max-width: 420px)");
-  const narrow = mediaBlock("@media (max-width: 760px)");
+  const narrow = mediaBlock("@media (max-width: 767px)");
   const tablet = mediaBlock("@media (max-width: 900px)");
   assert.match(blockFor("body"), /min-width:\s*320px/);
   assert.match(blockFor(".main-content"), /width:\s*min\(100% - 48px, 1180px\)/);
@@ -74,11 +77,49 @@ test("320px, 768px, and 1024px widths follow the responsive layout rules", () =>
   assert.match(blockFor(".page-heading > div"), /overflow-wrap:\s*anywhere/);
 });
 
-test("the design prototype keeps shared settings grouped and comparative lines fine", () => {
-  assert.match(prototype, /<legend>対象と期間<\/legend>/);
-  assert.match(prototype, /<legend>入金計画<\/legend>/);
-  assert.match(prototype, /\.chart-line-price[^}]*stroke-width:\s*1\.8/);
-  assert.match(prototype, /\.chart-line-asset[^}]*stroke-width:\s*1\.8/);
+test("desktop workbench keeps top and selectors fixed with independent editor and results scrolling", () => {
+  const main = blockFor(".main-content.workbench-main");
+  const layout = blockFor(".workbench-layout");
+  const configuration = blockFor(".workbench-config-fixed");
+  const editor = blockFor(".workbench-editor-scroll,\n.workbench-results");
+  const results = blockFor(".workbench-results");
+  const divider = blockFor(".workbench-divider");
+  assert.match(main, /width:\s*calc\(100% - 32px\)/);
+  assert.match(main, /max-width:\s*1920px/);
+  assert.match(layout, /grid-template-columns:\s*var\(--workbench-config-width,\s*350px\)\s+12px\s+minmax\(0,\s*1fr\)/);
+  assert.match(configuration, /position:\s*relative/);
+  assert.match(editor, /min-height:\s*0/);
+  assert.match(editor, /overflow-y:\s*auto/);
+  assert.match(results, /min-height:\s*0/);
+  assert.match(results, /overflow-y:\s*auto/);
+  assert.match(divider, /touch-action:\s*none/);
+  assert.match(mediaBlock("@media (max-width: 1279px)"), /\.workbench-layout/);
+  assert.match(blockFor(".workbench-context"), /position:\s*sticky/);
+});
+
+test("mobile workbench exposes separate configuration and results views under the fixed context", () => {
+  const mobile = mediaBlock("@media (max-width: 767px)");
+  const phone = mediaBlock("@media (max-width: 420px)");
+  assert.match(blockFor(".workbench-mobile-views"), /display:\s*none/);
+  assert.match(mobile, /\.workbench-mobile-views\s*\{[^}]*display:\s*grid/s);
+  assert.match(mobile, /\.workbench-config-toggle\s*\{\s*display:\s*none/s);
+  assert.match(mobile, /\.workbench-context\s*\{\s*top:\s*60px/s);
+  assert.match(phone, /\.workbench-context\s*\{\s*top:\s*104px/s);
+  assert.match(prototype, /class="mobile-views"/);
+});
+
+test("the design prototype shows the fixed workbench and comparative lines fine", () => {
+  assert.match(prototype, /<details class="shared-settings">/);
+  assert.match(prototype, /class="config-fixed"/);
+  assert.match(prototype, /class="editor-scroll"/);
+  assert.match(prototype, /class="results-pane"/);
+  assert.match(prototype, /role="tablist" aria-label="結果詳細"/);
+  assert.match(prototype, /\.price-line[^}]*stroke-width:\s*1\.8/);
+  assert.match(prototype, /\.asset-line[^}]*stroke-width:\s*1\.8/);
+  assert.match(prototype, /#backtest-ui-preview \.divider:focus-visible/);
+  assert.match(prototype, /#backtest-ui-preview \.shared-settings summary,[\s\S]*?#backtest-ui-preview \.details-entry \{ min-height: 44px; \}/);
+  assert.match(prototype, /#backtest-ui-preview \.strategy-summary[^}]*font-size: 12px/);
+  assert.match(prototype, /#backtest-ui-preview \.details-entry[^}]*font-size: 13px/);
 });
 
 test("wide data tables scroll inside their panels instead of widening the page", () => {
@@ -95,6 +136,9 @@ test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   assert.match(touch, /\.checkbox-control,[\s\S]*\.latest-toggle,[\s\S]*\.strategy-enabled-control\s*\{\s*min-height:\s*44px/);
   assert.match(touch, /\.input\s*\{\s*font-size:\s*16px/);
   assert.match(touch, /\.icon-button\s*\{\s*min-width:\s*44px/);
+  assert.match(touch, /\.shared-settings-disclosure > summary,[\s\S]*?\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
+  assert.match(touch, /\.workbench-results \.legend-toggle,[\s\S]*?\.workbench-results \.chart-range-controls button,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
+  assert.match(touch, /\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
 });
 
 test("catalog fields use aligned bold labels, 40px controls, and in-field units", () => {
@@ -108,7 +152,7 @@ test("catalog fields use aligned bold labels, 40px controls, and in-field units"
 });
 
 test("keyboard focus, skip navigation, and reduced motion remain visible and supported", () => {
-  assert.match(css, /button:focus-visible,[\s\S]*a:focus-visible\s*\{\s*outline:\s*3px solid/);
+  assert.match(css, /button:focus-visible,[\s\S]*summary:focus-visible,[\s\S]*#result-details:focus-visible,[\s\S]*\.workbench-divider:focus-visible\s*\{\s*outline:\s*3px solid/);
   assert.match(css, /\.skip-link:focus\s*\{\s*transform:\s*translateY\(0\)/);
   const reducedMotion = mediaBlock("@media (prefers-reduced-motion: reduce)");
   assert.match(reducedMotion, /animation-duration:\s*0\.01ms/);
@@ -131,4 +175,21 @@ test("semantic text colors meet WCAG AA contrast against their surfaces", () => 
     assert.ok(contrastRatio(foreground, background) >= 4.5, `${foreground} on ${background} is below 4.5:1`);
   }
   assert.ok(contrastRatio("#148b75", "#f4f6f5") >= 3, "focus outline should remain visible as a UI indicator");
+});
+
+test("coarse-pointer workbench divider keeps a 44px hit area", () => {
+  const touch = mediaBlock("@media (pointer: coarse)");
+  assert.match(touch, /\.workbench-layout\s*\{\s*grid-template-columns:\s*var\(--workbench-config-width,\s*350px\)\s+44px\s+minmax\(0,\s*1fr\)/);
+  assert.match(touch, /\.workbench-divider\s*\{\s*min-width:\s*44px/);
+});
+
+test("workbench explanatory text meets the readable type scale", () => {
+  assert.match(blockFor(".shared-settings-disclosure-summary"), /font-size:\s*12px/);
+  assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /font-size:\s*12px/);
+  assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /-webkit-line-clamp:\s*2/);
+  assert.match(blockFor(".result-details-entry"), /font-size:\s*13px/);
+});
+
+test("the fixed strategy navigator does not stretch cards to fill unused height", () => {
+  assert.match(blockFor(".strategy-navigator .strategy-card-list"), /align-content:\s*start/);
 });
