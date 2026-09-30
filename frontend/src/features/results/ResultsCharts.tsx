@@ -13,6 +13,7 @@ import {
   panChartViewport,
   samplesInViewport,
   visibleIndexRange,
+  wheelZoomFactor,
   zoomChartViewport,
   type ChartViewport,
 } from "./chartViewport";
@@ -73,6 +74,7 @@ const SERIES: SeriesDefinition[] = [
 ];
 const VIX_SIGNAL_IDS = new Set(["vix.buy", "vix.exit.low1", "vix.exit.low2", "bollinger.exit.vix"]);
 const CHART = { height: 320, left: 92, right: 26, top: 20, bottom: 54, width: 800 };
+const POINTER_PAN_SENSITIVITY = 0.5;
 
 function numericValue(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -500,6 +502,7 @@ function OverlayChart({
     chartPoints: samplesInViewport(result.points, viewport, dateCount),
     visiblePoints: result.points.filter((point) => point.index >= range.start && point.index <= range.end),
   }));
+  const overlayStrokeWidth = visibleNormalized.length >= 3 ? 1.5 : 1.8;
   const values = [
     100,
     ...visibleNormalized.flatMap(({ chartPoints }) => chartPoints.map((point) => point.indexValue)),
@@ -586,7 +589,7 @@ function OverlayChart({
           return (
             <g className={`overlay-series overlay-${definition.id}`} key={definition.id}>
               {points.length > 1 ? (
-                <polyline className={`overlay-series-line overlay-${definition.id}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={definition.color} strokeWidth="2.5" tabIndex={0} aria-label={lastTitle}>
+                <polyline className={`overlay-series-line overlay-${definition.id}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={definition.color} strokeWidth={overlayStrokeWidth} tabIndex={0} aria-label={lastTitle}>
                   <title>{lastTitle}</title>
                 </polyline>
               ) : (
@@ -687,7 +690,8 @@ export function ResultsCharts({
     const activeDrag = dragState.current;
     if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
     const position = pointerPosition(event);
-    const nextViewport = panChartViewport(activeDrag.viewport, position.ratio - activeDrag.lastRatio);
+    const pointerDelta = position.ratio - activeDrag.lastRatio;
+    const nextViewport = panChartViewport(activeDrag.viewport, pointerDelta * POINTER_PAN_SENSITIVITY);
     activeDrag.lastRatio = position.ratio;
     activeDrag.viewport = nextViewport;
     setViewport(nextViewport);
@@ -713,7 +717,8 @@ export function ResultsCharts({
     const bounds = svg.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * CHART.width;
     const anchorRatio = (svgX - CHART.left) / plotWidth;
-    setViewport((current) => zoomChartViewport(current, event.deltaY < 0 ? 0.8 : 1.25, anchorRatio));
+    const factor = wheelZoomFactor(event.deltaY, event.deltaMode);
+    setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
   }, [plotWidth]);
   const chartRef: RefCallback<SVGSVGElement> = useCallback((svg) => {
     // React's delegated wheel listener can be passive, so cancel the browser default here.

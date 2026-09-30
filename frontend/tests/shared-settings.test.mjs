@@ -65,6 +65,13 @@ test("shared settings render catalog defaults once and lock a resolved latest da
   );
 
   assert.equal((html.match(/id="field-run-symbol"/g) ?? []).length, 1);
+  assert.equal((html.match(/<fieldset class="shared-settings-group/g) ?? []).length, 2);
+  assert.match(html, /<legend>対象と期間<\/legend>/);
+  assert.match(html, /<legend>入金計画<\/legend>/);
+  const rangeGroup = html.match(/<fieldset class="shared-settings-group shared-settings-range-group">([\s\S]*?)<\/fieldset>/)?.[1] ?? "";
+  const fundingGroup = html.match(/<fieldset class="shared-settings-group shared-settings-funding-group">([\s\S]*?)<\/fieldset>/)?.[1] ?? "";
+  assert.match(rangeGroup, /field-run-symbol[\s\S]*field-run-startDate[\s\S]*field-run-endDate/);
+  assert.match(fundingGroup, /field-contribution-amount[\s\S]*field-contribution-day/);
   const resolvedInput = html.match(/<input[^>]*id="field-run-endDate"[^>]*>/)?.[0] ?? "";
   assert.match(resolvedInput, /type="date"/);
   assert.match(resolvedInput, /value="2024-06-28"/);
@@ -89,6 +96,8 @@ test("latest mode with no run snapshot does not invent a date", () => {
     }),
   );
   assert.match(html, /结束日期将在运行时解析为最近完整行情日/);
+  assert.match(html, /<legend>标的与区间<\/legend>/);
+  assert.match(html, /<legend>投入计划<\/legend>/);
   const unresolvedInput = html.match(/<input[^>]*id="field-run-endDate"[^>]*>/)?.[0] ?? "";
   assert.match(unresolvedInput, /value=""/);
   assert.match(unresolvedInput, /disabled/);

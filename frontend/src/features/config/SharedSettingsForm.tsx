@@ -141,33 +141,43 @@ export function SharedSettingsForm({
         </div>
       </div>
       <div className="shared-settings-grid">
-        {field("run.symbol")}
-        {field("run.startDate")}
-        {field("run.endDate", {
-          disabled: isLatest,
-          required: !isLatest,
-          shownValue: isLatest && resolvedLatestEndDate
-            ? resolvedLatestEndDate
-            : value.run.endDate,
-          helperText: endHelperText,
-          helperLive: true,
-          labelAccessory: (
-            <label className="latest-toggle">
-              <input
-                type="checkbox"
-                checked={isLatest}
-                disabled={latestMode === undefined || fixedMode === undefined}
-                aria-label={translate(locale, isLatest ? "end.latest" : "end.fixed")}
-                onChange={(event) => update("run.endMode", event.target.checked ? latestMode : fixedMode)}
-              />
-              <span>{translate(locale, "end.latest")}</span>
-            </label>
-          ),
-        })}
-        {field("contribution.amount", {
-          helperText: translate(locale, "field.currencyHelp"),
-        })}
-        {field("contribution.day")}
+        <fieldset className="shared-settings-group shared-settings-range-group">
+          <legend>{translate(locale, "section.sharedSettingsRange")}</legend>
+          <div className="shared-settings-fields shared-settings-fields-range">
+            {field("run.symbol")}
+            {field("run.startDate")}
+            {field("run.endDate", {
+              disabled: isLatest,
+              required: !isLatest,
+              shownValue: isLatest && resolvedLatestEndDate
+                ? resolvedLatestEndDate
+                : value.run.endDate,
+              helperText: endHelperText,
+              helperLive: true,
+              labelAccessory: (
+                <label className="latest-toggle">
+                  <input
+                    type="checkbox"
+                    checked={isLatest}
+                    disabled={latestMode === undefined || fixedMode === undefined}
+                    aria-label={translate(locale, isLatest ? "end.latest" : "end.fixed")}
+                    onChange={(event) => update("run.endMode", event.target.checked ? latestMode : fixedMode)}
+                  />
+                  <span>{translate(locale, "end.latest")}</span>
+                </label>
+              ),
+            })}
+          </div>
+        </fieldset>
+        <fieldset className="shared-settings-group shared-settings-funding-group">
+          <legend>{translate(locale, "section.sharedSettingsFunding")}</legend>
+          <div className="shared-settings-fields shared-settings-fields-funding">
+            {field("contribution.amount", {
+              helperText: translate(locale, "field.currencyHelp"),
+            })}
+            {field("contribution.day")}
+          </div>
+        </fieldset>
       </div>
     </section>
   );

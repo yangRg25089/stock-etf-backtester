@@ -230,8 +230,37 @@ h2 {
 
 .shared-settings-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 0.9fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: 12px;
+}
+
+.shared-settings-group {
+  min-width: 0;
+  margin: 0;
+  padding: 6px 12px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+}
+
+.shared-settings-group legend {
+  padding: 0 5px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.shared-settings-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.shared-settings-fields-range {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.shared-settings-fields-funding {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .field {
@@ -1517,7 +1546,7 @@ h2 {
 
 @media (max-width: 900px) {
   .shared-settings-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .metric-grid {
@@ -1539,8 +1568,12 @@ h2 {
     display: none;
   }
 
-  .shared-settings-grid {
+  .shared-settings-fields-range {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shared-settings-fields-range > .field:first-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1566,8 +1599,16 @@ h2 {
     font-size: 19px;
   }
 
-  .shared-settings-grid {
+  .shared-settings-fields-range {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shared-settings-fields-funding {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shared-settings-fields-range > .field:first-child {
+    grid-column: auto;
   }
 
   .metric-card dd {

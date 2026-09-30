@@ -5,6 +5,21 @@ export interface ChartViewport {
 
 export const FULL_CHART_VIEWPORT: ChartViewport = { start: 0, end: 1 };
 export const MIN_CHART_VIEWPORT_SPAN = 0.02;
+const WHEEL_ZOOM_FACTOR_PER_160_PIXELS = 0.92;
+const WHEEL_ZOOM_CALIBRATION_DELTA = 160;
+const WHEEL_ZOOM_SENSITIVITY = Math.log(1 / WHEEL_ZOOM_FACTOR_PER_160_PIXELS)
+  / WHEEL_ZOOM_CALIBRATION_DELTA;
+const WHEEL_LINE_HEIGHT_PIXELS = 16;
+const WHEEL_PAGE_HEIGHT_PIXELS = 320;
+
+export function wheelZoomFactor(deltaY: number, deltaMode = 0): number {
+  const pixelsPerUnit = deltaMode === 1
+    ? WHEEL_LINE_HEIGHT_PIXELS
+    : deltaMode === 2
+      ? WHEEL_PAGE_HEIGHT_PIXELS
+      : 1;
+  return Math.exp(deltaY * pixelsPerUnit * WHEEL_ZOOM_SENSITIVITY);
+}
 
 export function clampChartViewport(
   viewport: ChartViewport,

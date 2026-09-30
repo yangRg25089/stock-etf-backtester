@@ -14,6 +14,26 @@ test.describe("responsive product shell", () => {
         if (locale === "ja") {
           await page.getByRole("button", { name: "日本語" }).click();
         }
+        await expect(page.locator(".shared-settings-group legend")).toHaveText(
+          locale === "ja" ? ["対象と期間", "入金計画"] : ["标的与区间", "投入计划"],
+        );
+        const sharedSettingsLayout = await page.locator(".shared-settings-grid").evaluate((grid) => {
+          const groups = [...grid.querySelectorAll(".shared-settings-group")];
+          const rangeFields = grid.querySelector(".shared-settings-fields-range");
+          const fundingFields = grid.querySelector(".shared-settings-fields-funding");
+          return {
+            columns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+            rangeColumns: rangeFields ? getComputedStyle(rangeFields).gridTemplateColumns.split(" ").length : 0,
+            fundingColumns: fundingFields ? getComputedStyle(fundingFields).gridTemplateColumns.split(" ").length : 0,
+            groupCount: groups.length,
+            groupsInSeparateRows: groups[0]?.getBoundingClientRect().bottom <= groups[1]?.getBoundingClientRect().top,
+          };
+        });
+        expect(sharedSettingsLayout.groupCount).toBe(2);
+        expect(sharedSettingsLayout.columns).toBe(width <= 900 ? 1 : 2);
+        expect(sharedSettingsLayout.rangeColumns).toBe(width <= 420 ? 1 : 3);
+        expect(sharedSettingsLayout.fundingColumns).toBe(width <= 420 ? 1 : 2);
+        expect(sharedSettingsLayout.groupsInSeparateRows).toBe(width <= 900);
 
         const layout = await page.evaluate(() => {
           const controls = [
@@ -125,10 +145,14 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
 
 test("default VIX can run to a focused saved result, display toggles, and matching CSV", async ({ page }) => {
   const pageErrors = [];
+  const consoleErrors = [];
   const nonLocalRequests = [];
   const runStatusRequests = [];
   const runEventRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
   page.on("request", (request) => {
     const hostname = new URL(request.url()).hostname;
     if (hostname !== "127.0.0.1" && hostname !== "localhost") {
@@ -186,6 +210,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(coreChart.locator(".overlay-series-line.overlay-price")).toBeVisible();
   await expect(coreChart.locator(".overlay-series-line.overlay-totalAsset")).toBeVisible();
   await expect(coreChart.locator(".overlay-series-line")).toHaveCount(2);
+  expect(await coreChart.locator(".overlay-series-line").evaluateAll((lines) =>
+    lines.map((line) => line.getAttribute("stroke-width")),
+  )).toEqual(["1.8", "1.8"]);
   await expect(coreChart.locator(".chart-baseline-line")).toHaveAttribute("data-baseline", "100");
   await expect(coreChart.locator(".overlay-legend")).toContainText("QQQ · 価格 (USD)");
   await expect(coreChart.locator(".overlay-legend")).toContainText("総資産 (USD)");
@@ -220,6 +247,21 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     expect(Number(baselineY)).toBeGreaterThanOrEqual(20);
     expect(Number(baselineY)).toBeLessThanOrEqual(266);
   };
+  const wheelResetButton = page.getByRole("button", { name: "全期間に戻す" });
+  const zoomSensitivityChart = page.locator(".chart-panel.chart-overlay .result-chart");
+  await zoomSensitivityChart.hover();
+  await page.mouse.wheel(0, -160);
+  const singleEventWindows = await expectSynchronizedWindows();
+  const singleEventSpan = Number(singleEventWindows.end) - Number(singleEventWindows.start);
+  await wheelResetButton.click();
+  await zoomSensitivityChart.hover();
+  for (let index = 0; index < 16; index += 1) {
+    await page.mouse.wheel(0, -10);
+  }
+  const splitEventWindows = await expectSynchronizedWindows();
+  const splitEventSpan = Number(splitEventWindows.end) - Number(splitEventWindows.start);
+  expect(splitEventSpan).toBeCloseTo(singleEventSpan, 2);
+  await wheelResetButton.click();
   for (const chartSelector of ["chart-overlay", "chart-drawdown", "chart-vix"]) {
     const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
     if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
@@ -235,6 +277,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(pageViewportBeforeWheel.scrollY);
     expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(pageViewportBeforeWheel.scale);
     const zoomedWindow = await expectSynchronizedWindows();
+    expect(Number(zoomedWindow.end) - Number(zoomedWindow.start)).toBeGreaterThan(0.9);
     await expectBaselineInsidePlot();
 
     const bounds = await chart.boundingBox();
@@ -243,13 +286,26 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     const pointerY = bounds.y + bounds.height / 2;
     await page.mouse.move(pointerX, pointerY);
     await page.mouse.down();
-    await page.mouse.move(pointerX + 45, pointerY, { steps: 4 });
+    await page.mouse.move(pointerX - 45, pointerY, { steps: 4 });
     await page.mouse.up();
     const draggedWindow = await expectSynchronizedWindows();
-    expect(draggedWindow.start).not.toBe(zoomedWindow.start);
+    const draggedStart = Number(draggedWindow.start);
+    const zoomedStart = Number(zoomedWindow.start);
+    const plotGeometry = await chart.evaluate((svg) => {
+      const plot = svg.querySelector("clipPath rect");
+      return {
+        viewBoxWidth: svg.viewBox.baseVal.width,
+        plotWidth: Number(plot?.getAttribute("width")),
+      };
+    });
+    const nominalPan = (45 / bounds.width) * (plotGeometry.viewBoxWidth / plotGeometry.plotWidth)
+      * (Number(zoomedWindow.end) - Number(zoomedWindow.start));
+    expect(draggedStart).toBeGreaterThan(zoomedStart);
+    expect(draggedStart - zoomedStart).toBeGreaterThan(nominalPan * 0.4);
+    expect(draggedStart - zoomedStart).toBeLessThan(nominalPan * 0.6);
     await expectBaselineInsidePlot();
   }
-  const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
+  const resetRangeButton = wheelResetButton;
   if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
   const coreChartSvg = page.locator(".chart-panel.chart-overlay .result-chart");
   await coreChartSvg.hover();
@@ -282,6 +338,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const overlayButton = page.getByRole("button", { name: "選択した指標も重ねる" });
   await overlayButton.click();
   await expect(page.locator(".chart-panel.chart-overlay .overlay-series-line")).toHaveCount(4);
+  expect(await page.locator(".chart-panel.chart-overlay .overlay-series-line").evaluateAll((lines) =>
+    lines.map((line) => line.getAttribute("stroke-width")),
+  )).toEqual(["1.5", "1.5", "1.5", "1.5"]);
   await expect(page.locator(".chart-panel.chart-overlay .chart-y-axis-title")).toContainText("100");
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-start", "0");
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-end", "1");
@@ -412,6 +471,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(resumedResultGets).toHaveLength(1);
   await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
   expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
   expect(nonLocalRequests).toEqual([]);
 });
 

@@ -8,6 +8,7 @@ const {
   clampChartViewport,
   panChartViewport,
   samplesInViewport,
+  wheelZoomFactor,
   zoomChartViewport,
 } = require("../.test-output/features/results/chartViewport.js");
 
@@ -30,6 +31,25 @@ test("drag pans the same fraction of the visible history without crossing its li
   assert.ok(Math.abs(pannedRight.start - 0.4) < 1e-9);
   assert.equal(pannedRight.end, 1);
   assert.deepEqual(panChartViewport(FULL_CHART_VIEWPORT, 0.2), FULL_CHART_VIEWPORT);
+});
+
+test("wheel zoom follows accumulated delta instead of counting trackpad events", () => {
+  const oneWheelGesture = wheelZoomFactor(-160);
+  const splitTrackpadGesture = Array.from({ length: 16 }, () => wheelZoomFactor(-10))
+    .reduce((factor, nextFactor) => factor * nextFactor, 1);
+
+  assert.ok(Math.abs(oneWheelGesture - 0.92) < 1e-12);
+  assert.ok(Math.abs(splitTrackpadGesture - oneWheelGesture) < 1e-12);
+  assert.ok(Math.abs(wheelZoomFactor(160) * oneWheelGesture - 1) < 1e-12);
+});
+
+test("wheel line and page deltas normalize to equivalent chart distances", () => {
+  const pixelDelta = wheelZoomFactor(-160, 0);
+  const lineDelta = wheelZoomFactor(-10, 1);
+  const pageDelta = wheelZoomFactor(-0.5, 2);
+
+  assert.ok(Math.abs(lineDelta - pixelDelta) < 1e-12);
+  assert.ok(Math.abs(pageDelta - pixelDelta) < 1e-12);
 });
 
 test("viewport clamping keeps a usable range and samples include both line-edge neighbors", () => {

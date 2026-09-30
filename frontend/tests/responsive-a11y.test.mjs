@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const prototype = readFileSync(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
 
 function luminance(hex) {
   const channels = hex.match(/[a-f\d]{2}/gi).map((channel) => parseInt(channel, 16) / 255);
@@ -59,13 +60,25 @@ test("320px, 768px, and 1024px widths follow the responsive layout rules", () =>
   assert.match(blockFor(".main-content"), /width:\s*min\(100% - 48px, 1180px\)/);
   assert.match(narrow, /\.main-content\s*\{[^}]*width:\s*min\(100% - 30px, 1180px\)/s);
   assert.match(phone, /\.main-content\s*\{[^}]*width:\s*min\(100% - 24px, 1180px\)/s);
-  assert.match(phone, /\.shared-settings-grid\s*\{[^}]*minmax\(0, 1fr\)/s);
   assert.match(phone, /\.strategy-parameter-grid\s*\{[^}]*minmax\(0, 1fr\)/s);
-  assert.match(narrow, /\.shared-settings-grid\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
-  assert.match(tablet, /\.shared-settings-grid\s*\{[^}]*repeat\(3, minmax\(0, 1fr\)\)/s);
+  assert.match(blockFor(".shared-settings-grid"), /grid-template-columns:\s*minmax\(0, 1\.35fr\) minmax\(0, 1fr\)/);
+  assert.match(blockFor(".shared-settings-fields-range"), /grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(tablet, /\.shared-settings-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+  assert.match(narrow, /\.shared-settings-fields-range\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
+  assert.match(blockFor(".shared-settings-fields-funding"), /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(phone, /\.shared-settings-fields-range\s*\{[^}]*minmax\(0, 1fr\)/s);
+  assert.match(phone, /\.shared-settings-fields-funding\s*\{[^}]*minmax\(0, 1fr\)/s);
+  assert.match(blockFor(".shared-settings-group"), /min-width:\s*0/);
   assert.match(blockFor(".strategy-card-name"), /overflow-wrap:\s*anywhere/);
   assert.match(blockFor(".strategy-card-summary,\n.strategy-description"), /overflow-wrap:\s*anywhere/);
   assert.match(blockFor(".page-heading > div"), /overflow-wrap:\s*anywhere/);
+});
+
+test("the design prototype keeps shared settings grouped and comparative lines fine", () => {
+  assert.match(prototype, /<legend>対象と期間<\/legend>/);
+  assert.match(prototype, /<legend>入金計画<\/legend>/);
+  assert.match(prototype, /\.chart-line-price[^}]*stroke-width:\s*1\.8/);
+  assert.match(prototype, /\.chart-line-asset[^}]*stroke-width:\s*1\.8/);
 });
 
 test("wide data tables scroll inside their panels instead of widening the page", () => {

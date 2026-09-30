@@ -66,11 +66,23 @@
     #backtest-ui-preview .subhead { margin-top: 5px; color: var(--app-muted); font-size: 12px; }
     #backtest-ui-preview .global-settings {
       display: grid;
-      grid-template-columns: 1fr 1.2fr 1.2fr .85fr .85fr;
-      gap: 16px 14px;
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+      gap: 12px;
       padding: 14px 0 18px;
       border-bottom: 1px solid var(--app-border);
     }
+    #backtest-ui-preview .setting-group {
+      min-width: 0;
+      margin: 0;
+      padding: 6px 12px 12px;
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+      background: var(--app-surface);
+    }
+    #backtest-ui-preview .setting-group legend { padding: 0 5px; color: var(--app-muted); font-size: 12px; font-weight: 650; }
+    #backtest-ui-preview .settings-fields { display: grid; gap: 12px; }
+    #backtest-ui-preview .settings-fields-range { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    #backtest-ui-preview .settings-fields-funding { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     #backtest-ui-preview .field { display: grid; align-content: start; gap: 8px; min-width: 0; }
     #backtest-ui-preview .field > label,
     #backtest-ui-preview .field-label { color: var(--app-foreground); font-size: 13px; font-weight: 650; }
@@ -202,8 +214,8 @@
     #backtest-ui-preview .chart-grid { stroke: #dce3df; stroke-width: 1; }
     #backtest-ui-preview .chart-tick { fill: var(--app-muted); font-size: 11px; }
     #backtest-ui-preview .chart-axis-label { fill: var(--app-foreground); font-size: 11px; font-weight: 600; }
-    #backtest-ui-preview .chart-line-price { fill: none; stroke: #147d68; stroke-width: 3; }
-    #backtest-ui-preview .chart-line-asset { fill: none; stroke: #276d9b; stroke-width: 3; }
+    #backtest-ui-preview .chart-line-price { fill: none; stroke: #147d68; stroke-width: 1.8; }
+    #backtest-ui-preview .chart-line-asset { fill: none; stroke: #276d9b; stroke-width: 1.8; }
     #backtest-ui-preview .chart-baseline { stroke: #74817b; stroke-width: 1.5; stroke-dasharray: 6 4; }
     #backtest-ui-preview .chart-baseline-label { fill: var(--app-muted); font-size: 10px; }
     #backtest-ui-preview .chart-example-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; color: var(--app-muted); font-size: 11px; }
@@ -213,18 +225,24 @@
     #backtest-ui-preview .chart-example-legend .baseline-swatch { height: 0; background: transparent; border-top: 1px dashed #74817b; }
     #backtest-ui-preview .chart-trade-buy { fill: #147d68; stroke: #fff; stroke-width: 1.5; }
     #backtest-ui-preview .chart-trade-sell { fill: #a7373a; stroke: #fff; stroke-width: 1.5; }
+    @media (max-width: 900px) {
+      #backtest-ui-preview .global-settings { grid-template-columns: minmax(0, 1fr); }
+    }
     @media (max-width: 760px) {
       #backtest-ui-preview .app-topbar { padding: 12px 15px; }
       #backtest-ui-preview .local-tag { display: none; }
       #backtest-ui-preview main { padding: 18px 15px 24px; }
-      #backtest-ui-preview .global-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #backtest-ui-preview .settings-fields-range { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #backtest-ui-preview .settings-fields-range > .field:first-child { grid-column: 1 / -1; }
     }
     @media (max-width: 420px) {
       #backtest-ui-preview h1 { font-size: 18px; }
       #backtest-ui-preview .page-heading { align-items: center; }
-      #backtest-ui-preview .global-settings,
+      #backtest-ui-preview .settings-fields-range,
+      #backtest-ui-preview .settings-fields-funding,
       #backtest-ui-preview .parameter-groups,
       #backtest-ui-preview .parameter-fields { grid-template-columns: minmax(0, 1fr); }
+      #backtest-ui-preview .settings-fields-range > .field:first-child { grid-column: auto; }
       #backtest-ui-preview .chart-example-grid { grid-template-columns: minmax(0, 1fr); }
       #backtest-ui-preview .results-head { align-items: flex-start; flex-direction: column; }
       #backtest-ui-preview .run-actions { align-items: stretch; flex-direction: column; }
@@ -260,11 +278,21 @@
       </div>
     </div>
     <section class="global-settings" aria-label="共通設定">
-      <div class="field"><label for="ticker">銘柄コード</label><input class="input" id="ticker" value="QQQ" /></div>
-      <div class="field date-field"><label for="date-start">開始日</label><input class="input" id="date-start" type="date" value="2020-01-01" /></div>
-      <div class="field date-field"><div class="field-label"><label for="date-end">終了日</label><label class="end-mode"><input type="checkbox" checked aria-label="最新の完了日まで" />最新の完了日まで</label></div><input class="input" id="date-end" type="date" value="2026-09-29" disabled /><p class="field-hint">この実行で確定した終了日：2026-09-29</p></div>
-      <div class="field"><label for="monthly-cash">毎月の投入額</label><input class="input" id="monthly-cash" type="number" min="0" value="100" /><p class="field-hint">投入額は銘柄の取引通貨で指定します。通貨は実行時にデータ提供元で確認します。</p></div>
-      <div class="field"><label for="deposit-day">毎月の投入日</label><div class="unit-field"><input class="input" id="deposit-day" type="number" min="1" max="31" value="1" /><span class="unit">日</span></div></div>
+      <fieldset class="setting-group range-group">
+        <legend>対象と期間</legend>
+        <div class="settings-fields settings-fields-range">
+          <div class="field"><label for="ticker">銘柄コード</label><input class="input" id="ticker" value="QQQ" /></div>
+          <div class="field date-field"><label for="date-start">開始日</label><input class="input" id="date-start" type="date" value="2020-01-01" /></div>
+          <div class="field date-field"><div class="field-label"><label for="date-end">終了日</label><label class="end-mode"><input type="checkbox" checked aria-label="最新の完了日まで" />最新の完了日まで</label></div><input class="input" id="date-end" type="date" value="2026-09-29" disabled /><p class="field-hint">この実行で確定した終了日：2026-09-29</p></div>
+        </div>
+      </fieldset>
+      <fieldset class="setting-group funding-group">
+        <legend>入金計画</legend>
+        <div class="settings-fields settings-fields-funding">
+          <div class="field"><label for="monthly-cash">毎月の投入額</label><input class="input" id="monthly-cash" type="number" min="0" value="100" /><p class="field-hint">投入額は銘柄の取引通貨で指定します。通貨は実行時にデータ提供元で確認します。</p></div>
+          <div class="field"><label for="deposit-day">毎月の投入日</label><div class="unit-field"><input class="input" id="deposit-day" type="number" min="1" max="31" value="1" /><span class="unit">日</span></div></div>
+        </div>
+      </fieldset>
     </section>
     <section class="strategy-workspace" aria-labelledby="strategy-config-heading">
       <div class="section-heading"><div><h2 id="strategy-config-heading">戦略設定</h2><p class="subhead">各戦略は独立したカードで編集できます。</p></div></div>
