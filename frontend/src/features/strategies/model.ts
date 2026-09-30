@@ -28,7 +28,6 @@ export interface WorkspaceState {
   runScope: RunScope;
   runResponse: RunResponse | null;
   runRequestedEndMode: EndMode | null;
-  runRequestedScope: RunScope | null;
   focusedResultId: string | null;
   showChart: boolean;
   showTrades: boolean;
@@ -44,7 +43,8 @@ export type WorkspaceAction =
   | { type: "strategy.param"; id: string; key: string; value: unknown }
   | { type: "shared.change"; value: SharedDraft }
   | { type: "run.scope"; value: RunScope }
-  | { type: "run.update"; value: RunResponse; requestedEndMode?: EndMode; requestedScope?: RunScope }
+  | { type: "run.reset" }
+  | { type: "run.update"; value: RunResponse; requestedEndMode?: EndMode }
   | { type: "run.progress"; value: RunProgressEvent }
   | { type: "result.focus"; id: string | null }
   | { type: "display.chart"; value: boolean }
@@ -118,7 +118,6 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
     runScope: "all_enabled",
     runResponse: null,
     runRequestedEndMode: null,
-    runRequestedScope: null,
     focusedResultId: null,
     showChart: uiBooleanDefault(catalog, "display.showChart", true),
     showTrades: uiBooleanDefault(catalog, "display.showTrades", true),
@@ -138,7 +137,9 @@ export function workspaceReducer(
         ? { ...state, activeStrategyId: action.id }
         : state;
     case "strategy.add": {
-      if (!catalog || state.draft.strategies.some((strategy) => strategy.id === action.id)) {
+      if (!catalog || state.draft.strategies.some((strategy) =>
+        strategy.id === action.id || strategy.presetId === action.presetId,
+      )) {
         return state;
       }
       const strategy = createStrategyDraft(catalog, action.presetId, action.id);
@@ -188,22 +189,27 @@ export function workspaceReducer(
       };
     case "run.scope":
       return { ...state, runScope: action.value };
-    case "run.update":
-      {
-        const savedResults = action.value.result?.strategyRuns ?? [];
-        const focusIsAvailable = state.focusedResultId !== null &&
-          savedResults.some((result) => result.id === state.focusedResultId);
-        const focusedResultId = focusIsAvailable
-          ? state.focusedResultId
-          : action.value.selectedStrategyIds[0] ?? savedResults[0]?.id ?? null;
+    case "run.reset":
+      return {
+        ...state,
+        runResponse: null,
+        focusedResultId: null,
+        runRequestedEndMode: null,
+      };
+    case "run.update": {
+      const savedResults = action.value.result?.strategyRuns ?? [];
+      const focusIsAvailable = state.focusedResultId !== null &&
+        savedResults.some((result) => result.id === state.focusedResultId);
+      const focusedResultId = focusIsAvailable
+        ? state.focusedResultId
+        : action.value.selectedStrategyIds[0] ?? savedResults[0]?.id ?? null;
       return {
         ...state,
         runResponse: action.value,
         runRequestedEndMode: action.requestedEndMode ?? state.runRequestedEndMode,
-        runRequestedScope: action.requestedScope ?? state.runRequestedScope,
         focusedResultId,
       };
-      }
+    }
     case "run.progress": {
       const current = state.runResponse;
       if (!current || current.runId !== action.value.runId) return state;

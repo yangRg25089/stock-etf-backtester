@@ -80,12 +80,12 @@ test("shared settings render catalog defaults once and lock a resolved latest da
   assert.match(resolvedInput, /type="date"/);
   assert.match(resolvedInput, /value="2024-06-28"/);
   assert.match(resolvedInput, /disabled/);
-  assert.match(html, /この実行で確定した終了日：2024-06-28/);
+  assert.match(html, /前回の終了日：2024-06-28/);
   assert.match(html, /id="field-contribution-amount"[^>]*min="0"[^>]*step="0.01"/);
   assert.match(html, /id="field-contribution-day"[^>]*min="1"[^>]*max="31"/);
   assert.equal((html.match(/for="field-run-endDate"/g) ?? []).length, 1);
   assert.doesNotMatch(html, /代码|日付|銘柄の通貨|标的报价币种/);
-  assert.match(html, /金額は銘柄の取引通貨/);
+  assert.match(html, /銘柄と同じ通貨/);
   assert.match(html, /aria-describedby="field-contribution-day-unit"/);
   assert.match(html, /<span class="unit-label" id="field-contribution-day-unit">日<\/span>/);
 });
@@ -99,7 +99,7 @@ test("latest mode with no run snapshot does not invent a date", () => {
       onChange() {},
     }),
   );
-  assert.match(html, /结束日期将在运行时解析为最近完整行情日/);
+  assert.match(html, /运行至最近完整行情日/);
   assert.match(html, /<legend>标的<\/legend>/);
   assert.match(html, /<legend>区间<\/legend>/);
   assert.match(html, /<legend>投入计划<\/legend>/);
@@ -156,4 +156,25 @@ test("parameter fields use catalog units, bounds, dependency state, and diagnost
   );
   assert.match(disabledHtml, /disabled/);
   assert.match(disabledHtml, /必要な値を設定すると編集できます/);
+});
+
+ test("money inputs display confirmed currency or an explicit unresolved trading-currency unit", () => {
+  for (const [currency, expected] of [["USD", "USD"], ["JPY", "JPY"], [undefined, "交易货币"]]) {
+    const html = renderToStaticMarkup(React.createElement(SharedSettingsForm, {
+      catalog, value: createDefaultSharedDraft(catalog), locale: "zh", currency, onChange() {},
+    }));
+    assert.match(html, new RegExp(`id="field-contribution-amount-unit">${expected}<`));
+    assert.match(html, /aria-describedby="field-contribution-amount-hint field-contribution-amount-unit"/);
+  }
+});
+
+
+test("the shared summary uses confirmed saved dates for the same ticker and never fabricates a date", () => {
+  const { sharedSummaryEndDate } = require("../.test-output/features/config/summary.js");
+  const shared = createDefaultSharedDraft(catalog);
+  const saved = { snapshot: { config: { shared: { run: { symbol: "QQQ", endMode: "fixed", endDate: "2024-02-02" } } }, dataProvenance: { marketDataThrough: "2024-02-01" } } };
+  assert.equal(sharedSummaryEndDate(shared, saved), "2024-02-01");
+  assert.equal(sharedSummaryEndDate({ ...shared, run: { ...shared.run, symbol: "SMH" } }, saved), null);
+  assert.equal(sharedSummaryEndDate(shared, null), null);
+  assert.equal(sharedSummaryEndDate({ ...shared, run: { ...shared.run, endMode: "fixed", endDate: "2023-12-29" } }, saved), "2023-12-29");
 });

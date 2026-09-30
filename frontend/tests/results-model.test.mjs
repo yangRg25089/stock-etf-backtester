@@ -7,7 +7,6 @@ const require = createRequire(import.meta.url);
 const { createInitialWorkspaceState, workspaceReducer } = require("../.test-output/features/strategies/model.js");
 const {
   findFocusedResult,
-  isRunSnapshotStale,
 } = require("../.test-output/features/results/model.js");
 const catalog = JSON.parse(
   readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"),
@@ -110,148 +109,63 @@ test("focused result lookup is keyed by result id and independent of editor sele
   assert.equal(findFocusedResult(run, "missing"), null);
 });
 
-test("snapshot freshness ignores a resolved latest date but detects selected draft changes", () => {
-  const initial = createInitialWorkspaceState(catalog);
-  const strategy = initial.draft.strategies[0];
-  const run = {
-    runId: "saved-run",
-    status: "completed",
-    selectedStrategyIds: [strategy.id],
-    snapshot: {
-      config: {
-        shared: {
-          run: {
-            symbol: initial.draft.shared.run.symbol,
-            startDate: initial.draft.shared.run.startDate,
-            endDate: "2024-06-28",
-            endMode: "fixed",
-          },
-          contribution: { ...initial.draft.shared.contribution },
-          data: { ...initial.draft.shared.data },
-        },
-        strategies: [{ ...strategy, params: { ...strategy.params } }],
-      },
-    },
-  };
-  let state = {
-    ...initial,
-    runResponse: run,
-    runRequestedEndMode: "latest",
-    runRequestedScope: "active",
-  };
-
-  assert.equal(isRunSnapshotStale(state), false);
-  state = {
-    ...state,
-    runResponse: {
-      ...run,
-      snapshot: {
-        config: {
-          ...run.snapshot.config,
-          shared: {
-            ...run.snapshot.config.shared,
-            run: {
-              ...run.snapshot.config.shared.run,
-              endDate: initial.draft.shared.run.startDate,
-              endMode: "latest",
-            },
-          },
-        },
-      },
-    },
-  };
-  assert.equal(isRunSnapshotStale(state), false);
-  state = workspaceReducer(state, { type: "strategy.param", id: strategy.id, key: "vix.buyThreshold", value: "31" });
-  assert.equal(isRunSnapshotStale(state), true);
-});
-
-test("snapshot freshness treats numeric draft values and serialized Decimal strings as equal", () => {
+test("draft edits preserve a resolved latest snapshot and its result focus", () => {
   let state = createInitialWorkspaceState(catalog);
-  const strategyId = state.draft.strategies[0].id;
-  state = workspaceReducer(state, {
-    type: "strategy.param",
-    id: strategyId,
-    key: "vix.buyThreshold",
-    value: 25,
-  });
-  state = workspaceReducer(state, {
-    type: "strategy.param",
-    id: strategyId,
-    key: "accumulation.cashSafetyLimit",
-    value: 1200,
-  });
   const strategy = state.draft.strategies[0];
-  state = {
-    ...state,
-    runRequestedEndMode: "latest",
-    runRequestedScope: "active",
-    runResponse: {
-      runId: "saved-decimal-run",
-      status: "completed",
-      selectedStrategyIds: [strategyId],
-      snapshot: {
-        config: {
-          shared: {
-            run: { ...state.draft.shared.run, endMode: "fixed", endDate: "2024-02-02" },
-            contribution: { ...state.draft.shared.contribution },
-            data: { ...state.draft.shared.data },
-          },
-          strategies: [{
-            ...strategy,
-            params: {
-              ...strategy.params,
-              "vix.buyThreshold": "25",
-              "accumulation.cashSafetyLimit": "1200",
-            },
-          }],
-        },
-      },
-    },
+  const response = {
+    runId: "frozen-latest", status: "completed", selectedStrategyIds: [strategy.id],
+    snapshot: { config: {
+      shared: structuredClone(state.draft.shared),
+      strategies: structuredClone(state.draft.strategies),
+    } },
+    result: { strategyRuns: [{ id: strategy.id, status: "completed", metrics: { endingEquity: "120.50" } }] },
   };
-
-  assert.equal(isRunSnapshotStale(state), false);
-  state = workspaceReducer(state, {
-    type: "strategy.param",
-    id: strategyId,
-    key: "vix.buyThreshold",
-    value: 31,
-  });
-  assert.equal(isRunSnapshotStale(state), true);
+  response.snapshot.config.shared.run.endMode = "fixed";
+  response.snapshot.config.shared.run.endDate = "2024-06-28";
+  const original = structuredClone(response);
+  state = workspaceReducer(state, { type: "run.update", value: response, requestedEndMode: "latest" });
+  state = workspaceReducer(state, { type: "strategy.param", id: strategy.id, key: "vix.buyThreshold", value: "31" });
+  state = workspaceReducer(state, { type: "shared.change", value: { ...state.draft.shared, run: { ...state.draft.shared.run, symbol: "SMH" } } });
+  assert.equal(state.runResponse, response);
+  assert.deepEqual(response, original);
+  assert.equal(state.focusedResultId, strategy.id);
+  assert.equal(state.draft.shared.run.symbol, "SMH");
 });
 
-test("all-enabled snapshot freshness notices a newly enabled strategy", () => {
+test("numeric draft values never rewrite the saved Decimal strings", () => {
+  let state = createInitialWorkspaceState(catalog);
+  const strategy = state.draft.strategies[0];
+  const response = {
+    runId: "saved-decimal-run", status: "completed", selectedStrategyIds: [strategy.id],
+    snapshot: { config: { shared: structuredClone(state.draft.shared), strategies: [
+      { ...structuredClone(strategy), params: { ...strategy.params, "vix.buyThreshold": "25", "accumulation.cashSafetyLimit": "1200" } },
+    ] } },
+  };
+  const original = structuredClone(response);
+  state = workspaceReducer(state, { type: "run.update", value: response });
+  for (const [key, value] of [["vix.buyThreshold", 25], ["accumulation.cashSafetyLimit", 1200], ["vix.buyThreshold", 31]]) {
+    state = workspaceReducer(state, { type: "strategy.param", id: strategy.id, key, value });
+    assert.equal(state.runResponse, response);
+    assert.deepEqual(response, original);
+  }
+  assert.equal(state.draft.strategies[0].params["vix.buyThreshold"], 31);
+});
+
+test("adding, disabling and removing draft strategies cannot change saved identities", () => {
   let state = createInitialWorkspaceState(catalog);
   const first = state.draft.strategies[0];
-  const run = {
-    runId: "saved-run",
-    status: "completed",
-    selectedStrategyIds: [first.id],
-    snapshot: {
-      config: {
-        shared: {
-          run: {
-            ...state.draft.shared.run,
-            endDate: state.draft.shared.run.startDate,
-            endMode: "fixed",
-          },
-          contribution: { ...state.draft.shared.contribution },
-          data: { ...state.draft.shared.data },
-        },
-        strategies: [{ ...first, params: { ...first.params } }],
-      },
-    },
+  const response = {
+    runId: "saved-run", status: "completed", selectedStrategyIds: [first.id],
+    snapshot: { config: { shared: structuredClone(state.draft.shared), strategies: structuredClone(state.draft.strategies) } },
+    result: { strategyRuns: [{ id: first.id, status: "completed" }] },
   };
-  state = {
-    ...state,
-    runResponse: run,
-    runRequestedEndMode: "latest",
-    runRequestedScope: "all_enabled",
-  };
-  assert.equal(isRunSnapshotStale(state), false);
-  state = workspaceReducer(state, {
-    type: "strategy.add",
-    id: "strategy-monthly_dca-2",
-    presetId: "monthly_dca",
-  }, catalog);
-  assert.equal(isRunSnapshotStale(state), true);
+  const original = structuredClone(response);
+  state = workspaceReducer(state, { type: "run.update", value: response });
+  state = workspaceReducer(state, { type: "strategy.add", id: "strategy-ma-2", presetId: "ma_buy_only" }, catalog);
+  state = workspaceReducer(state, { type: "strategy.enabled", id: first.id, value: false });
+  state = workspaceReducer(state, { type: "strategy.remove", id: first.id });
+  assert.equal(state.runResponse, response);
+  assert.deepEqual(response, original);
+  assert.equal(state.focusedResultId, first.id);
+  assert.deepEqual(state.draft.strategies.map(({ id }) => id), ["strategy-ma-2"]);
 });

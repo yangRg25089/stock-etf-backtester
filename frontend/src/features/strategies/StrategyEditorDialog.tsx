@@ -4,7 +4,6 @@ import { translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
 import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 import type { StrategyDraft } from "./model";
-import { formatStrategySummary } from "./strategySummary";
 
 interface StrategyEditorDialogProps {
   catalog: Catalog;
@@ -64,43 +63,24 @@ export function StrategyEditorForm({
       Object.hasOwn(strategy.params, definition.key) ? strategy.params[definition.key] : definition.default,
     ]),
   );
-
-  const groupDomId = (groupId: string) => `strategy-parameters-${strategy.id}-${groupId}`;
-  const scrollToGroup = (groupId: string) => {
-    document.getElementById(groupDomId(groupId))?.scrollIntoView({ block: "start", behavior: "smooth" });
-  };
+  const logic = String(dependencyValues["accumulation.conditionLogic"]);
+  const enabledBuyGroups = groups.filter(([, group]) => group.fields.some((definition) =>
+    definition.key.endsWith(".buyEnabled") && dependencyValues[definition.key] === true,
+  ));
 
   return (
     <section className="strategy-editor" aria-label={name}>
-      <p className="strategy-editor-summary">
-        {formatStrategySummary(locale, strategy.presetId, strategy.params)}
-      </p>
-      {groups.length > 1 && (
-        <nav className="strategy-parameter-nav" aria-label={translate(locale, "strategy.parameterGroupNavigation")}>
-          {groups.map(([groupId, group]) => (
-            <button
-              className="button"
-              type="button"
-              key={groupId}
-              aria-controls={groupDomId(groupId)}
-              onClick={() => scrollToGroup(groupId)}
-            >
-              {translate(locale, group.translationKey)}
-            </button>
-          ))}
-        </nav>
-      )}
       <fieldset className="strategy-parameters">
-        <legend>{translate(locale, "strategy.parameters")}</legend>
+        <legend className="sr-only">{translate(locale, "strategy.parameters")}</legend>
         <div className="strategy-parameter-groups">
           {groups.map(([groupId, group]) => (
             <section
-              className="strategy-parameter-group"
-              id={groupDomId(groupId)}
+              className={groupId === "signal_combination" ? "strategy-condition-row" : "strategy-parameter-group"}
+              id={`strategy-parameters-${strategy.id}-${groupId}`}
               key={groupId}
               aria-labelledby={`strategy-parameter-heading-${strategy.id}-${groupId}`}
             >
-              <h3 id={`strategy-parameter-heading-${strategy.id}-${groupId}`}>
+              <h3 className={groupId === "signal_combination" ? "sr-only" : undefined} id={`strategy-parameter-heading-${strategy.id}-${groupId}`}>
                 {translate(locale, group.translationKey)}
               </h3>
               <div className="strategy-parameter-grid">
@@ -113,13 +93,28 @@ export function StrategyEditorForm({
                     locale={locale}
                     dependencyValues={dependencyValues}
                     errors={errors}
+                    appearance={definition.key === "accumulation.conditionLogic" ? "segments" : definition.type === "boolean" ? "switch" : "default"}
+                    hideLabel={definition.key === "accumulation.conditionLogic"}
+                    labelText={definition.key.endsWith(".buyEnabled") ? translate(locale, "strategy.buy") : definition.key === "exit.enabled" ? translate(locale, "strategy.sell") : undefined}
+                    optionHints={{ AND: translate(locale, "strategy.logicAnd"), OR: translate(locale, "strategy.logicOr") }}
                     helperText={definition.key === "accumulation.conditionLogic"
-                      ? translate(locale, "strategy.conditionLogicHelp")
+                      ? ""
                       : undefined}
                     onChange={(value) => onChange(definition.key, value)}
                   />
                 ))}
               </div>
+              {groupId === "signal_combination" && (
+                <div className="condition-relationship" data-logic={logic} aria-label={translate(locale, logic === "AND" ? "strategy.logicAnd" : "strategy.logicOr")}>
+                  {enabledBuyGroups.map(([id, buyGroup], index) => (
+                    <span className="condition-relationship-item" key={id}>
+                      {index > 0 && <span className="condition-connector" aria-hidden="true">{logic}</span>}
+                      <span className="condition-card">{translate(locale, buyGroup.translationKey)}</span>
+                    </span>
+                  ))}
+                  {enabledBuyGroups.length === 0 && <span>—</span>}
+                </div>
+              )}
             </section>
           ))}
         </div>

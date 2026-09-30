@@ -5,7 +5,7 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const { normalizeSeriesToBase100 } = require("../.test-output/features/results/chartModel.js");
 
-test("positive price, portfolio, and VIX series use their first positive value as 100", () => {
+test("price normalization uses the first positive saved value as 100", () => {
   const points = [
     { date: "2024-01-02", index: 0, value: 0 },
     { date: "2024-01-03", index: 1, value: 50 },
@@ -18,23 +18,23 @@ test("positive price, portfolio, and VIX series use their first positive value a
   assert.deepEqual(normalized.points.map((point) => point.indexValue), [100, 120]);
 });
 
-test("total-asset comparison normalizes cashflow-adjusted unit NAV, not contributions", () => {
+test("total-asset comparison uses each day's contributed principal without rebasing", () => {
   const normalized = normalizeSeriesToBase100("totalAsset", [
-    { date: "2024-01-02", index: 0, value: 100, normalizationValue: 1 },
-    { date: "2024-02-01", index: 1, value: 5_000, normalizationValue: 1.05 },
-    { date: "2024-03-01", index: 2, value: 10_000, normalizationValue: 1.1 },
+    { date: "2024-01-31", index: 0, value: 0, contributed: 0 },
+    { date: "2024-02-01", index: 1, value: 110, contributed: 100 },
+    { date: "2024-03-01", index: 2, value: 230, contributed: 200 },
+    { date: "2024-03-04", index: 3, value: 0, contributed: 200 },
   ]);
-
-  assert.equal(normalized.baseValue, 1);
-  assert.deepEqual(normalized.points.map(({ value }) => value), [100, 5_000, 10_000]);
-  assert.ok(Math.abs(normalized.points[1].indexValue - 105) < 1e-9);
-  assert.ok(Math.abs(normalized.points[2].indexValue - 110) < 1e-9);
+  assert.equal(normalized.baseDate, "2024-02-01");
+  assert.deepEqual(normalized.points.map(({ value }) => value), [110, 230, 0]);
+  assert.deepEqual(normalized.points.map(({ indexValue }) => Math.round(indexValue)), [110, 115, 0]);
 });
 
-test("total-asset comparison does not fall back to contributed account balances", () => {
+test("missing, zero, or negative principal does not fabricate a relative asset curve", () => {
   assert.equal(normalizeSeriesToBase100("totalAsset", [
     { date: "2024-01-02", index: 0, value: 100 },
-    { date: "2024-02-01", index: 1, value: 5_000 },
+    { date: "2024-02-01", index: 1, value: 5000, contributed: 0 },
+    { date: "2024-03-01", index: 2, value: 5000, contributed: -100 },
   ]), null);
 });
 

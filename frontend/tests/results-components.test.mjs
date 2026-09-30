@@ -5,7 +5,7 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const { MetricGrid, ResultComparison } = require("../.test-output/features/results/ResultSummary.js");
+const { ResultComparison } = require("../.test-output/features/results/ResultSummary.js");
 
 function metrics(endingEquity) {
   return {
@@ -61,9 +61,10 @@ test("comparison table focuses the saved result identity and shows backend statu
 });
 
 test("metric cards label contribution return separately from capital multiple", () => {
-  const html = renderToStaticMarkup(React.createElement(MetricGrid, {
+  const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh",
-    metrics: metrics("125.00"),
+    strategyRuns: [{ ...results[0], metrics: metrics("125.00") }],
+    focusedResultId: results[0].id, onFocus() {},
   }));
 
   assert.match(html, /投入回报率/);
@@ -75,10 +76,22 @@ test("metric cards label contribution return separately from capital multiple", 
 });
 
 test("unavailable optional metrics render as unavailable rather than zero", () => {
-  const html = renderToStaticMarkup(React.createElement(MetricGrid, {
+  const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "ja",
-    metrics: { ...metrics("125"), xirr: null, maximumDrawdown: null },
+    strategyRuns: [{ ...results[0], metrics: { ...metrics("125"), xirr: null, maximumDrawdown: null } }],
+    focusedResultId: results[0].id, onFocus() {},
   }));
   assert.match(html, /—/);
-  assert.match(html, /算出できません/);
+  assert.doesNotMatch(html, /NaN|undefined/);
+  assert.ok((html.match(/>—<\/td>/g) ?? []).length >= 2);
+});
+
+ test("comparison contains every performance field and short labels distinguish repeated presets", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultComparison, {
+    locale: "zh", strategyRuns: [...results, { ...results[0], id: "second-vix" }],
+    focusedResultId: "second-vix", onFocus() {},
+  }));
+  for (const label of ["实际投入金额", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤", "相对定投差额"]) assert.match(html, new RegExp(label));
+  assert.match(html, /VIX 信号定投 · 1/);
+  assert.match(html, /VIX 信号定投 · 2/);
 });

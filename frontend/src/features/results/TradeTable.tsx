@@ -25,7 +25,10 @@ export function TradeTable({ locale, status, trades }: TradeTableProps) {
   }
   return (
     <div className="trade-table-content">
-      <div className="data-table-scroll">
+      <div className="data-table-scroll trade-table-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label={translate(locale, "trade.tableTitle", { count: String(trades.length) })}>
         <table className="data-table trade-table">
           <caption className="sr-only">
             {translate(locale, "trade.tableTitle", { count: String(trades.length) })}

@@ -55,7 +55,10 @@ export function ExportControls({ locale, runId, result }: ExportControlsProps) {
             aria-label={label}
             title={label}
           >
-            {pendingKind === kind ? translate(locale, "export.downloading") : translate(locale, `export.kind.${kind}`)}
+            <svg className="export-download-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+              <path d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4" />
+            </svg>
+            {pendingKind === kind ? translate(locale, "export.downloading") : `${translate(locale, `export.kind.${kind}`)}.csv`}
           </button>
         );
       })}

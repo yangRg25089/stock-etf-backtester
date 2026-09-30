@@ -15,6 +15,7 @@ interface SharedSettingsFormProps {
   onChange(value: SharedDraft): void;
   errors?: Diagnostic[];
   resolvedLatestEndDate?: string | null;
+  currency?: string;
 }
 
 export const SHARED_FIELD_KEYS = [
@@ -58,6 +59,7 @@ export function SharedSettingsForm({
   onChange,
   errors = [],
   resolvedLatestEndDate = null,
+  currency,
 }: SharedSettingsFormProps) {
   const definitions = new Map((catalog.parameters ?? []).map((definition) => [definition.key, definition]));
   const latestDefinition = getDefinition(catalog, "run.endMode");
@@ -128,6 +130,7 @@ export function SharedSettingsForm({
         labelAccessory={options.labelAccessory}
         helperText={options.helperText}
         helperLive={options.helperLive}
+        currency={currency}
       />
     );
   };

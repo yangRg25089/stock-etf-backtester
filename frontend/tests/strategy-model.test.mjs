@@ -52,6 +52,23 @@ test("initial workspace comes from the VIX preset and shared catalog defaults", 
   assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown", "vix"]);
 });
 
+test("reset clears the displayed run and focus while preserving draft and display preferences", () => {
+  const initial = createInitialWorkspaceState(catalog);
+  const state = {
+    ...initial,
+    runResponse: { runId: "saved-result" },
+    focusedResultId: initial.activeStrategyId,
+    runRequestedEndMode: "latest",
+  };
+  const cleared = workspaceReducer(state, { type: "run.reset" });
+  assert.equal(cleared.runResponse, null);
+  assert.equal(cleared.focusedResultId, null);
+  assert.equal(cleared.draft, state.draft);
+  assert.equal(cleared.activeStrategyId, state.activeStrategyId);
+  assert.equal(cleared.runScope, state.runScope);
+  assert.equal(cleared.visibleSeriesIds, state.visibleSeriesIds);
+});
+
 test("chart overlay layout preference is independent from selected series", () => {
   let state = createInitialWorkspaceState(catalog);
   state = workspaceReducer(state, { type: "chart.overlay", value: true });
@@ -218,4 +235,18 @@ test("partial success is derived from backend strategy statuses", () => {
     { id: "pending", status: "running" },
     { id: "bad", status: "failed" },
   ] } }), false);
+});
+
+
+test("a preset can be added only once even when its existing card is disabled", () => {
+  const initial = createInitialWorkspaceState(catalog);
+  const disabled = workspaceReducer(initial, { type: "strategy.enabled", id: initial.activeStrategyId, value: false });
+  for (const state of [initial, disabled]) {
+    const rejected = workspaceReducer(state, { type: "strategy.add", id: "duplicate-vix", presetId: "vix_dca" }, catalog);
+    assert.equal(rejected, state);
+  }
+  const removed = workspaceReducer(disabled, { type: "strategy.remove", id: disabled.activeStrategyId });
+  const readded = workspaceReducer(removed, { type: "strategy.add", id: "replacement-vix", presetId: "vix_dca" }, catalog);
+  assert.equal(readded.draft.strategies.length, 1);
+  assert.equal(readded.draft.strategies[0].id, "replacement-vix");
 });

@@ -43,6 +43,8 @@ export function StrategyNavigator({
   const presetSelectRef = useRef<HTMLSelectElement>(null);
   const pendingFocusRef = useRef<PendingFocus | null>(null);
   const presets = catalog.presets ?? [];
+  const addablePresets = presets.filter((preset) => preset.id !== "monthly_dca" && preset.id !== "lump_sum");
+  const addedPresetIds = new Set(state.draft.strategies.map((strategy) => strategy.presetId));
   const editingStrategy = state.draft.strategies.find((item) => item.id === editingStrategyId);
   const editingDiagnostics = editingStrategy
     ? validation?.strategies?.find((item) => item.strategyId === editingStrategy.id)?.diagnostics ?? []
@@ -99,8 +101,8 @@ export function StrategyNavigator({
             onChange={(event) => setSelectedPresetId(event.target.value as StrategyPresetId | "")}
           >
             <option value="">{translate(locale, "strategy.choosePreset")}</option>
-            {presets.map((item) => (
-              <option key={item.id} value={item.id}>{translate(locale, item.nameKey)}</option>
+            {addablePresets.map((item) => (
+              <option key={item.id} value={item.id} disabled={addedPresetIds.has(item.id)}>{translate(locale, item.nameKey)}</option>
             ))}
           </select>
           <p className="field-hint sr-only" id="strategy-add-help">
@@ -108,16 +110,18 @@ export function StrategyNavigator({
           </p>
         </div>
         <button
-          className="button add-strategy-button"
+          className="button button-primary icon-only-button add-strategy-button"
+          aria-label={translate(locale, "strategy.add")}
+          title={translate(locale, "strategy.add")}
           type="button"
-          disabled={!selectedPresetId}
+          disabled={!selectedPresetId || addedPresetIds.has(selectedPresetId)}
           onClick={() => {
-            if (!selectedPresetId) return;
+            if (!selectedPresetId || addedPresetIds.has(selectedPresetId)) return;
             onAdd(selectedPresetId);
             setSelectedPresetId("");
           }}
         >
-          + {translate(locale, "strategy.add")}
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 3v14M3 10h14" /></svg>
         </button>
       </div>
 
@@ -150,7 +154,7 @@ export function StrategyNavigator({
 
             return (
               <article
-                className={`strategy-card strategy-nav-card${isRunTarget ? " is-active" : ""}`}
+                className={`strategy-card strategy-nav-card${isRunTarget ? " is-active" : ""}${strategy.enabled ? "" : " is-disabled"}`}
                 key={strategy.id}
               >
                 <button
@@ -177,41 +181,19 @@ export function StrategyNavigator({
                   </span>
                 </button>
                 <div className="strategy-card-actions">
-                  <button
-                    className={`icon-button strategy-run-target${isRunTarget ? " is-selected" : ""}`}
-                    type="button"
-                    aria-label={interpolate(
-                      translate(locale, isRunTarget ? "strategy.currentRunTarget" : "strategy.setRunTarget"),
-                      { name },
-                    )}
-                    title={interpolate(
-                      translate(locale, isRunTarget ? "strategy.currentRunTarget" : "strategy.setRunTarget"),
-                      { name },
-                    )}
-                    aria-pressed={isRunTarget}
-                    onClick={() => dispatch({ type: "strategy.select", id: strategy.id })}
-                  >
-                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                      <circle cx="10" cy="10" r="6.25" />
-                      <circle cx="10" cy="10" r="2.25" />
-                    </svg>
-                  </button>
                   {hasError && <span className="strategy-nav-error">{translate(locale, "strategy.hasErrors")}</span>}
-                  <label className="strategy-enabled-control">
-                    <input
-                      type="checkbox"
-                      checked={strategy.enabled}
-                      aria-label={interpolate(translate(locale, "strategy.toggleEnabled"), { name })}
-                      onChange={(event) => dispatch({
-                        type: "strategy.enabled",
-                        id: strategy.id,
-                        value: event.target.checked,
-                      })}
-                    />
-                    <span className="sr-only">
-                      {translate(locale, strategy.enabled ? "strategy.enabled" : "strategy.disabled")}
-                    </span>
-                  </label>
+                  <button
+                    className="strategy-enabled-control strategy-enable-switch"
+                    type="button"
+                    role="switch"
+                    aria-checked={strategy.enabled}
+                    aria-label={interpolate(translate(locale, "strategy.toggleEnabled"), { name })}
+                    title={translate(locale, strategy.enabled ? "strategy.enabled" : "strategy.disabled")}
+                    onClick={() => dispatch({ type: "strategy.enabled", id: strategy.id, value: !strategy.enabled })}
+                  >
+                    <span className="switch-track" aria-hidden="true"><span className="switch-thumb" /></span>
+                    <span className="sr-only">{translate(locale, strategy.enabled ? "strategy.enabled" : "strategy.disabled")}</span>
+                  </button>
                   <button
                     className="icon-button strategy-remove"
                     type="button"
@@ -219,7 +201,9 @@ export function StrategyNavigator({
                     title={interpolate(translate(locale, "strategy.remove"), { name })}
                     onClick={() => removeStrategy(strategy.id, index)}
                   >
-                    ×
+                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                      <path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6" />
+                    </svg>
                   </button>
                 </div>
               </article>

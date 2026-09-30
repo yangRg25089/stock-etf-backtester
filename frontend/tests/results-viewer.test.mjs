@@ -79,8 +79,8 @@ function workspaceWithRun() {
     status: "completed",
     metrics: metrics("130.00"),
     dailyAssets: [
-      { date: "2024-02-01", simulationPrice: "100", currency: "USD", totalAsset: "110", unitNav: "1", drawdown: "0" },
-      { date: "2024-02-02", simulationPrice: "105", currency: "USD", totalAsset: "130", unitNav: "1.1", drawdown: "-0.02" },
+      { date: "2024-02-01", simulationPrice: "100", currency: "USD", totalAsset: "110", unitNav: "1", totalContributed: "100", drawdown: "0" },
+      { date: "2024-02-02", simulationPrice: "105", currency: "USD", totalAsset: "130", unitNav: "1.1", totalContributed: "100", drawdown: "-0.02" },
     ],
     trades: [trade("vix.buy", "2024-02-02")],
     diagnostics: [],
@@ -106,7 +106,6 @@ function workspaceWithRun() {
     runResponse: run,
     focusedResultId: benchmark.id,
     runRequestedEndMode: "fixed",
-    runRequestedScope: "active",
   };
 }
 
@@ -127,7 +126,7 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
   assert.match(html, /id="result-details-content" class="collapsible-panel-body"/);
 });
 
-test("the result details card leads, clean success status is omitted, and overview holds five core KPIs", () => {
+test("result details leads with one complete comparison table and no duplicate KPI cards", () => {
   const state = workspaceWithRun();
   state.showChart = true;
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -137,7 +136,7 @@ test("the result details card leads, clean success status is omitted, and overvi
   }));
 
   const detailsPosition = html.indexOf('id="result-details"');
-  const metricsPosition = html.indexOf('id="result-panel-overview"');
+  const metricsPosition = html.indexOf('id="result-panel-comparison"');
   const chartPosition = html.indexOf('id="result-chart-panel"');
   assert.ok(detailsPosition >= 0 && detailsPosition < chartPosition);
   assert.ok(metricsPosition > detailsPosition && metricsPosition < chartPosition);
@@ -145,14 +144,13 @@ test("the result details card leads, clean success status is omitted, and overvi
   assert.doesNotMatch(html, /class="run-status-panel/);
   assert.doesNotMatch(html, /results\.detailsEntry/);
   assert.match(html, /QQQ · 2020-01-01 — 2024-02-02/);
-  assert.match(html, /<code class="result-run-id">saved-run<\/code>/);
-  assert.match(html, /aria-label="查看结果"/);
+  assert.doesNotMatch(html, /class="result-run-id"/);
+  assert.match(html, /<p>每月定额定投 · 基准/);
   assert.match(html, /aria-controls="result-chart-panel-content"[^>]*aria-expanded="true"|aria-expanded="true"[^>]*aria-controls="result-chart-panel-content"/);
-  assert.match(html, /value="benchmark-dca"/);
+  assert.match(html, /每月定额定投 · 基准/);
   assert.match(html, /data-export-kind="summary"/);
-  const overviewMetrics = html.slice(metricsPosition, html.indexOf('id="result-panel-comparison"'));
-  assert.equal((overviewMetrics.match(/class="metric-card"/g) ?? []).length, 5);
-  assert.match(overviewMetrics, /实际投入金额/);
+  assert.equal((html.match(/class="metric-card"/g) ?? []).length, 0);
+  assert.match(html, /实际投入金额/);
   assert.match(html, /期末资产/);
   assert.match(html, /投入回报率/);
   assert.match(html, /年化回报/);
@@ -171,14 +169,14 @@ test("warning status and diagnostics stay inside the result details card", () =>
   const alwaysVisiblePosition = html.indexOf('class="collapsible-panel-always-visible"');
   const runStatusPosition = html.indexOf('class="run-status-panel"');
   const detailsBodyPosition = html.indexOf('id="result-details-content"');
-  const metricsPosition = html.indexOf('id="result-panel-overview"');
+  const metricsPosition = html.indexOf('id="result-panel-comparison"');
   assert.ok(detailsPosition >= 0 && detailsPosition < runStatusPosition);
   assert.ok(alwaysVisiblePosition < runStatusPosition && runStatusPosition < detailsBodyPosition);
   assert.ok(runStatusPosition < metricsPosition);
   assert.doesNotMatch(html, /class="run-status-panel is-compact"/);
 });
 
-test("request failures, partial failures, and stale-snapshot notices stay with the saved result context", () => {
+test("request and partial failures stay visible while draft edits do not add result warnings", () => {
   const emptyState = createInitialWorkspaceState(catalog);
   const requestError = new RunApiError("provider_request_failed", "api.errors.connection_failed", [], 503);
   const requestFailureHtml = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -211,7 +209,8 @@ test("request failures, partial failures, and stale-snapshot notices stay with t
   assert.match(partialHtml, /部分策略已完成/);
   assert.match(partialHtml, /计算过程中发生错误/);
   assert.equal((partialHtml.match(/计算过程中发生错误/g) ?? []).length, 1);
-  assert.equal((partialHtml.match(/class="metric-card"/g) ?? []).length, 8);
+  assert.equal((partialHtml.match(/class="metric-card"/g) ?? []).length, 0);
+  assert.match(partialHtml, /class="comparison-table"/);
 
   const staleState = workspaceWithRun();
   staleState.draft.shared.run.symbol = "SPY";
@@ -220,12 +219,11 @@ test("request failures, partial failures, and stale-snapshot notices stay with t
     state: staleState,
     dispatch() {},
   }));
-  assert.match(staleHtml, /当前设置与保存此结果时不同/);
-  assert.ok(staleHtml.indexOf('class="result-saved-context"') < staleHtml.indexOf('class="snapshot-warning"'));
+  assert.doesNotMatch(staleHtml, /当前设置与保存此结果时不同|snapshot-warning/);
   assert.match(staleHtml, /QQQ · 2020-01-01 — 2024-02-02/);
 });
 
-test("saved result details default to overview, keep other metrics separate, and gate search by result data", () => {
+test("saved details default to comparison, consolidate metrics, and gate search by result data", () => {
   const state = workspaceWithRun();
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "ja",
@@ -235,15 +233,11 @@ test("saved result details default to overview, keep other metrics separate, and
   assert.match(html, /role="tablist" aria-label="実行結果"/);
   assert.match(html, /id="result-details"[^>]*tabindex="-1"/);
   assert.ok(resultViewerSource.includes('key={run?.runId ?? "no-run"}'));
-  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>概要/);
-  assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>戦略比較/);
+  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>戦略比較/);
   assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>取引明細/);
   assert.doesNotMatch(html, /role="tab"[^>]*>検索結果/);
-  const metricsPosition = html.indexOf('id="result-panel-metrics"');
-  const metricsEnd = html.indexOf("</section></div>", metricsPosition);
-  const additionalMetrics = html.slice(metricsPosition, metricsEnd);
-  assert.equal((additionalMetrics.match(/class="metric-card"/g) ?? []).length, 3);
-  assert.doesNotMatch(additionalMetrics, /実際の投入額|期末資産|投入額に対する利益率|年率リターン|最大ドローダウン/);
+  assert.doesNotMatch(html, /result-panel-metrics|result-panel-overview/);
+  assert.match(html, /純利益|DCA との差額/);
   assert.doesNotMatch(html, /CSV 出力<\/button>/);
 
   const result = state.runResponse.result.strategyRuns.find((item) => item.id === state.focusedResultId);
@@ -305,10 +299,25 @@ test("VIX chart settings come from the focused frozen strategy snapshot", () => 
     dispatch() {},
   }));
 
-  assert.match(html, /QQQ · 价格/);
+  assert.match(html, /overlay-legend-item[^>]*role="listitem"[^>]*>.*价格 \(USD\)/);
+  assert.doesNotMatch(html, /QQQ · 价格/);
   assert.match(html, /阈值 25/);
   assert.doesNotMatch(html, /阈值 99/);
   assert.match(html, /27\.4/);
+});
+
+test("editing shared settings and strategy parameters leaves the complete saved result markup unchanged", () => {
+  const state = workspaceWithRun();
+  const render = (value) => renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh", state: value, dispatch() {}, error: null,
+  }));
+  const original = render(state);
+  const edited = { ...state, draft: structuredClone(state.draft) };
+  edited.draft.shared.run.symbol = "INVALID";
+  edited.draft.shared.contribution.amount = "-100";
+  edited.draft.strategies[0].params["vix.buyThreshold"] = "-1";
+  edited.draft.strategies[0].enabled = false;
+  assert.equal(render(edited), original);
 });
 
 test("CSV eligibility includes completed zero-trade results and limits search exports", () => {
@@ -444,4 +453,23 @@ test("running jobs keep the run ID visible before strategy results exist", () =>
 
 test("strategy status details reset their expanded state for each saved run", () => {
   assert.ok(statusViewSource.includes('<details className="run-strategy-details" key={run?.runId ?? "no-run"} open={expandStrategyDetails}>'));
+});
+
+ test("comparison is the sole metrics page and exports visibly indicate CSV download", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh", state: workspaceWithRun(), dispatch() {}, error: null,
+  }));
+  assert.doesNotMatch(html, /result-focus-select|result-panel-overview|result-panel-metrics/);
+  assert.match(html, /id="result-tab-comparison"[^>]*aria-selected="true"/);
+  assert.match(html, /汇总.csv/);
+  assert.match(html, /class="export-download-icon"/);
+});
+
+
+test("saved source context is available on demand without repeated visible ticker and dates", () => {
+  const state = workspaceWithRun();
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
+  assert.match(html, /<details class="result-snapshot-info"/);
+  assert.match(html, /保存した設定/);
+  assert.doesNotMatch(html, /class="result-saved-range"|QQQ · 相対|QQQ · 価格/);
 });

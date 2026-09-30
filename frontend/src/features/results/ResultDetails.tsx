@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import type { RunResponse, StrategyRun } from "../../api/generated";
 import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
@@ -6,11 +6,11 @@ import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
 import { StatusView } from "../runs/StatusView";
 import { ExportControls } from "./ExportControls";
-import { MetricGrid, ResultComparison } from "./ResultSummary";
+import { ResultComparison } from "./ResultSummary";
 import { SearchResults } from "./SearchResults";
 import { TradeTable } from "./TradeTable";
 
-type ResultTab = "overview" | "comparison" | "trades" | "metrics" | "search";
+type ResultTab = "comparison" | "trades" | "search";
 
 interface ResultDetailsProps {
   locale: Locale;
@@ -19,24 +19,13 @@ interface ResultDetailsProps {
   state: WorkspaceState;
   dispatch(action: WorkspaceAction): void;
   error: RunApiError | null;
-  snapshotStale: boolean;
 }
 
 const TAB_KEYS: Record<ResultTab, string> = {
-  overview: "results.tab.overview",
   comparison: "results.tab.comparison",
   trades: "results.tab.trades",
-  metrics: "results.tab.metrics",
   search: "results.tab.search",
 };
-
-const CORE_METRIC_STATUSES = new Set(["completed", "completed_with_warning"]);
-
-function savedRunLabel(run: RunResponse | null): string | null {
-  const saved = run?.snapshot.config.shared?.run;
-  if (!saved) return null;
-  return `${saved.symbol} · ${saved.startDate} — ${saved.endDate}`;
-}
 
 function resultOptionLabel(locale: Locale, result: StrategyRun): string {
   return `${translate(locale, `presets.${result.presetId}.name`)} · ${translate(locale, `results.role.${result.role}`)}`;
@@ -49,18 +38,17 @@ export function ResultDetails({
   state,
   dispatch,
   error,
-  snapshotStale,
 }: ResultDetailsProps) {
   const strategyRuns = run?.result?.strategyRuns ?? [];
   const searchAvailable = focusedResult?.presetId === "grid_search" && Boolean(focusedResult.searchResult);
-  const tabs: ResultTab[] = run ? ["overview", "comparison", "trades", "metrics"] : [];
+  const tabs: ResultTab[] = run ? ["comparison", "trades"] : [];
   if (searchAvailable) tabs.push("search");
-  const [selectedTab, setSelectedTab] = useState<ResultTab>("overview");
+  const [selectedTab, setSelectedTab] = useState<ResultTab>("comparison");
   const [expanded, setExpanded] = useState(true);
-  const visibleTab = tabs.includes(selectedTab) ? selectedTab : "overview";
+  const visibleTab = tabs.includes(selectedTab) ? selectedTab : "comparison";
 
   useEffect(() => {
-    if (selectedTab === "search" && !searchAvailable) setSelectedTab("overview");
+    if (selectedTab === "search" && !searchAvailable) setSelectedTab("comparison");
   }, [searchAvailable, selectedTab]);
 
   const selectRelativeTab = (event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
@@ -80,43 +68,30 @@ export function ResultDetails({
       ?.focus();
   };
 
-  const focusResult = (event: ChangeEvent<HTMLSelectElement>) => {
-    dispatch({ type: "result.focus", id: event.target.value || null });
-  };
   const panelId = (tab: ResultTab) => `result-panel-${tab}`;
   const tabId = (tab: ResultTab) => `result-tab-${tab}`;
-  const contextLabel = savedRunLabel(run);
+  const saved = run?.snapshot.config.shared.run;
 
   const headerDetails = (
     <div className="result-saved-context">
-      {contextLabel && <strong className="result-saved-range">{contextLabel}</strong>}
-      {run && <code className="result-run-id">{run.runId}</code>}
-      {snapshotStale && (
-        <p className="snapshot-warning" role="status">{translate(locale, "results.snapshotStale")}</p>
+      {saved && (
+        <details className="result-snapshot-info">
+          <summary aria-label={translate(locale, "results.savedSettings")} title={translate(locale, "results.savedSettings")}>
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+              <circle cx="10" cy="10" r="8" /><path d="M10 9v5M10 5v1" />
+            </svg>
+          </summary>
+          <div className="result-snapshot-info-content">
+            <strong>{translate(locale, "results.savedSettings")}</strong>
+            <p>{saved.symbol} · {saved.startDate} — {saved.endDate}</p>
+            {focusedResult && <p>{resultOptionLabel(locale, focusedResult)}</p>}
+          </div>
+        </details>
       )}
     </div>
   );
   const headerActions = (
     <div className="result-context-actions">
-      <label className="sr-only" htmlFor="result-focus-select">
-        {translate(locale, "results.focusSelector")}
-      </label>
-      <select
-        id="result-focus-select"
-        className="result-focus-select"
-        aria-label={translate(locale, "results.focusSelector")}
-        value={focusedResult?.id ?? ""}
-        disabled={!run || strategyRuns.length === 0}
-        onChange={focusResult}
-      >
-        {strategyRuns.length === 0 ? (
-          <option value="">{translate(locale, "results.focusPending")}</option>
-        ) : strategyRuns.map((result) => (
-          <option key={`${result.role}-${result.id}`} value={result.id}>
-            {resultOptionLabel(locale, result)}
-          </option>
-        ))}
-      </select>
       <ExportControls locale={locale} runId={run?.runId ?? null} result={focusedResult} />
     </div>
   );
@@ -153,25 +128,7 @@ export function ResultDetails({
             ))}
           </div>
 
-          <div
-            id={panelId("overview")}
-            className="result-tab-panel result-overview-panel"
-            role="tabpanel"
-            aria-labelledby={tabId("overview")}
-            tabIndex={0}
-            hidden={visibleTab !== "overview"}
-          >
-            <h4 className="sr-only">{translate(locale, "results.tab.overview")}</h4>
-            {focusedResult && CORE_METRIC_STATUSES.has(focusedResult.status ?? "queued") ? (
-              <MetricGrid locale={locale} metrics={focusedResult.metrics} variant="core" />
-            ) : (
-              <p className="metric-empty" role="status">
-                {translate(locale, focusedResult ? "results.metricsUnavailable" : "results.focusPending")}
-              </p>
-            )}
-          </div>
-
-          {tabs.filter((tab) => tab !== "overview").map((tab) => (
+          {tabs.map((tab) => (
             <div
               id={panelId(tab)}
               key={tab}
@@ -225,21 +182,6 @@ export function ResultDetails({
                   ) : (
                     <p className="metric-empty" role="status">{translate(locale, "trade.hidden")}</p>
                   )}
-                </section>
-              )}
-
-              {tab === "metrics" && (
-                <section aria-labelledby="result-all-metrics-heading">
-                  <h4 className="sr-only" id="result-all-metrics-heading">
-                    {translate(locale, "results.tab.metrics")}
-                  </h4>
-                  <MetricGrid
-                    locale={locale}
-                    metrics={focusedResult && CORE_METRIC_STATUSES.has(focusedResult.status ?? "queued")
-                      ? focusedResult.metrics
-                      : null}
-                    variant="additional"
-                  />
                 </section>
               )}
 

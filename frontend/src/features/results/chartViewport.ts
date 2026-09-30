@@ -66,6 +66,19 @@ export function visibleIndexRange(
   };
 }
 
+export function nearestChartIndex(
+  count: number,
+  viewport: ChartViewport,
+  plotRatio: number,
+): number | null {
+  if (count === 0 || !Number.isFinite(plotRatio) || plotRatio < 0 || plotRatio > 1) return null;
+  const range = visibleIndexRange(count, viewport);
+  const first = Math.ceil(range.start);
+  const last = Math.floor(range.end);
+  if (first > last) return null;
+  return Math.min(last, Math.max(first, Math.round(range.start + (range.end - range.start) * plotRatio)));
+}
+
 export function samplesInViewport<T extends { index: number }>(
   samples: T[],
   viewport: ChartViewport,

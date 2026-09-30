@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CatalogApiError, fetchCatalog } from "./api/catalog";
 import type { Catalog, Diagnostic, StrategyPresetId, StrategyStatus } from "./api/generated";
 import {
@@ -11,9 +11,11 @@ import {
   validateDraft,
 } from "./api/runs";
 import type { RunProgressEvent } from "./api/runs";
+import { sharedSummaryEndDate } from "./features/config/summary";
 import { SharedSettingsDialog } from "./features/config/SharedSettingsDialog";
 import { SHARED_FIELD_KEYS } from "./features/config/SharedSettingsForm";
 import { RunControls } from "./features/runs/RunControls";
+import { readDismissedRunId, rememberDismissedRun } from "./features/runs/resultVisibility";
 import { DiagnosticList, type DiagnosticFieldAction } from "./features/runs/StatusView";
 import { ResultViewer } from "./features/results/ResultViewer";
 import {
@@ -75,7 +77,6 @@ function App() {
   const [validationState, setValidationState] = useState<ValidationState | null>(null);
   const [runError, setRunError] = useState<RunApiError | null>(null);
   const [runBusy, setRunBusy] = useState(false);
-  const [configWidth, setConfigWidth] = useState(350);
   const [configCollapsed, setConfigCollapsed] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches,
   );
@@ -149,7 +150,7 @@ function App() {
     const restoreLatestRun = async () => {
       try {
         let response = await fetchLatestRun(controller.signal);
-        if (!response || submittedRunRef.current) return;
+        if (!response || submittedRunRef.current || response.runId === readDismissedRunId()) return;
 
         const restore = (value: Awaited<ReturnType<typeof fetchLatestRun>>) => {
           if (!value || submittedRunRef.current) return;
@@ -200,7 +201,6 @@ function App() {
     const draft = draftForValidation;
     const controller = new AbortController();
     setValidationState({ draft, response: null, error: null });
-    setRunError(null);
     validateDraft(serializeDraftForApi(draft), controller.signal)
       .then((response) => setValidationState({ draft, response, error: null }))
       .catch((error: unknown) => {
@@ -282,11 +282,11 @@ function App() {
         createIdempotencyKey(),
         controller.signal,
       );
+      rememberDismissedRun(null);
       dispatch({
         type: "run.update",
         value: accepted,
         requestedEndMode: submittedEndMode,
-        requestedScope: submittedScope,
       });
       await subscribeToRunEvents(
         accepted.runId,
@@ -310,6 +310,17 @@ function App() {
       runSubmissionLocked.current = false;
       setRunBusy(false);
     }
+  };
+
+  const handleReset = () => {
+    if (runBusy) return;
+    submittedRunRef.current = true;
+    rememberDismissedRun(workspace?.runResponse?.runId ?? null);
+    dispatch({ type: "run.reset" });
+    setRunError(null);
+    setCompletedFeedback(false);
+    if (completionFeedbackTimer.current !== null) window.clearTimeout(completionFeedbackTimer.current);
+    completionFeedbackTimer.current = null;
   };
 
   const handleSharedSettingsClosed = useCallback(() => {
@@ -362,9 +373,9 @@ function App() {
     };
   }, [catalog, locale, workspace]);
 
-  const workbenchStyle = {
-    "--workbench-config-width": `${configCollapsed ? 0 : configWidth}px`,
-  } as CSSProperties & { "--workbench-config-width": string };
+  const savedCurrency = workspace?.runResponse?.snapshot.config.shared.run.symbol.toUpperCase() === workspace?.draft.shared.run.symbol.trim().toUpperCase()
+    ? workspace?.runResponse?.result?.strategyRuns?.find((result) => result.metrics?.currency)?.metrics?.currency ?? undefined
+    : undefined;
 
   return (
     <div className="app-frame" lang={locale === "ja" ? "ja" : "zh-Hans"}>
@@ -372,17 +383,6 @@ function App() {
       <a className="skip-link" href="#main-content">{translate(locale, "app.skipToMain")}</a>
       <header className="app-topbar">
         <div className="topbar-brand">
-          <button
-            className="button workbench-config-toggle icon-only-button"
-            type="button"
-            aria-label={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
-            title={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
-            aria-expanded={catalog && workspace ? !configCollapsed : undefined}
-            disabled={!catalog || !workspace}
-            onClick={() => setConfigCollapsed((current) => !current)}
-          >
-            <span aria-hidden="true">{configCollapsed ? "›" : "‹"}</span>
-          </button>
           <div className="brand">
             <span className="brand-mark" aria-hidden="true">B</span>
             <span className="brand-name">{translate(locale, "app.name")}</span>
@@ -391,21 +391,20 @@ function App() {
         {catalog && workspace && (
           <RunControls
             locale={locale}
-            runScope={workspace.runScope}
             availability={availability}
             busy={runBusy}
             completedFeedback={completedFeedback}
-            onScopeChange={(runScope) => dispatch({ type: "run.scope", value: runScope })}
+            canReset={Boolean(workspace.runResponse || runError)}
+            onReset={handleReset}
             onRun={() => void handleRun()}
           />
         )}
         <div className="topbar-right">
-          <span className="local-tag">{translate(locale, "app.localOnly")}</span>
           <LocaleControl locale={locale} onChange={setLocale} />
         </div>
       </header>
 
-      <main id="main-content" className="main-content workbench-main" style={workbenchStyle}>
+      <main id="main-content" className="main-content workbench-main">
         <div className="workbench-context">
           {catalogState.status === "loading" && (
             <div className="catalog-notice" role="status" aria-live="polite">
@@ -451,41 +450,45 @@ function App() {
         {catalog && workspace && (
           <div className={`workbench-layout${configCollapsed ? " is-config-collapsed" : ""}`} data-mobile-panel={mobilePanel}>
             {(!configCollapsed || mobilePanel === "config") && (
-              <aside id="workbench-config-panel" className="workbench-config" aria-label={translate(locale, "section.sharedSettings")}>
+              <aside id="workbench-config-panel" className="workbench-config" aria-label={translate(locale, "workbench.configPanel")}>
                 <div className="workbench-config-fixed">
-                  <div className="workbench-config-header">
-                    <h2>{translate(locale, "workbench.configPanel")}</h2>
-                  </div>
-                  <button
-                    ref={sharedSettingsTriggerRef}
-                    className="button shared-settings-summary shared-settings-open-button"
-                    type="button"
-                    aria-label={translate(locale, "workbench.editSharedSettings")}
-                    title={translate(locale, "workbench.editSharedSettings")}
-                    aria-haspopup="dialog"
-                    aria-describedby="shared-settings-summary-detail"
-                    onClick={() => setSharedSettingsDialogOpen(true)}
-                  >
-                    <span className="shared-settings-summary-copy">
-                      <strong>{translate(locale, "section.sharedSettings")}</strong>
-                      <span className="shared-settings-summary-text" id="shared-settings-summary-detail">
-                        {workspace.draft.shared.run.symbol} · {workspace.draft.shared.run.startDate} → {workspace.draft.shared.run.endMode === "latest"
-                          ? translate(locale, "end.latest")
-                          : workspace.draft.shared.run.endDate ?? "—"}
-                        {" · "}
-                        {interpolate(translate(locale, "workbench.funding"), {
-                          amount: workspace.draft.shared.contribution.amount ?? "—",
-                          day: String(workspace.draft.shared.contribution.day ?? "—"),
-                        })}
+                  <div className="shared-settings-block">
+                    <button
+                      ref={sharedSettingsTriggerRef}
+                      className="button shared-settings-summary shared-settings-open-button"
+                      type="button"
+                      aria-label={translate(locale, "workbench.editSharedSettings")}
+                      title={translate(locale, "workbench.editSharedSettings")}
+                      aria-haspopup="dialog"
+                      aria-describedby="shared-settings-summary-detail"
+                      onClick={() => setSharedSettingsDialogOpen(true)}
+                    >
+                      <span className="shared-settings-summary-copy">
+                        <strong>{translate(locale, "section.sharedSettings")}</strong>
+                        <span className="shared-settings-summary-text" id="shared-settings-summary-detail">
+                          <span className="shared-settings-summary-symbol">{workspace.draft.shared.run.symbol}</span>
+                          <span className="shared-settings-summary-period">{workspace.draft.shared.run.startDate} → {sharedSummaryEndDate(workspace.draft.shared, workspace.runResponse) ?? "—"}</span>
+                          <span className="shared-settings-summary-funding">{interpolate(translate(locale, "workbench.funding"), {
+                            amount: `${workspace.draft.shared.contribution.amount ?? "—"} ${savedCurrency ?? translate(locale, "unit.currency")}`,
+                            day: String(workspace.draft.shared.contribution.day ?? "—"),
+                          })}</span>
+                        </span>
                       </span>
-                    </span>
-                    <span className="shared-settings-summary-icon" aria-hidden="true">
-                      <svg viewBox="0 0 20 20" focusable="false">
-                        <path d="M8.3 2.5h3.4l.5 1.9a6 6 0 0 1 1.3.8l1.9-.6 1.7 3-1.4 1.3a6 6 0 0 1 0 1.6l1.4 1.3-1.7 3-1.9-.6a6 6 0 0 1-1.3.8l-.5 1.9H8.3l-.5-1.9a6 6 0 0 1-1.3-.8l-1.9.6-1.7-3 1.4-1.3a6 6 0 0 1 0-1.6L2.9 7.6l1.7-3 1.9.6a6 6 0 0 1 1.3-.8l.5-1.9Z" />
-                        <circle cx="10" cy="9.7" r="2.3" />
-                      </svg>
-                    </span>
-                  </button>
+                    </button>
+                    {currentValidation && validationDiagnostics(currentValidation).length > 0 && (
+                      <details className="validation-diagnostics config-diagnostics">
+                        <summary>{translate(locale, "diagnostics.title")}</summary>
+                        <DiagnosticList
+                          locale={locale}
+                          diagnostics={validationDiagnostics(currentValidation)}
+                          fieldAction={fieldActionForDiagnostic}
+                        />
+                      </details>
+                    )}
+                    {validationState?.draft === workspace.draft && validationState.error && (
+                      <p className="field-error" role="alert">{translate(locale, "run.validationFailed")}</p>
+                    )}
+                  </div>
                   <StrategyNavigator
                     catalog={catalog}
                     locale={locale}
@@ -499,39 +502,18 @@ function App() {
                 </div>
               </aside>
             )}
-            {!configCollapsed && (
-              <WorkbenchDivider
-                width={configWidth}
-                onWidthChange={setConfigWidth}
-                label={translate(locale, "workbench.resizeConfig")}
-              />
-            )}
+            <WorkbenchDivider
+              collapsed={configCollapsed}
+              label={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
+              onToggle={() => setConfigCollapsed((current) => !current)}
+            />
             <section
               id="workbench-results-panel"
               className="workbench-results"
               aria-label={translate(locale, "section.results")}
               hidden={mobilePanel === "config"}
             >
-              {currentValidation && validationDiagnostics(currentValidation).length > 0 && (
-                <section className="validation-diagnostics" aria-labelledby="validation-diagnostics-heading">
-                  <h2 id="validation-diagnostics-heading">{translate(locale, "diagnostics.title")}</h2>
-                  <DiagnosticList
-                    locale={locale}
-                    diagnostics={validationDiagnostics(currentValidation)}
-                    fieldAction={fieldActionForDiagnostic}
-                  />
-                </section>
-              )}
-              {validationState?.draft === workspace.draft && validationState.error && (
-                <p className="field-error" role="alert">{translate(locale, "run.validationFailed")}</p>
-              )}
-              <section className="results" aria-labelledby="results-heading">
-                <div className="results-heading">
-                  <div>
-                    <h2 id="results-heading">{translate(locale, "section.results")}</h2>
-                    <p className="section-subhead">{translate(locale, "section.resultsHelp")}</p>
-                  </div>
-                </div>
+              <section className="results" aria-label={translate(locale, "section.results")}>
                 <ResultViewer locale={locale} state={workspace} dispatch={dispatch} error={runError} />
               </section>
             </section>
@@ -542,6 +524,7 @@ function App() {
         <SharedSettingsDialog
           catalog={catalog}
           value={workspace.draft.shared}
+          currency={savedCurrency}
           locale={locale}
           errors={currentValidation?.diagnostics ?? []}
           focusFieldKey={sharedSettingsFocusKey}

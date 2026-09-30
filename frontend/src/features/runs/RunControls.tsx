@@ -1,25 +1,24 @@
-import type { RunScope } from "../../api/generated";
 import type { Locale } from "../../i18n/messages";
 import { translate } from "../../i18n/messages";
 import type { RunAvailability } from "../strategies/model";
 
 interface RunControlsProps {
   locale: Locale;
-  runScope: RunScope;
   availability: RunAvailability;
   busy: boolean;
   completedFeedback: boolean;
-  onScopeChange(scope: RunScope): void;
+  canReset: boolean;
+  onReset(): void;
   onRun(): void;
 }
 
 export function RunControls({
   locale,
-  runScope,
   availability,
   busy,
   completedFeedback,
-  onScopeChange,
+  canReset,
+  onReset,
   onRun,
 }: RunControlsProps) {
   const disabled = busy || availability.disabled;
@@ -49,34 +48,29 @@ export function RunControls({
             )
           )}
         </button>
+        <button
+          className="button icon-only-button run-reset-button"
+          type="button"
+          aria-label={translate(locale, "run.reset")}
+          title={translate(locale, "run.reset")}
+          disabled={busy || !canReset}
+          onClick={onReset}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" />
+          </svg>
+        </button>
         {completedFeedback && (
           <span className="run-complete-feedback" role="status">
             {translate(locale, "run.complete")}
           </span>
         )}
       </div>
-      <div className="run-control-options">
-        <label className="sr-only" htmlFor="run-scope-select">
-          {translate(locale, "run.scopeLabel")}
-        </label>
-        <select
-          id="run-scope-select"
-          className="run-scope-select"
-          value={runScope}
-          onChange={(event) => onScopeChange(event.target.value as RunScope)}
-          aria-describedby="run-scope-help"
-        >
-          {(["all_enabled", "active"] as const).map((scope) => (
-            <option key={scope} value={scope}>{translate(locale, `run.scope.${scope}`)}</option>
-          ))}
-        </select>
-        <span id="run-scope-help" className="sr-only">{translate(locale, "run.scopeHelp")}</span>
-        {(busy || availability.reasonKey) && (
+      {(busy || availability.reasonKey) && (
           <p className="run-reason" role={busy ? "status" : "note"}>
             {busy ? translate(locale, "run.inProgress") : translate(locale, availability.reasonKey ?? "run.ready")}
           </p>
-        )}
-      </div>
+      )}
     </section>
   );
 }

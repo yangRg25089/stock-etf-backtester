@@ -1,0 +1,57 @@
+export interface ChartCursor {
+  index: number;
+  chartId: string;
+  yRatio: number;
+}
+
+export interface CursorReading {
+  label: string;
+  value: string;
+  color?: string;
+}
+
+export function ChartReadout({ date, readings }: { date?: string; readings: CursorReading[] }) {
+  if (!date) return null;
+  return (
+    <div className="chart-crosshair-readout" data-date={date}>
+      <time dateTime={date}>{date}</time>
+      {readings.map(({ label, value, color }) => (
+        <span key={label} className="chart-cursor-reading" style={color ? { color } : undefined}>
+          <span>{label}</span> <strong>{value}</strong>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function ChartCrosshair({
+  date, x, y, valueLabel, geometry, points,
+}: {
+  date?: string;
+  x: number;
+  y?: number;
+  valueLabel?: string;
+  geometry: { width: number; height: number; left: number; right: number; top: number; bottom: number };
+  points: Array<{ y: number; color: string }>;
+}) {
+  if (!date) return null;
+  const bottom = geometry.height - geometry.bottom;
+  const dateX = Math.min(geometry.width - geometry.right - 43, Math.max(geometry.left + 43, x));
+  return (
+    <g className="chart-crosshair" data-date={date} aria-hidden="true">
+      <line className="chart-cursor-vertical" x1={x} x2={x} y1={geometry.top} y2={bottom} />
+      {y !== undefined && (
+        <>
+          <line className="chart-cursor-horizontal" x1={geometry.left} x2={geometry.width - geometry.right} y1={y} y2={y} />
+          <rect className="chart-cursor-tag" x={geometry.left - 69} y={y - 9} width="65" height="18" rx="2" />
+          <text className="chart-cursor-label" x={geometry.left - 36} y={y + 4} textAnchor="middle">{valueLabel}</text>
+        </>
+      )}
+      {points.filter((point) => point.y >= geometry.top && point.y <= bottom).map((point, index) => (
+        <circle className="chart-cursor-point" key={index} cx={x} cy={point.y} r="3.5" fill={point.color} />
+      ))}
+      <rect className="chart-cursor-tag" x={dateX - 43} y={bottom + 2} width="86" height="19" rx="2" />
+      <text className="chart-cursor-label chart-cursor-date" x={dateX} y={bottom + 15} textAnchor="middle">{date}</text>
+    </g>
+  );
+}

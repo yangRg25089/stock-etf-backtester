@@ -11,6 +11,7 @@ interface SharedSettingsDialogProps {
   locale: Locale;
   errors?: Diagnostic[];
   resolvedLatestEndDate?: string | null;
+  currency?: string;
   focusFieldKey?: string | null;
   onChange(value: SharedDraft): void;
   onClose(): void;
@@ -24,6 +25,7 @@ export function SharedSettingsDialog({
   locale,
   errors = [],
   resolvedLatestEndDate = null,
+  currency,
   focusFieldKey = null,
   onChange,
   onClose,
@@ -94,6 +96,7 @@ export function SharedSettingsDialog({
             locale={locale}
             errors={errors}
             resolvedLatestEndDate={resolvedLatestEndDate}
+            currency={currency}
             onChange={onChange}
           />
         </div>

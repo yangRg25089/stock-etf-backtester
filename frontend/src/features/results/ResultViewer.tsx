@@ -3,7 +3,7 @@ import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
-import { findFocusedResult, isRunSnapshotStale } from "./model";
+import { findFocusedResult } from "./model";
 import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
 
@@ -45,7 +45,6 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
         state={state}
         dispatch={dispatch}
         error={error}
-        snapshotStale={isRunSnapshotStale(state)}
       />
 
       {run && focusedResult && (
@@ -65,7 +64,6 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
               signals={focusedResult.signals ?? []}
               vixSymbol={savedParameterText(params, "vix.symbol")}
               vixThreshold={savedParameterText(params, "vix.buyThreshold")}
-              assetSymbol={run.snapshot.config.shared.run.symbol}
               visibleSeriesIds={state.visibleSeriesIds}
               overlayMode={state.overlayMode}
               onSeriesChange={(id, visible) => dispatch({ type: "chart.series", id, visible })}

@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const {
   FULL_CHART_VIEWPORT,
   clampChartViewport,
+  nearestChartIndex,
   panChartViewport,
   samplesInViewport,
   wheelZoomFactor,
@@ -59,4 +60,18 @@ test("viewport clamping keeps a usable range and samples include both line-edge 
     samplesInViewport(samples, { start: 0.25, end: 0.75 }, 5).map(({ index }) => index),
     [0, 1, 2, 3, 4],
   );
+});
+
+test("cursor snaps to a saved point inside the visible range without interpolating dates", () => {
+  assert.equal(nearestChartIndex(5, FULL_CHART_VIEWPORT, 0), 0);
+  assert.equal(nearestChartIndex(5, FULL_CHART_VIEWPORT, 0.49), 2);
+  assert.equal(nearestChartIndex(5, FULL_CHART_VIEWPORT, 1), 4);
+  assert.equal(nearestChartIndex(11, { start: 0.24, end: 0.76 }, 0), 3);
+  assert.equal(nearestChartIndex(11, { start: 0.24, end: 0.76 }, 1), 7);
+  assert.equal(nearestChartIndex(3, { start: 0.2, end: 0.4 }, 0.5), null);
+  assert.equal(nearestChartIndex(0, FULL_CHART_VIEWPORT, 0.5), null);
+  assert.equal(nearestChartIndex(1, FULL_CHART_VIEWPORT, 0.5), 0);
+  assert.equal(nearestChartIndex(5, FULL_CHART_VIEWPORT, -0.1), null);
+  assert.equal(nearestChartIndex(5, FULL_CHART_VIEWPORT, 1.1), null);
+  assert.equal(nearestChartIndex(5, FULL_CHART_VIEWPORT, NaN), null);
 });
