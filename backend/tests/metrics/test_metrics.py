@@ -118,7 +118,7 @@ def test_return_on_contributions_is_distinct_from_capital_multiple() -> None:
 
 
 def test_metrics_method_version_is_stable() -> None:
-    assert METRIC_METHOD_VERSION == "metrics-v1"
+    assert METRIC_METHOD_VERSION == "metrics-v2"
 
 
 def test_xirr_uses_each_contribution_date_with_actual_365_day_count() -> None:
@@ -321,4 +321,44 @@ def test_relative_to_dca_is_omitted_when_snapshot_or_period_differs() -> None:
     assert (
         "baseline_is_not_monthly_dca"
         in upfront_result.summary.diagnostics[-1].details["reasons"]
+    )
+
+
+def test_daily_contributed_amount_uses_real_external_cash_flow_timing() -> None:
+    dates = (date(2024, 1, 31), date(2024, 2, 1), date(2024, 3, 1))
+    schedule = ((dates[1], "100"), (dates[2], "100"))
+    monthly = calculate_metrics(
+        _input(
+            _strategy("monthly_dca", dates[0], dates[-1]),
+            dates,
+            schedule,
+            ("0", "100", "210"),
+        )
+    )
+    assert [asset.total_contributed for asset in monthly.daily_assets] == [
+        Decimal("0"),
+        Decimal("100"),
+        Decimal("200"),
+    ]
+    upfront = calculate_metrics(
+        _input(
+            _strategy("lump_sum", dates[0], dates[-1]),
+            dates,
+            schedule,
+            ("200", "210", "220"),
+        )
+    )
+    assert [asset.total_contributed for asset in upfront.daily_assets] == [
+        Decimal("200")
+    ] * 3
+    assert (
+        monthly.daily_assets[-1].total_contributed == monthly.summary.total_contributed
+    )
+    assert (
+        upfront.daily_assets[-1].total_contributed == upfront.summary.total_contributed
+    )
+    assert (
+        upfront.daily_assets[-1].total_asset
+        / upfront.daily_assets[-1].total_contributed
+        == upfront.summary.capital_multiple
     )

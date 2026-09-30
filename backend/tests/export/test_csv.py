@@ -149,6 +149,7 @@ def _response(*, trades: tuple[Trade, ...] = ()) -> RunResponse:
                         fixedQuantity=Decimal("2"),
                         simulationPrice=Decimal("3.123456789"),
                         totalAsset=Decimal("20.1851851835"),
+                        totalContributed=Decimal("19.87654321"),
                         currency="USD",
                         unitNav=Decimal("1.2345"),
                         drawdown=Decimal("-0.01"),
@@ -261,10 +262,10 @@ def test_daily_assets_export_preserves_iso_dates_precision_and_currency() -> Non
     assert content == (
         "runId,resultId,date,cash,timingQuantity,fixedQuantity,simulationPrice,"
         "totalAsset,currency,unitNav,drawdown,dataSources,calendarAsOf,"
-        "marketDataThrough\n"
+        "marketDataThrough,totalContributed\n"
         "run-123,ordinary,2024-01-02,10.00,1.5,2,3.123456789,20.1851851835,"
         'USD,1.2345,-0.01,"[""sec:companyfacts"",""yahoo""]",2024-01-04,'
-        "2024-01-04\n"
+        "2024-01-04,19.87654321\n"
     )
 
 

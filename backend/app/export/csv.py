@@ -70,6 +70,7 @@ _DAILY_ASSET_FIELDS = (
     "dataSources",
     "calendarAsOf",
     "marketDataThrough",
+    "totalContributed",
 )
 _TRADE_FIELDS = (
     "runId",
@@ -194,6 +195,7 @@ def _daily_assets_csv(run: RunResponse, focused: StrategyRun) -> str:
             "fixedQuantity": asset.fixed_quantity,
             "simulationPrice": asset.simulation_price,
             "totalAsset": asset.total_asset,
+            "totalContributed": asset.total_contributed,
             "currency": asset.currency,
             "unitNav": asset.unit_nav,
             "drawdown": asset.drawdown,

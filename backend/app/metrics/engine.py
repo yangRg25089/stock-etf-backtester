@@ -16,7 +16,7 @@ from app.domain.status import (
 from .types import MetricsInput, MetricsResult
 
 _DAY_COUNT = Decimal("365")
-METRIC_METHOD_VERSION = "metrics-v1"
+METRIC_METHOD_VERSION = "metrics-v2"
 
 
 def calculate_metrics(
@@ -229,12 +229,14 @@ def _with_unit_nav(
     previous_nav = Decimal("1")
     peak_nav = Decimal("1")
     maximum_drawdown = Decimal("0")
+    total_contributed = Decimal("0")
     result: list[DailyAsset] = []
 
     for asset in daily_assets:
         contribution = -cash_flows.get(asset.date, Decimal("0"))
         if contribution < 0:
             raise ValueError("external contributions must be non-negative")
+        total_contributed += contribution
         if units == 0:
             if contribution > 0:
                 units = contribution
@@ -262,7 +264,15 @@ def _with_unit_nav(
         peak_nav = max(peak_nav, nav)
         drawdown = nav / peak_nav - Decimal("1") if peak_nav > 0 else Decimal("0")
         maximum_drawdown = max(maximum_drawdown, -drawdown)
-        result.append(asset.model_copy(update={"unit_nav": nav, "drawdown": drawdown}))
+        result.append(
+            asset.model_copy(
+                update={
+                    "unit_nav": nav,
+                    "drawdown": drawdown,
+                    "total_contributed": total_contributed,
+                }
+            )
+        )
         previous_nav = nav
 
     return tuple(result), maximum_drawdown

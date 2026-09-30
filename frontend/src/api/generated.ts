@@ -39,6 +39,7 @@ export type DailyAsset = {
   simulationLow?: string | null;
   simulationPrice: string;
   totalAsset: string;
+  totalContributed?: string | null;
   currency: string;
   unitNav?: string | null;
   drawdown?: string | null;

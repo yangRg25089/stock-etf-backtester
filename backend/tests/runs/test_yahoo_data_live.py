@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
 from concurrent.futures import Executor, Future
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -117,7 +120,8 @@ def test_live_qqq_volatility_index_runs_use_real_yahoo_observations(tmp_path) ->
 
 def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> None:
     previous_service = app.state.run_service
-    store = SQLiteRunStore(tmp_path / "live-yahoo-fixed-runs.sqlite3")
+    store_path = tmp_path / "live-yahoo-fixed-runs.sqlite3"
+    store = SQLiteRunStore(store_path)
     app.state.run_service = RunManager(
         store=store,
         data_provider=YahooRunDataProvider(),
@@ -169,7 +173,57 @@ def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> Non
         app.state.run_service = previous_service
         store.close()
 
+    reopened_store = SQLiteRunStore(store_path)
+    app.state.run_service = RunManager(
+        store=reopened_store,
+        data_provider=YahooRunDataProvider(),
+        executor=_InlineExecutor(),
+    )
+
+    async def restore_and_export() -> tuple[dict[str, Any], dict[str, Any], str, str]:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://live-yahoo-restored-test",
+        ) as client:
+            run_id = result["runId"]
+            restored = await client.get(f"/api/v1/runs/{run_id}")
+            latest = await client.get("/api/v1/runs/latest")
+            summary = await client.get(
+                f"/api/v1/runs/{run_id}/export/summary",
+                params={"focusedResultId": "live-yahoo-qqq-vix-fixed"},
+            )
+            daily_assets = await client.get(
+                f"/api/v1/runs/{run_id}/export/daily-assets",
+                params={"focusedResultId": "live-yahoo-qqq-vix-fixed"},
+            )
+            assert restored.status_code == 200, restored.text
+            assert latest.status_code == 200, latest.text
+            assert summary.status_code == 200, summary.text
+            assert daily_assets.status_code == 200, daily_assets.text
+            return restored.json(), latest.json(), summary.text, daily_assets.text
+
+    try:
+        restored, latest, summary_csv, daily_assets_csv = asyncio.run(
+            restore_and_export()
+        )
+    finally:
+        app.state.run_service = previous_service
+        reopened_store.close()
+
     assert result["snapshot"]["config"]["shared"]["run"]["endDate"] == "2026-09-28"
+    assert restored == result
+    assert latest == result
+    summary_row = next(csv.DictReader(io.StringIO(summary_csv)))
+    assert summary_row["runId"] == result["runId"]
+    assert summary_row["resultId"] == "live-yahoo-qqq-vix-fixed"
+    assert summary_row["symbol"] == "QQQ"
+    assert summary_row["endDate"] == "2026-09-28"
+    daily_asset_rows = list(csv.DictReader(io.StringIO(daily_assets_csv)))
+    assert len(daily_asset_rows) > 1000
+    assert all(row["runId"] == result["runId"] for row in daily_asset_rows)
+    assert all(
+        row["resultId"] == "live-yahoo-qqq-vix-fixed" for row in daily_asset_rows
+    )
     strategy = next(
         item
         for item in result["result"]["strategyRuns"]
@@ -189,3 +243,48 @@ def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> Non
         )
         for asset in strategy["dailyAssets"]
     )
+
+    runs = result["result"]["strategyRuns"]
+    monthly = next(item for item in runs if item["presetId"] == "monthly_dca")
+    upfront = next(item for item in runs if item["presetId"] == "lump_sum")
+    monthly_by_date = {item["date"]: item for item in monthly["dailyAssets"]}
+    plan_by_date = {
+        item["date"]: Decimal(item["cashAmount"]) for item in monthly["trades"]
+    }
+    budget = Decimal(monthly["metrics"]["totalContributed"])
+    assert monthly["status"] == "completed"
+    assert upfront["status"] == "completed"
+    for saved_strategy in (strategy, monthly, upfront):
+        cumulative = Decimal("0")
+        first_price = Decimal(saved_strategy["dailyAssets"][0]["simulationPrice"])
+        distinct_return_seen = False
+        for asset in saved_strategy["dailyAssets"]:
+            cumulative += plan_by_date.get(asset["date"], Decimal("0"))
+            expected_principal = budget if saved_strategy is upfront else cumulative
+            principal = Decimal(asset["totalContributed"])
+            equity = Decimal(asset["totalAsset"])
+            price = Decimal(asset["simulationPrice"])
+            assert principal == expected_principal
+            assert price == Decimal(monthly_by_date[asset["date"]]["simulationPrice"])
+            valued_equity = Decimal(asset["cash"]) + price * (
+                Decimal(asset["timingQuantity"]) + Decimal(asset["fixedQuantity"])
+            )
+            assert abs(equity - valued_equity) < Decimal("1e-20")
+            if principal > 0:
+                invested_index = equity / principal * 100
+                price_index = price / first_price * 100
+                if saved_strategy is upfront:
+                    assert abs(invested_index - price_index) < Decimal("1e-20")
+                elif abs(invested_index - price_index) > Decimal("1e-6"):
+                    distinct_return_seen = True
+        if saved_strategy is not upfront:
+            assert distinct_return_seen, (
+                "Monthly funding returns must differ from upfront price returns"
+            )
+        assert Decimal(saved_strategy["dailyAssets"][-1]["totalContributed"]) == budget
+        assert Decimal(
+            saved_strategy["dailyAssets"][-1]["totalAsset"]
+        ) / budget == Decimal(saved_strategy["metrics"]["capitalMultiple"])
+    assert [row["totalContributed"] for row in daily_asset_rows] == [
+        asset["totalContributed"] for asset in strategy["dailyAssets"]
+    ]
