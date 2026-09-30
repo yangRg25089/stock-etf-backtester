@@ -761,6 +761,46 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   }
   expect(savedResultViewports).toHaveLength(5);
 
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const resultPane = page.locator(".workbench-results");
+  await resultPane.evaluate((element) => { element.scrollTop = 0; });
+  const plotHeight = async (selector) => page.locator(selector).evaluate((figure) => {
+    const svg = figure.querySelector(".result-chart");
+    const plot = svg.querySelector("clipPath rect");
+    return Number(plot.getAttribute("height")) / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height;
+  });
+  const mainPlotHeight = await plotHeight(".chart-panel.chart-overlay");
+  expect(mainPlotHeight, `1920px main plot height: ${mainPlotHeight}px`).toBeGreaterThanOrEqual(320);
+  expect(mainPlotHeight, `1920px main plot height: ${mainPlotHeight}px`).toBeLessThanOrEqual(420);
+  await expect(page.locator(".chart-range-label")).toContainText("全図共通");
+  const drawdownToggle = page.locator("#chart-aux-drawdown-toggle");
+  await drawdownToggle.click();
+  const drawdownPlotHeight = await plotHeight(".chart-panel.chart-drawdown");
+  expect(drawdownPlotHeight, `1920px drawdown plot height: ${drawdownPlotHeight}px`).toBeGreaterThanOrEqual(180);
+  expect(drawdownPlotHeight, `1920px drawdown plot height: ${drawdownPlotHeight}px`).toBeLessThanOrEqual(240);
+  const vixToggleForSizing = page.locator("#chart-aux-vix-toggle");
+  await vixToggleForSizing.click();
+  const vixPlotHeight = await plotHeight(".chart-panel.chart-vix");
+  expect(vixPlotHeight, `1920px VIX plot height: ${vixPlotHeight}px`).toBeGreaterThanOrEqual(180);
+  expect(vixPlotHeight, `1920px VIX plot height: ${vixPlotHeight}px`).toBeLessThanOrEqual(240);
+  await drawdownToggle.click();
+  await vixToggleForSizing.click();
+
+  await page.setViewportSize({ width: 1920, height: 600 });
+  await resultPane.evaluate((element) => { element.scrollTop = 0; });
+  const shortScreenLayout = await resultPane.evaluate((element) => ({
+    documentHeight: document.documentElement.scrollHeight,
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(shortScreenLayout.documentHeight).toBeLessThanOrEqual(602);
+  expect(shortScreenLayout.scrollHeight).toBeGreaterThan(shortScreenLayout.clientHeight);
+  expect(await plotHeight(".chart-panel.chart-overlay")).toBeCloseTo(mainPlotHeight, 0);
+  await vixToggleForSizing.click();
+  await expect(page.locator(".chart-layout-controls")).toBeInViewport();
+  await expect(page.locator(".chart-range-controls")).toBeInViewport();
+  await vixToggleForSizing.click();
+
   await page.setViewportSize({ width: 375, height: 812 });
   await page.locator(".workbench-mobile-view").filter({ hasText: "結果" }).click();
   const mobileDetailsHeader = page.locator("#result-details .collapsible-panel-header");
@@ -777,6 +817,28 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   });
   expect(mobileHeaderBounds.scrollWidth).toBeLessThanOrEqual(mobileHeaderBounds.clientWidth + 1);
   expect(mobileHeaderBounds.childrenWithinHeader).toBe(true);
+
+  const mobileToolbar = page.locator(".chart-toolbar");
+  await page.locator("#chart-aux-vix-toggle").click();
+  for (const width of [320, 375, 767]) {
+    await page.setViewportSize({ width, height: 812 });
+    await page.evaluate(() => {
+      const toolbar = document.querySelector(".chart-toolbar");
+      window.scrollTo(0, toolbar.getBoundingClientRect().top + window.scrollY + 80);
+    });
+    const mobileStickyBounds = await page.evaluate(() => {
+      const topbar = document.querySelector(".app-topbar").getBoundingClientRect();
+      const toolbar = document.querySelector(".chart-toolbar").getBoundingClientRect();
+      return { topbarBottom: topbar.bottom, toolbarTop: toolbar.top };
+    });
+    expect(mobileStickyBounds.toolbarTop, `${width}px toolbar below topbar`).toBeGreaterThanOrEqual(
+      mobileStickyBounds.topbarBottom - 1,
+    );
+    expect(mobileStickyBounds.toolbarTop, `${width}px toolbar stays close to topbar`).toBeLessThanOrEqual(
+      mobileStickyBounds.topbarBottom + 12,
+    );
+    await expect(mobileToolbar).toBeInViewport();
+  }
 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.locator(".workbench-results").evaluate((element) => { element.scrollTop = 0; });
@@ -915,6 +977,23 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
       } else {
         await auxiliaryToggle.click();
         await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "true");
+        const chartToolbar = page.locator(".chart-toolbar");
+        await expect(chartToolbar).toBeInViewport();
+        await expect(page.locator(".chart-layout-controls")).toBeInViewport();
+        await expect(page.locator(".chart-range-controls")).toBeInViewport();
+        const toolbarPosition = await chartToolbar.evaluate((toolbar) => {
+          const scrollport = document.querySelector(".workbench-results").getBoundingClientRect();
+          const bounds = toolbar.getBoundingClientRect();
+          const chart = document.querySelector(".chart-panel.chart-vix").getBoundingClientRect();
+          return {
+            topOffset: bounds.top - scrollport.top,
+            bottom: bounds.bottom,
+            chartTop: chart.top,
+          };
+        });
+        expect(toolbarPosition.topOffset).toBeGreaterThanOrEqual(-1);
+        expect(toolbarPosition.topOffset).toBeLessThanOrEqual(4);
+        expect(toolbarPosition.bottom).toBeLessThan(toolbarPosition.chartTop);
       }
     }
     const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
@@ -941,7 +1020,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     expect(afterPlainWheel.end).toBe(beforePlainWheel.end);
     expect(await page.evaluate(() => window.scrollY)).toBe(pageViewportBeforeWheel.scrollY);
 
-    await chart.hover();
+    const zoomAnchorBounds = await chart.boundingBox();
+    expect(zoomAnchorBounds).toBeTruthy();
+    await chart.hover({ position: { x: zoomAnchorBounds.width * 0.25, y: zoomAnchorBounds.height / 2 } });
     const scrollBeforeZoom = await resultsPane.evaluate((element) => element.scrollTop);
     await controlWheel(page, -160);
     await expect.poll(async () => page.locator(`.chart-panel.${chartSelector}`).getAttribute("data-window-start")).not.toBe("0");
@@ -974,8 +1055,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
       * (Number(zoomedWindow.end) - Number(zoomedWindow.start));
     expect(draggedStart).toBeGreaterThan(zoomedStart);
     // Keep the viewport close to the full pointer distance while allowing browser pixel rounding.
-    expect(draggedStart - zoomedStart).toBeGreaterThan(nominalPan * 0.85);
-    expect(draggedStart - zoomedStart).toBeLessThan(nominalPan * 1.15);
+    expect(draggedStart - zoomedStart, `${chartSelector} drag should match pointer distance`).toBeGreaterThan(nominalPan * 0.85);
+    expect(draggedStart - zoomedStart, `${chartSelector} drag should match pointer distance`).toBeLessThan(nominalPan * 1.15);
     await expectBaselineInsidePlot();
   }
   const resetRangeButton = wheelResetButton;

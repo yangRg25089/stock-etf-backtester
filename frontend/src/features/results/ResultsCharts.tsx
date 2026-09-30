@@ -768,68 +768,70 @@ export function ResultsCharts({
   const viewportSpan = viewport.end - viewport.start;
   return (
     <div className="charts-content" ref={chartContainerRef}>
-      <div className="chart-controls">
-        <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
-          {SERIES.map((series) => {
-            const isAvailable = available.includes(series);
-            const isVisible = visibleSeriesIds.includes(series.id);
-            return (
-              <button
-                className={`legend-toggle${isVisible ? " is-visible" : ""}`}
-                type="button"
-                key={series.id}
-                aria-pressed={isVisible}
-                disabled={!isAvailable}
-                onClick={() => onSeriesChange(series.id, !isVisible)}
-              >
-                <span className="legend-swatch" style={{ backgroundColor: series.color }} aria-hidden="true" />
-                {seriesLabel(locale, series, currency)}
-              </button>
-            );
-          })}
+      <div className="chart-toolbar">
+        <div className="chart-controls">
+          <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
+            {SERIES.map((series) => {
+              const isAvailable = available.includes(series);
+              const isVisible = visibleSeriesIds.includes(series.id);
+              return (
+                <button
+                  className={`legend-toggle${isVisible ? " is-visible" : ""}`}
+                  type="button"
+                  key={series.id}
+                  aria-pressed={isVisible}
+                  disabled={!isAvailable}
+                  onClick={() => onSeriesChange(series.id, !isVisible)}
+                >
+                  <span className="legend-swatch" style={{ backgroundColor: series.color }} aria-hidden="true" />
+                  {seriesLabel(locale, series, currency)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="chart-layout-controls" role="group" aria-label={translate(locale, "chart.layout")}>
+            <button type="button" aria-pressed={!combinedOverlay} onClick={() => onOverlayModeChange(false)}>
+              {translate(locale, "chart.layout.separate")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={combinedOverlay}
+              disabled={!canOverlaySelection}
+              onClick={() => onOverlayModeChange(true)}
+            >
+              {translate(locale, "chart.layout.overlay")}
+            </button>
+          </div>
         </div>
-        <div className="chart-layout-controls" role="group" aria-label={translate(locale, "chart.layout")}>
-          <button type="button" aria-pressed={!combinedOverlay} onClick={() => onOverlayModeChange(false)}>
-            {translate(locale, "chart.layout.separate")}
-          </button>
-          <button
-            type="button"
-            aria-pressed={combinedOverlay}
-            disabled={!canOverlaySelection}
-            onClick={() => onOverlayModeChange(true)}
-          >
-            {translate(locale, "chart.layout.overlay")}
-          </button>
-        </div>
-      </div>
-      <div className="chart-range-controls" role="group" aria-label={translate(locale, "chart.rangeControls")}>
-        <span className="chart-range-label">
-          {translate(locale, "chart.visibleRange", { start: visibleStartDate, end: visibleEndDate })}
-        </span>
-        <button
-          className="icon-only-button chart-wheel-zoom-toggle"
-          type="button"
-          aria-label={translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom")}
-          title={translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom")}
-          aria-pressed={wheelZoomEnabled}
-          onClick={() => setWheelZoomEnabled((enabled) => !enabled)}
-        >
-          <span aria-hidden="true">
-            <svg viewBox="0 0 20 20" focusable="false">
-              <circle cx="8.5" cy="8.5" r="5.5" />
-              <path d="m13 13 4 4" />
-            </svg>
+        <div className="chart-range-controls" role="group" aria-label={translate(locale, "chart.rangeControls")}>
+          <span className="chart-range-label">
+            {translate(locale, "chart.visibleRange", { start: visibleStartDate, end: visibleEndDate })}
           </span>
-        </button>
-        <button type="button" aria-label={translate(locale, "chart.zoomOut")} title={translate(locale, "chart.zoomOut")} disabled={viewportSpan >= 1} onClick={() => zoomAt(1.25)}>
-          <span aria-hidden="true">−</span>
-        </button>
-        <button type="button" aria-label={translate(locale, "chart.zoomIn")} title={translate(locale, "chart.zoomIn")} disabled={viewportSpan <= MIN_CHART_VIEWPORT_SPAN + 1e-6} onClick={() => zoomAt(0.8)}>
-          <span aria-hidden="true">+</span>
-        </button>
-        <button className="icon-only-button chart-range-reset" type="button" aria-label={translate(locale, "chart.resetRange")} title={translate(locale, "chart.resetRange")} disabled={viewportSpan >= 1} onClick={() => setViewport(FULL_CHART_VIEWPORT)}>
-          <span aria-hidden="true">↺</span>
-        </button>
+          <button
+            className="icon-only-button chart-wheel-zoom-toggle"
+            type="button"
+            aria-label={translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom")}
+            title={translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom")}
+            aria-pressed={wheelZoomEnabled}
+            onClick={() => setWheelZoomEnabled((enabled) => !enabled)}
+          >
+            <span aria-hidden="true">
+              <svg viewBox="0 0 20 20" focusable="false">
+                <circle cx="8.5" cy="8.5" r="5.5" />
+                <path d="m13 13 4 4" />
+              </svg>
+            </span>
+          </button>
+          <button type="button" aria-label={translate(locale, "chart.zoomOut")} title={translate(locale, "chart.zoomOut")} disabled={viewportSpan >= 1} onClick={() => zoomAt(1.25)}>
+            <span aria-hidden="true">−</span>
+          </button>
+          <button type="button" aria-label={translate(locale, "chart.zoomIn")} title={translate(locale, "chart.zoomIn")} disabled={viewportSpan <= MIN_CHART_VIEWPORT_SPAN + 1e-6} onClick={() => zoomAt(0.8)}>
+            <span aria-hidden="true">+</span>
+          </button>
+          <button className="icon-only-button chart-range-reset" type="button" aria-label={translate(locale, "chart.resetRange")} title={translate(locale, "chart.resetRange")} disabled={viewportSpan >= 1} onClick={() => setViewport(FULL_CHART_VIEWPORT)}>
+            <span aria-hidden="true">↺</span>
+          </button>
+        </div>
       </div>
       {selected.length === 0 ? (
         <p className="chart-empty">{translate(locale, "chart.noVisibleSeries")}</p>

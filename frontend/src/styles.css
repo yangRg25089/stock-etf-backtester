@@ -1769,6 +1769,10 @@ h2 {
   border: 0;
 }
 
+.result-chart-panel {
+  overflow: visible;
+}
+
 .chart-aux-panel .collapsible-panel-body {
   padding: 0 12px 12px;
 }
@@ -1975,6 +1979,18 @@ h2 {
   gap: 12px;
 }
 
+.chart-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+}
+
 .chart-controls {
   display: flex;
   align-items: center;
@@ -2124,9 +2140,12 @@ h2 {
   font-weight: 600;
 }
 
+/* The 246/320 plotting ratio yields about 418px main and 234px auxiliary plots. */
 .result-chart {
   display: block;
   width: 100%;
+  max-width: 1360px;
+  margin-inline: auto;
   height: auto;
   min-width: 680px;
   overflow: visible;
@@ -2136,6 +2155,10 @@ h2 {
 
 .result-chart:active {
   cursor: grabbing;
+}
+
+.chart-aux-panel .result-chart {
+  max-width: 760px;
 }
 
 .chart-gridline {
@@ -2687,6 +2710,10 @@ h2 {
 }
 
 @media (max-width: 767px) {
+  :root {
+    --app-topbar-height: 108px;
+  }
+
   .main-content {
     width: min(100% - 30px, 1180px);
     padding-top: 18px;
@@ -2777,6 +2804,10 @@ h2 {
     padding: 10px 0 20px;
     border: 0;
     overflow: visible;
+  }
+
+  .chart-toolbar {
+    top: var(--app-topbar-height);
   }
 
   .result-tabs {

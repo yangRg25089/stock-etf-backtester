@@ -55,6 +55,8 @@ test("all financial charts use readable lines and saved results mark trades", ()
   assert.match(html, /class="chart-baseline-line"[^>]*data-baseline="100"/);
   assert.ok((html.match(/class="chart-gridline/g) ?? []).length >= 12);
   assert.match(html, /chart-axis-title/);
+  assert.match(html, /class="chart-toolbar">[\s\S]*class="chart-controls"[\s\S]*class="chart-range-controls"/);
+  assert.match(html, /表示期間（全図共通）/);
   assert.match(html, /QQQ · 価格 \(USD\)/);
   assert.match(html, /総資産/);
   assert.match(html, /ドローダウン/);
