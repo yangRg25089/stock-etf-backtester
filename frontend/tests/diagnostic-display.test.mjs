@@ -12,7 +12,7 @@ const diagnostic = {
   code: "calculation_failed",
   severity: "error",
   messageKey: "diagnostics.calculation_failed",
-  fieldPath: "runs.execution",
+  details: { stage: "strategy", strategyId: "strategy-vix-1", runId: "run-safe-1" },
 };
 
 function assertNoInternalDetails(html) {
@@ -26,6 +26,9 @@ test("localized diagnostics hide internal field paths and stable codes", () => {
     React.createElement(DiagnosticList, { locale: "zh", diagnostics: [diagnostic] }),
   );
   assert.match(html, /计算过程中发生错误。/);
+  assert.match(html, /用户策略/);
+  assert.match(html, /策略 ID：strategy-vix-1/);
+  assert.match(html, /运行 ID：run-safe-1/);
   assertNoInternalDetails(html);
 });
 
@@ -40,5 +43,8 @@ test("run API errors show the localized message without an internal error code",
     React.createElement(StatusView, { locale: "zh", run: null, error }),
   );
   assert.match(html, /计算过程中发生错误。/);
+  assert.match(html, /用户策略/);
+  assert.match(html, /策略 ID：strategy-vix-1/);
+  assert.match(html, /运行 ID：run-safe-1/);
   assertNoInternalDetails(html);
 });

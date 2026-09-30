@@ -3,7 +3,13 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const { fetchLatestRun, fetchRun, RunApiError, submitRun } = require("../.test-output/api/runs.js");
+const {
+  fetchLatestRun,
+  fetchRun,
+  RunApiError,
+  submitRun,
+  subscribeToRunEvents,
+} = require("../.test-output/api/runs.js");
 const { isPartialSuccess } = require("../.test-output/features/strategies/model.js");
 
 function response(payload, status = 200) {
@@ -108,6 +114,62 @@ test("run API preserves stable server diagnostics from an error envelope", async
         return true;
       },
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("run event subscription parses split SSE frames and stops at terminal", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const events = [];
+  const body = [
+    'event: progress\ndata: {"runId":"run-stream","status":"running","progress":{"completedStrategies":1,"totalStrategies":3},"strategyStatuses":{"strategy-a":"completed","benchmark:monthly-dca":"running"}}\n\n',
+    'event: terminal\ndata: {"runId":"run-stream","status":"completed_with_warning","progress":{"completedStrategies":3,"totalStrategies":3},"strategyStatuses":{"strategy-a":"completed_with_warning","benchmark:monthly-dca":"completed"}}\n\n',
+  ].join("");
+  const bytes = new TextEncoder().encode(body);
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, 31));
+        controller.enqueue(bytes.slice(31));
+        controller.close();
+      },
+    }), {
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  };
+
+  try {
+    await subscribeToRunEvents("run-stream", (event) => events.push(event));
+
+    assert.deepEqual(calls.map(({ url }) => url), ["/api/v1/runs/run-stream/events"]);
+    assert.equal(calls[0].init.headers.Accept, "text/event-stream");
+    assert.deepEqual(events.map(({ status }) => status), ["running", "completed_with_warning"]);
+    assert.equal(events[1].strategyStatuses["strategy-a"], "completed_with_warning");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("run event subscription is cancelled with its AbortSignal", async () => {
+  const originalFetch = globalThis.fetch;
+  const controller = new AbortController();
+  globalThis.fetch = async (_url, init) => new Response(new ReadableStream({
+    start(streamController) {
+      init.signal.addEventListener("abort", () => {
+        streamController.error(new DOMException("Aborted", "AbortError"));
+      }, { once: true });
+    },
+  }), {
+    headers: { "Content-Type": "text/event-stream" },
+  });
+
+  try {
+    const pending = subscribeToRunEvents("run-cancel", () => undefined, controller.signal);
+    controller.abort();
+    await assert.rejects(pending, (error) => error?.name === "AbortError");
   } finally {
     globalThis.fetch = originalFetch;
   }

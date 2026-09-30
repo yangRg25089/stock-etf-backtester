@@ -8,7 +8,9 @@
 
 已提交的 `RunSnapshot.dataProvenance` 冻结来源列表、日历截止日和行情最新报价日。汇总、每日资产、交易、搜索结果四类 CSV 都从这个保存快照附带 `dataSources`、`calendarAsOf`、`marketDataThrough`，导出不读取当前草稿或重新请求数据。`marketDataThrough` 表示行情报价覆盖，不代表宏观或 SEC 数据也更新到该日；这些数据的观察日/公开时间保留在数据快照和诊断中。运行完成日志以结构化字段记录相同来源与日期，不输出配置值或供应商响应。
 
-运行记录由本机 SQLite `RunStore` 保存，默认路径为仓库根目录 `.local/runs.sqlite3`，该目录已加入 Git 忽略规则。可通过 `STOCK_ETF_BACKTESTER_RUN_STORE_PATH` 指定另一文件路径。运行响应、冻结快照和幂等键均持久化；页面启动时读取最近一次已保存运行，旧结果仍从原快照导出，不重新计算或下载数据。服务重启时，仍处于 `queued/loading/running` 的策略会转成带 `runs.interrupted_by_restart` 诊断的 `failed`，已经结束的策略和部分结果保留。
+运行记录由本机 SQLite `RunStore` 保存，默认路径为仓库根目录 `.local/runs.sqlite3`，该目录已加入 Git 忽略规则。可通过 `STOCK_ETF_BACKTESTER_RUN_STORE_PATH` 指定另一文件路径。运行响应、冻结快照和幂等键均持久化；SQLite 私有版本化编码保留冻结参数中的 `Decimal` 类型，旧格式记录依照对应 catalog 参数类型恢复，API 快照 JSON 仍以十进制字符串对外。页面启动时读取最近一次已保存运行；未完成作业经单条 `/api/v1/runs/{runId}/events` SSE 连接恢复进度，结束后只读取一次完整结果。断开页面订阅不会终止服务端运行。服务重启时，仍处于 `queued/loading/running` 的策略会转成带 `runs.interrupted_by_restart` 诊断的 `failed`，已经结束的策略和部分结果保留。
+
+结束日期为“最近完整行情”时，供应商若暂未提供最新已收盘日的有效行情，运行快照将落到最后完整报价日并附来源质量警告；有效回测区间中的缺失 session 仍会报错，系统不会将缺失行情前填或忽略。计算失败诊断包含日中本地化的安全阶段和运行/策略标识；异常消息、内部路径和异常类型仅写入受限服务日志或不写入，不返给前端。
 
 备份时优先使用 SQLite 在线备份接口，例如：
 

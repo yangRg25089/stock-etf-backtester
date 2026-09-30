@@ -753,6 +753,13 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.diagnostic-context {
+  display: block;
+  margin-top: 3px;
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
 .severity {
   padding: 2px 5px;
   border-radius: 3px;

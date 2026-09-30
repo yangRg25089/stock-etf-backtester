@@ -63,6 +63,42 @@ test("a new saved run initializes a missing result focus from its selected snaps
   assert.equal(state.activeStrategyId, "strategy-vix_dca-1");
 });
 
+test("run progress events update statuses without replacing saved result details", () => {
+  let state = createInitialWorkspaceState(catalog);
+  const queued = {
+    runId: "streamed-run",
+    status: "queued",
+    selectedStrategyIds: ["strategy-selected"],
+    progress: { completedStrategies: 0, totalStrategies: 2 },
+    snapshot: { runId: "streamed-run", config: { shared: {}, strategies: [] } },
+    result: { runId: "streamed-run", strategyRuns: [
+      { id: "strategy-selected", status: "queued", metrics: null },
+      { id: "benchmark:monthly-dca", status: "queued", metrics: null },
+    ] },
+  };
+  state = workspaceReducer(state, { type: "run.update", value: queued });
+  state = workspaceReducer(state, {
+    type: "run.progress",
+    value: {
+      runId: "streamed-run",
+      status: "running",
+      progress: { completedStrategies: 1, totalStrategies: 2, currentStrategyId: "strategy-selected" },
+      strategyStatuses: {
+        "strategy-selected": "completed",
+        "benchmark:monthly-dca": "running",
+      },
+    },
+  });
+
+  assert.equal(state.runResponse.status, "running");
+  assert.equal(state.runResponse.progress.completedStrategies, 1);
+  assert.deepEqual(
+    state.runResponse.result.strategyRuns.map(({ status }) => status),
+    ["completed", "running"],
+  );
+  assert.deepEqual(state.runResponse.snapshot, queued.snapshot);
+});
+
 test("focused result lookup is keyed by result id and independent of editor selection", () => {
   let state = createInitialWorkspaceState(catalog);
   const focused = { id: "benchmark-dca", role: "benchmark", status: "completed" };

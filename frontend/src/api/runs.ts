@@ -3,10 +3,29 @@ import type {
   Diagnostic,
   DraftValidationRequest,
   DraftValidationResponse,
+  RunProgress,
   RunResponse,
   RunScope,
   RunSubmissionRequest,
+  StrategyStatus,
 } from "./generated";
+
+const RUN_STATUSES: ReadonlySet<string> = new Set([
+  "queued",
+  "loading",
+  "running",
+  "completed",
+  "completed_with_warning",
+  "unavailable",
+  "failed",
+]);
+
+export interface RunProgressEvent {
+  runId: string;
+  status: StrategyStatus;
+  progress: RunProgress | null;
+  strategyStatuses: Record<string, StrategyStatus>;
+}
 
 export class RunApiError extends Error {
   readonly code: string;
@@ -130,6 +149,122 @@ export function fetchRun(runId: string, signal?: AbortSignal): Promise<RunRespon
     `/api/v1/runs/${encodeURIComponent(runId)}`,
     { method: "GET" },
     signal,
+  );
+}
+
+export async function subscribeToRunEvents(
+  runId: string,
+  onEvent: (event: RunProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `/api/v1/runs/${encodeURIComponent(runId)}/events`,
+      { headers: { Accept: "text/event-stream" }, signal },
+    );
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw fallbackError(null);
+  }
+
+  if (!response.ok) {
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw fallbackError(response.status);
+    }
+    const envelope = isRecord(payload) && isRecord(payload.error)
+      ? payload as unknown as APIErrorResponse
+      : null;
+    if (!envelope) throw fallbackError(response.status);
+    throw new RunApiError(
+      envelope.error.code,
+      envelope.error.messageKey,
+      envelope.error.diagnostics ?? [],
+      response.status,
+    );
+  }
+
+  if (!response.headers.get("content-type")?.startsWith("text/event-stream")) {
+    throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let terminalReceived = false;
+  let streamEnded = false;
+  try {
+    while (!streamEnded) {
+      const chunk = await reader.read();
+      streamEnded = chunk.done;
+      buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+      let separator = buffer.indexOf("\n\n");
+      while (separator >= 0) {
+        const frame = buffer.slice(0, separator).replaceAll("\r\n", "\n");
+        buffer = buffer.slice(separator + 2);
+        const lines = frame.split("\n");
+        const eventName = lines.find((line) => line.startsWith("event:"))
+          ?.slice("event:".length).trim();
+        const data = lines
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice("data:".length).trimStart())
+          .join("\n");
+        if (data) {
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(data);
+          } catch {
+            throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
+          }
+          if (!isRunProgressEvent(parsed)) {
+            throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
+          }
+          onEvent(parsed);
+          if (eventName === "terminal") {
+            terminalReceived = true;
+            return;
+          }
+        }
+        separator = buffer.indexOf("\n\n");
+      }
+    }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    throw error instanceof RunApiError ? error : fallbackError(null);
+  } finally {
+    if (!terminalReceived) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+
+  if (!terminalReceived && !signal?.aborted) throw fallbackError(null);
+}
+
+function isRunProgressEvent(value: unknown): value is RunProgressEvent {
+  if (
+    !isRecord(value) ||
+    typeof value.runId !== "string" ||
+    typeof value.status !== "string" ||
+    !RUN_STATUSES.has(value.status)
+  ) {
+    return false;
+  }
+  if (
+    value.progress !== null &&
+    (!isRecord(value.progress) ||
+      typeof value.progress.completedStrategies !== "number" ||
+      typeof value.progress.totalStrategies !== "number")
+  ) {
+    return false;
+  }
+  return isRecord(value.strategyStatuses) && Object.values(value.strategyStatuses).every(
+    (status) => typeof status === "string" && RUN_STATUSES.has(status),
   );
 }
 

@@ -619,6 +619,32 @@
 
 **阶段 6 验收（2026-09-30）：** 后端 `cd backend && .venv/bin/python -m pytest`（299 项全部通过；6 条 yfinance `raise_errors` 弃用警告）、Ruff check/format、mypy 全部通过；前端 `npm test`（74 项）、typecheck、lint、build 和 Playwright E2E（10 项）全部通过。E2E 覆盖日中界面、320/768/1024px、axe、分组/选项说明、价格折线、叠加归一、任一图表拖动/缩放后同步、运行/恢复/CSV；浏览器无页面异常或非本地请求。已目视检查完整运行截图，未发现中高优先级布局缺陷。
 
+## 阶段 7：修复 SQLite 参数恢复与运行进度请求
+
+#### Task 30：无损恢复已保存运行参数并替代重复完整结果轮询
+
+**描述：** 修复策略 `Decimal` 等参数经 SQLite JSON 保存后被读回为字符串、导致 VIX 信号计算失败的问题。增加轻量的运行进度事件流，让页面在一个连接中接收策略状态变化，终态后只获取一次完整结果；页面恢复最近的未完成运行也使用相同进度接口。诊断保留可安全呈现的失败阶段与定位标识，不向界面泄漏 Python 异常文本、内部字段路径或未翻译代码。
+
+**验收标准：**
+- [x] SQLite RunStore 的版本化私有编码保留 `Decimal`、bool、整数、浮点和列表参数；读回领域快照与写入前等值，普通 API JSON 仍保持既有结构及十进制字符串语义。
+- [x] 兼容已有未版本化 JSON 运行记录；类型恢复只按注册表参数类型执行，不按字符串外观猜数字，旧记录的配置、结果和幂等身份不变。
+- [x] 默认真实 Yahoo 回归经临时 SQLite RunStore 执行 QQQ + `^VIX`、`^VXN`、`^VXD`；真实波动率指数观察、策略 `completed` 或仅带来源质量警告的 `completed_with_warning`、信号与指标存在；确定性 SQLite + fixture 测试覆盖 round trip 和局部失败。
+- [x] 动态结束日期按真实最后有效报价解析；供应商暂缺最新已收盘日时明确降到最后完整报价日并附警告，区间内部缺口仍使依赖策略不可用。
+- [x] `GET /api/v1/runs/{run_id}/events` 返回轻量 SSE 状态事件，在状态变化后发送当前聚合进度与策略状态，终态发出结束事件并关闭；未知 ID 保持标准 404，断开客户端会停止该订阅。
+- [x] 提交和恢复中的前端通过一个可取消的 SSE 连接呈现进度，收到终态后只调用一次 `GET /api/v1/runs/{run_id}` 获取完整结果；不再使用 700ms 整体响应轮询或建立重叠订阅。
+- [x] 计算失败诊断包含安全的阶段/运行标识并有日中译文；不显示原始异常文本、内部错误码、路径或 `{code}` 占位符。
+- [x] 前端请求单测、API/SSE 合约及生命周期集成测试、后端全量测试、真实 Yahoo 回归、前端 typecheck/lint/build、浏览器 E2E 和网络计数均通过。
+
+**依赖：** Task 14、Task 22、Task 23、Task 24。
+
+**可能触及：** `backend/app/runs/sqlite_store.py`、`backend/app/runs/store.py`、`backend/app/api/runs.py`、`backend/app/runs/manager.py`、真实 Yahoo 和 SQLite/API 测试、`frontend/src/api/runs.ts`、`frontend/src/App.tsx`、运行状态 reducer/词典、前端 API/E2E 测试、相关设计及开发文档。
+
+**范围：** 中。
+
+**调查依据（2026-09-30）：** 运行 `4ac3b0ab-c3b3-4a3d-beff-8cdb6e74945e` 的 GET 为 HTTP 200，响应为 `completed_with_warning`，其中两个基准完成、VIX 策略带 `ValueError` 失败诊断。只读读取保存参数确认阈值为字符串 `'25'`；以同区间真实 Yahoo 数据隔离重放时取得 1694 条 QQQ 行情和 1694 条 VIX 观测，保存类型抛出 `ValueError: vix.buyThreshold must be numeric`，恢复注册表声明的 Decimal 类型后策略成功并有 39 笔交易。前端目前有运行提交与恢复两个 700ms GET 轮询入口。不得改写调查运行记录。
+
+**Task 30 验收（2026-09-30）：** 后端全量 pytest 309 项通过，包含临时 SQLite 上真实 Yahoo QQQ/VIX API 回归；动态最新报价尾部延迟时所有策略成功并带来源质量警告。Ruff check/format 与 mypy 通过。前端 77 项单测、typecheck、lint、build 和 12 项 Playwright E2E 通过；浏览器计数确认提交和恢复各使用一个 SSE 连接及一个具体运行 ID 的终态 GET，另有独立 `/runs/latest` 恢复查询。Playwright 临时服务使用 8123/5174 端口，避免影响仍在运行的 VS Code API。
+
 ### 最终检查点
 
 - [x] 所有计划任务验收标准完成；后端/前端测试、类型检查、lint、构建和 E2E 全部通过。

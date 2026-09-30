@@ -7,6 +7,7 @@ import type {
   StrategyPresetId,
   StrategyStatus,
 } from "../../api/generated";
+import type { RunProgressEvent } from "../../api/runs";
 import { createDefaultSharedDraft, type SharedDraft } from "../config/defaults";
 
 export interface StrategyDraft {
@@ -44,6 +45,7 @@ export type WorkspaceAction =
   | { type: "shared.change"; value: SharedDraft }
   | { type: "run.scope"; value: RunScope }
   | { type: "run.update"; value: RunResponse; requestedEndMode?: EndMode; requestedScope?: RunScope }
+  | { type: "run.progress"; value: RunProgressEvent }
   | { type: "result.focus"; id: string | null }
   | { type: "display.chart"; value: boolean }
   | { type: "display.trades"; value: boolean }
@@ -202,6 +204,29 @@ export function workspaceReducer(
         focusedResultId,
       };
       }
+    case "run.progress": {
+      const current = state.runResponse;
+      if (!current || current.runId !== action.value.runId) return state;
+      const strategyRuns = current.result?.strategyRuns?.map((strategyRun) => ({
+        ...strategyRun,
+        status: action.value.strategyStatuses[strategyRun.id] ?? strategyRun.status,
+      }));
+      return {
+        ...state,
+        runResponse: {
+          ...current,
+          status: action.value.status,
+          progress: action.value.progress,
+          result: current.result
+            ? {
+                ...current.result,
+                status: action.value.status,
+                ...(strategyRuns ? { strategyRuns } : {}),
+              }
+            : current.result,
+        },
+      };
+    }
     case "result.focus":
       return { ...state, focusedResultId: action.id };
     case "display.chart":

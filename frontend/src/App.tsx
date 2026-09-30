@@ -5,10 +5,12 @@ import {
   createIdempotencyKey,
   fetchRun,
   fetchLatestRun,
+  subscribeToRunEvents,
   RunApiError,
   submitRun,
   validateDraft,
 } from "./api/runs";
+import type { RunProgressEvent } from "./api/runs";
 import { SharedSettingsForm } from "./features/config/SharedSettingsForm";
 import { RunControls } from "./features/runs/RunControls";
 import { DiagnosticList, StatusView } from "./features/runs/StatusView";
@@ -125,16 +127,22 @@ function App() {
           });
         };
 
+        const restoreProgress = (value: RunProgressEvent) => {
+          if (submittedRunRef.current) return;
+          setWorkspace((current) => {
+            if (submittedRunRef.current || !current) return current;
+            return workspaceReducer(current, { type: "run.progress", value }, catalog);
+          });
+        };
+
         restore(response);
         if (isTerminal(response.status)) return;
 
         setRunBusy(true);
-        while (!isTerminal(response.status)) {
-          await new Promise<void>((resolve) => window.setTimeout(resolve, 700));
-          response = await fetchRun(response.runId, controller.signal);
-          if (submittedRunRef.current) return;
-          restore(response);
-        }
+        await subscribeToRunEvents(response.runId, restoreProgress, controller.signal);
+        if (submittedRunRef.current) return;
+        response = await fetchRun(response.runId, controller.signal);
+        restore(response);
       } catch (error) {
         if (!controller.signal.aborted && !submittedRunRef.current) {
           setRunError(asRunApiError(error));
@@ -227,7 +235,7 @@ function App() {
         return;
       }
 
-      let response = await submitRun(
+      const accepted = await submitRun(
         apiDraft,
         submittedScope,
         submittedActiveId,
@@ -236,15 +244,17 @@ function App() {
       );
       dispatch({
         type: "run.update",
-        value: response,
+        value: accepted,
         requestedEndMode: submittedEndMode,
         requestedScope: submittedScope,
       });
-      while (!isTerminal(response.status)) {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 700));
-        response = await fetchRun(response.runId, controller.signal);
-        dispatch({ type: "run.update", value: response });
-      }
+      await subscribeToRunEvents(
+        accepted.runId,
+        (event) => dispatch({ type: "run.progress", value: event }),
+        controller.signal,
+      );
+      const completed = await fetchRun(accepted.runId, controller.signal);
+      dispatch({ type: "run.update", value: completed });
     } catch (error) {
       if (controller.signal.aborted) return;
       setRunError(asRunApiError(error));

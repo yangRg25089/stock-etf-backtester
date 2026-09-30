@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-const VIEWPORTS = [320, 768, 1024];
+const VIEWPORTS = [320, 768, 1024, 1440];
 
 test.describe("responsive product shell", () => {
   for (const width of VIEWPORTS) {
@@ -126,11 +126,23 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
 test("default VIX can run to a focused saved result, display toggles, and matching CSV", async ({ page }) => {
   const pageErrors = [];
   const nonLocalRequests = [];
+  const runStatusRequests = [];
+  const runEventRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("request", (request) => {
     const hostname = new URL(request.url()).hostname;
     if (hostname !== "127.0.0.1" && hostname !== "localhost") {
       nonLocalRequests.push(request.url());
+    }
+    if (request.method() === "GET" && /\/api\/v1\/runs\/[^/]+\/events$/.test(request.url())) {
+      runEventRequests.push(request.url());
+    }
+    if (
+      request.method() === "GET" &&
+      !request.url().endsWith("/api/v1/runs/latest") &&
+      /\/api\/v1\/runs\/[^/]+$/.test(request.url())
+    ) {
+      runStatusRequests.push(request.url());
     }
   });
 
@@ -153,6 +165,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await runButton.click();
   const savedResponse = await completedResponse;
   const saved = await savedResponse.json();
+  await expect.poll(() => runStatusRequests.length).toBe(1);
+  await expect.poll(() => runEventRequests.length).toBe(1);
   const strategy = saved.result.strategyRuns.find((item) => item.id === "strategy-vix_dca-1");
   const benchmark = saved.result.strategyRuns.find((item) => item.id === "benchmark:monthly-dca");
   expect(saved.status).toBe("completed");
@@ -311,6 +325,53 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   );
   expect(restoredExport.resultId).toBe(restoredStrategy.id);
   expect(restoredExport.endingEquity).toBe(String(restoredStrategy.metrics.endingEquity));
+
+  const pending = structuredClone(saved);
+  pending.status = "running";
+  pending.progress = {
+    completedStrategies: 1,
+    totalStrategies: saved.progress.totalStrategies,
+    currentStrategyId: "strategy-vix_dca-1",
+  };
+  pending.result.status = "running";
+  const strategyStatuses = Object.fromEntries(
+    saved.result.strategyRuns.map(({ id, status }) => [id, status]),
+  );
+  const terminalEvent = {
+    runId: saved.runId,
+    status: saved.status,
+    progress: saved.progress,
+    strategyStatuses,
+  };
+  await page.route("**/api/v1/runs/latest", (route) =>
+    route.fulfill({ json: pending }),
+  );
+  await page.route(`**/api/v1/runs/${saved.runId}/events`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream; charset=utf-8",
+      body: `event: terminal\ndata: ${JSON.stringify(terminalEvent)}\n\n`,
+    }),
+  );
+  const resumedEvents = [];
+  const resumedResultGets = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET") return;
+    if (request.url().endsWith(`/api/v1/runs/${saved.runId}/events`)) {
+      resumedEvents.push(request.url());
+    } else if (request.url().endsWith(`/api/v1/runs/${saved.runId}`)) {
+      resumedResultGets.push(request.url());
+    }
+  });
+  const resumedResultResponse = page.waitForResponse((response) =>
+    response.request().method() === "GET" &&
+    response.url().endsWith(`/api/v1/runs/${saved.runId}`),
+  );
+  await page.reload();
+  await resumedResultResponse;
+  expect(resumedEvents).toHaveLength(1);
+  expect(resumedResultGets).toHaveLength(1);
+  await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
   expect(pageErrors).toEqual([]);
   expect(nonLocalRequests).toEqual([]);
 });

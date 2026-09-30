@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -22,4 +23,9 @@ app.state.run_service = create_fixture_run_manager(immediate=False)
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=int(os.environ.get("BACKTESTER_E2E_API_PORT", "8123")),
+        log_level="warning",
+    )

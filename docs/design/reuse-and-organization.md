@@ -70,6 +70,10 @@
 
 运行响应及幂等认领保存在本机 SQLite，应用启动后可按最近一次已提交运行恢复结果；恢复只读取已保存响应，不重新计算或重新下载数据。服务意外关闭时仍为 `queued/loading/running` 的实例恢复为 `failed` 并附重启中断诊断，已完成实例和部分结果保留。
 
+SQLite 私有 JSON 编码必须无损保存冻结策略参数的领域类型（尤其是十进制参数）；读取旧版未版本化记录时仅按相应目录参数注册表的类型恢复，不根据字符串表面格式猜测数值。该私有编码不改变 API 响应中的快照结构。页面使用 `/runs/{runId}/events` 的单一 SSE 连接接收轻量进度与策略状态变化，结束后读取一次完整运行响应；断开订阅不影响后台计算，刷新页面后可重新订阅最近运行。计算失败诊断只给出可翻译的阶段、策略 ID 和运行 ID，不回传异常消息或内部字段路径。
+
+动态结束日期以实际最后有效行情报价确定。若交易日已收盘但 Yahoo 尚未提供完整有效行情，回测窗口缩至最后完整报价日并保留来源质量警告；窗口内的缺失行情继续阻断依赖该日期的策略，不前填或静默跳过。
+
 `RunSnapshot.dataProvenance` 保存已读取数据的去重排序来源 `sources`、最早日历截止日 `calendarAsOf` 和已加载行情快照中最早的最新报价日 `marketDataThrough`。任一已加载行情快照没有报价时，`marketDataThrough` 为 `null`。四类 CSV 都从保存的运行快照追加 `dataSources`、`calendarAsOf`、`marketDataThrough`；行情截至日期只表示行情报价覆盖，宏观和 SEC 数据的观察/公开日期仍由各自数据诊断说明。
 
 ## 模块接口与目录组织
@@ -86,7 +90,7 @@
 | `metrics` | `summarize(trace, schedule)`：统一绩效指标 | `ledger` 输出 |
 | `search` | `runGridSearch(baseConfig, dimensions, snapshot)`：按稳定候选序号枚举并复用 `config/ledger/metrics`；无效候选保留诊断但不排名；排名依次按期末资产降序、绝对最大回撤升序和候选序号；指纹包含目录/算法版本及所有计算输入，复用时仍保留候选 ID 和 `strategy` 角色 | 纯配置、共享数据快照 |
 | `runs` | `createRun(snapshot)`、`getRun(id)` 与 `getLatestRun()`：编排、进度、局部失败、SQLite 持久化和恢复 | 上述模块 |
-| `api` | `/api/v1/catalog`、`/contracts`、`/config/validate`、`/runs`、`/runs/latest`、`/runs/{id}`：Pydantic/OpenAPI 契约、结构化字段诊断、范围选择及 `Idempotency-Key` | `catalog`、`config`、`runs` |
+| `api` | `/api/v1/catalog`、`/contracts`、`/config/validate`、`/runs`、`/runs/latest`、`/runs/{id}`、`/runs/{id}/events`：Pydantic/OpenAPI 契约、结构化字段诊断、范围选择、轻量 SSE 进度事件及 `Idempotency-Key` | `catalog`、`config`、`runs` |
 | `export` | `exportRun(runId, kind, focusedResultId)`：从已存结果生成 CSV | `runs` 结果，不重新计算 |
 
 建议目录按职责放置：`backend/app/catalog`、`config`、`data`、`domain`、`runs`、`export`；`frontend/src/features/config`、`strategies`、`runs`、`results`、`i18n`；统一表单控件放 `frontend/src/shared/ui`。这些是组织边界，不要求每个目录包装一个透传模块。领域契约只接收已物化的数据设置，不反向导入 catalog；注册表默认值与适用边界由 catalog/config 边界提供。数据供应商更换只改适配器，策略逻辑与 UI 契约不变。
