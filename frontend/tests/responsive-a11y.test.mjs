@@ -76,7 +76,7 @@ test("320px, 768px, and 1024px widths follow the responsive layout rules", () =>
   assert.match(blockFor(".shared-settings-group"), /min-width:\s*0/);
   assert.match(blockFor(".strategy-card-name"), /overflow-wrap:\s*anywhere/);
   assert.match(blockFor(".strategy-card-summary,\n.strategy-description"), /overflow-wrap:\s*anywhere/);
-  assert.match(blockFor(".page-heading > div"), /overflow-wrap:\s*anywhere/);
+  assert.doesNotMatch(app, /className="page-heading"/);
 });
 
 test("desktop workbench keeps top and selectors fixed with independent editor and results scrolling", () => {
@@ -99,17 +99,19 @@ test("desktop workbench keeps top and selectors fixed with independent editor an
   assert.match(tablet, /\.workbench-layout\s*\{[^}]*display:\s*grid/s);
   assert.match(tablet, /\.workbench-config\s*\{[^}]*position:\s*relative/s);
   assert.match(tablet, /\.workbench-results\s*\{[^}]*overflow-y:\s*auto/s);
-  assert.match(blockFor(".workbench-context"), /position:\s*sticky/);
+  assert.match(blockFor(".app-topbar"), /position:\s*sticky/);
+  assert.match(app, /<header className="app-topbar">[\s\S]*?className="topbar-brand"[\s\S]*?<RunControls/);
+  assert.doesNotMatch(app, /className="page-heading"/);
 });
 
-test("mobile workbench exposes separate configuration and results views under the fixed context", () => {
+test("mobile workbench exposes separate configuration and results views under the fixed topbar", () => {
   const mobile = mediaBlock("@media (max-width: 767px)");
   const phone = mediaBlock("@media (max-width: 420px)");
   assert.match(blockFor(".workbench-mobile-views"), /display:\s*none/);
   assert.match(css, /\.workbench-mobile-views\s*\{[^}]*display:\s*grid/s);
   assert.match(css, /\.workbench-config-toggle\s*\{\s*display:\s*none/s);
-  assert.match(mobile, /\.workbench-context\s*\{[^}]*top:\s*60px/s);
-  assert.match(phone, /\.workbench-context\s*\{\s*top:\s*104px/s);
+  assert.match(css, /\.app-topbar\s*\{[^}]*grid-template-areas:\s*"brand locale" "controls controls"/s);
+  assert.match(blockFor(".app-topbar"), /position:\s*sticky/);
   assert.match(prototype, /class="mobile-views"/);
 });
 
@@ -220,12 +222,13 @@ test("shared settings use a modal and the sidebar toggle has one fixed location"
   assert.match(settingsDialog, /aria-modal="true"/);
   assert.match(settingsDialog, /dialog\.showModal\(\)/);
   assert.match(settingsDialog, /onCancel=\{/);
-  assert.match(app, /className="workbench-heading-actions"[\s\S]*?className="button workbench-config-toggle icon-only-button"/);
+  assert.match(app, /className="topbar-brand"[\s\S]*?className="button workbench-config-toggle icon-only-button"/);
   assert.doesNotMatch(app, /className="workbench-config-header"[\s\S]*?workbench-config-toggle/);
-  assert.match(app, /aria-expanded=\{!configCollapsed\}[\s\S]*setConfigCollapsed\(\(current\) => !current\)/);
+  assert.match(app, /aria-expanded=\{catalog && workspace \? !configCollapsed : undefined\}[\s\S]*disabled=\{!catalog \|\| !workspace\}[\s\S]*setConfigCollapsed\(\(current\) => !current\)/);
   assert.doesNotMatch(app, /<details className="shared-settings-disclosure"/);
   const tablet = mediaBlock("@media (min-width: 768px) and (max-width: 1279px)");
-  assert.match(tablet, /\.main-content\.workbench-main\s*\{[^}]*height:\s*calc\(100dvh - 60px\)/s);
+  assert.match(tablet, /--app-topbar-height:\s*105px/);
+  assert.match(tablet, /\.main-content\.workbench-main\s*\{[^}]*height:\s*calc\(100dvh - var\(--app-topbar-height\)\)/s);
   assert.match(tablet, /\.workbench-layout\s*\{[^}]*min-height:\s*0/s);
 });
 
@@ -233,8 +236,9 @@ test("space-saving workbench controls retain an accessible text name", () => {
   assert.match(app, /className="button workbench-config-toggle icon-only-button"[^>]*aria-label=\{translate\(locale, configCollapsed \? "workbench\.showConfig" : "workbench\.hideConfig"\)\}/);
   assert.match(app, /configCollapsed \? "›" : "‹"/);
   assert.match(app, /aria-label=\{translate\(locale, configCollapsed \? "workbench\.showConfig" : "workbench\.hideConfig"\)\}/);
-  assert.match(runControls, /aria-label=\{translate\(locale, busy \? "run\.submitting" : "run\.submit"\)\}/);
+  assert.match(runControls, /aria-label=\{translate\(locale, busy \? "run\.submitting" : completedFeedback \? "run\.complete" : "run\.submit"\)\}/);
   assert.match(runControls, /className="run-play-icon"/);
+  assert.match(runControls, /className="run-scope-select"/);
   assert.doesNotMatch(runControls, /translate\(locale, "run\.submit"\)<\/button>/);
   assert.match(css, /\.display-toggle\s*\{[^}]*width:\s*38px/s);
   assert.match(css, /\.display-toggle svg\s*\{[^}]*stroke:\s*currentColor/s);
@@ -260,7 +264,7 @@ test("base button styles precede and preserve emphasized action colors", () => {
 test("wheel zoom mode and primary run icon have clear visual affordances", () => {
   assert.match(runControls, /className="run-play-icon"/);
   assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-accent\)/);
-  assert.match(css, /\.workbench-context \.run-controls \.button-primary\s*\{[^}]*width:\s*44px/s);
+  assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*44px/s);
   assert.match(css, /\.chart-wheel-zoom-toggle\[aria-pressed="true"\]/);
   assert.match(css, /\.shared-settings-dialog/);
 });

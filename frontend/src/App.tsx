@@ -80,7 +80,10 @@ function App() {
   const sharedSettingsTriggerRef = useRef<HTMLButtonElement>(null);
   const strategySequence = useRef(2);
   const activeRunController = useRef<AbortController | null>(null);
+  const runSubmissionLocked = useRef(false);
   const submittedRunRef = useRef(false);
+  const completionFeedbackTimer = useRef<number | null>(null);
+  const [completedFeedback, setCompletedFeedback] = useState(false);
 
   const catalog = catalogState.status === "ready" ? catalogState.value : null;
   const draftForValidation = workspace?.draft ?? null;
@@ -201,7 +204,10 @@ function App() {
     return () => controller.abort();
   }, [catalog, draftForValidation]);
 
-  useEffect(() => () => activeRunController.current?.abort(), []);
+  useEffect(() => () => {
+    activeRunController.current?.abort();
+    if (completionFeedbackTimer.current !== null) window.clearTimeout(completionFeedbackTimer.current);
+  }, []);
 
   const currentValidation = workspace && validationState?.draft === workspace.draft
     ? validationState.response
@@ -221,7 +227,7 @@ function App() {
   };
 
   const handleRun = async () => {
-    if (!catalog || !workspace || runBusy) return;
+    if (!catalog || !workspace || runBusy || runSubmissionLocked.current) return;
     submittedRunRef.current = true;
     const submittedDraft = workspace.draft;
     const submittedScope = workspace.runScope;
@@ -231,7 +237,11 @@ function App() {
     const controller = new AbortController();
     activeRunController.current?.abort();
     activeRunController.current = controller;
+    runSubmissionLocked.current = true;
     setRunBusy(true);
+    if (completionFeedbackTimer.current !== null) window.clearTimeout(completionFeedbackTimer.current);
+    completionFeedbackTimer.current = null;
+    setCompletedFeedback(false);
     setRunError(null);
 
     try {
@@ -279,11 +289,19 @@ function App() {
       );
       const completed = await fetchRun(accepted.runId, controller.signal);
       dispatch({ type: "run.update", value: completed });
+      if (completed.status === "completed" || completed.status === "completed_with_warning") {
+        setCompletedFeedback(true);
+        completionFeedbackTimer.current = window.setTimeout(() => {
+          setCompletedFeedback(false);
+          completionFeedbackTimer.current = null;
+        }, 2400);
+      }
     } catch (error) {
       if (controller.signal.aborted) return;
       setRunError(asRunApiError(error));
     } finally {
       if (activeRunController.current === controller) activeRunController.current = null;
+      runSubmissionLocked.current = false;
       setRunBusy(false);
     }
   };
@@ -294,12 +312,37 @@ function App() {
 
   return (
     <div className="app-frame" lang={locale === "ja" ? "ja" : "zh-Hans"}>
+      <h1 className="sr-only">{translate(locale, "page.title")}</h1>
       <a className="skip-link" href="#main-content">{translate(locale, "app.skipToMain")}</a>
       <header className="app-topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">B</span>
-          <span className="brand-name">{translate(locale, "app.name")}</span>
+        <div className="topbar-brand">
+          <button
+            className="button workbench-config-toggle icon-only-button"
+            type="button"
+            aria-label={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
+            title={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
+            aria-expanded={catalog && workspace ? !configCollapsed : undefined}
+            disabled={!catalog || !workspace}
+            onClick={() => setConfigCollapsed((current) => !current)}
+          >
+            <span aria-hidden="true">{configCollapsed ? "›" : "‹"}</span>
+          </button>
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">B</span>
+            <span className="brand-name">{translate(locale, "app.name")}</span>
+          </div>
         </div>
+        {catalog && workspace && (
+          <RunControls
+            locale={locale}
+            runScope={workspace.runScope}
+            availability={availability}
+            busy={runBusy}
+            completedFeedback={completedFeedback}
+            onScopeChange={(runScope) => dispatch({ type: "run.scope", value: runScope })}
+            onRun={() => void handleRun()}
+          />
+        )}
         <div className="topbar-right">
           <span className="local-tag">{translate(locale, "app.localOnly")}</span>
           <LocaleControl locale={locale} onChange={setLocale} />
@@ -308,46 +351,6 @@ function App() {
 
       <main id="main-content" className="main-content workbench-main" style={workbenchStyle}>
         <div className="workbench-context">
-          <div className="page-heading">
-            <div>
-              <h1>{translate(locale, "page.title")}</h1>
-              <div className="workbench-run-summary" aria-label={translate(locale, "page.subtitle")}>
-                <strong>{workspace?.draft.shared.run.symbol ?? "—"}</strong>
-                <span>{workspace?.draft.shared.run.startDate ?? "—"}</span>
-                <span aria-hidden="true">→</span>
-                <span>
-                  {workspace?.draft.shared.run.endMode === "latest"
-                    ? translate(locale, "end.latest")
-                    : workspace?.draft.shared.run.endDate ?? "—"}
-                </span>
-                <span className="workbench-summary-separator" aria-hidden="true">·</span>
-                <span>
-                  {interpolate(translate(locale, "workbench.funding"), {
-                    amount: workspace?.draft.shared.contribution.amount ?? "—",
-                    day: String(workspace?.draft.shared.contribution.day ?? "—"),
-                  })}
-                </span>
-              </div>
-            </div>
-            <div className="workbench-heading-actions">
-              {catalog && workspace && (
-                <button
-                  className="button workbench-config-toggle icon-only-button"
-                  type="button"
-                  aria-label={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
-                  title={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
-                  aria-expanded={!configCollapsed}
-                  onClick={() => setConfigCollapsed((current) => !current)}
-                >
-                  <span aria-hidden="true">{configCollapsed ? "›" : "‹"}</span>
-                </button>
-              )}
-              <span className="status-tag" role="status">
-                {translate(locale, workspace?.runResponse ? `status.${workspace.runResponse.status}` : "status.empty")}
-              </span>
-            </div>
-          </div>
-
           {catalogState.status === "loading" && (
             <div className="catalog-notice" role="status" aria-live="polite">
               <span className="loading-indicator" aria-hidden="true" />
@@ -367,16 +370,6 @@ function App() {
             </div>
           )}
 
-          {catalog && workspace && (
-            <RunControls
-              locale={locale}
-              runScope={workspace.runScope}
-              availability={availability}
-              busy={runBusy}
-              onScopeChange={(runScope) => dispatch({ type: "run.scope", value: runScope })}
-              onRun={() => void handleRun()}
-            />
-          )}
           {catalog && workspace && (
             <div className="workbench-mobile-views" role="group" aria-label={translate(locale, "workbench.mobile.label")}>
               <button

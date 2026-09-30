@@ -96,11 +96,14 @@ test("catalog selector renders every available preset with accessible controls",
     runScope: "active",
     availability: { disabled: false, reasonKey: null },
     busy: false,
+    completedFeedback: false,
     onScopeChange() {},
     onRun() {},
   }));
-  assert.match(controls, /role="group" aria-label="运行范围"/);
-  assert.match(controls, /aria-pressed="true">当前策略/);
+  assert.match(controls, /<select id="run-scope-select" class="run-scope-select"[^>]*aria-describedby="run-scope-help"/);
+  assert.match(controls, /<option value="active" selected="">当前策略<\/option>/);
+  assert.match(controls, /id="run-scope-help" class="sr-only">/);
+  assert.doesNotMatch(controls, /aria-pressed=/);
 });
 
 test("strategy navigation lists every instance while the editor only expands the selected one", () => {

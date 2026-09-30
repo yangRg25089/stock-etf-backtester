@@ -104,7 +104,7 @@ test.describe("responsive product shell", () => {
 test("shared settings dialog edits the draft, restores focus, and the sidebar toggle stays fixed", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const sidebarToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+  const sidebarToggle = page.locator(".app-topbar .workbench-config-toggle");
   await expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
   await expect(sidebarToggle).toHaveCSS("background-color", "rgb(20, 125, 104)");
   const initialPosition = await sidebarToggle.boundingBox();
@@ -150,7 +150,7 @@ test("shared settings dialog edits the draft, restores focus, and the sidebar to
     await page.setViewportSize({ width, height: 600 });
     await page.goto("/");
     if (width >= 768) {
-      const tabletToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+      const tabletToggle = page.locator(".app-topbar .workbench-config-toggle");
       const before = await tabletToggle.boundingBox();
       await tabletToggle.click();
       const after = await tabletToggle.boundingBox();
@@ -186,6 +186,51 @@ test("shared settings dialog edits the draft, restores focus, and the sidebar to
   }
 });
 
+test("one fixed topbar owns the run action and selected scope", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const topbar = page.locator(".app-topbar");
+  await expect(page.locator(".page-heading")).toHaveCount(0);
+  await expect(topbar.locator(".run-controls")).toBeVisible();
+  await expect(page.locator(".run-controls")).toHaveCount(1);
+  await expect(page.locator(".run-submit-button")).toHaveCount(1);
+
+  const scope = page.getByRole("combobox", { name: "実行範囲" });
+  await expect(scope).toHaveValue("all_enabled");
+  await expect(scope.locator("option")).toHaveCount(2);
+  await expect(page.locator("#run-scope-help")).toContainText("有効な全戦略と基準");
+
+  const toggle = topbar.locator(".workbench-config-toggle");
+  const before = await toggle.boundingBox();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(await toggle.boundingBox()).toEqual(before);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+  await scope.selectOption("active");
+  const postRequests = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/api/v1/runs")) postRequests.push(request);
+  });
+  const submitted = page.waitForRequest((request) =>
+    request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
+  );
+  const completed = page.waitForResponse(async (response) => {
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
+    if (!response.ok()) return false;
+    return ["completed", "completed_with_warning", "unavailable", "failed"]
+      .includes((await response.json()).status);
+  });
+  await page.getByRole("button", { name: "バックテストを実行" }).click({ clickCount: 2, delay: 60 });
+  const payload = (await submitted).postDataJSON();
+  expect(payload.scope).toBe("active");
+  expect(payload.activeStrategyId).toBe("strategy-vix_dca-1");
+  await completed;
+  expect(postRequests).toHaveLength(1);
+  await expect(page.locator(".run-complete-feedback")).toBeVisible();
+});
+
 test("workbench avoids reserved blank space across width and height breakpoints", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 600 });
   await page.goto("/");
@@ -203,6 +248,8 @@ test("workbench avoids reserved blank space across width and height breakpoints"
           viewportWidth: window.innerWidth,
           viewportHeight: window.innerHeight,
           documentHeight: document.documentElement.scrollHeight,
+          topbarHeight: document.querySelector(".app-topbar").getBoundingClientRect().height,
+          mainTop: main.top,
           mainBottom: main.bottom,
           mainHeight: main.height,
           layoutBottom: layout.bottom,
@@ -225,7 +272,7 @@ test("touch tablets keep the configuration and results in two in-flow columns", 
   const context = await browser.newContext({ viewport: { width: 1024, height: 900 }, hasTouch: true });
   const page = await context.newPage();
   await page.goto("/");
-  await page.locator(".workbench-heading-actions .workbench-config-toggle").click();
+  await page.locator(".app-topbar .workbench-config-toggle").click();
   const geometry = await page.evaluate(() => ({
     coarse: window.matchMedia("(pointer: coarse)").matches,
     columns: getComputedStyle(document.querySelector(".workbench-layout")).gridTemplateColumns.split(" ").length,
@@ -256,14 +303,11 @@ test("mobile views switch between configuration and results while keeping the pa
   await expect(page.locator(".workbench-config")).toBeVisible();
   await expect(page.locator(".workbench-results")).toBeHidden();
   await expect(page.locator(".strategy-card-select")).toHaveCount(1);
-  const stickyHeaders = await page.evaluate(() => {
+  const stickyHeader = await page.evaluate(() => {
     window.scrollTo(0, document.documentElement.scrollHeight);
-    return {
-      topbarBottom: document.querySelector(".app-topbar").getBoundingClientRect().bottom,
-      contextTop: document.querySelector(".workbench-context").getBoundingClientRect().top,
-    };
+    return document.querySelector(".app-topbar").getBoundingClientRect().top;
   });
-  expect(stickyHeaders.contextTop).toBeGreaterThanOrEqual(stickyHeaders.topbarBottom - 1);
+  expect(stickyHeader).toBe(0);
 
   await resultsView.click();
   await expect(resultsView).toHaveAttribute("aria-pressed", "true");
@@ -304,7 +348,8 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
   await expect(page.locator("#preset-to-add")).toHaveValue("");
   await expect(page.locator(".strategy-parameter-group h4").filter({ hasText: "VIX シグナル" })).toBeVisible();
   await expect(page.locator("#field-strategy-vix_dca-1-vix-symbol-hint")).toContainText("買付・売却シグナル");
-  await expect(page.locator(".run-scope-option .field-hint")).toBeVisible();
+  await expect(page.locator("#run-scope-select")).toHaveAttribute("aria-describedby", "run-scope-help");
+  await expect(page.locator("#run-scope-help")).toContainText("有効な全戦略と基準");
   for (const presetId of [
     "vix_dca",
     "composite_dca",
@@ -385,7 +430,7 @@ test("shared summary follows the single form and strategy selection preserves in
   await page.locator(".strategy-card-select").filter({ hasText: "VIX シグナル積立" }).click();
   await expect(page.locator("#strategy-editor-heading")).toHaveText("VIX シグナル積立");
   await expect(page.locator(".strategy-enabled-control input").first()).toBeChecked();
-  await expect(page.locator('.run-scope-option button[aria-pressed="true"]')).toContainText("有効な戦略");
+  await expect(page.locator("#run-scope-select")).toHaveValue("all_enabled");
   await expect(benchmark).toHaveAttribute("aria-pressed", "true");
   await expect(chartToggle).toHaveAttribute("aria-pressed", "false");
 
@@ -458,7 +503,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(saved.status).toBe("completed");
   expect(strategy.status).toBe("completed");
   expect(benchmark.role).toBe("benchmark");
-  await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
+  await expect(page.locator(".run-status-heading .status-tag").first()).toContainText("完了");
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
   await expect(page.locator(".metric-grid-core .metric-card")).toHaveCount(5);
@@ -532,6 +577,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     const measurements = await page.evaluate(() => ({
       viewportHeight: window.innerHeight,
       documentHeight: document.documentElement.scrollHeight,
+      topbarHeight: document.querySelector(".app-topbar").getBoundingClientRect().height,
+      mainTop: document.querySelector(".main-content.workbench-main").getBoundingClientRect().top,
       mainBottom: document.querySelector(".main-content.workbench-main").getBoundingClientRect().bottom,
       resultsClientHeight: document.querySelector(".workbench-results").clientHeight,
       resultsScrollHeight: document.querySelector(".workbench-results").scrollHeight,
@@ -833,7 +880,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await page.getByRole("tab", { name: "CSV 出力" }).click();
   expect(restored.runId).toBe(saved.runId);
   expect(restored.status).toBe("completed");
-  await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
+  await expect(page.locator(".run-status-heading .status-tag").first()).toContainText("完了");
   const restoredStrategy = restored.result.strategyRuns.find(
     (item) => item.id === "strategy-vix_dca-1",
   );
@@ -910,11 +957,11 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await resumedResultResponse;
   expect(resumedEvents).toHaveLength(1);
   expect(resumedResultGets).toHaveLength(1);
-  await expect(page.locator(".page-heading [role=status]")).toContainText("完了");
+  await expect(page.locator(".run-status-heading .status-tag").first()).toContainText("完了");
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator(".workbench-config")).toBeVisible();
-  const persistentSettingsToggle = page.locator(".workbench-heading-actions .workbench-config-toggle");
+  const persistentSettingsToggle = page.locator(".app-topbar .workbench-config-toggle");
   await persistentSettingsToggle.click();
   await expect(persistentSettingsToggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator(".workbench-config")).toHaveCount(0);
