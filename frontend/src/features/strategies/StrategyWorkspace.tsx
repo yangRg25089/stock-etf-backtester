@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch } from "react";
 import type { Catalog, DraftValidationResponse, StrategyPresetId } from "../../api/generated";
 import { interpolate, translate, type Locale } from "../../i18n/messages";
 import { StrategyEditorDialog } from "./StrategyEditorDialog";
@@ -12,9 +12,17 @@ interface StrategyNavigatorProps {
   validation: DraftValidationResponse | null;
   dispatch: Dispatch<WorkspaceAction>;
   onAdd(presetId: StrategyPresetId): void;
+  fieldNavigation?: StrategyFieldNavigation | null;
+  onFieldNavigationHandled?(): void;
 }
 
 type PendingFocus = { strategyId: string } | { presetSelector: true };
+
+export interface StrategyFieldNavigation {
+  strategyId: string;
+  parameterKey: string;
+  fieldIndex?: number;
+}
 
 export function StrategyNavigator({
   catalog,
@@ -23,9 +31,13 @@ export function StrategyNavigator({
   validation,
   dispatch,
   onAdd,
+  fieldNavigation = null,
+  onFieldNavigationHandled,
 }: StrategyNavigatorProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<StrategyPresetId | "">("");
   const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
+  const [focusFieldKey, setFocusFieldKey] = useState<string | null>(null);
+  const [focusFieldIndex, setFocusFieldIndex] = useState<number | undefined>();
   const cardButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const editTriggerRef = useRef<HTMLButtonElement | null>(null);
   const presetSelectRef = useRef<HTMLSelectElement>(null);
@@ -35,6 +47,10 @@ export function StrategyNavigator({
   const editingDiagnostics = editingStrategy
     ? validation?.strategies?.find((item) => item.strategyId === editingStrategy.id)?.diagnostics ?? []
     : [];
+  const handleFieldFocusHandled = useCallback(() => {
+    setFocusFieldKey(null);
+    setFocusFieldIndex(undefined);
+  }, []);
 
   useEffect(() => {
     const pendingFocus = pendingFocusRef.current;
@@ -46,6 +62,20 @@ export function StrategyNavigator({
       presetSelectRef.current?.focus();
     }
   }, [state.draft.strategies]);
+
+  useEffect(() => {
+    if (!fieldNavigation) return;
+    const target = state.draft.strategies.find((strategy) => strategy.id === fieldNavigation.strategyId);
+    if (!target) {
+      onFieldNavigationHandled?.();
+      return;
+    }
+    editTriggerRef.current = cardButtonRefs.current.get(target.id) ?? null;
+    setFocusFieldKey(fieldNavigation.parameterKey);
+    setFocusFieldIndex(fieldNavigation.fieldIndex);
+    setEditingStrategyId(target.id);
+    onFieldNavigationHandled?.();
+  }, [fieldNavigation, onFieldNavigationHandled, state.draft.strategies]);
 
   const removeStrategy = (id: string, index: number) => {
     const adjacentStrategy = state.draft.strategies[index + 1] ?? state.draft.strategies[index - 1];
@@ -136,6 +166,8 @@ export function StrategyNavigator({
                   aria-controls={`strategy-dialog-${strategy.id}`}
                   onClick={(event) => {
                     editTriggerRef.current = event.currentTarget;
+                    setFocusFieldKey(null);
+                    setFocusFieldIndex(undefined);
                     setEditingStrategyId(strategy.id);
                   }}
                 >
@@ -184,6 +216,7 @@ export function StrategyNavigator({
                     className="icon-button strategy-remove"
                     type="button"
                     aria-label={interpolate(translate(locale, "strategy.remove"), { name })}
+                    title={interpolate(translate(locale, "strategy.remove"), { name })}
                     onClick={() => removeStrategy(strategy.id, index)}
                   >
                     ×
@@ -202,6 +235,9 @@ export function StrategyNavigator({
           strategy={editingStrategy}
           locale={locale}
           errors={editingDiagnostics}
+          focusFieldKey={focusFieldKey}
+          focusFieldIndex={focusFieldIndex}
+          onFieldFocusHandled={handleFieldFocusHandled}
           returnFocusRef={editTriggerRef}
           onChange={(key, value) => dispatch({
             type: "strategy.param",
@@ -209,7 +245,11 @@ export function StrategyNavigator({
             key,
             value,
           })}
-          onClose={() => setEditingStrategyId(null)}
+          onClose={() => {
+            setEditingStrategyId(null);
+            setFocusFieldKey(null);
+            setFocusFieldIndex(undefined);
+          }}
         />
       )}
     </section>

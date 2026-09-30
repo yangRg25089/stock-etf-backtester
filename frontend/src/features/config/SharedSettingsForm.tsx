@@ -17,7 +17,7 @@ interface SharedSettingsFormProps {
   resolvedLatestEndDate?: string | null;
 }
 
-const SHARED_FIELD_KEYS = [
+export const SHARED_FIELD_KEYS = [
   "run.symbol",
   "run.startDate",
   "run.endDate",

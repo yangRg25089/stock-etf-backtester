@@ -121,7 +121,6 @@ export function ResultComparison({
                     onClick={() => onFocus(result.id)}
                   >
                     <span>{translate(locale, `presets.${result.presetId}.name`)}</span>
-                    <small>{result.id}</small>
                   </button>
                 </th>
                 <td>{translate(locale, `results.role.${result.role}`)}</td>

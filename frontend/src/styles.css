@@ -1428,6 +1428,36 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.diagnostic-field-link {
+  display: inline-grid;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  place-items: center;
+  margin-left: 5px;
+  padding: 0;
+  color: var(--app-accent);
+  vertical-align: middle;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.diagnostic-field-link:hover {
+  background: var(--app-accent-soft);
+}
+
+.diagnostic-field-link svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
 .diagnostic-context {
   display: block;
   margin-top: 3px;
@@ -2336,21 +2366,8 @@ h2 {
   min-width: 0;
 }
 
-.search-results h3 {
-  font-size: 14px;
-  font-weight: 650;
-}
-
 .search-table {
   min-width: 720px;
-}
-
-.search-table tbody th small {
-  display: block;
-  margin-top: 3px;
-  color: var(--app-muted);
-  font-size: 10px;
-  font-weight: 400;
 }
 
 .search-table td:last-child {
@@ -2413,9 +2430,9 @@ h2 {
 
 .display-toggle {
   display: inline-grid;
-  width: 38px;
-  min-width: 38px;
-  min-height: 38px;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
   place-items: center;
   padding: 0;
   color: var(--app-muted);
@@ -3040,6 +3057,8 @@ h2 {
   .run-controls .button-primary,
   .run-scope-select,
   .shared-settings-open-button,
+  .workbench-results .diagnostic-field-link,
+  .workbench-results .display-toggle,
   .workbench-results .legend-toggle,
   .workbench-results .chart-layout-controls button,
   .workbench-results .chart-range-controls button,

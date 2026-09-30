@@ -3,6 +3,7 @@ import type { Catalog, Diagnostic } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import type { SharedDraft } from "./defaults";
 import { SharedSettingsForm } from "./SharedSettingsForm";
+import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 
 interface SharedSettingsDialogProps {
   catalog: Catalog;
@@ -10,8 +11,10 @@ interface SharedSettingsDialogProps {
   locale: Locale;
   errors?: Diagnostic[];
   resolvedLatestEndDate?: string | null;
+  focusFieldKey?: string | null;
   onChange(value: SharedDraft): void;
   onClose(): void;
+  onFieldFocusHandled?(): void;
   returnFocusRef: RefObject<HTMLButtonElement>;
 }
 
@@ -21,8 +24,10 @@ export function SharedSettingsDialog({
   locale,
   errors = [],
   resolvedLatestEndDate = null,
+  focusFieldKey = null,
   onChange,
   onClose,
+  onFieldFocusHandled,
   returnFocusRef,
 }: SharedSettingsDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -42,6 +47,18 @@ export function SharedSettingsDialog({
       if (dialog.open) dialog.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (!focusFieldKey) return;
+    const frame = window.requestAnimationFrame(() => {
+      const fieldId = parameterFieldId(focusFieldKey);
+      const target = document.getElementById(fieldId) ?? document.getElementById(`${fieldId}-0`);
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "center" });
+      onFieldFocusHandled?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusFieldKey, onFieldFocusHandled]);
 
   return (
     <dialog

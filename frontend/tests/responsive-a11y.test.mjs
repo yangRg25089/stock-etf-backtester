@@ -246,7 +246,7 @@ test("space-saving workbench controls retain an accessible text name", () => {
   assert.match(runControls, /className="run-play-icon"/);
   assert.match(runControls, /className="run-scope-select"/);
   assert.doesNotMatch(runControls, /translate\(locale, "run\.submit"\)<\/button>/);
-  assert.match(css, /\.display-toggle\s*\{[^}]*width:\s*38px/s);
+  assert.match(css, /\.display-toggle\s*\{[^}]*width:\s*44px/s);
   assert.match(css, /\.display-toggle svg\s*\{[^}]*stroke:\s*currentColor/s);
 });
 

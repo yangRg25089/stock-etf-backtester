@@ -12,8 +12,9 @@ import {
 } from "./api/runs";
 import type { RunProgressEvent } from "./api/runs";
 import { SharedSettingsDialog } from "./features/config/SharedSettingsDialog";
+import { SHARED_FIELD_KEYS } from "./features/config/SharedSettingsForm";
 import { RunControls } from "./features/runs/RunControls";
-import { DiagnosticList } from "./features/runs/StatusView";
+import { DiagnosticList, type DiagnosticFieldAction } from "./features/runs/StatusView";
 import { ResultViewer } from "./features/results/ResultViewer";
 import {
   createInitialWorkspaceState,
@@ -24,7 +25,10 @@ import {
   type WorkspaceAction,
   type WorkspaceState,
 } from "./features/strategies/model";
-import { StrategyNavigator } from "./features/strategies/StrategyWorkspace";
+import {
+  StrategyNavigator,
+  type StrategyFieldNavigation,
+} from "./features/strategies/StrategyWorkspace";
 import { interpolate, translate, type Locale } from "./i18n/messages";
 import { LocaleControl } from "./shared/ui/LocaleControl";
 import { WorkbenchDivider } from "./shared/ui/WorkbenchDivider";
@@ -76,6 +80,8 @@ function App() {
     typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches,
   );
   const [sharedSettingsDialogOpen, setSharedSettingsDialogOpen] = useState(false);
+  const [sharedSettingsFocusKey, setSharedSettingsFocusKey] = useState<string | null>(null);
+  const [strategyFieldNavigation, setStrategyFieldNavigation] = useState<StrategyFieldNavigation | null>(null);
   const [mobilePanel, setMobilePanel] = useState<"config" | "results">("results");
   const sharedSettingsTriggerRef = useRef<HTMLButtonElement>(null);
   const strategySequence = useRef(2);
@@ -306,6 +312,56 @@ function App() {
     }
   };
 
+  const handleSharedSettingsClosed = useCallback(() => {
+    setSharedSettingsDialogOpen(false);
+    setSharedSettingsFocusKey(null);
+  }, []);
+
+  const handleSharedFieldFocusHandled = useCallback(() => {
+    setSharedSettingsFocusKey(null);
+  }, []);
+
+  const handleStrategyFieldNavigationHandled = useCallback(() => {
+    setStrategyFieldNavigation(null);
+  }, []);
+
+  const fieldActionForDiagnostic = useCallback((diagnostic: Diagnostic): DiagnosticFieldAction | null => {
+    const fieldPath = diagnostic.fieldPath;
+    if (!fieldPath || !catalog || !workspace) return null;
+
+    const sharedKey = SHARED_FIELD_KEYS.find((key) => key === fieldPath);
+    if (sharedKey) {
+      const definition = catalog.parameters?.find((item) => item.key === sharedKey);
+      if (!definition) return null;
+      return {
+        label: translate(locale, definition.translationKey),
+        activate: () => {
+          setSharedSettingsFocusKey(sharedKey);
+          setSharedSettingsDialogOpen(true);
+        },
+      };
+    }
+
+    const match = /^strategies\[(\d+)\]\.params\.([A-Za-z][A-Za-z0-9_.-]*?)(?:\[(\d+)\])?$/.exec(fieldPath);
+    if (!match) return null;
+    const strategy = workspace.draft.strategies[Number(match[1])];
+    const parameterKey = match[2];
+    const fieldIndex = match[3] === undefined ? undefined : Number(match[3]);
+    if (!strategy) return null;
+    const preset = catalog.presets?.find((item) => item.id === strategy.presetId);
+    const definition = catalog.parameters?.find((item) => item.key === parameterKey);
+    if (!preset?.parameterKeys.includes(parameterKey) || !definition) return null;
+
+    return {
+      label: translate(locale, definition.translationKey),
+      activate: () => {
+        setStrategyFieldNavigation({ strategyId: strategy.id, parameterKey, fieldIndex });
+        setConfigCollapsed(false);
+        if (window.matchMedia("(max-width: 767px)").matches) setMobilePanel("config");
+      },
+    };
+  }, [catalog, locale, workspace]);
+
   const workbenchStyle = {
     "--workbench-config-width": `${configCollapsed ? 0 : configWidth}px`,
   } as CSSProperties & { "--workbench-config-width": string };
@@ -437,6 +493,8 @@ function App() {
                     validation={currentValidation}
                     dispatch={dispatch}
                     onAdd={handleAdd}
+                    fieldNavigation={strategyFieldNavigation}
+                    onFieldNavigationHandled={handleStrategyFieldNavigationHandled}
                   />
                 </div>
               </aside>
@@ -457,7 +515,11 @@ function App() {
               {currentValidation && validationDiagnostics(currentValidation).length > 0 && (
                 <section className="validation-diagnostics" aria-labelledby="validation-diagnostics-heading">
                   <h2 id="validation-diagnostics-heading">{translate(locale, "diagnostics.title")}</h2>
-                  <DiagnosticList locale={locale} diagnostics={validationDiagnostics(currentValidation)} />
+                  <DiagnosticList
+                    locale={locale}
+                    diagnostics={validationDiagnostics(currentValidation)}
+                    fieldAction={fieldActionForDiagnostic}
+                  />
                 </section>
               )}
               {validationState?.draft === workspace.draft && validationState.error && (
@@ -482,6 +544,8 @@ function App() {
           value={workspace.draft.shared}
           locale={locale}
           errors={currentValidation?.diagnostics ?? []}
+          focusFieldKey={sharedSettingsFocusKey}
+          onFieldFocusHandled={handleSharedFieldFocusHandled}
           resolvedLatestEndDate={
             workspace.runRequestedEndMode === "latest" &&
             workspace.runResponse?.snapshot.config.shared.run.endMode === "fixed"
@@ -489,7 +553,7 @@ function App() {
               : null
           }
           onChange={(value) => dispatch({ type: "shared.change", value })}
-          onClose={() => setSharedSettingsDialogOpen(false)}
+          onClose={handleSharedSettingsClosed}
           returnFocusRef={sharedSettingsTriggerRef}
         />
       )}

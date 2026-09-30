@@ -48,3 +48,29 @@ test("run API errors show the localized message without an internal error code",
   assert.match(html, /运行 ID：run-safe-1/);
   assertNoInternalDetails(html);
 });
+
+test("field diagnostics expose a localized action only when navigation is available", () => {
+  const actionable = renderToStaticMarkup(
+    React.createElement(DiagnosticList, {
+      locale: "zh",
+      diagnostics: [{ ...diagnostic, fieldPath: "strategies[0].params.vix.buyThreshold" }],
+      fieldAction() {
+        return {
+          label: "VIX 买入阈值",
+          activate() {},
+        };
+      },
+    }),
+  );
+  assert.match(actionable, /aria-label="打开「VIX 买入阈值」设置"/);
+  assert.match(actionable, /title="打开「VIX 买入阈值」设置"/);
+  assert.match(actionable, /class="diagnostic-field-link"/);
+
+  const passive = renderToStaticMarkup(
+    React.createElement(DiagnosticList, {
+      locale: "zh",
+      diagnostics: [{ ...diagnostic, fieldPath: "metrics.xirr" }],
+    }),
+  );
+  assert.doesNotMatch(passive, /diagnostic-field-link/);
+});

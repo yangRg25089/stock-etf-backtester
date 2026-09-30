@@ -511,7 +511,11 @@ test("shared summary follows the single form and strategy editing preserves inde
   await page.getByRole("button", { name: "バックテストを実行" }).click();
   await completed;
 
-  const benchmark = page.locator("button.result-select").filter({ hasText: "benchmark:monthly-dca" });
+  await page.getByRole("tab", { name: "戦略比較" }).click();
+  const benchmark = page.locator(".comparison-table tbody tr")
+    .filter({ hasText: "毎月定額積立" })
+    .filter({ hasText: "ベンチマーク" })
+    .locator("button.result-select");
   await benchmark.click();
   await expect(benchmark).toHaveAttribute("aria-pressed", "true");
   const chartToggle = page.getByRole("button", { name: "資産推移" });
@@ -605,6 +609,37 @@ test("strategy card actions stay separate and deletion returns focus to a useful
   await monthlyCard.locator(".strategy-remove").click();
   await expect(page.locator(".strategy-card")).toHaveCount(0);
   await expect(page.locator("#preset-to-add")).toBeFocused();
+});
+
+test("validation diagnostics open the matching settings dialog and focus its field", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  await page.locator(".shared-settings-open-button").click();
+  const contributionDay = page.locator("#field-contribution-day");
+  await contributionDay.fill("32");
+  await page.locator(".shared-settings-dialog .dialog-done").click();
+  const diagnostics = page.locator(".validation-diagnostics");
+  const sharedFieldAction = diagnostics.locator(".diagnostic-field-link");
+  await expect(sharedFieldAction).toBeVisible();
+  await sharedFieldAction.click();
+  const sharedDialog = page.locator(".shared-settings-dialog");
+  await expect(sharedDialog).toBeVisible();
+  await expect(sharedDialog.locator("#field-contribution-day")).toBeFocused();
+  await contributionDay.fill("1");
+  await page.locator(".shared-settings-dialog .dialog-done").click();
+  await expect(diagnostics).toHaveCount(0);
+
+  await page.locator(".strategy-card-open").first().click();
+  const strategyThreshold = page.locator('.strategy-dialog input[id$="-vix-buyThreshold"]');
+  await strategyThreshold.fill("-1");
+  await page.locator(".strategy-dialog .dialog-done").click();
+  const strategyFieldAction = page.locator(".validation-diagnostics .diagnostic-field-link");
+  await expect(strategyFieldAction).toBeVisible();
+  await strategyFieldAction.click();
+  const strategyDialog = page.locator(".strategy-dialog");
+  await expect(strategyDialog).toBeVisible();
+  await expect(strategyDialog.locator('input[id$="-vix-buyThreshold"]')).toBeFocused();
 });
 
 test("default VIX can run to a focused saved result, display toggles, and matching CSV", async ({ page }) => {
@@ -869,7 +904,10 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await page.getByRole("tab", { name: "戦略比較" }).click();
   await page.locator(".workbench-results").evaluate((element) => element.scrollTo(0, 0));
 
-  const benchmarkButton = page.locator("button.result-select").filter({ hasText: "benchmark:monthly-dca" });
+  const benchmarkButton = page.locator(".comparison-table tbody tr")
+    .filter({ hasText: "毎月定額積立" })
+    .filter({ hasText: "ベンチマーク" })
+    .locator("button.result-select");
   await benchmarkButton.click();
   await expect(benchmarkButton).toHaveAttribute("aria-pressed", "true");
 
@@ -901,7 +939,10 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator("svg[role=img]").first()).toBeVisible();
   await expect(coreChart).toHaveAttribute("data-window-start", chartWindowBeforeCollapse.start);
   await expect(coreChart).toHaveAttribute("data-window-end", chartWindowBeforeCollapse.end);
-  const strategyButton = page.locator("button.result-select").filter({ hasText: "strategy-vix_dca-1" });
+  const strategyButton = page.locator(".comparison-table tbody tr")
+    .filter({ hasText: "VIX シグナル積立" })
+    .filter({ hasText: "ユーザー戦略" })
+    .locator("button.result-select");
   await strategyButton.click();
   await expect(page.locator(".chart-panel.chart-vix")).toContainText("25");
   await expect(page.locator(".chart-panel.chart-vix .chart-threshold-line")).toHaveCount(1);
@@ -1122,13 +1163,15 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.getByRole("tab", { name: "概要" })).toHaveAttribute("aria-selected", "true");
   await tradeTab.click();
   await expect(tradeTab).toHaveAttribute("aria-selected", "true");
-  const tradeToggle = page.getByRole("button", { name: "取引明細を表示" });
+  let tradeToggle = page.getByRole("button", { name: "取引明細を隠す" });
   await expect(tradeToggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("table").last()).toBeVisible();
   await tradeToggle.click();
+  tradeToggle = page.getByRole("button", { name: "取引明細を表示" });
   await expect(tradeToggle).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByRole("table")).toHaveCount(0);
   await tradeToggle.click();
+  tradeToggle = page.getByRole("button", { name: "取引明細を隠す" });
   await expect(tradeToggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("table").last()).toBeVisible();
 
@@ -1314,12 +1357,16 @@ test("adding a strategy keeps the default run scope on every enabled strategy", 
     .toEqual(["strategy-vix_dca-1", "strategy-monthly_dca-2"]);
 
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(4);
-  await expect(page.locator(".comparison-table")).toContainText("strategy-vix_dca-1");
-  await expect(page.locator(".comparison-table")).toContainText("strategy-monthly_dca-2");
+  await expect(page.locator(".comparison-table tbody tr")
+    .filter({ hasText: "VIX シグナル積立" })
+    .filter({ hasText: "ユーザー戦略" })).toHaveCount(1);
+  await expect(page.locator(".comparison-table tbody tr")
+    .filter({ hasText: "毎月定額積立" })
+    .filter({ hasText: "ユーザー戦略" })).toHaveCount(1);
 });
 
 test("desktop workbench keeps the header, strategy list, and results in independent scroll regions", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1440, height: 700 });
   await page.goto("/");
   await expect(page.locator(".strategy-navigator .strategy-card-list")).toBeVisible();
   await expect(page.locator(".strategy-parameter-groups")).toHaveCount(0);

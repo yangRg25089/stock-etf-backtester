@@ -12,6 +12,13 @@ function tradeStatusIsComplete(status: StrategyStatus | undefined): boolean {
   return status === "completed" || status === "completed_with_warning";
 }
 
+function signalLabel(locale: Locale, signalId: string | null | undefined): string {
+  if (!signalId) return "—";
+  const key = `trade.signal.${signalId}`;
+  const label = translate(locale, key);
+  return label === key ? translate(locale, "trade.signalOther") : label;
+}
+
 export function TradeTable({ locale, status, trades }: TradeTableProps) {
   if (!tradeStatusIsComplete(status)) {
     return <p className="metric-empty" role="status">{translate(locale, "trade.unavailable")}</p>;
@@ -43,7 +50,7 @@ export function TradeTable({ locale, status, trades }: TradeTableProps) {
                 <td>{formatQuantity(trade.quantity, locale)}</td>
                 <td>{formatCurrency(trade.price, trade.currency, locale)}</td>
                 <td>{formatCurrency(trade.cashAmount, trade.currency, locale)}</td>
-                <td>{trade.signalId ?? "—"}</td>
+                <td>{signalLabel(locale, trade.signalId)}</td>
               </tr>
             ))}
           </tbody>

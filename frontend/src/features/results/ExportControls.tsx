@@ -43,6 +43,7 @@ export function ExportControls({ locale, runId, result }: ExportControlsProps) {
     <div className="export-controls" role="group" aria-label={translate(locale, "export.csvLabel")}>
       {EXPORT_KINDS.map((kind) => {
         const disabled = !runId || !resultId || !isExportAvailable(result, kind) || pendingKind !== null;
+        const label = `${translate(locale, "export.csvLabel")}: ${translate(locale, `export.kind.${kind}`)}`;
         return (
           <button
             className="button button-small"
@@ -51,7 +52,8 @@ export function ExportControls({ locale, runId, result }: ExportControlsProps) {
             data-export-kind={kind}
             disabled={disabled}
             onClick={() => void handleExport(kind)}
-            aria-label={`${translate(locale, "export.csvLabel")}: ${translate(locale, `export.kind.${kind}`)}`}
+            aria-label={label}
+            title={label}
           >
             {pendingKind === kind ? translate(locale, "export.downloading") : translate(locale, `export.kind.${kind}`)}
           </button>

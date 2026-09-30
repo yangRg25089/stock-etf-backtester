@@ -1,6 +1,6 @@
 import type { Diagnostic, RunResponse } from "../../api/generated";
 import { RunApiError } from "../../api/runs";
-import { translate, type Locale } from "../../i18n/messages";
+import { interpolate, translate, type Locale } from "../../i18n/messages";
 import { isPartialSuccess } from "../strategies/model";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -22,26 +22,56 @@ interface StatusViewProps {
   hideCleanSuccess?: boolean;
 }
 
-export function DiagnosticList({ locale, diagnostics }: { locale: Locale; diagnostics: Diagnostic[] }) {
+export interface DiagnosticFieldAction {
+  label: string;
+  activate(): void;
+}
+
+interface DiagnosticListProps {
+  locale: Locale;
+  diagnostics: Diagnostic[];
+  fieldAction?(diagnostic: Diagnostic): DiagnosticFieldAction | null;
+}
+
+export function DiagnosticList({ locale, diagnostics, fieldAction }: DiagnosticListProps) {
   if (diagnostics.length === 0) return null;
   return (
     <ul className="diagnostic-list">
-      {diagnostics.map((diagnostic, index) => (
-        <li key={`${diagnostic.code}-${diagnostic.fieldPath ?? "run"}-${index}`}>
-          <span className={`severity severity-${diagnostic.severity ?? "error"}`}>
-            {translate(locale, `severity.${diagnostic.severity ?? "error"}`)}
-          </span>
-          <div>
-            <span>{translate(locale, diagnostic.messageKey)}</span>
-            {diagnostic.messageKey === "diagnostics.calculation_failed" && (
-              <CalculationContext
-                locale={locale}
-                details={isRecord(diagnostic.details) ? diagnostic.details : {}}
-              />
-            )}
-          </div>
-        </li>
-      ))}
+      {diagnostics.map((diagnostic, index) => {
+        const action = fieldAction?.(diagnostic) ?? null;
+        const actionLabel = action
+          ? interpolate(translate(locale, "diagnostics.openField"), { field: action.label })
+          : null;
+        return (
+          <li key={`${diagnostic.code}-${diagnostic.fieldPath ?? "run"}-${index}`}>
+            <span className={`severity severity-${diagnostic.severity ?? "error"}`}>
+              {translate(locale, `severity.${diagnostic.severity ?? "error"}`)}
+            </span>
+            <div>
+              <span>{translate(locale, diagnostic.messageKey)}</span>
+              {diagnostic.messageKey === "diagnostics.calculation_failed" && (
+                <CalculationContext
+                  locale={locale}
+                  details={isRecord(diagnostic.details) ? diagnostic.details : {}}
+                />
+              )}
+              {action && actionLabel && (
+                <button
+                  className="diagnostic-field-link"
+                  type="button"
+                  aria-label={actionLabel}
+                  title={actionLabel}
+                  onClick={action.activate}
+                >
+                  <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                    <path d="M5 15 15 5M6 5h9v9" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }

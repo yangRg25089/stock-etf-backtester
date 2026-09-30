@@ -50,11 +50,12 @@ test("search results retain backend ranking, invalid candidates, and stable diag
     },
   }));
 
-  assert.ok(html.indexOf("candidate-3") < html.indexOf("candidate-1"));
-  assert.ok(html.indexOf("candidate-1") < html.indexOf("candidate-2"));
+  assert.ok(html.indexOf('<th scope="row"><span>2</span>') < html.indexOf('<th scope="row"><span>0</span>'));
+  assert.ok(html.indexOf('<th scope="row"><span>0</span>') < html.indexOf('<th scope="row"><span>1</span>'));
+  assert.doesNotMatch(html, /candidate-[123]/);
   assert.match(html, /计算过程中发生错误/);
   assert.doesNotMatch(html, /strategies\[0\]\.params\.vix\.buyThreshold/);
-  assert.match(html, /搜索候选（共 3 个）/);
+  assert.match(html, /class="sr-only">搜索候选（共 3 个）/);
   assert.match(html, /<caption class="sr-only">搜索候选/);
   assert.match(html, /<th scope="col">候选<\/th>/);
 });

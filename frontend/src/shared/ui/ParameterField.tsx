@@ -6,6 +6,7 @@ import {
   unitLabel,
   type Locale,
 } from "../../i18n/messages";
+import { parameterFieldId } from "./parameterFieldId";
 
 interface ParameterFieldProps {
   definition: ParameterDefinition;
@@ -60,7 +61,7 @@ export function ParameterField({
   helperText,
   helperLive = false,
 }: ParameterFieldProps) {
-  const fieldId = id ?? `field-${definition.key.replaceAll(".", "-")}`;
+  const fieldId = id ?? parameterFieldId(definition.key);
   const label = translate(locale, definition.translationKey);
   const unit = unitLabel(locale, definition.unit);
   const unmetDependencies = (definition.dependencies ?? []).filter(
@@ -199,6 +200,7 @@ export function ParameterField({
               className="icon-button"
               disabled={fieldDisabled || values.length <= 1}
               aria-label={interpolate(translate(locale, "field.removeItem"), { field: label })}
+              title={interpolate(translate(locale, "field.removeItem"), { field: label })}
               onClick={() => onChange(values.filter((_, itemIndex) => itemIndex !== index))}
             >
               −

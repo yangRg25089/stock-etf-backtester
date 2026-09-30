@@ -41,7 +41,6 @@ function CandidateRow({ locale, candidate }: { locale: Locale; candidate: Search
     <tr>
       <th scope="row">
         <span>{candidate.sequence}</span>
-        <small>{candidate.candidateId}</small>
       </th>
       <td><span className="status-tag">{translate(locale, `status.${candidate.status}`)}</span></td>
       <td>
@@ -72,7 +71,7 @@ export function SearchResults({ locale, searchResult }: SearchResultsProps) {
 
   return (
     <section className="search-results" aria-labelledby="search-results-title">
-      <h3 id="search-results-title">
+      <h3 className="sr-only" id="search-results-title">
         {translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}
       </h3>
       <div className="data-table-scroll">

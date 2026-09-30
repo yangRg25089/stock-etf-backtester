@@ -55,6 +55,7 @@ test("comparison table focuses the saved result identity and shows backend statu
 
   assert.match(html, /aria-pressed="true"><span>每月定额定投/);
   assert.match(html, /aria-pressed="false"><span>VIX 信号定投/);
+  assert.doesNotMatch(html, /benchmark-dca|vix-instance/);
   assert.match(html, /已完成，有警告/);
   assert.match(html, /资本倍数/);
 });

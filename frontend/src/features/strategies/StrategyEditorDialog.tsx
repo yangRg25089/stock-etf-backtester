@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import type { Catalog, Diagnostic, PresetDefinition } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
+import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 import type { StrategyDraft } from "./model";
 import { formatStrategySummary } from "./strategySummary";
 
@@ -10,8 +11,11 @@ interface StrategyEditorDialogProps {
   strategy: StrategyDraft;
   locale: Locale;
   errors?: Diagnostic[];
+  focusFieldKey?: string | null;
+  focusFieldIndex?: number;
   onChange(key: string, value: unknown): void;
   onClose(): void;
+  onFieldFocusHandled?(): void;
   returnFocusRef: RefObject<HTMLButtonElement>;
 }
 
@@ -103,7 +107,7 @@ export function StrategyEditorForm({
                 {group.fields.map((definition) => (
                   <ParameterField
                     key={definition.key}
-                    id={`field-${strategy.id}-${definition.key.replaceAll(".", "-")}`}
+                    id={parameterFieldId(definition.key, strategy.id)}
                     definition={definition}
                     value={strategy.params[definition.key]}
                     locale={locale}
@@ -129,8 +133,11 @@ export function StrategyEditorDialog({
   strategy,
   locale,
   errors = [],
+  focusFieldKey = null,
+  focusFieldIndex,
   onChange,
   onClose,
+  onFieldFocusHandled,
   returnFocusRef,
 }: StrategyEditorDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -151,6 +158,21 @@ export function StrategyEditorDialog({
       if (dialog.open) dialog.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (!focusFieldKey) return;
+    const frame = window.requestAnimationFrame(() => {
+      const fieldId = parameterFieldId(focusFieldKey, strategy.id);
+      const targetId = focusFieldIndex === undefined ? fieldId : `${fieldId}-${focusFieldIndex}`;
+      const target = document.getElementById(targetId) ??
+        document.getElementById(fieldId) ??
+        document.getElementById(`${fieldId}-0`);
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "center" });
+      onFieldFocusHandled?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusFieldIndex, focusFieldKey, onFieldFocusHandled, strategy.id]);
 
   if (!preset) return null;
 

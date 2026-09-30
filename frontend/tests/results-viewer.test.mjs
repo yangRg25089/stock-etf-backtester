@@ -69,7 +69,7 @@ function workspaceWithRun() {
       { date: "2024-01-02", signalId: "vix.buy", state: "false", observedValue: "18.2" },
       { date: "2024-01-03", signalId: "vix.buy", state: "true", observedValue: "27.4" },
     ],
-    trades: [trade("active-vix-trade", "2024-01-03")],
+    trades: [trade("ma.trend", "2024-01-03")],
     diagnostics: [],
   };
   const benchmark = {
@@ -82,7 +82,7 @@ function workspaceWithRun() {
       { date: "2024-02-01", simulationPrice: "100", currency: "USD", totalAsset: "110", unitNav: "1", drawdown: "0" },
       { date: "2024-02-02", simulationPrice: "105", currency: "USD", totalAsset: "130", unitNav: "1.1", drawdown: "-0.02" },
     ],
-    trades: [trade("focused-benchmark-trade", "2024-02-02")],
+    trades: [trade("vix.buy", "2024-02-02")],
     diagnostics: [],
   };
   const run = {
@@ -119,8 +119,8 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
   }));
 
   assert.match(html, /每月定额定投 · 基准/);
-  assert.match(html, /focused-benchmark-trade/);
-  assert.doesNotMatch(html, /active-vix-trade/);
+  assert.match(html, /VIX 买入信号/);
+  assert.doesNotMatch(html, /移動平均トレンド/);
   assert.match(html, /2024-02-02/);
   assert.match(html, /data-export-kind="summary"/);
   assert.match(html, /class="collapsible-panel-toggle"[^>]*aria-expanded="true"[^>]*aria-controls="result-details-content"/);
@@ -276,7 +276,10 @@ test("chart and trade display controls are independent and chart legend remains 
   assert.doesNotMatch(chartOnly, /class="data-table trade-table"/);
   assert.match(chartOnly, /id="result-chart-panel-toggle"[^>]*aria-expanded="true"/);
   assert.match(chartOnly, /id="result-chart-panel-heading"[^>]*>.*?<span>資産推移<\/span>/s);
-  assert.match(chartOnly, /aria-pressed="false">取引明細を表示/);
+  assert.match(chartOnly, /class="display-toggle icon-only-button"[^>]*aria-pressed="false"[^>]*aria-label="取引明細を表示"/);
+  assert.match(chartOnly, /<svg class="trade-display-icon"/);
+  assert.match(chartOnly, /class="sr-only" id="result-comparison-heading">実行結果の比較/);
+  assert.match(chartOnly, /class="sr-only" id="result-trades-heading">取引明細/);
 
   state.showChart = false;
   state.showTrades = true;
