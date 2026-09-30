@@ -24,7 +24,7 @@ import {
   type WorkspaceAction,
   type WorkspaceState,
 } from "./features/strategies/model";
-import { StrategyEditor, StrategyNavigator } from "./features/strategies/StrategyWorkspace";
+import { StrategyNavigator } from "./features/strategies/StrategyWorkspace";
 import { interpolate, translate, type Locale } from "./i18n/messages";
 import { LocaleControl } from "./shared/ui/LocaleControl";
 import { WorkbenchDivider } from "./shared/ui/WorkbenchDivider";
@@ -437,19 +437,6 @@ function App() {
                     validation={currentValidation}
                     dispatch={dispatch}
                     onAdd={handleAdd}
-                  />
-                </div>
-                <div
-                  className="workbench-editor-scroll"
-                  role="region"
-                  aria-label={translate(locale, "section.strategyWorkspace")}
-                >
-                  <StrategyEditor
-                    catalog={catalog}
-                    locale={locale}
-                    state={workspace}
-                    validation={currentValidation}
-                    dispatch={dispatch}
                   />
                 </div>
               </aside>

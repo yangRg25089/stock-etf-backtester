@@ -73,23 +73,23 @@ test("320px, 768px, and 1024px widths follow the responsive layout rules", () =>
   assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.shared-settings-dialog \.shared-settings-fields-range,[\s\S]*?\.shared-settings-dialog \.shared-settings-fields-funding\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
   assert.match(blockFor(".shared-settings-group"), /min-width:\s*0/);
   assert.match(blockFor(".strategy-card-name"), /overflow-wrap:\s*anywhere/);
-  assert.match(blockFor(".strategy-card-summary,\n.strategy-description"), /overflow-wrap:\s*anywhere/);
+  assert.match(blockFor(".strategy-card-summary"), /overflow-wrap:\s*anywhere/);
   assert.doesNotMatch(app, /className="page-heading"/);
 });
 
-test("desktop workbench keeps top and selectors fixed with independent editor and results scrolling", () => {
+test("desktop workbench keeps top controls fixed with independent strategy list and results scrolling", () => {
   const main = blockFor(".main-content.workbench-main");
   const layout = blockFor(".workbench-layout");
   const configuration = blockFor(".workbench-config-fixed");
-  const editor = blockFor(".workbench-editor-scroll,\n.workbench-results");
+  const strategyList = blockFor(".strategy-navigator .strategy-card-list");
   const results = blockFor(".workbench-results");
   const divider = blockFor(".workbench-divider");
   assert.match(main, /width:\s*calc\(100% - 32px\)/);
   assert.match(main, /max-width:\s*1920px/);
   assert.match(layout, /grid-template-columns:\s*var\(--workbench-config-width,\s*350px\)\s+12px\s+minmax\(0,\s*1fr\)/);
   assert.match(configuration, /position:\s*relative/);
-  assert.match(editor, /min-height:\s*0/);
-  assert.match(editor, /overflow-y:\s*auto/);
+  assert.match(strategyList, /min-height:\s*0/);
+  assert.match(strategyList, /overflow-y:\s*auto/);
   assert.match(results, /min-height:\s*0/);
   assert.match(results, /overflow-y:\s*auto/);
   assert.match(divider, /touch-action:\s*none/);
@@ -150,6 +150,8 @@ test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   assert.match(touch, /\.checkbox-control,[\s\S]*\.latest-toggle,[\s\S]*\.strategy-enabled-control\s*\{\s*min-height:\s*44px/);
   assert.match(touch, /\.input\s*\{\s*font-size:\s*16px/);
   assert.match(touch, /\.icon-button\s*\{\s*min-width:\s*44px/);
+  assert.match(touch, /\.strategy-nav-card \.strategy-enabled-control\s*\{\s*min-width:\s*44px/);
+  assert.match(touch, /\.strategy-nav-card \.strategy-run-target\s*\{\s*min-width:\s*44px/);
   assert.match(touch, /\.shared-settings-open-button,[\s\S]*?\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
   assert.match(touch, /\.workbench-results \.legend-toggle,[\s\S]*?\.workbench-results \.chart-range-controls button,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
   assert.match(touch, /\.workbench-results \.result-details-entry,[\s\S]*?\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
@@ -209,9 +211,13 @@ test("workbench explanatory text meets the readable type scale", () => {
 });
 
 test("the fixed strategy navigator does not stretch cards to fill unused height", () => {
-  assert.match(blockFor(".strategy-navigator .strategy-card-list"), /align-content:\s*start/);
-  assert.match(blockFor(".strategy-navigator .strategy-card-list"), /min-height:\s*56px/);
-  assert.match(blockFor(".strategy-navigator"), /overflow-y:\s*auto/);
+  const navigator = blockFor(".strategy-navigator");
+  const cards = blockFor(".strategy-navigator .strategy-card-list");
+  assert.match(navigator, /grid-template-rows:\s*auto auto minmax\(0, 1fr\)/);
+  assert.match(navigator, /overflow:\s*hidden/);
+  assert.match(cards, /align-content:\s*start/);
+  assert.match(cards, /min-height:\s*0/);
+  assert.match(cards, /overflow-y:\s*auto/);
 });
 
 test("shared settings use a modal and the sidebar toggle has one fixed location", () => {

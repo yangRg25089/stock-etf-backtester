@@ -20,6 +20,11 @@ async function closeSharedSettings(page) {
   }
 }
 
+async function closeStrategyDialog(page) {
+  const dialog = page.locator(".strategy-dialog");
+  if (await dialog.isVisible()) await dialog.locator(".dialog-done").click();
+}
+
 async function controlWheel(page, deltaY) {
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, deltaY);
@@ -333,7 +338,7 @@ test("mobile views switch between configuration and results while keeping the pa
   await expect(configView).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".workbench-config")).toBeVisible();
   await expect(page.locator(".workbench-results")).toBeHidden();
-  await expect(page.locator(".strategy-card-select")).toHaveCount(1);
+  await expect(page.locator(".strategy-card-open")).toHaveCount(1);
   const stickyHeader = await page.evaluate(() => {
     window.scrollTo(0, document.documentElement.scrollHeight);
     return document.querySelector(".app-topbar").getBoundingClientRect().top;
@@ -377,8 +382,15 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
   await page.goto("/");
   await expect(page.locator("#preset-to-add option")).toHaveCount(8);
   await expect(page.locator("#preset-to-add")).toHaveValue("");
-  await expect(page.locator(".strategy-parameter-group h4").filter({ hasText: "VIX シグナル" })).toBeVisible();
-  await expect(page.locator("#field-strategy-vix_dca-1-vix-symbol-hint")).toContainText("買付・売却シグナル");
+  await expect(page.locator(".strategy-parameter-group")).toHaveCount(0);
+  await page.locator(".strategy-card-open").first().click();
+  await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("VIX シグナル積立");
+  await expect(page.locator(".strategy-dialog #field-strategy-vix_dca-1-vix-symbol-hint")).toContainText("買付・売却シグナル");
+  const japaneseDialogA11y = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(japaneseDialogA11y.violations, JSON.stringify(japaneseDialogA11y.violations, null, 2)).toEqual([]);
+  await closeStrategyDialog(page);
   await expect(page.locator("#run-scope-select")).toHaveAttribute("aria-describedby", "run-scope-help");
   await expect(page.locator("#run-scope-help")).toContainText("有効な全戦略と基準");
   for (const presetId of [
@@ -415,15 +427,63 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
   }
   await expect(page.locator(".strategy-card")).toHaveCount(8);
 
+  for (let index = 0; index < 8; index += 1) {
+    await page.locator(".strategy-card-open").nth(index).click();
+    const parameterGroupCount = await page.locator(".strategy-dialog .strategy-parameter-group").count();
+    expect(parameterGroupCount, `preset card ${index} opens catalog parameters`).toBeGreaterThan(0);
+    if (index === 1) {
+      const content = page.locator(".strategy-dialog-content");
+      await expect.poll(() => content.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+      const groupNavigation = page.locator(".strategy-parameter-nav button");
+      expect(await groupNavigation.count()).toBeGreaterThan(1);
+      await groupNavigation.last().click();
+      await expect(page.locator(".strategy-parameter-group").last()).toBeInViewport();
+    }
+    await closeStrategyDialog(page);
+    await expect(page.locator(".strategy-card-open").nth(index)).toBeFocused();
+  }
+
   await page.getByRole("button", { name: "中文" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("历史回测");
-  await expect(page.locator(".strategy-parameter-group h4").filter({ hasText: "VIX 信号" }).first()).toBeVisible();
+  await page.locator(".strategy-card-open").first().click();
+  await expect(page.locator(".strategy-dialog .strategy-parameter-group h3").filter({ hasText: "VIX 信号" }).first()).toBeVisible();
+  const chineseDialogA11y = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(chineseDialogA11y.violations, JSON.stringify(chineseDialogA11y.violations, null, 2)).toEqual([]);
+  await closeStrategyDialog(page);
   await page.getByRole("button", { name: "日本語" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "ja");
 });
 
-test("shared summary follows the single form and strategy selection preserves independent run and result state", async ({ page }) => {
+test("strategy dialog stays usable at 320px and returns focus to its card", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 780 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  const trigger = page.locator(".strategy-card-open").first();
+  await trigger.click();
+  await expect(page.locator(".strategy-dialog")).toBeVisible();
+
+  const geometry = await page.locator(".strategy-dialog").evaluate((dialog) => ({
+    width: dialog.getBoundingClientRect().width,
+    viewportWidth: window.innerWidth,
+    columns: getComputedStyle(dialog.querySelector(".strategy-parameter-grid")).gridTemplateColumns.split(" ").length,
+  }));
+  expect(geometry.width).toBeLessThanOrEqual(geometry.viewportWidth - 24);
+  expect(geometry.columns).toBe(1);
+
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(accessibility.violations, JSON.stringify(accessibility.violations, null, 2)).toEqual([]);
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".strategy-dialog")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("shared summary follows the single form and strategy editing preserves independent run and result state", async ({ page }) => {
   await page.goto("/");
   await openSharedSettings(page);
   await page.locator("#field-run-symbol").fill("SPY");
@@ -458,19 +518,93 @@ test("shared summary follows the single form and strategy selection preserves in
   await chartToggle.click();
   await expect(chartToggle).toHaveAttribute("aria-pressed", "false");
 
-  await page.locator(".strategy-card-select").filter({ hasText: "VIX シグナル積立" }).click();
-  await expect(page.locator("#strategy-editor-heading")).toHaveText("VIX シグナル積立");
+  await page.locator(".strategy-card-open").filter({ hasText: "VIX シグナル積立" }).click();
+  await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("VIX シグナル積立");
   await expect(page.locator(".strategy-enabled-control input").first()).toBeChecked();
+  await expect(page.locator(".strategy-card").filter({ hasText: "毎月定額積立" }).locator(".strategy-run-target")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#run-scope-select")).toHaveValue("all_enabled");
   await expect(benchmark).toHaveAttribute("aria-pressed", "true");
   await expect(chartToggle).toHaveAttribute("aria-pressed", "false");
 
   await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("26");
-  await page.locator(".strategy-card-select").filter({ hasText: "毎月定額積立" }).click();
-  await page.locator(".strategy-card-select").filter({ hasText: "VIX シグナル積立" }).click();
+  await closeStrategyDialog(page);
+  await page.locator(".strategy-card-open").filter({ hasText: "毎月定額積立" }).click();
+  await closeStrategyDialog(page);
+  await page.locator(".strategy-card-open").filter({ hasText: "VIX シグナル積立" }).click();
   await expect(page.locator("#field-strategy-vix_dca-1-vix-buyThreshold")).toHaveValue("26");
   await expect(page.locator(".snapshot-warning")).toBeVisible();
   await expect(benchmark).toHaveAttribute("aria-pressed", "true");
+  await closeStrategyDialog(page);
+});
+
+test("editing a strategy leaves the active run target and run scope unchanged", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.locator("#preset-to-add").selectOption("monthly_dca");
+  await page.locator(".add-strategy-button").click();
+  await page.locator("#run-scope-select").selectOption("active");
+
+  const vixCard = page.locator(".strategy-card").filter({ hasText: "VIX シグナル積立" });
+  const monthlyCard = page.locator(".strategy-card").filter({ hasText: "毎月定額積立" });
+  await expect(vixCard.locator(".strategy-run-target")).toHaveAttribute("aria-pressed", "false");
+  await expect(monthlyCard.locator(".strategy-run-target")).toHaveAttribute("aria-pressed", "true");
+
+  await vixCard.locator(".strategy-card-open").click();
+  const dialog = page.locator(".strategy-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.locator("#run-scope-select")).toHaveValue("active");
+  await expect(vixCard.locator(".strategy-run-target")).toHaveAttribute("aria-pressed", "false");
+  await expect(monthlyCard.locator(".strategy-run-target")).toHaveAttribute("aria-pressed", "true");
+  await dialog.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("26");
+  await closeStrategyDialog(page);
+
+  await expect(page.getByRole("button", { name: "バックテストを実行" })).toBeEnabled();
+  const runRequest = page.waitForRequest((request) =>
+    request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
+  );
+  const completed = page.waitForResponse(async (response) => {
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
+    if (!response.ok()) return false;
+    return ["completed", "completed_with_warning", "unavailable", "failed"]
+      .includes((await response.json()).status);
+  });
+  await page.getByRole("button", { name: "バックテストを実行" }).click();
+  const payload = (await runRequest).postDataJSON();
+  expect(payload.scope).toBe("active");
+  expect(payload.activeStrategyId).toBe("strategy-monthly_dca-2");
+  await completed;
+});
+
+test("strategy card actions stay separate and deletion returns focus to a useful control", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const vixCard = page.locator(".strategy-card").filter({ hasText: "VIX シグナル積立" });
+  await vixCard.locator(".strategy-enabled-control input").uncheck();
+  await expect(page.locator(".strategy-dialog")).toHaveCount(0);
+  await vixCard.locator(".strategy-enabled-control input").check();
+
+  for (const presetId of ["composite_dca", "monthly_dca"]) {
+    await page.locator("#preset-to-add").selectOption(presetId);
+    await page.locator(".add-strategy-button").click();
+    await expect(page.locator(".strategy-dialog")).toHaveCount(0);
+  }
+
+  const compositeCard = page.locator(".strategy-card").filter({ hasText: "複合シグナル積立" });
+  const monthlyCard = page.locator(".strategy-card").filter({ hasText: "毎月定額積立" });
+  await compositeCard.locator(".strategy-card-open").click();
+  await expect(page.locator(".strategy-dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".strategy-dialog")).toHaveCount(0);
+  await expect(compositeCard.locator(".strategy-card-open")).toBeFocused();
+
+  await compositeCard.locator(".strategy-remove").click();
+  await expect(page.locator(".strategy-dialog")).toHaveCount(0);
+  await expect(monthlyCard.locator(".strategy-card-open")).toBeFocused();
+  await vixCard.locator(".strategy-remove").click();
+  await expect(monthlyCard.locator(".strategy-card-open")).toBeFocused();
+  await monthlyCard.locator(".strategy-remove").click();
+  await expect(page.locator(".strategy-card")).toHaveCount(0);
+  await expect(page.locator("#preset-to-add")).toBeFocused();
 });
 
 test("default VIX can run to a focused saved result, display toggles, and matching CSV", async ({ page }) => {
@@ -1037,10 +1171,11 @@ test("adding a strategy keeps the default run scope on every enabled strategy", 
   await expect(page.locator(".comparison-table")).toContainText("strategy-monthly_dca-2");
 });
 
-test("desktop workbench keeps the header, editor, and results in independent scroll regions", async ({ page }) => {
+test("desktop workbench keeps the header, strategy list, and results in independent scroll regions", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.locator(".workbench-editor-scroll")).toBeVisible();
+  await expect(page.locator(".strategy-navigator .strategy-card-list")).toBeVisible();
+  await expect(page.locator(".strategy-parameter-groups")).toHaveCount(0);
   await expect(page.locator(".workbench-results")).toBeVisible();
   await expect(page.getByRole("button", { name: "バックテストを実行" })).toBeEnabled();
 
@@ -1054,9 +1189,14 @@ test("desktop workbench keeps the header, editor, and results in independent scr
   await page.getByRole("button", { name: "バックテストを実行" }).click();
   await finalRun;
 
-  const editor = page.locator(".workbench-editor-scroll");
+  for (let index = 0; index < 12; index += 1) {
+    await page.locator("#preset-to-add").selectOption("monthly_dca");
+    await page.locator(".add-strategy-button").click();
+  }
+
+  const strategyList = page.locator(".strategy-navigator .strategy-card-list");
   const results = page.locator(".workbench-results");
-  await expect.poll(async () => editor.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await expect.poll(async () => strategyList.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
   await expect.poll(async () => results.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
 
   const fixedBefore = await page.evaluate(() => ({
@@ -1065,8 +1205,8 @@ test("desktop workbench keeps the header, editor, and results in independent scr
     contextTop: document.querySelector(".workbench-context").getBoundingClientRect().top,
     selectorsTop: document.querySelector(".workbench-config-fixed").getBoundingClientRect().top,
   }));
-  await editor.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-  await expect.poll(() => editor.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await strategyList.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect.poll(() => strategyList.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBe(0);
   expect(await page.evaluate(() => ({
     pageY: window.scrollY,
@@ -1075,10 +1215,10 @@ test("desktop workbench keeps the header, editor, and results in independent scr
     selectorsTop: document.querySelector(".workbench-config-fixed").getBoundingClientRect().top,
   }))).toEqual(fixedBefore);
 
-  const editorScrollTop = await editor.evaluate((element) => element.scrollTop);
+  const strategyScrollTop = await strategyList.evaluate((element) => element.scrollTop);
   await results.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-  await expect.poll(() => editor.evaluate((element) => element.scrollTop)).toBe(editorScrollTop);
+  await expect.poll(() => strategyList.evaluate((element) => element.scrollTop)).toBe(strategyScrollTop);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
   const divider = page.getByRole("separator", { name: "設定パネルの幅を変更" });
