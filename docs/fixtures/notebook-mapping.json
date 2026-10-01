@@ -155,7 +155,9 @@
     {
       "sourceId": "qqq_vix_dca",
       "sourceKey": "买入记录输出",
-      "targetKey": "display.showTrades"
+      "targetKey": [],
+      "mappingKind": "alwaysAvailableOutput",
+      "note": "交易记录始终保存；交易页直接显示表格，无显隐参数。"
     },
     {
       "sourceId": "qqq_vix_dca",
@@ -360,7 +362,9 @@
     {
       "sourceId": "compare_strategies",
       "sourceKey": "买入记录输出",
-      "targetKey": "display.showTrades"
+      "targetKey": [],
+      "mappingKind": "alwaysAvailableOutput",
+      "note": "交易记录始终保存；交易页直接显示表格，无显隐参数。"
     },
     {
       "sourceId": "compare_strategies",

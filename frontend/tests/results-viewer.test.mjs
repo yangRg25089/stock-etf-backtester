@@ -273,26 +273,23 @@ test("saved details default to comparison, consolidate metrics, and gate search 
   assert.match(searchHtml, /role="tab"[^>]*>検索結果/);
 });
 
-test("chart and trade display controls are independent and chart legend remains a separate control", () => {
+test("trade tables render directly and remain available independently of chart collapse", () => {
   const state = workspaceWithRun();
   state.showChart = true;
-  state.showTrades = false;
   const chartOnly = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "ja",
     state,
     dispatch() {},
   }));
   assert.match(chartOnly, /<svg /);
-  assert.doesNotMatch(chartOnly, /class="data-table trade-table"/);
+  assert.match(chartOnly, /class="data-table trade-table"/);
   assert.match(chartOnly, /id="result-chart-panel-toggle"[^>]*aria-expanded="true"/);
   assert.match(chartOnly, /id="result-chart-panel-heading"[^>]*>.*?<span>資産推移<\/span>/s);
-  assert.match(chartOnly, /class="display-toggle icon-only-button"[^>]*aria-pressed="false"[^>]*aria-label="取引明細を表示"/);
-  assert.match(chartOnly, /<svg class="trade-display-icon"/);
+  assert.doesNotMatch(chartOnly, /display-toggle|result-display-heading|trade-display-icon/);
   assert.match(chartOnly, /class="sr-only" id="result-comparison-heading">実行結果の比較/);
   assert.match(chartOnly, /class="sr-only" id="result-trades-heading">取引明細/);
 
   state.showChart = false;
-  state.showTrades = true;
   const tradesOnly = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "ja",
     state,

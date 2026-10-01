@@ -116,7 +116,7 @@ test("shared settings dialog edits the draft, restores focus, and the sidebar to
   await page.goto("/");
   const sidebarToggle = page.locator(".workbench-divider .workbench-config-toggle");
   await expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
-  await expect(sidebarToggle).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(sidebarToggle).toHaveCSS("background-color", "rgb(244, 246, 245)");
   const initialPosition = await sidebarToggle.boundingBox();
   await sidebarToggle.click();
   await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
@@ -1214,17 +1214,14 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.getByRole("tab", { name: "戦略比較" })).toHaveAttribute("aria-selected", "true");
   await tradeTab.click();
   await expect(tradeTab).toHaveAttribute("aria-selected", "true");
-  let tradeToggle = page.getByRole("button", { name: "取引明細を隠す" });
-  await expect(tradeToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#result-panel-trades .result-display-heading, #result-panel-trades .display-toggle")).toHaveCount(0);
   await expect(page.getByRole("table").last()).toBeVisible();
-  await tradeToggle.click();
-  tradeToggle = page.getByRole("button", { name: "取引明細を表示" });
-  await expect(tradeToggle).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByRole("table")).toHaveCount(0);
+  await chartToggle.click();
+  await expect(page.locator(".trade-table")).toBeVisible();
+  await chartToggle.click();
+  await page.getByRole("tab", { name: "戦略比較" }).click();
   await expect(page.locator(".comparison-table")).toHaveCount(1);
-  await tradeToggle.click();
-  tradeToggle = page.getByRole("button", { name: "取引明細を隠す" });
-  await expect(tradeToggle).toHaveAttribute("aria-pressed", "true");
+  await tradeTab.click();
   await expect(page.getByRole("table").last()).toBeVisible();
 
   await expect(page.locator("[data-export-kind]")).toHaveCount(4);
@@ -1582,7 +1579,10 @@ test("borderless chevron stays on the sidebar boundary and repeatedly reopens", 
   const toggle = page.locator(".workbench-config-toggle");
   const divider = page.locator(".workbench-divider");
   await expect(toggle).toHaveCSS("border-top-width", "0px");
-  await expect(toggle).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(toggle).toHaveCSS("background-color", "rgb(244, 246, 245)");
+  await toggle.hover();
+  await expect(toggle).toHaveCSS("background-color", "rgb(244, 246, 245)");
+  await expect(toggle.locator("svg")).toHaveCSS("stroke-width", "2.8px");
   for (let iteration = 0; iteration < 3; iteration += 1) {
     const configBounds = await page.locator(".workbench-config").boundingBox();
     const dividerBounds = await divider.boundingBox();
@@ -1801,6 +1801,7 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   for (let cycle = 0; cycle < 3; cycle += 1) {
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(toggle).toHaveCSS("background-color", "rgb(20, 125, 104)");
     await svg.scrollIntoViewIfNeeded();
     const box = await svg.boundingBox();
     const start = Number(await core.getAttribute("data-window-start"));
@@ -1810,6 +1811,7 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
     await expect.poll(async () => Number(await core.getAttribute("data-window-end")) - Number(await core.getAttribute("data-window-start"))).toBeLessThan(end - start);
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await expect(toggle).toHaveCSS("background-color", "rgb(255, 255, 255)");
     const windowBefore = [await core.getAttribute("data-window-start"), await core.getAttribute("data-window-end")];
     await svg.scrollIntoViewIfNeeded();
     const nextBox = await svg.boundingBox();
@@ -1914,9 +1916,13 @@ test("common settings summary separates ticker, dates and funding into readable 
   const symbol = page.locator(".shared-settings-summary-symbol");
   const dates = page.locator(".shared-settings-summary-period");
   const funding = page.locator(".shared-settings-summary-funding");
-  await expect(symbol).toHaveText("QQQ");
-  await expect(dates).toHaveText("2024-01-31 → 2024-03-01");
+  await expect(symbol).toHaveText("📈 QQQ");
+  await expect(dates).toHaveText("🗓️ 2024-01-31 → 2024-03-01");
   await expect(funding).toContainText("USD");
+  const emojis = page.locator(".shared-settings-summary-text .summary-emoji");
+  await expect(emojis).toHaveCount(3);
+  await expect(emojis).toHaveText(["📈", "🗓️", "💰"]);
+  for (const emoji of await emojis.all()) await expect(emoji).toHaveAttribute("aria-hidden", "true");
   for (const width of [1440, 320]) {
     await page.setViewportSize({ width, height: 900 });
     if (width === 320) await page.locator(".workbench-mobile-view").first().click();

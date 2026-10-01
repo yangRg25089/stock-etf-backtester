@@ -925,13 +925,6 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         level=ParameterLevel.UI,
     ),
     _d(
-        "display.showTrades",
-        ParameterType.BOOLEAN,
-        True,
-        group_id="display",
-        level=ParameterLevel.UI,
-    ),
-    _d(
         "display.showChart",
         ParameterType.BOOLEAN,
         True,

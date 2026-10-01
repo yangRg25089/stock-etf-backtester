@@ -191,7 +191,10 @@ def test_sqlite_store_preserves_decimal_strategy_parameters_after_reopen(
     reopened.close()
 
 
-def test_sqlite_store_upgrades_legacy_json_decimal_parameters_on_read(tmp_path) -> None:
+@pytest.mark.parametrize("catalog_version", ["catalog-v4", "catalog-v5"])
+def test_sqlite_store_upgrades_legacy_json_decimal_parameters_on_read(
+    tmp_path, catalog_version
+) -> None:
     path = tmp_path / "runs.sqlite3"
     store = SQLiteRunStore(path)
     reservation = _reservation(store)
@@ -205,7 +208,9 @@ def test_sqlite_store_upgrades_legacy_json_decimal_parameters_on_read(tmp_path) 
         }
     )
     config = response.snapshot.config.model_copy(update={"strategies": (strategy,)})
-    snapshot = response.snapshot.model_copy(update={"config": config})
+    snapshot = response.snapshot.model_copy(
+        update={"config": config, "catalog_version": catalog_version}
+    )
     response = response.model_copy(update={"snapshot": snapshot})
     store.publish(reservation, response)
     store._connection.execute(
@@ -218,6 +223,7 @@ def test_sqlite_store_upgrades_legacy_json_decimal_parameters_on_read(tmp_path) 
     restored = reopened.get(reservation.run_id)
 
     assert restored is not None
+    assert restored.snapshot.catalog_version == catalog_version
     value = restored.snapshot.config.strategies[0].params["vix.buyThreshold"]
     assert isinstance(value, Decimal)
     assert value == Decimal("25.00")

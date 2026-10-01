@@ -185,31 +185,11 @@ export function ResultDetails({
                   <h4 className="sr-only" id="result-trades-heading">
                     {translate(locale, "results.tab.trades")}
                   </h4>
-                  <div className="result-section-heading result-display-heading">
-                    <button
-                      className="display-toggle icon-only-button"
-                      type="button"
-                      aria-pressed={state.showTrades}
-                      aria-label={translate(locale, state.showTrades ? "trade.hide" : "trade.toggle")}
-                      title={translate(locale, state.showTrades ? "trade.hide" : "trade.toggle")}
-                      onClick={() => dispatch({ type: "display.trades", value: !state.showTrades })}
-                    >
-                      <svg className="trade-display-icon" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                        <path d="M1.7 10s3-5.1 8.3-5.1 8.3 5.1 8.3 5.1-3 5.1-8.3 5.1S1.7 10 1.7 10Z" />
-                        <circle cx="10" cy="10" r="2.2" />
-                        {!state.showTrades && <path d="m3 17 14-14" />}
-                      </svg>
-                    </button>
-                  </div>
-                  {state.showTrades ? (
-                    <TradeTable
-                      locale={locale}
-                      status={focusedResult?.status}
-                      trades={focusedResult?.trades ?? []}
-                    />
-                  ) : (
-                    <p className="metric-empty" role="status">{translate(locale, "trade.hidden")}</p>
-                  )}
+                  <TradeTable
+                    locale={locale}
+                    status={focusedResult?.status}
+                    trades={focusedResult?.trades ?? []}
+                  />
                 </section>
               )}
 

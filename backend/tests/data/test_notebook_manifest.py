@@ -83,13 +83,24 @@ def test_manifest_contains_every_explicit_compare_input_mapping() -> None:
         "exit.bollinger.enabled",
         "exit.bollinger.ratio",
         "exit.bollinger.vixCeiling",
-        "display.showTrades",
         "display.showChart",
         "search.dimensions",
         "search.maxCombinations",
     }
     assert expected <= target_keys
     assert expected <= set(PARAMETER_DEFINITIONS)
+
+
+def test_notebook_trade_output_is_preserved_without_a_visibility_parameter() -> None:
+    mappings = [
+        item for item in _manifest()["mappings"] if item["sourceKey"] == "买入记录输出"
+    ]
+    assert {item["sourceId"] for item in mappings} == {
+        "qqq_vix_dca",
+        "compare_strategies",
+    }
+    assert all(item["targetKey"] == [] for item in mappings)
+    assert all(item["mappingKind"] == "alwaysAvailableOutput" for item in mappings)
 
 
 def test_manifest_is_self_contained_and_does_not_read_external_notebooks() -> None:

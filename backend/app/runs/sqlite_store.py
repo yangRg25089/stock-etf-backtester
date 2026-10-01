@@ -461,7 +461,8 @@ def _restore_legacy_decimal_parameters(payload: dict[str, object]) -> None:
     snapshot = payload.get("snapshot")
     if (
         not isinstance(snapshot, dict)
-        or snapshot.get("catalogVersion") != CATALOG_VERSION
+        # v5 removes only a UI preference; the v4 decimal schema is unchanged.
+        or snapshot.get("catalogVersion") not in {"catalog-v4", CATALOG_VERSION}
     ):
         return
     config = snapshot.get("config")

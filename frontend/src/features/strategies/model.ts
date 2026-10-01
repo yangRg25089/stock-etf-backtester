@@ -30,7 +30,6 @@ export interface WorkspaceState {
   runRequestedEndMode: EndMode | null;
   focusedResultId: string | null;
   showChart: boolean;
-  showTrades: boolean;
   visibleSeriesIds: string[];
 }
 
@@ -47,7 +46,6 @@ export type WorkspaceAction =
   | { type: "run.progress"; value: RunProgressEvent }
   | { type: "result.focus"; id: string | null }
   | { type: "display.chart"; value: boolean }
-  | { type: "display.trades"; value: boolean }
   | { type: "chart.series"; id: string; visible: boolean };
 
 export interface RunAvailability {
@@ -118,7 +116,6 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
     runRequestedEndMode: null,
     focusedResultId: null,
     showChart: uiBooleanDefault(catalog, "display.showChart", true),
-    showTrades: uiBooleanDefault(catalog, "display.showTrades", true),
     visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
   };
 }
@@ -234,8 +231,6 @@ export function workspaceReducer(
       return { ...state, focusedResultId: action.id };
     case "display.chart":
       return { ...state, showChart: action.value };
-    case "display.trades":
-      return { ...state, showTrades: action.value };
     case "chart.series":
       return {
         ...state,

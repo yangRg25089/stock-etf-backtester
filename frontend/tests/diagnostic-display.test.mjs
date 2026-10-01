@@ -41,7 +41,7 @@ test("run API errors show the localized message without an internal error code",
     500,
   );
   const html = renderToStaticMarkup(
-    React.createElement(ResultDetails, { locale: "zh", run: null, error, focusedResult: null, state: { showTrades: true, focusedResultId: null }, dispatch() {} }),
+    React.createElement(ResultDetails, { locale: "zh", run: null, error, focusedResult: null, state: { focusedResultId: null }, dispatch() {} }),
   );
   assert.match(html, /计算过程中发生错误。/);
   assert.match(html, /用户策略/);

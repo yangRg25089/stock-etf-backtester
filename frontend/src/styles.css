@@ -215,15 +215,15 @@ summary:focus-visible,
   place-items: center;
   padding: 0;
   color: var(--app-accent);
-  background: transparent;
+  background: var(--app-bg);
   border: 0;
   border-radius: 0;
   cursor: pointer;
 }
 
-.workbench-config-toggle:hover {
-  color: #0f6856;
-  background: #e5f3ef;
+.workbench-config-toggle:hover svg,
+.workbench-config-toggle:focus-visible svg {
+  stroke-width: 2.8;
 }
 
 .icon-only-button {
@@ -1585,21 +1585,6 @@ h2 {
 }
 
 
-.result-section-heading {
-  margin-bottom: 12px;
-}
-
-.result-section-heading h3 {
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.result-section-heading p {
-  margin-top: 4px;
-  color: var(--app-muted);
-  font-size: 12px;
-}
-
 .result-tabs {
   display: flex;
   gap: 4px;
@@ -1629,10 +1614,6 @@ h2 {
 .result-tab-panel {
   min-width: 0;
   padding-top: 14px;
-}
-
-.result-tab-panel > section > .result-section-heading h4 {
-  font-size: 14px;
 }
 
 .metric-empty {
@@ -1862,7 +1843,7 @@ h2 {
   border-color: var(--app-accent);
 }
 
-.chart-range-controls button:hover:not(:disabled) {
+.chart-range-controls button:not(.chart-wheel-zoom-toggle):hover:not(:disabled) {
   color: #fff;
   background: var(--app-accent);
   border-color: var(--app-accent);
@@ -2108,54 +2089,11 @@ h2 {
   min-height: 44px;
 }
 
-.result-display-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-}
-
-.result-display-toggles,
 .export-controls {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 7px;
-}
-
-.display-toggle {
-  display: inline-grid;
-  width: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  place-items: center;
-  padding: 0;
-  color: var(--app-muted);
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.display-toggle svg {
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
-}
-
-.display-toggle[aria-pressed="true"] {
-  color: #fff;
-  background: var(--app-accent);
-  border-color: var(--app-accent);
-}
-
-.export-controls {
   align-items: flex-start;
+  gap: 7px;
   padding-top: 14px;
 }
 
@@ -2603,16 +2541,6 @@ h2 {
 
   .workbench-results .chart-controls { flex: 1 1 auto; }
 
-  .workbench-results .result-content .result-section-heading {
-    margin-bottom: 8px;
-  }
-
-  .workbench-results .display-toggle {
-    min-height: 36px;
-    margin-top: 0;
-    padding: 4px 8px;
-  }
-
   .workbench-results .charts-content {
     gap: 8px;
   }
@@ -2672,7 +2600,6 @@ h2 {
   .execution-actions .button-primary,
   .shared-settings-open-button,
   .workbench-results .diagnostic-field-link,
-  .workbench-results .display-toggle,
   .workbench-results .legend-toggle,
   .workbench-results .chart-range-controls button,
   .strategy-nav-card .strategy-enabled-control,

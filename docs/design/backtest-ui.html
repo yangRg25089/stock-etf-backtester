@@ -58,7 +58,10 @@
     #backtest-ui-preview button:hover { border-color: #9eb6ac; }
     #backtest-ui-preview .icon-button { display: inline-grid; place-items: center; width: 40px; min-width: 40px; padding: 0; }
     #backtest-ui-preview .run-button { color: #fff; background: var(--accent); border-color: var(--accent); }
-    #backtest-ui-preview .config-toggle { width: 24px; min-width: 0; border: 0; background: transparent; color: var(--muted); font-size: 22px; }
+    #backtest-ui-preview .config-toggle { width: 24px; min-width: 0; border: 0; background: var(--bg); color: var(--accent); }
+    #backtest-ui-preview .config-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    #backtest-ui-preview .config-toggle:hover svg,
+    #backtest-ui-preview .config-toggle:focus-visible svg { stroke-width: 2.8; }
     #backtest-ui-preview .run-button { box-shadow: 0 2px 5px #135d5033; }
     #backtest-ui-preview .run-button svg { width: 17px; height: 17px; fill: currentColor; }
 
@@ -276,7 +279,7 @@
       <aside class="config-pane" aria-label="設定">
         <div class="config-fixed">
           <button id="prototype-open-settings" class="shared-settings" type="button" aria-label="共通設定を編集" title="共通設定を編集" aria-haspopup="dialog">
-            <span class="shared-settings-copy"><strong>共通設定</strong><span>QQQ</span><span>2020-01-01 → 2026-09-29</span><span>100 USD / 月・毎月 1 日</span></span>
+            <span class="shared-settings-copy"><strong>共通設定</strong><span><i aria-hidden="true">📈</i> QQQ</span><span><i aria-hidden="true">🗓️</i> 2020-01-01 → 2026-09-29</span><span><i aria-hidden="true">💰</i> 100 USD / 月・毎月 1 日</span></span>
 
           </button>
           <nav class="strategy-navigator" aria-label="実行する戦略">
@@ -291,7 +294,7 @@
           </nav>
         </div>
       </aside>
-      <div class="divider"><button id="prototype-config-toggle" class="icon-button config-toggle" type="button" aria-label="設定を閉じる" title="設定を閉じる" aria-expanded="true"><span aria-hidden="true">‹</span></button></div>
+      <div class="divider"><button id="prototype-config-toggle" class="icon-button config-toggle" type="button" aria-label="設定を閉じる" title="設定を閉じる" aria-expanded="true"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m13 5-5 5 5 5"/></svg></button></div>
 
       <section class="results-pane" aria-label="結果">
         <section class="result-card" id="prototype-result-details" aria-label="実行結果">
@@ -371,7 +374,7 @@
         toggle.setAttribute("aria-expanded", String(!open));
         toggle.setAttribute("aria-label", open ? "設定を表示" : "設定を閉じる");
         toggle.title = open ? "設定を表示" : "設定を閉じる";
-        toggle.firstElementChild.textContent = open ? "›" : "‹";
+        toggle.querySelector("path").setAttribute("d", open ? "m7 5 5 5-5 5" : "m13 5-5 5 5 5");
         layout.classList.toggle("config-collapsed", open);
       });
       root.querySelector("#prototype-open-settings").addEventListener("click", (event) => setOpen(sharedDialog, event.currentTarget));

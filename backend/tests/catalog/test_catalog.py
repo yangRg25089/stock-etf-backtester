@@ -93,13 +93,16 @@ EXPECTED_PARAMETER_KEYS = {
     "search.dimensions",
     "search.maxCombinations",
     "run.scope",
-    "display.showTrades",
     "display.showChart",
 }
 
 
-def test_catalog_version_advances_with_the_shared_data_policy_contract() -> None:
-    assert CATALOG_VERSION == "catalog-v4"
+def test_catalog_version_advances_when_trade_visibility_is_removed() -> None:
+    assert CATALOG_VERSION == "catalog-v5"
+
+
+def test_removed_trade_visibility_is_not_a_catalog_parameter() -> None:
+    assert "display.showTrades" not in PARAMETER_DEFINITIONS
 
 
 def test_catalog_exposes_exactly_the_seven_stable_strategy_presets() -> None:

@@ -12,19 +12,16 @@ const catalog = JSON.parse(
   readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"),
 );
 
-test("result display defaults come from the catalog and remain separate preferences", () => {
+test("chart display and legend preferences remain independent without a trade visibility state", () => {
   let state = createInitialWorkspaceState(catalog);
   assert.equal(state.runScope, "all_enabled");
   assert.equal(state.showChart, true);
-  assert.equal(state.showTrades, true);
+  assert.equal(Object.hasOwn(state, "showTrades"), false);
   assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown", "vix"]);
 
   state = workspaceReducer(state, { type: "display.chart", value: false });
   assert.equal(state.showChart, false);
-  assert.equal(state.showTrades, true);
-  state = workspaceReducer(state, { type: "display.trades", value: false });
-  assert.equal(state.showChart, false);
-  assert.equal(state.showTrades, false);
+  assert.equal(Object.hasOwn(state, "showTrades"), false);
   state = workspaceReducer(state, { type: "chart.series", id: "drawdown", visible: false });
   assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "vix"]);
 });

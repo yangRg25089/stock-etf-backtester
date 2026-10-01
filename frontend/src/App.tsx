@@ -450,12 +450,18 @@ function App() {
                       <span className="shared-settings-summary-copy">
                         <strong>{translate(locale, "section.sharedSettings")}</strong>
                         <span className="shared-settings-summary-text" id="shared-settings-summary-detail">
-                          <span className="shared-settings-summary-symbol">{workspace.draft.shared.run.symbol}</span>
-                          <span className="shared-settings-summary-period">{workspace.draft.shared.run.startDate} → {sharedSummaryEndDate(workspace.draft.shared, workspace.runResponse) ?? "—"}</span>
-                          <span className="shared-settings-summary-funding">{interpolate(translate(locale, "workbench.funding"), {
-                            amount: `${workspace.draft.shared.contribution.amount ?? "—"} ${savedCurrency ?? translate(locale, "unit.currency")}`,
-                            day: String(workspace.draft.shared.contribution.day ?? "—"),
-                          })}</span>
+                          <span className="shared-settings-summary-symbol">
+                            <span className="summary-emoji" aria-hidden="true">📈</span>{" "}{workspace.draft.shared.run.symbol}
+                          </span>
+                          <span className="shared-settings-summary-period">
+                            <span className="summary-emoji" aria-hidden="true">🗓️</span>{" "}{workspace.draft.shared.run.startDate} → {sharedSummaryEndDate(workspace.draft.shared, workspace.runResponse) ?? "—"}
+                          </span>
+                          <span className="shared-settings-summary-funding">
+                            <span className="summary-emoji" aria-hidden="true">💰</span>{" "}{interpolate(translate(locale, "workbench.funding"), {
+                              amount: `${workspace.draft.shared.contribution.amount ?? "—"} ${savedCurrency ?? translate(locale, "unit.currency")}`,
+                              day: String(workspace.draft.shared.contribution.day ?? "—"),
+                            })}
+                          </span>
                         </span>
                       </span>
                     </button>

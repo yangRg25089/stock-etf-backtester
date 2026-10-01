@@ -251,12 +251,13 @@ test("space-saving workbench controls retain an accessible text name", () => {
   assert.match(runActions, /className="run-play-icon"/);
   assert.doesNotMatch(runActions, /run-scope-select/);
   assert.doesNotMatch(runActions, /translate\(locale, "run\.submit"\)<\/button>/);
-  assert.match(css, /\.display-toggle\s*\{[^}]*width:\s*44px/s);
-  assert.match(css, /\.display-toggle svg\s*\{[^}]*stroke:\s*currentColor/s);
+  assert.doesNotMatch(css, /\.display-toggle|\.result-display-heading|\.result-display-toggles/);
 });
 
 test("primary workbench actions use the accent fill and selected chart modes are easy to spot", () => {
-  assert.match(blockFor(".workbench-config-toggle"), /background:\s*transparent/);
+  assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-bg\)/);
+  assert.doesNotMatch(blockFor(".workbench-config-toggle:hover svg,\n.workbench-config-toggle:focus-visible svg"), /background:|color:/);
+  assert.match(css, /\.workbench-config-toggle:hover svg[\s\S]*?stroke-width:\s*2\.8/s);
   assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent\)/);
   assert.match(blockFor(".chart-wheel-zoom-toggle[aria-pressed=\"true\"]"), /background:\s*var\(--app-accent\)/);
 });
@@ -267,7 +268,7 @@ test("base button styles precede and preserve emphasized action colors", () => {
     assert.ok(css.indexOf(`\n${selector} {`) > buttonRule, `${selector} follows base button styles`);
   }
   assert.match(blockFor(".button-primary"), /background:\s*var\(--app-accent\)/);
-  assert.match(blockFor(".workbench-config-toggle"), /background:\s*transparent/);
+  assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-bg\)/);
   assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent\)/);
   assert.doesNotMatch(app, /shared-settings-summary-icon|local-tag/);
 });
@@ -294,6 +295,16 @@ test("sidebar actions float only on hover or keyboard focus, with a touch fallba
 test("SVG chart labels cannot be selected by drag gestures", () => {
   assert.match(blockFor(".result-chart"), /user-select:\s*none/);
   assert.match(css, /\.chart-linked-stack \.chart-panel\.is-compact \.result-chart\s*\{[^}]*aspect-ratio:\s*800 \/ 90/s);
+});
+
+test("removed trade visibility has no reducer, rendering, translation or style implementation", () => {
+  const model = readFileSync(new URL("../src/features/strategies/model.ts", import.meta.url), "utf8");
+  const details = readFileSync(new URL("../src/features/results/ResultDetails.tsx", import.meta.url), "utf8");
+  const messages = readFileSync(new URL("../src/i18n/messages.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(model, /showTrades|display\.trades/);
+  assert.doesNotMatch(details, /showTrades|display-toggle|result-display-heading|trade-display-icon|trade\.(hide|toggle|hidden)/);
+  assert.doesNotMatch(messages, /display\.showTrades|trade\.(hide|toggle|hidden)/);
+  assert.doesNotMatch(css, /display-toggle|result-display-heading|result-display-toggles|result-section-heading/);
 });
 
 
