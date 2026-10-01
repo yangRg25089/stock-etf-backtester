@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import StrEnum
 from io import StringIO
 
-from app.domain.contracts import MetricSummary, SearchResult, StrategyRun
+from app.domain.contracts import MetricSummary, SearchResult, StrategyRun, TradeSide
 from app.domain.status import Diagnostic, StrategyStatus
 from app.runs.types import RunResponse
 
@@ -41,6 +41,7 @@ _SUMMARY_FIELDS = (
     "symbol",
     "startDate",
     "endDate",
+    "actualInvested",
     "totalContributed",
     "endingEquity",
     "netProfit",
@@ -71,6 +72,7 @@ _DAILY_ASSET_FIELDS = (
     "calendarAsOf",
     "marketDataThrough",
     "totalContributed",
+    "actualInvested",
 )
 _TRADE_FIELDS = (
     "runId",
@@ -100,6 +102,7 @@ _SEARCH_FIELDS = (
 )
 _DATA_PROVENANCE_FIELDS = ("dataSources", "calendarAsOf", "marketDataThrough")
 _METRIC_FIELDS = (
+    "actualInvested",
     "totalContributed",
     "endingEquity",
     "netProfit",
@@ -185,24 +188,35 @@ def _summary_csv(run: RunResponse, focused: StrategyRun) -> str:
 
 
 def _daily_assets_csv(run: RunResponse, focused: StrategyRun) -> str:
-    rows = (
-        {
-            "runId": run.run_id,
-            "resultId": focused.id,
-            "date": asset.date,
-            "cash": asset.cash,
-            "timingQuantity": asset.timing_quantity,
-            "fixedQuantity": asset.fixed_quantity,
-            "simulationPrice": asset.simulation_price,
-            "totalAsset": asset.total_asset,
-            "totalContributed": asset.total_contributed,
-            "currency": asset.currency,
-            "unitNav": asset.unit_nav,
-            "drawdown": asset.drawdown,
-            **_provenance_values(run),
-        }
-        for asset in focused.daily_assets
-    )
+    buy_turnover_by_date: dict[date, Decimal] = {}
+    for trade in focused.trades:
+        if trade.side is TradeSide.BUY:
+            buy_turnover_by_date[trade.date] = (
+                buy_turnover_by_date.get(trade.date, Decimal("0")) + trade.cash_amount
+            )
+
+    cumulative_actual_invested = Decimal("0")
+    rows: list[dict[str, object]] = []
+    for asset in focused.daily_assets:
+        cumulative_actual_invested += buy_turnover_by_date.get(asset.date, Decimal("0"))
+        rows.append(
+            {
+                "runId": run.run_id,
+                "resultId": focused.id,
+                "date": asset.date,
+                "cash": asset.cash,
+                "timingQuantity": asset.timing_quantity,
+                "fixedQuantity": asset.fixed_quantity,
+                "simulationPrice": asset.simulation_price,
+                "totalAsset": asset.total_asset,
+                "totalContributed": asset.total_contributed,
+                "actualInvested": cumulative_actual_invested,
+                "currency": asset.currency,
+                "unitNav": asset.unit_nav,
+                "drawdown": asset.drawdown,
+                **_provenance_values(run),
+            }
+        )
     return _render_rows(_DAILY_ASSET_FIELDS, rows)
 
 
@@ -294,6 +308,7 @@ def _metric_values(metrics: MetricSummary | None) -> dict[str, object]:
         return {field: None for field in _METRIC_FIELDS}
     return {
         "totalContributed": metrics.total_contributed,
+        "actualInvested": metrics.actual_invested,
         "endingEquity": metrics.ending_equity,
         "netProfit": metrics.net_profit,
         "returnOnContributions": metrics.return_on_contributions,

@@ -257,6 +257,8 @@ def test_completed_zero_trade_strategy_and_partial_result_are_representable() ->
     result = RunResult(runId="run-1", strategyRuns=[strategy, unavailable])
 
     assert strategy.trades == ()
+    assert strategy.metrics is not None
+    assert strategy.metrics.actual_invested is None
     assert result.is_partial_success is True
     assert result.status is StrategyStatus.COMPLETED_WITH_WARNING
 

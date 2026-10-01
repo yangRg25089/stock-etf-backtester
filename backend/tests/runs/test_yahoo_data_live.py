@@ -124,6 +124,15 @@ def test_live_fixed_custom_and_indicator_rules_share_results_and_restore(
             assert row["metrics"]["totalContributed"] == "300"
             assert len(row["dailyAssets"]) >= 60
             assert all(item["state"] != "unavailable" for item in row["signals"])
+            buy_total = sum(
+                (
+                    Decimal(trade["cashAmount"])
+                    for trade in row["trades"]
+                    if trade["side"] == "buy"
+                ),
+                Decimal("0"),
+            )
+            assert Decimal(row["metrics"]["actualInvested"]) == buy_total
         assert rows["fixed"]["dailyAssets"] == rows["custom"]["dailyAssets"]
         assert rows["fixed"]["trades"] == rows["custom"]["trades"]
         assert rows["fixed"]["metrics"] == rows["custom"]["metrics"]
@@ -135,6 +144,13 @@ def test_live_fixed_custom_and_indicator_rules_share_results_and_restore(
         assert len(exported_assets) == len(rows["custom"]["dailyAssets"])
         assert Decimal(exported_assets[-1]["totalAsset"]) == Decimal(
             rows["custom"]["dailyAssets"][-1]["totalAsset"]
+        )
+        exported_summary = next(csv.DictReader(io.StringIO(exports["summary"])))
+        assert Decimal(exported_summary["actualInvested"]) == Decimal(
+            rows["custom"]["metrics"]["actualInvested"]
+        )
+        assert Decimal(exported_assets[-1]["actualInvested"]) == Decimal(
+            exported_summary["actualInvested"]
         )
     finally:
         app.state.run_service = previous_service

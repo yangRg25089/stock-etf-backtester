@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal, DecimalException, localcontext
 
 from app.catalog.presets import ExecutionModule, get_preset_definition
-from app.domain.contracts import DailyAsset, MetricSummary
+from app.domain.contracts import DailyAsset, MetricSummary, TradeSide
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
@@ -16,7 +16,7 @@ from app.domain.status import (
 from .types import MetricsInput, MetricsResult
 
 _DAY_COUNT = Decimal("365")
-METRIC_METHOD_VERSION = "metrics-v2"
+METRIC_METHOD_VERSION = "metrics-v3"
 
 
 def calculate_metrics(
@@ -141,6 +141,14 @@ def calculate_xirr(
 def _calculate_without_comparison(source: MetricsInput) -> MetricsResult:
     _validate_metrics_input(source)
     total_contributed = source.schedule.total_amount
+    actual_invested = sum(
+        (
+            trade.cash_amount
+            for trade in source.ledger.trades
+            if trade.side is TradeSide.BUY
+        ),
+        Decimal("0"),
+    )
     ending_equity = source.ledger.daily_assets[-1].total_asset
     if total_contributed <= 0:
         raise ValueError("metrics require a positive contribution budget")
@@ -170,6 +178,7 @@ def _calculate_without_comparison(source: MetricsInput) -> MetricsResult:
     )
     summary = MetricSummary(
         totalContributed=total_contributed,
+        actualInvested=actual_invested,
         endingEquity=ending_equity,
         netProfit=ending_equity - total_contributed,
         returnOnContributions=ending_equity / total_contributed - Decimal("1"),

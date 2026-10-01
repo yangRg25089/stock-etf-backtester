@@ -133,6 +133,7 @@ def _run_response() -> RunResponse:
     config = validated.config_for(("saved-result",))
     assert config is not None
     metrics = MetricSummary(
+        actualInvested=Decimal("100"),
         totalContributed=Decimal("100"),
         endingEquity=Decimal("101.25"),
         netProfit=Decimal("1.25"),

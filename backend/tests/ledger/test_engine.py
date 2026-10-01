@@ -20,6 +20,8 @@ from app.domain.status import (
     SignalState,
 )
 from app.ledger.engine import run_strategy
+from app.metrics import calculate_metrics
+from app.metrics.types import MetricsInput
 from app.signals.evaluate import StrategySignalSeries, evaluate_signals
 
 
@@ -162,6 +164,85 @@ def _run(
         signal_series,
         exchange_calendar=exchange_calendar,
     )
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("cash", "0"),
+        ("signal", "100"),
+        ("fixed", "50"),
+        ("safety", "200"),
+        ("reinvest", "300"),
+        ("monthly_dca", "200"),
+        ("lump_sum", "200"),
+    ],
+)
+def test_actual_buy_amount_tracks_fills_and_reinvestment_without_changing_principal(
+    mode: str,
+    expected: str,
+) -> None:
+    dates = tuple(
+        date.fromisoformat(day)
+        for day in (
+            "2024-01-02",
+            "2024-01-03",
+            "2024-01-04",
+            "2024-01-31",
+            "2024-02-01",
+            "2024-02-02",
+            "2024-02-29",
+        )
+    )
+    params: dict[str, object] = {
+        "accumulation.cashSafetyLimit": Decimal("10000"),
+        "accumulation.fixedDcaEnabled": mode == "fixed",
+        "accumulation.fixedDcaRatio": Decimal("0.25"),
+        "accumulation.maxSignalBuysPerMonth": 3,
+        "exit.enabled": mode == "reinvest",
+        "exit.rsi.enabled": mode == "reinvest",
+        "exit.rsi.ratio": Decimal("1"),
+    }
+    preset = "composite_dca"
+    if mode in ("monthly_dca", "lump_sum"):
+        preset, params = mode, {}
+    elif mode == "safety":
+        params["accumulation.cashSafetyLimit"] = Decimal("100")
+    config = _config(
+        start=date(2024, 1, 1), end=dates[-1], preset=preset, params=params
+    )
+    triggers = (
+        {dates[0]: {"accumulation.buy": True}} if mode in ("signal", "reinvest") else {}
+    )
+    if mode == "reinvest":
+        triggers.update(
+            {dates[1]: {"rsi.exit": True}, dates[2]: {"accumulation.buy": True}}
+        )
+    ledger = _run(
+        config,
+        dates,
+        ("10", "10", "20", "10", "10", "10", "10"),
+        signals=_signals(config, dates, triggers),
+    )
+    summary = calculate_metrics(
+        MetricsInput(
+            strategy=config.strategies[0],
+            schedule=schedule(config.shared, _calendar(dates)),
+            ledger=ledger,
+            data_fingerprint="actual-buys-fixture",
+        )
+    ).summary
+    assert summary.actual_invested == Decimal(expected)
+    assert summary.total_contributed == Decimal("200")
+    if mode == "cash":
+        assert ledger.trades == ()
+        assert ledger.daily_assets[-1].cash == Decimal("200")
+    if mode == "reinvest":
+        assert [trade.cash_amount for trade in ledger.trades] == [
+            Decimal("100"),
+            Decimal("200"),
+            Decimal("200"),
+        ]
 
 
 def test_ledger_preserves_normalized_ohlc_in_daily_result_snapshots() -> None:

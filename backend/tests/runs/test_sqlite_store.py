@@ -60,6 +60,7 @@ def _response(
     )
     metrics = MetricSummary(
         totalContributed=Decimal("100"),
+        actualInvested=Decimal("75.50"),
         endingEquity=Decimal("110"),
         netProfit=Decimal("10"),
         returnOnContributions=Decimal("0.1"),

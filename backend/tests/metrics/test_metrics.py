@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from app.calendar import ScheduledContribution, ScheduleResult
 from app.config.validation import validate_draft
-from app.domain.contracts import DailyAsset
+from app.domain.contracts import DailyAsset, Trade, TradeReason, TradeSide
 from app.domain.status import DiagnosticCode
 from app.ledger import LedgerResult
 from app.metrics.engine import (
@@ -118,7 +118,7 @@ def test_return_on_contributions_is_distinct_from_capital_multiple() -> None:
 
 
 def test_metrics_method_version_is_stable() -> None:
-    assert METRIC_METHOD_VERSION == "metrics-v2"
+    assert METRIC_METHOD_VERSION == "metrics-v3"
 
 
 def test_xirr_uses_each_contribution_date_with_actual_365_day_count() -> None:
@@ -208,8 +208,62 @@ def test_zero_trade_success_still_gets_complete_metrics() -> None:
     assert result.summary.xirr is not None
     assert abs(result.summary.xirr) < Decimal("1e-55")
     assert result.summary.return_on_contributions == 0
+    assert result.summary.actual_invested == 0
     assert result.summary.maximum_drawdown == 0
     assert result.summary.diagnostics == ()
+
+
+def test_actual_invested_counts_buy_turnover_separately_from_contributions() -> None:
+    dates = (date(2021, 1, 1), date(2021, 1, 2), date(2021, 1, 3))
+    source = _input(
+        _strategy("monthly_dca", dates[0], dates[-1]),
+        dates,
+        ((dates[0], "100"), (dates[2], "100")),
+        ("100", "95", "160"),
+    )
+    source = MetricsInput(
+        strategy=source.strategy,
+        schedule=source.schedule,
+        ledger=source.ledger.model_copy(
+            update={
+                "trades": (
+                    Trade(
+                        date=dates[0],
+                        side=TradeSide.BUY,
+                        reason=TradeReason.FIXED_DCA,
+                        quantity=Decimal("5"),
+                        price=Decimal("10"),
+                        cashAmount=Decimal("50"),
+                        currency="USD",
+                    ),
+                    Trade(
+                        date=dates[1],
+                        side=TradeSide.BUY,
+                        reason=TradeReason.SIGNAL_BUY,
+                        quantity=Decimal("5"),
+                        price=Decimal("11"),
+                        cashAmount=Decimal("55"),
+                        currency="USD",
+                    ),
+                    Trade(
+                        date=dates[2],
+                        side=TradeSide.SELL,
+                        reason=TradeReason.SIGNAL_SELL,
+                        quantity=Decimal("1"),
+                        price=Decimal("12"),
+                        cashAmount=Decimal("12"),
+                        currency="USD",
+                    ),
+                )
+            }
+        ),
+        data_fingerprint=source.data_fingerprint,
+    )
+
+    result = calculate_metrics(source)
+
+    assert result.summary.total_contributed == Decimal("200")
+    assert result.summary.actual_invested == Decimal("105")
 
 
 def test_no_valid_xirr_is_reported_without_hiding_other_metrics() -> None:

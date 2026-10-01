@@ -476,6 +476,7 @@ class DailyAsset(DomainModel):
 
 class MetricSummary(DomainModel):
     total_contributed: Decimal = Field(alias="totalContributed", ge=0)
+    actual_invested: Decimal | None = Field(default=None, alias="actualInvested", ge=0)
     ending_equity: Decimal = Field(alias="endingEquity", ge=0)
     net_profit: Decimal = Field(alias="netProfit")
     return_on_contributions: Decimal | None = Field(

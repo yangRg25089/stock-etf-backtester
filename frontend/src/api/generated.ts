@@ -159,6 +159,7 @@ export type HealthResponse = {
 
 export type MetricSummary = {
   totalContributed: string;
+  actualInvested?: string | null;
   endingEquity: string;
   netProfit: string;
   returnOnContributions?: string | null;

@@ -37,6 +37,7 @@ from app.runs.types import RunProgress, RunResponse
 
 def _summary() -> MetricSummary:
     return MetricSummary(
+        actualInvested=Decimal("100.00"),
         totalContributed=Decimal("100.00"),
         endingEquity=Decimal("109.123456789"),
         netProfit=Decimal("9.123456789"),
@@ -208,7 +209,7 @@ def test_summary_export_is_bound_to_run_and_focused_result() -> None:
 
     assert content.splitlines()[0] == (
         "runId,resultId,role,presetId,status,symbol,startDate,endDate,"
-        "totalContributed,endingEquity,netProfit,returnOnContributions,"
+        "actualInvested,totalContributed,endingEquity,netProfit,returnOnContributions,"
         "capitalMultiple,xirr,maximumDrawdown,relativeToDca,currency,diagnostics,"
         "dataSources,calendarAsOf,marketDataThrough"
     )
@@ -222,6 +223,7 @@ def test_summary_export_is_bound_to_run_and_focused_result() -> None:
             "symbol": "QQQ",
             "startDate": "2024-01-02",
             "endDate": "2024-01-04",
+            "actualInvested": "100.00",
             "totalContributed": "100.00",
             "endingEquity": "109.123456789",
             "netProfit": "9.123456789",
@@ -262,11 +264,33 @@ def test_daily_assets_export_preserves_iso_dates_precision_and_currency() -> Non
     assert content == (
         "runId,resultId,date,cash,timingQuantity,fixedQuantity,simulationPrice,"
         "totalAsset,currency,unitNav,drawdown,dataSources,calendarAsOf,"
-        "marketDataThrough,totalContributed\n"
+        "marketDataThrough,totalContributed,actualInvested\n"
         "run-123,ordinary,2024-01-02,10.00,1.5,2,3.123456789,20.1851851835,"
         'USD,1.2345,-0.01,"[""sec:companyfacts"",""yahoo""]",2024-01-04,'
-        "2024-01-04,19.87654321\n"
+        "2024-01-04,19.87654321,0\n"
     )
+
+
+def test_daily_assets_export_carries_cumulative_buy_turnover() -> None:
+    trade = Trade(
+        date=date(2024, 1, 2),
+        side=TradeSide.BUY,
+        reason=TradeReason.SIGNAL_BUY,
+        quantity=Decimal("1"),
+        price=Decimal("10"),
+        cashAmount=Decimal("10"),
+        currency="USD",
+    )
+
+    content = export_csv(
+        _response(trades=(trade,)),
+        kind=ExportKind.DAILY_ASSETS,
+        focused_result_id="ordinary",
+    )
+
+    row = _rows(content)[0]
+    assert row["totalContributed"] == "19.87654321"
+    assert row["actualInvested"] == "10"
 
 
 def test_successful_zero_trade_export_still_contains_a_header() -> None:
@@ -317,7 +341,7 @@ def test_search_export_includes_all_candidates_and_stable_parameter_keys() -> No
         "runId,resultId,role,presetId,candidateId,sequence,status,"
         "calculationFingerprint,reusedCalculation,vix.buyThreshold,"
         "accumulation.cashSafetyLimit,"
-        "totalContributed,endingEquity,netProfit,returnOnContributions,"
+        "actualInvested,totalContributed,endingEquity,netProfit,returnOnContributions,"
         "capitalMultiple,xirr,maximumDrawdown,relativeToDca,currency,diagnostics"
         ",dataSources,calendarAsOf,marketDataThrough"
     )
