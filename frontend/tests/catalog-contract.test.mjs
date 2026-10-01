@@ -103,6 +103,22 @@ test("the backend catalog response satisfies the frontend contract", () => {
   }
 });
 
+test("condition metadata rejects unknown keys, duplicate nodes and excessive depth", () => {
+  const unknownKey = structuredClone(backendCatalog);
+  unknownKey.conditions[0].buyParameterKeys.push("missing.key");
+  assert.equal(isCatalog(unknownKey), false);
+  const duplicate = structuredClone(backendCatalog);
+  const preset = duplicate.presets.find(item => item.id === "vix_dca");
+  preset.defaultRules.sell.id = preset.defaultRules.buy.id;
+  assert.equal(isCatalog(duplicate), false);
+  const deep = structuredClone(backendCatalog);
+  const custom = deep.presets.find(item => item.id === "composite_dca");
+  for (let depth = 0; depth <= deep.conditionLimits.maxDepth; depth++) {
+    custom.defaultRules.buy = { type: "group", id: `group-${depth}`, enabled: true, operator: "AND", children: [custom.defaultRules.buy] };
+  }
+  assert.equal(isCatalog(deep), false);
+});
+
 test("catalog decimals are decoded as numbers before strategy defaults enter a draft", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify(backendCatalog));
@@ -115,6 +131,8 @@ test("catalog decimals are decoded as numbers before strategy defaults enter a d
     assert.equal(typeof cashSafetyDefinition.default, "number");
     assert.equal(typeof vixPreset.defaultParams["accumulation.cashSafetyLimit"], "number");
     assert.equal(vixPreset.defaultParams["accumulation.cashSafetyLimit"], 1200);
+    assert.equal(vixPreset.defaultRules.buy.params["vix.buyThreshold"], 25);
+    assert.equal(vixPreset.defaultRules.sell.params["exit.vix.ratio1"], 0.2);
   } finally {
     globalThis.fetch = originalFetch;
   }

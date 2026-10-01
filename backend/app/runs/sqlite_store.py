@@ -411,6 +411,10 @@ def _serialize_response(response: RunResponse) -> str:
         strict=True,
     ):
         stored["params"] = _encode_parameter_value(strategy.params)
+        if strategy.rules is not None:
+            stored["rules"] = _encode_parameter_value(
+                strategy.rules.model_dump(mode="python", by_alias=True)
+            )
     envelope = {"storageFormatVersion": _STORAGE_FORMAT_VERSION, "response": payload}
     return json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
 
@@ -427,6 +431,8 @@ def _deserialize_response(serialized: str) -> RunResponse:
             raise ValueError("SQLite run storage response must be an object")
         for strategy in response_data["snapshot"]["config"]["strategies"]:
             strategy["params"] = _decode_parameter_value(strategy["params"])
+            if strategy.get("rules") is not None:
+                strategy["rules"] = _decode_parameter_value(strategy["rules"])
         return RunResponse.model_validate(response_data)
 
     if not isinstance(payload, dict):
@@ -461,8 +467,9 @@ def _restore_legacy_decimal_parameters(payload: dict[str, object]) -> None:
     snapshot = payload.get("snapshot")
     if (
         not isinstance(snapshot, dict)
-        # v5 removes only a UI preference; the v4 decimal schema is unchanged.
-        or snapshot.get("catalogVersion") not in {"catalog-v4", CATALOG_VERSION}
+        # Legacy snapshots keep their original catalog and decimal parameters.
+        or snapshot.get("catalogVersion")
+        not in {"catalog-v4", "catalog-v5", CATALOG_VERSION}
     ):
         return
     config = snapshot.get("config")

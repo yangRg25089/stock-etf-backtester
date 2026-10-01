@@ -16,7 +16,41 @@ export type Catalog = {
   parameters?: Array<ParameterDefinition>;
   parameterGroups?: Array<ParameterGroupDefinition>;
   presets?: Array<PresetDefinition>;
+  conditions?: Array<ConditionDefinition>;
+  conditionLimits?: ConditionLimits;
 };
+
+export type ConditionDefinition = {
+  kind: ConditionKind;
+  nameKey: string;
+  buyParameterKeys: Array<string>;
+  sellParameterKeys: Array<string>;
+};
+
+export type ConditionGroup = {
+  type?: "group";
+  id: string;
+  enabled?: boolean;
+  operator?: ConditionLogic;
+  children?: Array<ConditionLeaf | ConditionGroup>;
+};
+
+export type ConditionKind = "vix" | "rsi" | "ma_deviation" | "ma_trend" | "bollinger" | "rate" | "pe";
+
+export type ConditionLeaf = {
+  type?: "condition";
+  id: string;
+  kind: ConditionKind;
+  enabled?: boolean;
+  params?: unknown;
+};
+
+export type ConditionLimits = {
+  maxDepth?: number;
+  maxNodes?: number;
+};
+
+export type ConditionLogic = "AND" | "OR";
 
 export type ContractVersionResponse = {
   apiVersion: string;
@@ -105,6 +139,7 @@ export type FrozenStrategyInstance = {
   presetId: StrategyPresetId;
   enabled: boolean;
   params?: unknown;
+  rules?: StrategyRules | null;
 };
 
 export type HTTPValidationError = {
@@ -164,6 +199,8 @@ export type PresetDefinition = {
   defaultParams?: unknown;
   searchDimensions?: Array<SearchDimension>;
   supportsBenchmark?: boolean;
+  editorMode?: "fixed" | "custom" | "search";
+  defaultRules?: StrategyRules | null;
 };
 
 export type ResultRole = "benchmark" | "strategy";
@@ -271,7 +308,12 @@ export type SignalEvaluation = {
 
 export type SignalState = "true" | "false" | "unavailable";
 
-export type StrategyPresetId = "vix_dca" | "composite_dca" | "ma_trend" | "ma_buy_only" | "monthly_dca" | "lump_sum" | "grid_search";
+export type StrategyPresetId = "vix_dca" | "composite_dca" | "ma_trend" | "ma_buy_only" | "monthly_dca" | "lump_sum" | "grid_search" | "rsi_dca" | "ma_deviation_dca" | "bollinger_dca" | "rate_dca" | "pe_dca";
+
+export type StrategyRules = {
+  buy?: ConditionLeaf | ConditionGroup | null;
+  sell?: ConditionLeaf | ConditionGroup | null;
+};
 
 export type StrategyRun = {
   id: string;

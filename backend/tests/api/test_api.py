@@ -167,6 +167,11 @@ def test_catalog_and_generated_contract_version_are_available() -> None:
         "monthly_dca",
         "lump_sum",
         "grid_search",
+        "rsi_dca",
+        "ma_deviation_dca",
+        "bollinger_dca",
+        "rate_dca",
+        "pe_dca",
     }
     assert catalog_response.json()["parameters"]
     assert contract_response.status_code == 200

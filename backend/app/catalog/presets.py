@@ -1,4 +1,4 @@
-"""The seven strategy presets and their execution-module metadata.
+"""Strategy presets and their execution-module metadata.
 
 Presets select a shared execution module and provide configuration defaults.  No
 preset contains a second copy of trading or search logic.
@@ -8,14 +8,16 @@ from collections.abc import Iterable, Mapping
 from decimal import Decimal
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Final
+from typing import Final, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
+from app.domain.conditions import ConditionKind, StrategyRules
 from app.domain.contracts import StrategyPresetId
 from app.domain.immutability import FrozenMap, freeze_mapping, thaw_value
 from app.domain.status import DomainModel
 
+from .conditions import condition_definition, default_condition
 from .definitions import PARAMETER_DEFINITIONS
 
 
@@ -63,6 +65,10 @@ class PresetDefinition(DomainModel):
         default=(), alias="searchDimensions"
     )
     supports_benchmark: bool = Field(default=False, alias="supportsBenchmark")
+    editor_mode: Literal["fixed", "custom", "search"] = Field(
+        default="fixed", alias="editorMode"
+    )
+    default_rules: StrategyRules | None = Field(default=None, alias="defaultRules")
 
     @field_validator("default_params", mode="after")
     @classmethod
@@ -121,6 +127,10 @@ _VIX_KEYS: Final[tuple[str, ...]] = (
     "vix.symbol",
     "vix.buyThreshold",
     "exit.enabled",
+    "exit.vix.low1",
+    "exit.vix.ratio1",
+    "exit.vix.low2",
+    "exit.vix.ratio2",
 )
 _COMPOSITE_KEYS: Final[tuple[str, ...]] = (
     "accumulation.cashSafetyLimit",
@@ -158,6 +168,7 @@ _COMPOSITE_KEYS: Final[tuple[str, ...]] = (
     "exit.bollinger.enabled",
     "exit.bollinger.ratio",
     "exit.bollinger.vixCeiling",
+    "exit.ratio",
 )
 _TREND_KEYS: Final[tuple[str, ...]] = ("ma.period", "trend.sellBelowOrEqualMa")
 _SCHEDULED_KEYS: Final[tuple[str, ...]] = ("scheduled.fundingMode",)
@@ -174,6 +185,58 @@ _COMPOSITE_DEFAULTS = _defaults_for(
     _COMPOSITE_KEYS, {"accumulation.maxSignalBuysPerMonth": None}
 )
 _GRID_DEFAULTS = _defaults_for(_GRID_KEYS, {"accumulation.maxSignalBuysPerMonth": None})
+
+_FIXED_KINDS: Final[Mapping[StrategyPresetId, ConditionKind]] = MappingProxyType(
+    {
+        StrategyPresetId.VIX_DCA: ConditionKind.VIX,
+        StrategyPresetId.MA_TREND: ConditionKind.MA_TREND,
+        StrategyPresetId.MA_BUY_ONLY: ConditionKind.MA_TREND,
+        StrategyPresetId.RSI_DCA: ConditionKind.RSI,
+        StrategyPresetId.MA_DEVIATION_DCA: ConditionKind.MA_DEVIATION,
+        StrategyPresetId.BOLLINGER_DCA: ConditionKind.BOLLINGER,
+        StrategyPresetId.RATE_DCA: ConditionKind.RATE,
+        StrategyPresetId.PE_DCA: ConditionKind.PE,
+    }
+)
+
+
+def _default_rules(preset_id: StrategyPresetId) -> StrategyRules | None:
+    kind = _FIXED_KINDS.get(preset_id)
+    if kind is not None:
+        sell = (
+            None
+            if preset_id is StrategyPresetId.MA_BUY_ONLY
+            else default_condition(
+                kind, "sell", enabled=preset_id is StrategyPresetId.MA_TREND
+            )
+        )
+        if sell is not None and kind is ConditionKind.MA_TREND:
+            sell = sell.model_copy(
+                update={
+                    "params": freeze_mapping(
+                        {**sell.params, "exit.ratio": Decimal("1")}
+                    )
+                }
+            )
+        return StrategyRules(buy=default_condition(kind, "buy"), sell=sell)
+    if preset_id in {StrategyPresetId.COMPOSITE_DCA, StrategyPresetId.GRID_SEARCH}:
+        return StrategyRules(buy=default_condition(ConditionKind.VIX, "buy"))
+    return None
+
+
+def _single_condition_keys(kind: ConditionKind) -> tuple[str, ...]:
+    definition = condition_definition(kind)
+    return tuple(
+        dict.fromkeys(
+            (
+                "accumulation.cashSafetyLimit",
+                "accumulation.maxSignalBuysPerMonth",
+                *definition.buy_parameter_keys,
+                *definition.sell_parameter_keys,
+                "exit.enabled",
+            )
+        )
+    )
 
 
 def _preset(
@@ -194,6 +257,12 @@ def _preset(
         defaultParams=defaults,
         searchDimensions=tuple(dimensions),
         supportsBenchmark=supports_benchmark,
+        editorMode="custom"
+        if preset_id is StrategyPresetId.COMPOSITE_DCA
+        else "search"
+        if execution_module is ExecutionModule.SEARCH
+        else "fixed",
+        defaultRules=_default_rules(preset_id),
     )
 
 
@@ -274,6 +343,23 @@ PRESET_DEFINITIONS: Final[Mapping[StrategyPresetId, PresetDefinition]] = (
                     ),
                 ),
             ),
+            **{
+                preset_id: _preset(
+                    preset_id,
+                    ExecutionModule.ACCUMULATION,
+                    _single_condition_keys(kind),
+                    _defaults_for(
+                        _single_condition_keys(kind), {"exit.enabled": False}
+                    ),
+                )
+                for preset_id, kind in _FIXED_KINDS.items()
+                if preset_id
+                not in {
+                    StrategyPresetId.VIX_DCA,
+                    StrategyPresetId.MA_TREND,
+                    StrategyPresetId.MA_BUY_ONLY,
+                }
+            },
         }
     )
 )

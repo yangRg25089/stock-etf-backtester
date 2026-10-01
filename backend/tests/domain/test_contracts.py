@@ -144,6 +144,11 @@ def test_run_scope_and_preset_ids_are_stable_machine_values() -> None:
         "monthly_dca",
         "lump_sum",
         "grid_search",
+        "rsi_dca",
+        "ma_deviation_dca",
+        "bollinger_dca",
+        "rate_dca",
+        "pe_dca",
     ]
     assert _draft_config().model_dump(by_alias=True)["strategies"][0]["presetId"] == (
         "vix_dca"

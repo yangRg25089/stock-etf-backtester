@@ -41,6 +41,11 @@ EXPECTED_PRESETS = (
     StrategyPresetId.MONTHLY_DCA,
     StrategyPresetId.LUMP_SUM,
     StrategyPresetId.GRID_SEARCH,
+    StrategyPresetId.RSI_DCA,
+    StrategyPresetId.MA_DEVIATION_DCA,
+    StrategyPresetId.BOLLINGER_DCA,
+    StrategyPresetId.RATE_DCA,
+    StrategyPresetId.PE_DCA,
 )
 
 EXPECTED_PARAMETER_KEYS = {
@@ -78,6 +83,7 @@ EXPECTED_PARAMETER_KEYS = {
     "pe.threshold",
     "pe.etfMinCoverage",
     "exit.enabled",
+    "exit.ratio",
     "exit.vix.low1",
     "exit.vix.ratio1",
     "exit.vix.low2",
@@ -97,15 +103,15 @@ EXPECTED_PARAMETER_KEYS = {
 }
 
 
-def test_catalog_version_advances_when_trade_visibility_is_removed() -> None:
-    assert CATALOG_VERSION == "catalog-v5"
+def test_catalog_version_advances_for_shared_condition_templates() -> None:
+    assert CATALOG_VERSION == "catalog-v6"
 
 
 def test_removed_trade_visibility_is_not_a_catalog_parameter() -> None:
     assert "display.showTrades" not in PARAMETER_DEFINITIONS
 
 
-def test_catalog_exposes_exactly_the_seven_stable_strategy_presets() -> None:
+def test_catalog_exposes_stable_presets_and_five_single_condition_templates() -> None:
     assert tuple(PRESET_DEFINITIONS) == EXPECTED_PRESETS
     assert tuple(EXECUTION_MODULES[preset] for preset in EXPECTED_PRESETS) == (
         ExecutionModule.ACCUMULATION,
@@ -115,6 +121,7 @@ def test_catalog_exposes_exactly_the_seven_stable_strategy_presets() -> None:
         ExecutionModule.SCHEDULED,
         ExecutionModule.SCHEDULED,
         ExecutionModule.SEARCH,
+        *([ExecutionModule.ACCUMULATION] * 5),
     )
 
 

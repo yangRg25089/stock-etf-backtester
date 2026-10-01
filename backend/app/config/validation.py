@@ -32,6 +32,7 @@ from app.domain.contracts import (
 from app.domain.immutability import thaw_value
 from app.domain.status import Diagnostic, DomainModel
 
+from .conditions import materialize_legacy_rules, normalize_rules
 from .diagnostics import (
     ConfigurationIssue,
     invalid_parameter,
@@ -378,6 +379,21 @@ def _validate_strategy(
         diagnostics.extend(
             _validate_search_dimensions(index, resolved, preset, catalog)
         )
+    rules = None
+    submitted_rules = (
+        strategy.rules
+        if strategy.rules is not None
+        else materialize_legacy_rules(preset, resolved)
+    )
+    if submitted_rules is not None:
+        rules, rule_diagnostics = normalize_rules(
+            submitted_rules,
+            preset,
+            catalog,
+            f"strategies[{index}].rules",
+            _normalize_value,
+        )
+        diagnostics.extend(rule_diagnostics)
     if diagnostics:
         return StrategyValidationResult(
             strategyId=strategy.id,
@@ -391,6 +407,7 @@ def _validate_strategy(
         presetId=strategy.preset_id,
         enabled=strategy.enabled,
         params=resolved,
+        rules=rules,
     )
     return StrategyValidationResult(
         strategyId=strategy.id,

@@ -20,6 +20,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.domain.conditions import ConditionLogic as ConditionLogic
+from app.domain.conditions import StrategyRules
 from app.domain.immutability import FrozenMap, freeze_mapping, thaw_value
 from app.domain.status import (
     Diagnostic,
@@ -32,7 +34,7 @@ from app.domain.valuation import ValuationObservation as ValuationObservation
 
 
 class StrategyPresetId(StrEnum):
-    """The seven stable strategy catalog identifiers."""
+    """Stable strategy catalog identifiers, including fixed condition templates."""
 
     VIX_DCA = "vix_dca"
     COMPOSITE_DCA = "composite_dca"
@@ -41,6 +43,11 @@ class StrategyPresetId(StrEnum):
     MONTHLY_DCA = "monthly_dca"
     LUMP_SUM = "lump_sum"
     GRID_SEARCH = "grid_search"
+    RSI_DCA = "rsi_dca"
+    MA_DEVIATION_DCA = "ma_deviation_dca"
+    BOLLINGER_DCA = "bollinger_dca"
+    RATE_DCA = "rate_dca"
+    PE_DCA = "pe_dca"
 
 
 class ResultRole(StrEnum):
@@ -58,11 +65,6 @@ class RunScope(StrEnum):
 class EndMode(StrEnum):
     FIXED = "fixed"
     LATEST = "latest"
-
-
-class ConditionLogic(StrEnum):
-    AND = "AND"
-    OR = "OR"
 
 
 class TradeSide(StrEnum):
@@ -151,6 +153,7 @@ class StrategyInstance(MutableDomainModel):
     preset_id: StrategyPresetId = Field(alias="presetId")
     enabled: bool
     params: dict[str, object] = Field(default_factory=dict)
+    rules: StrategyRules | None = None
 
     @field_validator("params", mode="before")
     @classmethod
@@ -181,6 +184,7 @@ class FrozenStrategyInstance(DomainModel):
     preset_id: StrategyPresetId = Field(alias="presetId")
     enabled: bool
     params: Mapping[str, object] = Field(default_factory=dict, validate_default=True)
+    rules: StrategyRules | None = None
 
     @field_validator("params", mode="after")
     @classmethod
@@ -215,6 +219,7 @@ class FrozenRunConfig(DomainModel):
                     presetId=strategy.preset_id,
                     enabled=strategy.enabled,
                     params=strategy.params,
+                    rules=strategy.rules,
                 )
                 for strategy in config.strategies
             ),

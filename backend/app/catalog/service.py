@@ -6,10 +6,12 @@ from typing import Final
 
 from pydantic import Field, model_validator
 
+from app.domain.conditions import CONDITION_LIMITS, ConditionLimits
 from app.domain.contracts import DataSettings, StrategyPresetId
 from app.domain.immutability import thaw_value
 from app.domain.status import DomainModel
 
+from .conditions import CONDITION_DEFINITIONS, ConditionDefinition
 from .definitions import (
     ALL_PARAMETER_DEFINITIONS,
     PARAMETER_DEFINITIONS,
@@ -27,7 +29,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v5"
+CATALOG_VERSION: Final[str] = "catalog-v6"
 
 
 class Catalog(DomainModel):
@@ -39,6 +41,10 @@ class Catalog(DomainModel):
         default=PARAMETER_GROUP_DEFINITIONS, alias="parameterGroups"
     )
     presets: tuple[PresetDefinition, ...] = ()
+    conditions: tuple[ConditionDefinition, ...] = ()
+    condition_limits: ConditionLimits = Field(
+        default=CONDITION_LIMITS, alias="conditionLimits"
+    )
 
     @model_validator(mode="after")
     def validate_references(self) -> "Catalog":
@@ -59,6 +65,14 @@ class Catalog(DomainModel):
                     "parameter references unknown group: "
                     f"{parameter.key} -> {parameter.group_id}"
                 )
+        for condition in self.conditions:
+            for key in (*condition.buy_parameter_keys, *condition.sell_parameter_keys):
+                if key not in definitions:
+                    raise ValueError(f"condition references unknown parameter: {key}")
+        if len({condition.kind for condition in self.conditions}) != len(
+            self.conditions
+        ):
+            raise ValueError("catalog condition kinds must be unique")
         preset_ids = {preset.id for preset in self.presets}
         if len(preset_ids) != len(self.presets):
             raise ValueError("catalog preset IDs must be unique")
@@ -144,9 +158,22 @@ class Catalog(DomainModel):
     def __getitem__(self, key: str) -> object:
         """Provide read-only mapping-style access for API adapters."""
 
-        if key not in {"version", "parameters", "parameterGroups", "presets"}:
+        if key not in {
+            "version",
+            "parameters",
+            "parameterGroups",
+            "presets",
+            "conditions",
+            "conditionLimits",
+        }:
             raise KeyError(key)
-        return getattr(self, key)
+        return getattr(
+            self,
+            {
+                "parameterGroups": "parameter_groups",
+                "conditionLimits": "condition_limits",
+            }.get(key, key),
+        )
 
 
 @lru_cache(maxsize=1)
@@ -157,6 +184,7 @@ def get_catalog() -> Catalog:
         version=CATALOG_VERSION,
         parameters=ALL_PARAMETER_DEFINITIONS,
         presets=tuple(PRESET_DEFINITIONS.values()),
+        conditions=CONDITION_DEFINITIONS,
     )
     # Keep this check close to assembly so a future edit cannot quietly create a
     # second set of search-only fields or a dangling preset reference.

@@ -6,6 +6,7 @@ from threading import Barrier
 import pytest
 
 from app.catalog.service import CATALOG_VERSION, default_data_settings
+from app.domain.conditions import ConditionGroup, ConditionLeaf, StrategyRules
 from app.domain.contracts import (
     ContributionSettings,
     FrozenRunConfig,
@@ -15,6 +16,7 @@ from app.domain.contracts import (
     RunSettings,
     RunSnapshot,
     SharedSettings,
+    StrategyPresetId,
     StrategyRun,
 )
 from app.domain.status import Diagnostic, DiagnosticCode, StrategyStatus
@@ -188,6 +190,51 @@ def test_sqlite_store_preserves_decimal_strategy_parameters_after_reopen(
         ][0]["params"]["vix.buyThreshold"]
         == "25.00"
     )
+    reopened.close()
+
+
+def test_sqlite_store_preserves_independent_nested_condition_values(tmp_path) -> None:
+    path = tmp_path / "conditions.sqlite3"
+    store = SQLiteRunStore(path)
+    reservation = _reservation(store)
+    response = _response(reservation.run_id)
+    rules = StrategyRules(
+        buy=ConditionGroup(
+            id="root",
+            operator="OR",
+            children=(
+                ConditionLeaf(
+                    id="vix-low",
+                    kind="vix",
+                    params={"vix.buyThreshold": Decimal("25.01")},
+                ),
+                ConditionLeaf(
+                    id="vix-high",
+                    kind="vix",
+                    params={"vix.buyThreshold": Decimal("35.02")},
+                ),
+            ),
+        )
+    )
+    strategy = response.snapshot.config.strategies[0].model_copy(
+        update={"preset_id": StrategyPresetId.COMPOSITE_DCA, "rules": rules}
+    )
+    config = response.snapshot.config.model_copy(update={"strategies": (strategy,)})
+    saved = response.model_copy(
+        update={"snapshot": response.snapshot.model_copy(update={"config": config})}
+    )
+    store.publish(reservation, saved)
+    store.close()
+    reopened = SQLiteRunStore(path)
+    restored = reopened.get(saved.run_id)
+    assert restored == saved
+    restored_rules = restored.snapshot.config.strategies[0].rules
+    assert restored_rules is not None and isinstance(restored_rules.buy, ConditionGroup)
+    low, high = restored_rules.buy.children
+    assert isinstance(low, ConditionLeaf) and isinstance(high, ConditionLeaf)
+    assert low.params["vix.buyThreshold"] == Decimal("25.01")
+    assert high.params["vix.buyThreshold"] == Decimal("35.02")
+    assert isinstance(low.params["vix.buyThreshold"], Decimal)
     reopened.close()
 
 

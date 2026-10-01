@@ -1,4 +1,4 @@
-import type { Catalog, ParameterDefinition, ParameterGroupDefinition, PresetDefinition } from "./generated";
+import type { Catalog, ConditionGroup, ConditionLeaf, ParameterDefinition, ParameterGroupDefinition, PresetDefinition, StrategyRules } from "./generated";
 
 export class CatalogApiError extends Error {
   readonly status: number | null;
@@ -69,6 +69,12 @@ function normalizeCatalogNumericValues(catalog: Catalog): Catalog {
     const definition = definitions.get(key);
     return definition ? normalizeNumericValue(definition.type, value) : value;
   };
+  function normalizeNode(node: ConditionLeaf | ConditionGroup): ConditionLeaf | ConditionGroup {
+    return "kind" in node
+      ? { ...node, params: Object.fromEntries(Object.entries(node.params ?? {}).map(([key, value]) => [key, normalize(key, value)])) }
+      : { ...node, children: node.children?.map(normalizeNode) };
+  }
+  const normalizeRules = (rules: StrategyRules | null | undefined) => rules ? { buy: rules.buy ? normalizeNode(rules.buy) : null, sell: rules.sell ? normalizeNode(rules.sell) : null } : rules;
   return {
     ...catalog,
     parameters: catalog.parameters?.map((definition) => ({
@@ -82,9 +88,44 @@ function normalizeCatalogNumericValues(catalog: Catalog): Catalog {
         defaultParams: Object.fromEntries(
           Object.entries(preset.defaultParams).map(([key, value]) => [key, normalize(key, value)]),
         ),
+        defaultRules: normalizeRules(preset.defaultRules),
       };
     }),
   };
+}
+
+function hasValidConditions(value: Record<string, unknown>, parameterKeys: Set<string>): boolean {
+  if (value.conditions === undefined) return true;
+  if (!Array.isArray(value.conditions) || !isRecord(value.conditionLimits)) return false;
+  const { maxDepth, maxNodes } = value.conditionLimits;
+  if (typeof maxDepth !== "number" || !Number.isInteger(maxDepth) || maxDepth < 1 || typeof maxNodes !== "number" || !Number.isInteger(maxNodes) || maxNodes < 1) return false;
+  const definitions = new Map<string, { buy: string[]; sell: string[] }>();
+  for (const condition of value.conditions) {
+    if (!isRecord(condition) || typeof condition.kind !== "string" || typeof condition.nameKey !== "string" || definitions.has(condition.kind)) return false;
+    const buy = condition.buyParameterKeys;
+    const sell = condition.sellParameterKeys;
+    if (!Array.isArray(buy) || !Array.isArray(sell) || ![...buy, ...sell].every(key => typeof key === "string" && parameterKeys.has(key))) return false;
+    definitions.set(condition.kind, { buy, sell });
+  }
+  for (const preset of value.presets as PresetDefinition[]) {
+    if (preset.defaultRules === undefined || preset.defaultRules === null) continue;
+    if (!isRecord(preset.defaultRules)) return false;
+    const seen = new Set<string>();
+    const stack = (["buy", "sell"] as const).flatMap(side => preset.defaultRules?.[side] ? [{ node: preset.defaultRules[side] as unknown, side, depth: 1 }] : []);
+    while (stack.length) {
+      const { node, side, depth } = stack.pop()!;
+      if (!isRecord(node) || typeof node.id !== "string" || !node.id || seen.has(node.id) || depth > maxDepth || seen.size >= maxNodes || typeof node.enabled !== "boolean") return false;
+      seen.add(node.id);
+      if (node.type === "group") {
+        if (!Array.isArray(node.children) || !["AND", "OR"].includes(String(node.operator))) return false;
+        stack.push(...node.children.map(child => ({ node: child as unknown, side, depth: depth + 1 })));
+      } else {
+        const definition = typeof node.kind === "string" ? definitions.get(node.kind) : undefined;
+        if (node.type !== "condition" || !definition || !isRecord(node.params) || !Object.keys(node.params).every(key => definition[side].includes(key))) return false;
+      }
+    }
+  }
+  return true;
 }
 
 export function isCatalog(value: unknown): value is Catalog {
@@ -114,7 +155,8 @@ export function isCatalog(value: unknown): value is Catalog {
     groupTranslationKeys.size === groups.length &&
     parameters.every(({ groupId }) => groupIds.has(groupId)) &&
     presetIds.size === presets.length &&
-    presets.every(({ parameterKeys: keys }) => keys.every((key) => parameterKeys.has(key)))
+    presets.every(({ parameterKeys: keys }) => keys.every((key) => parameterKeys.has(key))) &&
+    hasValidConditions(value, parameterKeys)
   );
 }
 

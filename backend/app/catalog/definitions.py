@@ -377,6 +377,42 @@ _SCHEDULED_PRESETS: Final[tuple[StrategyPresetId, ...]] = (
     StrategyPresetId.LUMP_SUM,
 )
 _GRID_PRESET: Final[tuple[StrategyPresetId, ...]] = (StrategyPresetId.GRID_SEARCH,)
+_SINGLE_CONDITION_PRESETS: Final[tuple[StrategyPresetId, ...]] = (
+    StrategyPresetId.RSI_DCA,
+    StrategyPresetId.MA_DEVIATION_DCA,
+    StrategyPresetId.BOLLINGER_DCA,
+    StrategyPresetId.RATE_DCA,
+    StrategyPresetId.PE_DCA,
+)
+
+
+def _condition_applicability(key: str) -> tuple[StrategyPresetId, ...]:
+    if (
+        key.startswith("accumulation.")
+        and key
+        not in {
+            "accumulation.conditionLogic",
+            "accumulation.fixedDcaEnabled",
+            "accumulation.fixedDcaRatio",
+        }
+        or key == "exit.enabled"
+    ):
+        return _SINGLE_CONDITION_PRESETS
+    if key.startswith(("rsi.", "exit.rsi.")):
+        return (StrategyPresetId.RSI_DCA,)
+    if key.startswith("ma."):
+        return (StrategyPresetId.MA_DEVIATION_DCA,)
+    if key.startswith(("bollinger.", "exit.bollinger.")):
+        return (StrategyPresetId.BOLLINGER_DCA,)
+    if key.startswith("rate."):
+        return (StrategyPresetId.RATE_DCA,)
+    if key.startswith("pe."):
+        return (StrategyPresetId.PE_DCA,)
+    if key.startswith("exit.vix."):
+        return (StrategyPresetId.VIX_DCA,)
+    if key == "vix.symbol":
+        return (StrategyPresetId.BOLLINGER_DCA,)
+    return ()
 
 
 def _d(
@@ -407,7 +443,9 @@ def _d(
         maximum=None if maximum is None else Decimal(str(maximum)),
         step=None if step is None else Decimal(str(step)),
         allowedValues=tuple(allowed_values),
-        applicablePresets=tuple(presets),
+        applicablePresets=tuple(
+            dict.fromkeys((*presets, *_condition_applicability(key)))
+        ),
         searchable=searchable,
         dependencies=tuple(dependencies),
         translationKey=f"parameters.{key}",
@@ -864,6 +902,23 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         dependencies=("exit.bollinger.enabled", "vix.symbol"),
     ),
     # Preset-only execution switches.
+    _d(
+        "exit.ratio",
+        ParameterType.RATIO,
+        Decimal("0.25"),
+        group_id="sell_signals",
+        unit="ratio",
+        minimum=0,
+        maximum=1,
+        step="0.01",
+        presets=(
+            *_COMPOSITE_PRESETS,
+            *_TREND_PRESETS,
+            StrategyPresetId.MA_DEVIATION_DCA,
+            StrategyPresetId.RATE_DCA,
+            StrategyPresetId.PE_DCA,
+        ),
+    ),
     _d(
         "trend.sellBelowOrEqualMa",
         ParameterType.BOOLEAN,
