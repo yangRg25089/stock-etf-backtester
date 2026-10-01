@@ -18,6 +18,13 @@ class ConditionDefinition(DomainModel):
     def parameter_keys(self, side: Literal["buy", "sell"]) -> tuple[str, ...]:
         return self.buy_parameter_keys if side == "buy" else self.sell_parameter_keys
 
+    @property
+    def legacy_buy_enabled_key(self) -> str | None:
+        if self.kind is ConditionKind.MA_TREND:
+            return None
+        family = "ma" if self.kind is ConditionKind.MA_DEVIATION else self.kind.value
+        return f"{family}.buyEnabled"
+
 
 def _definition(
     kind: ConditionKind, buy: tuple[str, ...], sell: tuple[str, ...]

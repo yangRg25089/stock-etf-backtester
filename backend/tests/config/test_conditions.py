@@ -42,6 +42,46 @@ def draft(rules: object, preset: str = "composite_dca") -> dict[str, object]:
     }
 
 
+def test_fixed_ma_trend_keeps_full_exit_ratio_and_cannot_change_its_algorithm():
+    result = validate_draft(
+        draft(
+            {
+                "buy": leaf("buy-ma_trend", "ma_trend", **{"ma.period": 200}),
+                "sell": leaf(
+                    "sell-ma_trend",
+                    "ma_trend",
+                    **{"ma.period": 200, "exit.ratio": Decimal("0.5")},
+                ),
+            },
+            "ma_trend",
+        )
+    )
+    assert result.config_for() is None
+    assert any(
+        item.field_path == "strategies[0].rules.sell.params.exit.ratio"
+        for item in result.diagnostics_for()
+    )
+
+
+def test_grid_template_uses_the_registered_default_enabled_signals():
+    catalog = get_catalog()
+    preset = catalog.preset("grid_search")
+    assert preset.default_rules is not None
+    assert isinstance(preset.default_rules.buy, ConditionGroup)
+    actual = {
+        node.kind.value
+        for node in preset.default_rules.buy.children
+        if isinstance(node, ConditionLeaf) and node.enabled
+    }
+    expected = {
+        metadata.kind.value
+        for metadata in catalog.conditions
+        if metadata.legacy_buy_enabled_key
+        and preset.default_params.get(metadata.legacy_buy_enabled_key) is True
+    }
+    assert actual == expected
+
+
 def test_nested_conditions_are_catalog_normalized_and_independent() -> None:
     buy = {
         "type": "group",

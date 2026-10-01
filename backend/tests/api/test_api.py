@@ -324,6 +324,37 @@ def test_all_enabled_submission_keeps_invalid_strategy_as_local_diagnostic() -> 
     assert submission.engine_version
 
 
+def test_partial_run_freezes_invalid_condition_input_without_losing_the_tree() -> None:
+    service = _FakeRunService()
+    invalid = _strategy("invalid")
+    rules = {
+        "buy": {
+            "type": "condition",
+            "id": "buy-vix",
+            "kind": "vix",
+            "enabled": True,
+            "params": {"vix.buyThreshold": -1},
+        },
+        "sell": None,
+    }
+    invalid["rules"] = rules
+    response = _request(
+        "POST",
+        "/api/v1/runs",
+        service=service,
+        headers={"Idempotency-Key": "invalid-condition-snapshot"},
+        json_body={
+            "draft": _draft([_strategy("valid"), invalid]),
+            "scope": "all_enabled",
+        },
+    )
+
+    assert response.status_code == 202
+    strategy = response.json()["snapshot"]["config"]["strategies"][1]
+    assert strategy["rules"] == rules
+    assert service.submissions[0].strategy_validations[1].diagnostics
+
+
 def test_run_scope_errors_and_missing_run_use_the_structured_error_envelope() -> None:
     service = _FakeRunService()
     no_enabled = _draft([_strategy("disabled", enabled=False)])

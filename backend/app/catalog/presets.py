@@ -12,12 +12,17 @@ from typing import Final, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from app.domain.conditions import ConditionKind, StrategyRules
+from app.domain.conditions import (
+    ConditionGroup,
+    ConditionKind,
+    ConditionLogic,
+    StrategyRules,
+)
 from app.domain.contracts import StrategyPresetId
 from app.domain.immutability import FrozenMap, freeze_mapping, thaw_value
 from app.domain.status import DomainModel
 
-from .conditions import condition_definition, default_condition
+from .conditions import CONDITION_DEFINITIONS, condition_definition, default_condition
 from .definitions import PARAMETER_DEFINITIONS
 
 
@@ -220,7 +225,33 @@ def _default_rules(preset_id: StrategyPresetId) -> StrategyRules | None:
             )
         return StrategyRules(buy=default_condition(kind, "buy"), sell=sell)
     if preset_id in {StrategyPresetId.COMPOSITE_DCA, StrategyPresetId.GRID_SEARCH}:
-        return StrategyRules(buy=default_condition(ConditionKind.VIX, "buy"))
+        defaults = (
+            _GRID_DEFAULTS
+            if preset_id is StrategyPresetId.GRID_SEARCH
+            else _COMPOSITE_DEFAULTS
+        )
+        children = (
+            tuple(
+                default_condition(
+                    metadata.kind,
+                    "buy",
+                    enabled=defaults.get(metadata.legacy_buy_enabled_key, False)
+                    is True,
+                )
+                for metadata in CONDITION_DEFINITIONS
+                if metadata.legacy_buy_enabled_key is not None
+            )
+            if preset_id is StrategyPresetId.GRID_SEARCH
+            else (default_condition(ConditionKind.VIX, "buy"),)
+        )
+        return StrategyRules(
+            buy=ConditionGroup(
+                id="buy-root",
+                operator=ConditionLogic(str(defaults["accumulation.conditionLogic"])),
+                children=children,
+            ),
+            sell=ConditionGroup(id="sell-root", enabled=False),
+        )
     return None
 
 

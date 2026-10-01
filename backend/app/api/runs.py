@@ -227,6 +227,7 @@ def _build_submission(
                 presetId=raw.preset_id,
                 enabled=raw.enabled,
                 params=raw.params,
+                rules=raw.rules,
             )
         )
 

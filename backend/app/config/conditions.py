@@ -4,7 +4,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Literal
 
-from app.catalog.conditions import condition_definition
+from app.catalog.conditions import CONDITION_DEFINITIONS, condition_definition
 from app.catalog.definitions import (
     ParameterType,
     ParameterValidationError,
@@ -65,14 +65,6 @@ def materialize_legacy_rules(
             if preset.default_rules.sell is not None
             else None,
         )
-    buy_kinds = (
-        (ConditionKind.VIX, "vix.buyEnabled"),
-        (ConditionKind.RSI, "rsi.buyEnabled"),
-        (ConditionKind.MA_DEVIATION, "ma.buyEnabled"),
-        (ConditionKind.BOLLINGER, "bollinger.buyEnabled"),
-        (ConditionKind.RATE, "rate.buyEnabled"),
-        (ConditionKind.PE, "pe.buyEnabled"),
-    )
     sell_enabled = params.get("exit.enabled", False) is True
     return StrategyRules(
         buy=ConditionGroup(
@@ -81,8 +73,9 @@ def materialize_legacy_rules(
                 str(params.get("accumulation.conditionLogic", "OR"))
             ),
             children=tuple(
-                leaf(kind, "buy", params.get(key, False) is True)
-                for kind, key in buy_kinds
+                leaf(metadata.kind, "buy", params.get(key, False) is True)
+                for metadata in CONDITION_DEFINITIONS
+                if (key := metadata.legacy_buy_enabled_key) is not None
             ),
         ),
         sell=ConditionGroup(
@@ -193,6 +186,22 @@ def normalize_rules(
                     field_path=f"{field_path}.{side}",
                 )
             )
+        if (
+            preset.editor_mode == "fixed"
+            and preset.id is StrategyPresetId.MA_TREND
+            and side == "sell"
+            and isinstance(node, ConditionLeaf)
+            and node.kind is ConditionKind.MA_TREND
+        ):
+            exit_ratio = node.params.get("exit.ratio", Decimal("1"))
+            if exit_ratio != Decimal("1"):
+                diagnostics.append(
+                    invalid_parameter(
+                        issue=ConfigurationIssue.NOT_APPLICABLE,
+                        field_path=f"{field_path}.{side}.params.exit.ratio",
+                        details={"conditionId": node.id, "parameterKey": "exit.ratio"},
+                    )
+                )
     return StrategyRules(
         buy=normalize_node(rules.buy, "buy", f"{field_path}.buy"),
         sell=normalize_node(rules.sell, "sell", f"{field_path}.sell"),
