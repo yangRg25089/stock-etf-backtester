@@ -57,7 +57,7 @@ const SERIES: SeriesDefinition[] = [
 const VIX_SIGNAL_IDS = new Set(["vix.buy", "vix.exit.low1", "vix.exit.low2", "bollinger.exit.vix"]);
 const CHART = { height: 320, left: 92, right: 26, top: 20, bottom: 54, width: 800 };
 const MAIN_WITHOUT_DATES = { ...CHART, height: 274, bottom: 8 };
-const COMPACT_CHART = { ...CHART, height: 90, top: 8, bottom: 44 };
+const COMPACT_CHART = { ...CHART, height: 90, top: 8, bottom: 8 };
 
 function numericValue(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -167,7 +167,6 @@ function ChartAxes({
   currency,
   viewport,
   geometry,
-  showDateAxis,
 }: {
   dates: string[];
   locale: Locale;
@@ -176,9 +175,7 @@ function ChartAxes({
   currency?: string;
   viewport: ChartViewport;
   geometry: typeof CHART;
-  showDateAxis: boolean;
 }) {
-  const plotWidth = CHART.width - CHART.left - CHART.right;
   const plotBottom = geometry.height - geometry.bottom;
   const compact = geometry.height === COMPACT_CHART.height;
   const tickCount = compact ? 3 : 8;
@@ -198,21 +195,40 @@ function ChartAxes({
           </g>
         );
       })}
-      {dateTicks(dates, viewport).map(({ date, x }, index) => (
+      {dateTicks(dates, viewport).map(({ date, x }) => (
         <g key={`x-${date}`}>
           <line className="chart-gridline chart-gridline-vertical" x1={x} y1={geometry.top} x2={x} y2={plotBottom} />
-          {showDateAxis && <text className="chart-tick-label chart-x-tick" data-tick-index={index} x={x} y={plotBottom + 18} textAnchor="middle">
-            {date}
-          </text>}
         </g>
       ))}
       {!compact && <text className="chart-axis-title chart-y-axis-title" transform={`translate(20 ${(geometry.top + plotBottom) / 2}) rotate(-90)`} textAnchor="middle">
         {axisTitle(locale, seriesId, currency)}
       </text>}
-      {showDateAxis && <text className="chart-axis-title chart-x-axis-title" x={CHART.left + plotWidth / 2} y={geometry.height - 8} textAnchor="middle">
-        {translate(locale, "chart.dateAxis")}
-      </text>}
     </g>
+  );
+}
+
+function ChartDateAxis({ dates, locale, viewport, cursor }: {
+  dates: string[];
+  locale: Locale;
+  viewport: ChartViewport;
+  cursor: ChartCursor | null;
+}) {
+  const date = cursor ? dates[cursor.index] : undefined;
+  const cursorX = cursor ? xPosition(cursor.index, dates.length, viewport) : 0;
+  const dateX = Math.min(CHART.width - CHART.right - 43, Math.max(CHART.left + 43, cursorX));
+  return (
+    <div className="chart-date-axis-row" data-window-start={viewport.start} data-window-end={viewport.end}>
+      <svg className="chart-date-axis" viewBox="0 0 800 44" role="img" aria-label={translate(locale, "chart.dateAxis")}>
+        {dateTicks(dates, viewport).map(({ date: tickDate, x }, index) => (
+          <text key={tickDate} className="chart-tick-label chart-x-tick" data-tick-index={index} x={x} y="18" textAnchor="middle">{tickDate}</text>
+        ))}
+        {date && <g aria-hidden="true">
+          <rect className="chart-cursor-tag" x={dateX - 43} y="2" width="86" height="19" rx="2" />
+          <text className="chart-cursor-label chart-cursor-date" x={dateX} y="15" textAnchor="middle">{date}</text>
+        </g>}
+        <text className="chart-axis-title chart-x-axis-title" x={(CHART.left + CHART.width - CHART.right) / 2} y="36" textAnchor="middle">{translate(locale, "chart.dateAxis")}</text>
+      </svg>
+    </div>
   );
 }
 
@@ -343,7 +359,6 @@ function IndicatorChart({
   hasBuySignalObservations,
   viewport,
   chartInteractionProps,
-  showDateAxis,
   cursor,
 }: {
   locale: Locale;
@@ -355,12 +370,9 @@ function IndicatorChart({
   hasBuySignalObservations: boolean;
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
-  showDateAxis: boolean;
   cursor: ChartCursor | null;
 }) {
-  const geometry = { ...COMPACT_CHART, bottom: showDateAxis ? COMPACT_CHART.bottom : 8 };
-  const highlight = useSeriesHighlight();
-  const gradientId = `chart-gradient-${useId()}`;
+  const geometry = COMPACT_CHART;
   if (samples.length === 0) return null;
   const range = visibleIndexRange(assets.length, viewport);
   const visibleSamples = samples.filter((point) => point.index >= range.start && point.index <= range.end);
@@ -395,12 +407,6 @@ function IndicatorChart({
   }];
   return (
     <figure className={figureClass} data-window-start={viewport.start} data-window-end={viewport.end}>
-      <figcaption className="indicator-chart-heading">
-        <SeriesLegend locale={locale} series={[series]} currency={currency} highlight={highlight} />
-        {series.id === "vix" && visibleThreshold !== null && (
-          <span className="chart-threshold-label">{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</span>
-        )}
-      </figcaption>
       <div className="chart-canvas">
         <ChartReadout date={cursorDate} readings={readings} />
         <svg
@@ -421,16 +427,13 @@ function IndicatorChart({
             end: assets[Math.round(range.end)]?.date ?? "",
             count: String(Math.max(1, Math.round(range.end) - Math.round(range.start) + 1)),
           })}</desc>
-          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId={series.id} currency={currency} viewport={viewport} geometry={geometry} showDateAxis={showDateAxis} />
+          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId={series.id} currency={currency} viewport={viewport} geometry={geometry} />
           <defs>
             <clipPath id={plotClipId}>
               <rect x={CHART.left} y={geometry.top} width={plotWidth} height={plotHeight} />
             </clipPath>
           </defs>
           <g clipPath={`url(#${plotClipId})`}>
-            {highlight.highlightedId === series.id && (
-              <HighlightArea points={points} color={series.color} gradientId={gradientId} bottom={geometry.height - geometry.bottom} />
-            )}
             {thresholdY !== null && (
               <line className="chart-threshold-line" x1={CHART.left} y1={thresholdY} x2={CHART.width - CHART.right} y2={thresholdY}>
                 <title>{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</title>
@@ -438,11 +441,11 @@ function IndicatorChart({
             )}
             {points.length > 1 ? (
               <polyline
-                className={`chart-series-line${series.id === "vix" ? " chart-vix-line" : ""}${highlight.highlightedId === series.id ? " is-highlighted" : ""}`}
+                className={`chart-series-line${series.id === "vix" ? " chart-vix-line" : ""}`}
                 points={points.map((point) => `${point.x},${point.y}`).join(" ")}
                 fill="none"
                 stroke={series.color}
-                strokeWidth={highlight.highlightedId === series.id ? 2.4 : 1.2}
+                strokeWidth={1.2}
                 vectorEffect="non-scaling-stroke"
                 tabIndex={0}
                 aria-label={lineLabel}
@@ -461,7 +464,7 @@ function IndicatorChart({
             ))}
           </g>
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, assets.length, viewport)} y={cursorY}
-            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, series.id)} geometry={geometry} showDateLabel={showDateAxis}
+            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, series.id)} geometry={geometry}
             points={cursorPoint ? [{ y: scale.y(cursorPoint.value), color: series.color }] : []} />}
         </svg>
       </div>
@@ -480,7 +483,6 @@ function OverlayChart({
   viewport,
   chartInteractionProps,
   cursor,
-  showDateAxis,
 }: {
   locale: Locale;
   assets: DailyAsset[];
@@ -492,9 +494,8 @@ function OverlayChart({
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
   cursor: ChartCursor | null;
-  showDateAxis: boolean;
 }) {
-  const geometry = showDateAxis ? CHART : MAIN_WITHOUT_DATES;
+  const geometry = MAIN_WITHOUT_DATES;
   const highlight = useSeriesHighlight();
   const gradientId = `chart-gradient-${useId()}`;
   const normalized = series.flatMap((definition) => {
@@ -575,7 +576,7 @@ function OverlayChart({
             end: endDate,
             count: String(Math.max(1, Math.round(range.end) - Math.round(range.start) + 1)),
           })}</desc>
-          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId="index" viewport={viewport} geometry={geometry} showDateAxis={showDateAxis} />
+          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId="index" viewport={viewport} geometry={geometry} />
           <defs>
             <clipPath id={plotClipId}>
               <rect x={CHART.left} y={CHART.top} width={plotWidth} height={plotHeight} />
@@ -647,7 +648,7 @@ function OverlayChart({
             })}
           </g>
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, dateCount, viewport)} y={cursorY}
-            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={cursorPoints} showDateLabel={showDateAxis} />}
+            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={cursorPoints} />}
         </svg>
       </div>
     </figure>
@@ -775,10 +776,9 @@ export function ResultsCharts({
               viewport={viewport}
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
-              showDateAxis={indicatorSeries.length === 0}
             />
           )}
-          {indicatorSeries.map((series, index) => (
+          {indicatorSeries.map((series) => (
             <IndicatorChart
               key={series.id}
               locale={locale}
@@ -791,9 +791,9 @@ export function ResultsCharts({
               viewport={viewport}
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
-              showDateAxis={index === indicatorSeries.length - 1}
             />
           ))}
+          <ChartDateAxis dates={dailyAssets.map((asset) => asset.date)} locale={locale} viewport={viewport} cursor={cursor} />
         </div>
       )}
     </div>

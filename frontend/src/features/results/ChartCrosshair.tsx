@@ -25,7 +25,7 @@ export function ChartReadout({ date, readings }: { date?: string; readings: Curs
 }
 
 export function ChartCrosshair({
-  date, x, y, valueLabel, geometry, points, showDateLabel = true,
+  date, x, y, valueLabel, geometry, points,
 }: {
   date?: string;
   x: number;
@@ -33,11 +33,9 @@ export function ChartCrosshair({
   valueLabel?: string;
   geometry: { width: number; height: number; left: number; right: number; top: number; bottom: number };
   points: Array<{ y: number; color: string }>;
-  showDateLabel?: boolean;
 }) {
   if (!date) return null;
   const bottom = geometry.height - geometry.bottom;
-  const dateX = Math.min(geometry.width - geometry.right - 43, Math.max(geometry.left + 43, x));
   return (
     <g className="chart-crosshair" data-date={date} aria-hidden="true">
       <line className="chart-cursor-vertical" x1={x} x2={x} y1={geometry.top} y2={bottom} />
@@ -51,10 +49,6 @@ export function ChartCrosshair({
       {points.filter((point) => point.y >= geometry.top && point.y <= bottom).map((point, index) => (
         <circle className="chart-cursor-point" key={index} cx={x} cy={point.y} r="3.5" fill={point.color} />
       ))}
-      {showDateLabel && <>
-        <rect className="chart-cursor-tag" x={dateX - 43} y={bottom + 2} width="86" height="19" rx="2" />
-        <text className="chart-cursor-label chart-cursor-date" x={dateX} y={bottom + 15} textAnchor="middle">{date}</text>
-      </>}
     </g>
   );
 }

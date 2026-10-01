@@ -896,7 +896,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     expect(await plotHeight(selector)).toBeGreaterThan(30);
   }
   await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
-  await expect(page.locator(".chart-vix .chart-x-axis-title")).toHaveCount(1);
+  await expect(page.locator(".chart-date-axis .chart-x-axis-title")).toHaveCount(1);
 
   await page.setViewportSize({ width: 1920, height: 600 });
   await resultPane.evaluate((element) => { element.scrollTop = 0; });
@@ -1033,7 +1033,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     const windows = await readChartWindows();
     expect(windows).toHaveLength(3);
     expect(new Set(windows.map(({ start, end }) => `${start}:${end}`)).size).toBe(1);
-    expect(windows.filter(({ ticks }) => ticks.length > 0)).toHaveLength(1);
+    expect(windows.filter(({ ticks }) => ticks.length > 0)).toHaveLength(0);
+    await expect(page.locator(".chart-date-axis .chart-x-tick")).toHaveCount(3);
     expect(new Set(windows.map(({ grids }) => grids.join("|"))).size).toBe(1);
     return windows[0];
   };
@@ -1708,7 +1709,10 @@ test("linked figures share widths, halve indicator height, and highlight legends
   for (const [toggleLabel, bottomChart] of [["VIX", "drawdown"], ["ドローダウン", "overlay"], ["ドローダウン", "drawdown"], ["VIX", "vix"]]) {
     await page.locator(".chart-legend .legend-toggle").filter({ hasText: toggleLabel }).click();
     await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
-    await expect(page.locator(`[data-chart-id="${bottomChart}"] .chart-x-axis-title`)).toHaveCount(1);
+    await expect(page.locator(".chart-date-axis .chart-x-axis-title")).toHaveCount(1);
+    await expect(page.locator(`[data-chart-id="${bottomChart}"] .chart-x-axis-title`)).toHaveCount(0);
+    const plots = await page.locator(".chart-panel.is-compact svg.result-chart").evaluateAll(charts => charts.map(chart => Number(chart.dataset.plotBottom) - Number(chart.dataset.plotTop)));
+    for (const height of plots) expect(height).toBe(74);
     expect(await core.locator("svg.result-chart").evaluate(svg =>
       Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop))).toBe(mainPlotHeight);
   }
@@ -1728,13 +1732,8 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await page.keyboard.press("Tab");
   await expect(core.locator(".chart-highlight-area")).toHaveCount(0);
   await expect(core).toHaveAttribute("data-window-start", initialWindow);
-  const vix = page.locator(".chart-vix");
-  await vix.locator(".overlay-legend-item").hover();
-  await expect(vix.locator(".chart-highlight-area")).toBeVisible();
-  await expect(vix.locator("linearGradient stop").first()).toHaveAttribute("stop-color", "#7656a6");
-  await expect(vix.locator(".chart-series-line")).toHaveAttribute("stroke-width", "2.4");
-  await page.mouse.move(0, 0);
-  await expect(vix.locator(".chart-highlight-area")).toHaveCount(0);
+  await expect(page.locator(".chart-panel.is-compact figcaption")).toHaveCount(0);
+  await expect(page.locator(".chart-panel.is-compact .overlay-legend, .chart-panel.is-compact .chart-highlight-area")).toHaveCount(0);
   await page.locator(".workbench-results").evaluate((element) => { element.scrollTop = 0; });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({ path: test.info().outputPath("refined-workbench-1440.png") });
@@ -1786,8 +1785,9 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   const svg = core.locator("svg.result-chart");
   await expect(core.locator(".chart-y-tick")).toHaveCount(8);
   await expect(core.locator(".chart-x-tick")).toHaveCount(0);
-  await expect(indicator.locator(".chart-x-tick")).toHaveCount(7);
-  await expect(indicator.locator(".indicator-chart-heading")).toContainText("%");
+  await expect(indicator.locator(".chart-x-tick")).toHaveCount(0);
+  await expect(stack.locator(".chart-date-axis .chart-x-tick")).toHaveCount(7);
+  await expect(indicator.locator("svg.result-chart")).toHaveAccessibleName(/ドローダウン.*%/);
   await expect(indicator.locator("svg.result-chart")).toHaveAttribute("viewBox", "0 0 800 90");
   const sizes = await stack.locator("svg.result-chart").evaluateAll((charts) => charts.map((chart) => {
     const b = chart.getBoundingClientRect();
@@ -2013,13 +2013,13 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await hoverPlot(vixSvg, 0.25);
   await expect(core.locator(".chart-cursor-horizontal")).toHaveCount(0);
   const horizontal = vix.locator(".chart-cursor-horizontal");
-  expect(Number(await horizontal.getAttribute("y1"))).toBeCloseTo(17.5, 1);
+  expect(Number(await horizontal.getAttribute("y1"))).toBeCloseTo(26.5, 1);
   await expect(stack.locator(".chart-cursor-date")).toHaveCount(1);
-  await expect(vix.locator(".chart-cursor-date")).toHaveCount(1);
+  await expect(stack.locator(".chart-date-axis .chart-cursor-date")).toHaveCount(1);
   const vixValue = result.signals.find((signal) => signal.date === day.date && signal.signalId === "vix.buy").observedValue;
   await expect(vix.locator(".chart-crosshair-readout")).toContainText(String(Number(vixValue)));
   await expect(vix.locator(".chart-cursor-point")).toHaveCount(1);
-  const dateSpacing = await vix.evaluate((figure) => {
+  const dateSpacing = await stack.locator(".chart-date-axis").evaluate((figure) => {
     const date = figure.querySelector(".chart-cursor-date").getBoundingClientRect();
     const title = figure.querySelector(".chart-x-axis-title").getBoundingClientRect();
     return title.top - date.bottom;

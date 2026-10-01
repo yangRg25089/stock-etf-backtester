@@ -14,6 +14,10 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
     const geometry = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(width);
     if (width >= 768) expect(geometry.scrollHeight).toBeLessThanOrEqual(height + 1);
+    const chartWidths = await page.locator(".chart-figure svg, .date-axis-row svg").evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().width));
+    expect(chartWidths).toHaveLength(4);
+    expect(Math.max(...chartWidths) - Math.min(...chartWidths)).toBeLessThanOrEqual(1);
+    await expect(page.locator(".compact-indicator figcaption")).toHaveCount(0);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   const toggle = page.locator("#prototype-config-toggle");

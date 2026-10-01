@@ -72,7 +72,7 @@ test("linked figures have one bottom date axis and no separate-layout controls",
   }
 });
 
-test("half-height indicators put natural units in their headings without overflowing vertical titles", () => {
+test("half-height indicators retain accessible natural units without captions or compressed plots", () => {
   for (const [locale, pointUnit] of [["ja", "ポイント"], ["zh", "点"]]) {
     const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
       locale, dailyAssets, trades: [], visibleSeriesIds: ["price", "drawdown", "vix"],
@@ -83,9 +83,13 @@ test("half-height indicators put natural units in their headings without overflo
     assert.equal(indicators.length, 2);
     for (const [figure, id] of indicators) {
       assert.doesNotMatch(figure, /<text class="chart-axis-title chart-y-axis-title"/);
-      const heading = figure.match(/<figcaption[^>]*>[\s\S]*?<\/figcaption>/)[0];
-      assert.ok(heading.includes(id === "vix" ? pointUnit : "%"));
+      assert.doesNotMatch(figure, /<figcaption|overlay-legend|chart-highlight-area/);
+      assert.match(figure, /data-plot-top="8" data-plot-bottom="82"/);
+      assert.ok(figure.match(/<title[^>]*>[\s\S]*?<\/title>/)[0].includes(id === "vix" ? pointUnit : "%"));
     }
+    assert.match(html, /<svg class="chart-date-axis"/);
+    assert.equal((html.match(/class="chart-axis-title chart-x-axis-title"/g) ?? []).length, 1);
+    for (const figure of html.matchAll(/<figure[\s\S]*?<\/figure>/g)) assert.doesNotMatch(figure[0], /chart-x-axis-title|chart-x-tick/);
   }
 });
 

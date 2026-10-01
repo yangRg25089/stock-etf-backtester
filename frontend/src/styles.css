@@ -1964,12 +1964,7 @@ h2 {
   font-weight: 600;
 }
 
-.chart-threshold-label {
-  margin: 4px 0 0;
-  color: #8b631f;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
+
 
 .chart-single-point,
 .overlay-single-point {
@@ -2738,8 +2733,8 @@ h2 {
   }
 }
 
-.chart-linked-stack { display: grid; gap: 0; min-width: 0; }
-.workbench-results .chart-linked-stack .chart-panel { padding: 0; border: 0; border-radius: 0; }
+.chart-linked-stack { display: grid; gap: 0; min-width: 0; overflow-x: auto; }
+.workbench-results .chart-linked-stack .chart-panel { min-width: 680px; padding: 0; border: 0; border-radius: 0; overflow: visible; }
 .workbench-results .chart-linked-stack .chart-panel.is-compact {
   margin-top: 0;
   padding-top: 3px;
@@ -2749,9 +2744,7 @@ h2 {
   aspect-ratio: 800 / 90;
   height: auto;
 }
-.chart-linked-stack .chart-panel.is-compact figcaption { font-size: 12px; }
-.chart-linked-stack .core-chart-heading,
-.chart-linked-stack .indicator-chart-heading {
+.chart-linked-stack .core-chart-heading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2759,7 +2752,6 @@ h2 {
   margin: 0 0 2px;
 }
 .chart-linked-stack .overlay-legend { margin: 0; }
-.chart-linked-stack .chart-threshold-label { margin: 0; }
 
 .field-switch {
   display: flex;
@@ -2819,4 +2811,16 @@ h2 {
   .chart-x-tick[data-tick-index="2"],
   .chart-x-tick[data-tick-index="4"],
   .chart-x-tick[data-tick-index="5"] { visibility: hidden; }
+}
+
+.chart-date-axis-row { min-width: 680px; }
+.chart-date-axis {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+  max-width: 1360px;
+  height: auto;
+  margin-inline: auto;
+  user-select: none;
+  pointer-events: none;
 }
