@@ -27,7 +27,7 @@ interface ChartGeometry {
   right: number;
 }
 
-export function useChartInteraction(count: number, baseGeometry: ChartGeometry, compactGeometry: ChartGeometry) {
+export function useChartInteraction(count: number, baseGeometry: ChartGeometry) {
   const [viewport, setViewport] = useState<ChartViewport>(FULL_CHART_VIEWPORT);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState(false);
   const [cursor, setCursor] = useState<ChartCursor | null>(null);
@@ -36,14 +36,19 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
   const pointerPosition = (event: ReactPointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * baseGeometry.width;
-    const geometry = event.currentTarget.viewBox.baseVal.height === compactGeometry.height ? compactGeometry : baseGeometry;
-    const svgY = ((event.clientY - bounds.top) / bounds.height) * geometry.height;
-    return { ratio: (svgX - baseGeometry.left) / plotWidth, y: svgY, plotBottom: geometry.height - geometry.bottom };
+    const svg = event.currentTarget;
+    const svgY = ((event.clientY - bounds.top) / bounds.height) * svg.viewBox.baseVal.height;
+    return {
+      ratio: (svgX - baseGeometry.left) / plotWidth,
+      y: svgY,
+      plotTop: Number(svg.dataset.plotTop),
+      plotBottom: Number(svg.dataset.plotBottom),
+    };
   };
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
     const position = pointerPosition(event);
-    if (position.ratio < 0 || position.ratio > 1 || position.y < baseGeometry.top || position.y > position.plotBottom) return;
+    if (position.ratio < 0 || position.ratio > 1 || position.y < position.plotTop || position.y > position.plotBottom) return;
     event.preventDefault();
     setCursor(null);
     dragState.current = { pointerId: event.pointerId, startRatio: position.ratio, viewport };
@@ -53,11 +58,11 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
     const activeDrag = dragState.current;
     const position = pointerPosition(event);
     if (!activeDrag) {
-      const index = position.y < baseGeometry.top || position.y > position.plotBottom
+      const index = position.y < position.plotTop || position.y > position.plotBottom
         ? null : nearestChartIndex(count, viewport, position.ratio);
       setCursor(index === null ? null : {
         index, chartId: event.currentTarget.dataset.chartId ?? "overlay",
-        yRatio: (position.y - baseGeometry.top) / (position.plotBottom - baseGeometry.top),
+        yRatio: (position.y - position.plotTop) / (position.plotBottom - position.plotTop),
       });
       return;
     }

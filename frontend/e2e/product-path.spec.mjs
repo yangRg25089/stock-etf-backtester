@@ -890,18 +890,13 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(mainPlotHeight, `1920px main plot height: ${mainPlotHeight}px`).toBeGreaterThanOrEqual(320);
   expect(mainPlotHeight, `1920px main plot height: ${mainPlotHeight}px`).toBeLessThanOrEqual(420);
   await expect(page.locator(".chart-range-label")).toContainText("全図共通");
-  const drawdownToggle = page.locator("#chart-aux-drawdown-toggle");
-  await drawdownToggle.click();
-  const drawdownPlotHeight = await plotHeight(".chart-panel.chart-drawdown");
-  expect(drawdownPlotHeight, `1920px drawdown plot height: ${drawdownPlotHeight}px`).toBeGreaterThanOrEqual(320);
-  expect(drawdownPlotHeight, `1920px drawdown plot height: ${drawdownPlotHeight}px`).toBeLessThanOrEqual(420);
-  const vixToggleForSizing = page.locator("#chart-aux-vix-toggle");
-  await vixToggleForSizing.click();
-  const vixPlotHeight = await plotHeight(".chart-panel.chart-vix");
-  expect(vixPlotHeight, `1920px VIX plot height: ${vixPlotHeight}px`).toBeGreaterThanOrEqual(320);
-  expect(vixPlotHeight, `1920px VIX plot height: ${vixPlotHeight}px`).toBeLessThanOrEqual(420);
-  await drawdownToggle.click();
-  await vixToggleForSizing.click();
+  for (const selector of [".chart-drawdown", ".chart-vix"]) {
+    const size = await page.locator(`${selector} svg.result-chart`).evaluate(svg => ({ width: svg.getBoundingClientRect().width, height: svg.getBoundingClientRect().height }));
+    expect(size.height).toBeCloseTo(size.width * 90 / 800, 1);
+    expect(await plotHeight(selector)).toBeGreaterThan(30);
+  }
+  await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
+  await expect(page.locator(".chart-vix .chart-x-axis-title")).toHaveCount(1);
 
   await page.setViewportSize({ width: 1920, height: 600 });
   await resultPane.evaluate((element) => { element.scrollTop = 0; });
@@ -913,10 +908,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(shortScreenLayout.documentHeight).toBeLessThanOrEqual(602);
   expect(shortScreenLayout.scrollHeight).toBeGreaterThan(shortScreenLayout.clientHeight);
   expect(await plotHeight(".chart-panel.chart-overlay")).toBeCloseTo(mainPlotHeight, 0);
-  await vixToggleForSizing.click();
-  await expect(page.locator(".chart-layout-controls")).toBeInViewport();
+  await expect(page.locator(".chart-layout-controls")).toHaveCount(0);
   await expect(page.locator(".chart-range-controls")).toBeInViewport();
-  await vixToggleForSizing.click();
 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.locator(".workbench-mobile-view").filter({ hasText: "結果" }).click();
@@ -936,9 +929,10 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(mobileHeaderBounds.childrenWithinHeader).toBe(true);
 
   const mobileToolbar = page.locator(".chart-toolbar");
-  await page.locator("#chart-aux-vix-toggle").click();
   for (const width of [320, 375, 767]) {
-    await page.setViewportSize({ width, height: 812 });
+    // The compact stack can end before the sticky threshold on tall phones.
+    // A short viewport lets the toolbar actually reach its sticky position.
+    await page.setViewportSize({ width, height: 600 });
     await page.evaluate(() => {
       const toolbar = document.querySelector(".chart-toolbar");
       window.scrollTo(0, toolbar.getBoundingClientRect().top + window.scrollY + 80);
@@ -1032,13 +1026,15 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
       start: panel.getAttribute("data-window-start"),
       end: panel.getAttribute("data-window-end"),
       ticks: [...panel.querySelectorAll(".chart-x-tick")].map((tick) => tick.textContent),
+      grids: [...panel.querySelectorAll(".chart-gridline-vertical")].map(line => line.getAttribute("x1")),
     })),
   );
   const expectSynchronizedWindows = async () => {
     const windows = await readChartWindows();
     expect(windows).toHaveLength(3);
     expect(new Set(windows.map(({ start, end }) => `${start}:${end}`)).size).toBe(1);
-    expect(new Set(windows.map(({ ticks }) => ticks.join("|"))).size).toBe(1);
+    expect(windows.filter(({ ticks }) => ticks.length > 0)).toHaveLength(1);
+    expect(new Set(windows.map(({ grids }) => grids.join("|"))).size).toBe(1);
     return windows[0];
   };
   const expectBaselineInsidePlot = async () => {
@@ -1075,48 +1071,22 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(splitEventSpan).toBeCloseTo(singleEventSpan, 2);
   await wheelResetButton.click();
   for (const chartSelector of ["chart-overlay", "chart-drawdown", "chart-vix"]) {
-    if (chartSelector === "chart-drawdown" || chartSelector === "chart-vix") {
-      const auxiliaryToggle = page.locator(chartSelector === "chart-drawdown"
-        ? "#chart-aux-drawdown-toggle"
-        : "#chart-aux-vix-toggle");
-      await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "false");
-      if (chartSelector === "chart-drawdown") {
-        const panel = page.locator(".chart-panel.chart-drawdown");
-        const originalWindow = {
-          start: await panel.getAttribute("data-window-start"),
-          end: await panel.getAttribute("data-window-end"),
-        };
-        await auxiliaryToggle.click();
-        await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "true");
-        await expect(panel).toBeVisible();
-        await auxiliaryToggle.click();
-        await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "false");
-        await expect(panel).toBeHidden();
-        await auxiliaryToggle.click();
-        await expect(panel).toBeVisible();
-        await expect(panel).toHaveAttribute("data-window-start", originalWindow.start);
-        await expect(panel).toHaveAttribute("data-window-end", originalWindow.end);
-      } else {
-        await auxiliaryToggle.click();
-        await expect(auxiliaryToggle).toHaveAttribute("aria-expanded", "true");
-        const chartToolbar = page.locator(".chart-toolbar");
-        await expect(chartToolbar).toBeInViewport();
-        await expect(page.locator(".chart-layout-controls")).toBeInViewport();
-        await expect(page.locator(".chart-range-controls")).toBeInViewport();
-        const toolbarPosition = await chartToolbar.evaluate((toolbar) => {
-          const scrollport = document.querySelector(".workbench-results").getBoundingClientRect();
-          const bounds = toolbar.getBoundingClientRect();
-          const chart = document.querySelector(".chart-panel.chart-vix").getBoundingClientRect();
-          return {
-            topOffset: bounds.top - scrollport.top,
-            bottom: bounds.bottom,
-            chartTop: chart.top,
-          };
-        });
-        expect(toolbarPosition.topOffset).toBeGreaterThanOrEqual(-1);
-        expect(toolbarPosition.topOffset).toBeLessThanOrEqual(4);
-        expect(toolbarPosition.bottom).toBeLessThan(toolbarPosition.chartTop);
-      }
+    if (chartSelector === "chart-drawdown") {
+      const panel = page.locator(".chart-panel.chart-drawdown");
+      const originalWindow = [await panel.getAttribute("data-window-start"), await panel.getAttribute("data-window-end")];
+      const toggle = page.locator(".chart-legend .legend-toggle").filter({ hasText: "ドローダウン" });
+      await toggle.click();
+      await expect(panel).toHaveCount(0);
+      await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
+      await toggle.click();
+      await expect(panel).toBeVisible();
+      await expect(panel).toHaveAttribute("data-window-start", originalWindow[0]);
+      await expect(panel).toHaveAttribute("data-window-end", originalWindow[1]);
+    }
+    if (chartSelector === "chart-vix") {
+      await page.locator(".chart-vix svg.result-chart").scrollIntoViewIfNeeded();
+      await expect(page.locator(".chart-toolbar")).toBeInViewport();
+      await expect(page.locator(".chart-range-controls")).toBeInViewport();
     }
     const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
     if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
@@ -1211,8 +1181,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(keyboardPannedWindow.start).not.toBe(keyboardZoomedWindow.start);
   await page.keyboard.press("Home");
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-start", "0");
-  const overlayButton = page.getByRole("button", { name: "連動表示" });
-  await overlayButton.click();
+  await expect(page.locator(".chart-layout-controls")).toHaveCount(0);
   await expect(page.locator(".chart-panel.chart-overlay .overlay-series-line")).toHaveCount(2);
   await expect(page.locator(".chart-linked-stack .is-compact")).toHaveCount(2);
   expect(await page.locator(".chart-panel.chart-overlay .overlay-series-line").evaluateAll((lines) =>
@@ -1221,7 +1190,6 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".chart-panel.chart-overlay .chart-y-axis-title")).toContainText("100");
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-start", "0");
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-end", "1");
-  await page.getByRole("button", { name: "分割表示" }).click();
   await expect(page.locator(".chart-panel.chart-overlay .overlay-series-line")).toHaveCount(2);
   const chartAccessibility = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -1680,7 +1648,7 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   expect(content).toContain(String(benchmark.metrics.endingEquity));
 });
 
-test("charts share dimensions and legend hover or keyboard focus highlights a gradient area", async ({ page }) => {
+test("linked figures share widths, halve indicator height, and highlight legends without gaps", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
@@ -1692,8 +1660,6 @@ test("charts share dimensions and legend hover or keyboard focus highlights a gr
   const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   await completed;
-  await page.locator("#chart-aux-drawdown-toggle").click();
-  await page.locator("#chart-aux-vix-toggle").click();
   for (const width of [1440, 1920, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     const sizes = await page.locator(".result-chart").evaluateAll((charts) => charts.map((chart) => {
@@ -1702,9 +1668,41 @@ test("charts share dimensions and legend hover or keyboard focus highlights a gr
     }));
     expect(sizes).toHaveLength(3);
     expect(Math.max(...sizes.map((size) => size.width)) - Math.min(...sizes.map((size) => size.width))).toBeLessThanOrEqual(3);
-    expect(Math.max(...sizes.map((size) => size.height)) - Math.min(...sizes.map((size) => size.height))).toBeLessThanOrEqual(2);
+    expect(sizes[0].height).toBeCloseTo(sizes[0].width * 274 / 800, 1);
+    for (const size of sizes.slice(1)) expect(size.height).toBeCloseTo(size.width * 180 / 800 / 2, 1);
+    const gaps = await page.locator(".chart-linked-stack figure").evaluateAll(figures => figures.slice(1).map((figure,index) => figure.getBoundingClientRect().top - figures[index].getBoundingClientRect().bottom));
+    for (const gap of gaps) expect(Math.abs(gap)).toBeLessThanOrEqual(1);
+    await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
   }
   const core = page.locator(".chart-overlay");
+  const tradeAnchors = await core.evaluate(figure => {
+    const curve = figure.querySelector("polyline.overlay-totalAsset");
+    const points = [...curve.points];
+    return [...figure.querySelectorAll(".chart-trade-marker")].map(marker => {
+      const tip = marker.points[0];
+      const point = points.find(candidate => Math.abs(candidate.x - tip.x) < 0.001);
+      const direction = marker.classList.contains("chart-trade-marker-buy") ? 1 : -1;
+      return {
+        anchor: marker.dataset.anchorSeries,
+        difference: point ? Math.abs(tip.y - direction * 5 - point.y) : null,
+      };
+    });
+  });
+  expect(tradeAnchors.length).toBeGreaterThan(0);
+  for (const marker of tradeAnchors) {
+    expect(marker.anchor).toBe("totalAsset");
+    expect(marker.difference).not.toBeNull();
+    expect(marker.difference).toBeLessThan(0.001);
+  }
+  const mainPlotHeight = await core.locator("svg.result-chart").evaluate(svg =>
+    Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop));
+  for (const [toggleLabel, bottomChart] of [["VIX", "drawdown"], ["ドローダウン", "overlay"], ["ドローダウン", "drawdown"], ["VIX", "vix"]]) {
+    await page.locator(".chart-legend .legend-toggle").filter({ hasText: toggleLabel }).click();
+    await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
+    await expect(page.locator(`[data-chart-id="${bottomChart}"] .chart-x-axis-title`)).toHaveCount(1);
+    expect(await core.locator("svg.result-chart").evaluate(svg =>
+      Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop))).toBe(mainPlotHeight);
+  }
   const initialWindow = await core.getAttribute("data-window-start");
   const priceLegend = core.locator('.overlay-legend-item[data-series="price"]');
   await priceLegend.hover();
@@ -1770,15 +1768,15 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   await page.locator(".run-submit-button").click();
   await completed;
   await page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" }).locator("button").click();
-  await page.getByRole("button", { name: "連動表示", exact: true }).click();
   const stack = page.locator(".chart-linked-stack");
   const core = stack.locator(".chart-overlay");
   const indicator = stack.locator(".chart-drawdown");
   const svg = core.locator("svg.result-chart");
   await expect(core.locator(".chart-y-tick")).toHaveCount(8);
-  await expect(core.locator(".chart-x-tick")).toHaveCount(7);
+  await expect(core.locator(".chart-x-tick")).toHaveCount(0);
+  await expect(indicator.locator(".chart-x-tick")).toHaveCount(7);
   await expect(indicator.locator(".chart-y-axis-title")).toContainText("%");
-  await expect(indicator.locator("svg.result-chart")).toHaveAttribute("viewBox", "0 0 800 180");
+  await expect(indicator.locator("svg.result-chart")).toHaveAttribute("viewBox", "0 0 800 90");
   const sizes = await stack.locator("svg.result-chart").evaluateAll((charts) => charts.map((chart) => {
     const b = chart.getBoundingClientRect();
     return { width: b.width, height: b.height };
@@ -1938,7 +1936,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await expect(page.locator(".chart-overlay .overlay-price")).toHaveCount(0);
   await expect(page.locator(".chart-overlay svg.result-chart")).toBeVisible();
   await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveCount(1);
-  await expect(page.locator(".chart-overlay .price-trade-marker").first()).toHaveAttribute("data-anchor-series", "totalAsset");
+  await expect(page.locator(".chart-overlay .chart-trade-marker").first()).toHaveAttribute("data-anchor-series", "totalAsset");
   await expect(asset).toBeDisabled();
   await expect(page.locator(".chart-range-controls")).toBeVisible();
   await page.getByRole("button", { name: "期間を拡大", exact: true }).click();
@@ -1973,7 +1971,6 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const result = saved.result.strategyRuns.find((r) => r.presetId === "vix_dca");
-  await page.getByRole("button", { name: "連動表示", exact: true }).click();
   const stack = page.locator(".chart-linked-stack");
   const core = stack.locator(".chart-overlay");
   const vix = stack.locator(".chart-vix");
@@ -1981,11 +1978,10 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   const vixSvg = vix.locator("svg.result-chart");
   async function hoverPlot(svg, yRatio = 0.5) {
     await svg.scrollIntoViewIfNeeded();
-    const geometry = await svg.evaluate((el) => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, viewHeight: el.viewBox.baseVal.height }));
-    const bottom = geometry.viewHeight === 180 ? 44 : 54;
+    const geometry = await svg.evaluate((el) => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, viewHeight: el.viewBox.baseVal.height, top: Number(el.dataset.plotTop), bottom: Number(el.dataset.plotBottom) }));
     await svg.hover({ position: {
       x: geometry.width * 433 / 800,
-      y: geometry.height * (20 + (geometry.viewHeight - 20 - bottom) * yRatio) / geometry.viewHeight,
+      y: geometry.height * (geometry.top + (geometry.bottom - geometry.top) * yRatio) / geometry.viewHeight,
     } });
   }
   await hoverPlot(coreSvg);
@@ -2005,7 +2001,9 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await hoverPlot(vixSvg, 0.25);
   await expect(core.locator(".chart-cursor-horizontal")).toHaveCount(0);
   const horizontal = vix.locator(".chart-cursor-horizontal");
-  expect(Number(await horizontal.getAttribute("y1"))).toBeCloseTo(49, 1);
+  expect(Number(await horizontal.getAttribute("y1"))).toBeCloseTo(17.5, 1);
+  await expect(stack.locator(".chart-cursor-date")).toHaveCount(1);
+  await expect(vix.locator(".chart-cursor-date")).toHaveCount(1);
   const vixValue = result.signals.find((signal) => signal.date === day.date && signal.signalId === "vix.buy").observedValue;
   await expect(vix.locator(".chart-crosshair-readout")).toContainText(String(Number(vixValue)));
   await expect(vix.locator(".chart-cursor-point")).toHaveCount(1);

@@ -36,6 +36,42 @@ const trades = [
   },
 ];
 
+test("trades anchor to the contributed-capital asset curve even when price is visible", () => {
+  const assets = dailyAssets.map((asset, index) => ({ ...asset, totalAsset: ["100", "198", "203"][index], totalContributed: ["100", "200", "200"][index] }));
+  const render = visibleSeriesIds => renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "ja", dailyAssets: assets, trades, signals: [], visibleSeriesIds, onSeriesChange() {},
+  }));
+  const html = render(["price", "totalAsset"]);
+  const assetPoints = html.match(/<polyline class="overlay-series-line overlay-totalAsset[^\"]*" points="([^\"]+)"/)[1].split(" ").map(point => point.split(",").map(Number));
+  const markers = [...html.matchAll(/<polygon class="chart-trade-marker[^\"]*"[^>]*points="([^\"]+)"/g)].map(match => match[1].split(" ")[0].split(",").map(Number));
+  assert.equal(markers.length, trades.length);
+  for (const [index, [x, y]] of markers.entries()) {
+    const curve = assetPoints[index + 1];
+    assert.equal(x, curve[0]);
+    assert.ok(Math.abs(y - curve[1] - (trades[index].side === "buy" ? 5 : -5)) < 1e-8);
+  }
+  assert.equal((html.match(/data-anchor-series="totalAsset"/g) ?? []).length, trades.length);
+  assert.doesNotMatch(render(["price"]), /chart-trade-marker/);
+});
+
+test("linked figures have one bottom date axis and no separate-layout controls", () => {
+  for (const visibleSeriesIds of [["price"], ["price", "drawdown"], ["price", "vix"], ["price", "drawdown", "vix"]]) {
+    const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+      locale: "ja", dailyAssets, trades: [], visibleSeriesIds,
+      signals: [{ date: dailyAssets[0].date, signalId: "vix.buy", state: "false", observedValue: "20" }],
+      onSeriesChange() {},
+    }));
+    assert.equal((html.match(/class="chart-axis-title chart-x-axis-title"/g) ?? []).length, 1);
+    assert.equal((html.match(/class="chart-tick-label chart-x-tick"/g) ?? []).length, dailyAssets.length);
+    assert.match(html, /class="chart-linked-stack"/);
+    assert.doesNotMatch(html, /chart-layout-controls|chart-aux-panel|分割表示|連動表示/);
+    for (const id of visibleSeriesIds.filter(id => id !== "price")) {
+      assert.match(html, new RegExp(`data-chart-id="${id}"`));
+      assert.match(html, /viewBox="0 0 800 90"/);
+    }
+  }
+});
+
 test("asset-only comparison preserves saved trades on the visible asset curve", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja", dailyAssets, trades, signals: [], visibleSeriesIds: ["totalAsset"], onSeriesChange() {},
@@ -56,7 +92,7 @@ test("all financial charts use readable lines and saved results mark trades", ()
 
   assert.equal((html.match(/class="result-chart"/g) ?? []).length, 2);
   assert.equal((html.match(/<polyline /g) ?? []).length, 3);
-  assert.equal((html.match(/class="price-trade-marker /g) ?? []).length, 2);
+  assert.equal((html.match(/class="chart-trade-marker /g) ?? []).length, 2);
   assert.equal((html.match(/class="candlestick candlestick-/g) ?? []).length, 0);
   assert.match(html, /class="overlay-series overlay-price"/);
   assert.match(html, /class="overlay-series overlay-totalAsset"/);
@@ -68,9 +104,8 @@ test("all financial charts use readable lines and saved results mark trades", ()
   assert.match(html, /価格 \(USD\)/);
   assert.match(html, /総資産/);
   assert.match(html, /ドローダウン/);
-  assert.match(html, /id="chart-aux-drawdown" class="collapsible-panel chart-aux-panel"/);
-  assert.match(html, /aria-expanded="false"[^>]*aria-controls="chart-aux-drawdown-content"/);
-  assert.match(html, /id="chart-aux-drawdown-content" class="collapsible-panel-body"[^>]*hidden=""/);
+  assert.match(html, /class="chart-linked-stack"/);
+  assert.doesNotMatch(html, /chart-aux-drawdown|chart-layout-controls/);
   assert.match(html, /class="chart-panel chart-drawdown/);
 });
 
@@ -108,8 +143,6 @@ test("linked view keeps a core comparison and natural-unit indicators underneath
     vixSymbol: "^VIX",
     vixThreshold: "25",
     visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
-    overlayMode: true,
-    onOverlayModeChange() {},
     onSeriesChange() {},
   }));
 
@@ -181,7 +214,7 @@ test("saved results without contributed principal explain why the asset return c
   assert.doesNotMatch(html, /overlay-series-line overlay-totalAsset/);
 });
 
-test("indicator overlay is disabled when no auxiliary series is selected", () => {
+test("a core-only chart stays linked without a redundant layout switch", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja",
     dailyAssets,
@@ -190,7 +223,8 @@ test("indicator overlay is disabled when no auxiliary series is selected", () =>
     onSeriesChange() {},
   }));
 
-  assert.match(html, /aria-pressed="false" disabled="">連動表示<\/button>/);
+  assert.doesNotMatch(html, /chart-layout-controls|連動表示|分割表示/);
+  assert.match(html, /class="chart-linked-stack"/);
 });
 
 test("chart legend only changes visible chart series", () => {
@@ -206,7 +240,7 @@ test("chart legend only changes visible chart series", () => {
   assert.match(html, /aria-pressed="false"><span/);
   assert.ok(html.includes("</span>回撤 (%)</button>"));
   assert.match(html, /aria-label="显示的图表"/);
-  assert.match(html, /联动/);
+  assert.match(html, /class="chart-linked-stack"/);
 });
 
 test("VIX chart uses saved observed signal values and frozen threshold", () => {

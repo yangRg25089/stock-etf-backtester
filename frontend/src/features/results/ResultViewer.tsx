@@ -65,9 +65,7 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
               vixSymbol={savedParameterText(params, "vix.symbol")}
               vixThreshold={savedParameterText(params, "vix.buyThreshold")}
               visibleSeriesIds={state.visibleSeriesIds}
-              overlayMode={state.overlayMode}
               onSeriesChange={(id, visible) => dispatch({ type: "chart.series", id, visible })}
-              onOverlayModeChange={(value) => dispatch({ type: "chart.overlay", value })}
             />
           ) : (
             <p className="metric-empty">{translate(locale, "results.metricsUnavailable")}</p>

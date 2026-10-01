@@ -1584,17 +1584,6 @@ h2 {
   overflow: visible;
 }
 
-.chart-aux-panel .collapsible-panel-body {
-  padding: 0 0 12px;
-}
-
-.workbench-results .chart-aux-panel .chart-panel {
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-
 
 .result-section-heading {
   margin-bottom: 12px;
@@ -1819,35 +1808,6 @@ h2 {
   border-radius: 3px;
 }
 
-.chart-layout-controls {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chart-layout-controls button {
-  min-height: 40px;
-  padding: 6px 10px;
-  color: var(--app-foreground);
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.chart-layout-controls button[aria-pressed="true"] {
-  color: #fff;
-  background: var(--app-accent);
-  border-color: var(--app-accent);
-}
-
-.chart-layout-controls button:disabled {
-  color: var(--app-muted);
-  cursor: not-allowed;
-}
-
 .chart-range-controls {
   display: flex;
   align-items: center;
@@ -1924,7 +1884,7 @@ h2 {
   font-weight: 600;
 }
 
-/* Standalone figures share dimensions; linked indicators use a shorter viewBox. */
+/* Shared widths align time grids; indicators have a shorter viewBox. */
 .result-chart {
   display: block;
   width: 100%;
@@ -2074,13 +2034,13 @@ h2 {
   border-radius: 2px;
 }
 
-.price-trade-marker-buy {
+.chart-trade-marker-buy {
   fill: #147d68;
   stroke: #fff;
   stroke-width: 1.5;
 }
 
-.price-trade-marker-sell {
+.chart-trade-marker-sell {
   fill: #a7373a;
   stroke: #fff;
   stroke-width: 1.5;
@@ -2600,10 +2560,6 @@ h2 {
     flex: 1 1 100%;
   }
 
-  .workbench-results .chart-aux-panel .chart-panel {
-    padding: 0;
-  }
-
   .result-tab {
     scroll-snap-align: start;
   }
@@ -2707,7 +2663,6 @@ h2 {
   }
 
   .workbench-results .legend-toggle,
-  .workbench-results .chart-layout-controls button,
   .workbench-results .chart-range-controls button {
     min-height: 32px;
     padding: 4px 7px;
@@ -2764,7 +2719,6 @@ h2 {
   .workbench-results .diagnostic-field-link,
   .workbench-results .display-toggle,
   .workbench-results .legend-toggle,
-  .workbench-results .chart-layout-controls button,
   .workbench-results .chart-range-controls button,
   .strategy-nav-card .strategy-enabled-control,
   .strategy-nav-card .strategy-remove,
@@ -2825,17 +2779,27 @@ h2 {
 }
 
 .chart-linked-stack { display: grid; gap: 0; min-width: 0; }
-.workbench-results .chart-linked-stack .chart-panel { padding-inline: 0; border: 0; border-radius: 0; }
+.workbench-results .chart-linked-stack .chart-panel { padding: 0; border: 0; border-radius: 0; }
 .workbench-results .chart-linked-stack .chart-panel.is-compact {
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 0;
+  padding-top: 3px;
   border-top: 1px solid var(--app-border);
 }
 .chart-linked-stack .chart-panel.is-compact .result-chart {
-  aspect-ratio: 800 / 180;
+  aspect-ratio: 800 / 90;
   height: auto;
 }
 .chart-linked-stack .chart-panel.is-compact figcaption { font-size: 12px; }
+.chart-linked-stack .core-chart-heading,
+.chart-linked-stack .indicator-chart-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0 0 2px;
+}
+.chart-linked-stack .overlay-legend { margin: 0; }
+.chart-linked-stack .chart-threshold-label { margin: 0; }
 
 .field-switch {
   display: flex;

@@ -48,7 +48,7 @@ test("initial workspace comes from the VIX preset and shared catalog defaults", 
   assert.equal(state.draft.shared.run.endDate, null);
   assert.equal(state.draft.shared.contribution.amount, "100");
   assert.equal(state.draft.shared.contribution.day, 1);
-  assert.equal(state.overlayMode, false);
+  assert.equal("overlayMode" in state, false);
   assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown", "vix"]);
 });
 
@@ -69,12 +69,12 @@ test("reset clears the displayed run and focus while preserving draft and displa
   assert.equal(cleared.visibleSeriesIds, state.visibleSeriesIds);
 });
 
-test("chart overlay layout preference is independent from selected series", () => {
+test("series visibility remains independent from saved results with no layout mode", () => {
   let state = createInitialWorkspaceState(catalog);
-  state = workspaceReducer(state, { type: "chart.overlay", value: true });
   state = workspaceReducer(state, { type: "chart.series", id: "vix", visible: false });
 
-  assert.equal(state.overlayMode, true);
+  assert.equal("overlayMode" in state, false);
+  assert.equal(state.runResponse, null);
   assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown"]);
 });
 

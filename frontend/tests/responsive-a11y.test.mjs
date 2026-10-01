@@ -258,7 +258,7 @@ test("space-saving workbench controls retain an accessible text name", () => {
 test("primary workbench actions use the accent fill and selected chart modes are easy to spot", () => {
   assert.match(blockFor(".workbench-config-toggle"), /background:\s*transparent/);
   assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent\)/);
-  assert.match(blockFor(".chart-layout-controls button\[aria-pressed=\"true\"\]"), /background:\s*var\(--app-accent\)/);
+  assert.match(blockFor(".chart-wheel-zoom-toggle[aria-pressed=\"true\"]"), /background:\s*var\(--app-accent\)/);
 });
 
 test("base button styles precede and preserve emphasized action colors", () => {
@@ -293,7 +293,7 @@ test("sidebar actions float only on hover or keyboard focus, with a touch fallba
 
 test("SVG chart labels cannot be selected by drag gestures", () => {
   assert.match(blockFor(".result-chart"), /user-select:\s*none/);
-  assert.match(css, /\.chart-linked-stack \.chart-panel\.is-compact \.result-chart\s*\{[^}]*aspect-ratio:\s*800 \/ 180/s);
+  assert.match(css, /\.chart-linked-stack \.chart-panel\.is-compact \.result-chart\s*\{[^}]*aspect-ratio:\s*800 \/ 90/s);
 });
 
 
@@ -302,4 +302,13 @@ test("removed execution areas have no source, styles, prototype, or completion t
   for (const source of [css, app, prototype, runActions]) assert.doesNotMatch(source, removed);
   assert.doesNotMatch(css, /\.metric-card|\.metric-grid|\.result-overview-panel|\.preset-catalog/);
   assert.doesNotMatch(app, /completedFeedback|completionFeedbackTimer|setCompletedFeedback/);
+});
+
+
+test("split chart layout leaves no rendering branch, state, styles, or prototype control", () => {
+  const charts = readFileSync(new URL("../src/features/results/ResultsCharts.tsx", import.meta.url), "utf8");
+  const model = readFileSync(new URL("../src/features/strategies/model.ts", import.meta.url), "utf8");
+  for (const source of [charts, model, css, prototype]) {
+    assert.doesNotMatch(source, /overlayMode|onOverlayModeChange|chart\.overlay\b|chart-layout-controls|charts-split|data-layout=|chart-aux-panel/);
+  }
 });

@@ -1,12 +1,10 @@
 import { useId, useMemo, useState } from "react";
 import type { DailyAsset, SignalEvaluation, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
-import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import { ChartCrosshair, ChartReadout, type ChartCursor, type CursorReading } from "./ChartCrosshair";
 import { useChartInteraction, type ChartInteractionProps } from "./useChartInteraction";
 import {
   normalizeSeriesToBase100,
-  normalizeValueToBase100,
   type ChartSeriesId,
   type SeriesSample,
   type NormalizedSeries,
@@ -28,9 +26,7 @@ interface ResultsChartsProps {
   vixSymbol?: string;
   vixThreshold?: string;
   visibleSeriesIds: string[];
-  overlayMode?: boolean;
   onSeriesChange(id: string, visible: boolean): void;
-  onOverlayModeChange?(value: boolean): void;
 }
 
 interface SeriesDefinition {
@@ -38,6 +34,8 @@ interface SeriesDefinition {
   color: string;
   labelKey: string;
 }
+
+type IndicatorSeriesDefinition = SeriesDefinition & { id: "drawdown" | "vix" };
 
 interface ChartPoint extends SeriesSample {
   x: number;
@@ -58,7 +56,8 @@ const SERIES: SeriesDefinition[] = [
 ];
 const VIX_SIGNAL_IDS = new Set(["vix.buy", "vix.exit.low1", "vix.exit.low2", "bollinger.exit.vix"]);
 const CHART = { height: 320, left: 92, right: 26, top: 20, bottom: 54, width: 800 };
-const COMPACT_CHART = { ...CHART, height: 180, bottom: 44 };
+const MAIN_WITHOUT_DATES = { ...CHART, height: 274, bottom: 8 };
+const COMPACT_CHART = { ...CHART, height: 90, top: 8, bottom: 44 };
 
 function numericValue(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -120,10 +119,7 @@ function axisTitle(locale: Locale, seriesId: AxisSeriesId, currency?: string): s
 
 function chartScale(
   values: number[],
-  {
-    maximumAtZero = false,
-    minimumAtZero = false,
-  }: { maximumAtZero?: boolean; minimumAtZero?: boolean } = {},
+  { maximumAtZero = false }: { maximumAtZero?: boolean } = {},
   geometry = CHART,
 ): ChartScale {
   const rawMinimum = Math.min(...values);
@@ -132,13 +128,13 @@ function chartScale(
   const padding = span === 0
     ? Math.max(Math.abs(rawMaximum) * 0.05, maximumAtZero ? 0.01 : 1)
     : span * 0.08;
-  const minimum = minimumAtZero ? Math.min(rawMinimum, 0) : rawMinimum - padding;
+  const minimum = rawMinimum - padding;
   const maximum = maximumAtZero ? 0 : rawMaximum + padding;
   const plotHeight = geometry.height - geometry.top - geometry.bottom;
   return {
     minimum,
     maximum,
-    y: (value) => CHART.top + ((maximum - value) / (maximum - minimum)) * plotHeight,
+    y: (value) => geometry.top + ((maximum - value) / (maximum - minimum)) * plotHeight,
   };
 }
 
@@ -170,7 +166,8 @@ function ChartAxes({
   seriesId,
   currency,
   viewport,
-  geometry = CHART,
+  geometry,
+  showDateAxis,
 }: {
   dates: string[];
   locale: Locale;
@@ -178,11 +175,12 @@ function ChartAxes({
   seriesId: AxisSeriesId;
   currency?: string;
   viewport: ChartViewport;
-  geometry?: typeof CHART;
+  geometry: typeof CHART;
+  showDateAxis: boolean;
 }) {
   const plotWidth = CHART.width - CHART.left - CHART.right;
   const plotBottom = geometry.height - geometry.bottom;
-  const tickCount = geometry.height === COMPACT_CHART.height ? 4 : 8;
+  const tickCount = geometry.height === COMPACT_CHART.height ? 3 : 8;
   const ticks = Array.from({ length: tickCount }, (_, index) =>
     scale.maximum - ((scale.maximum - scale.minimum) * index) / (tickCount - 1),
   );
@@ -201,18 +199,18 @@ function ChartAxes({
       })}
       {dateTicks(dates, viewport).map(({ date, x }, index) => (
         <g key={`x-${date}`}>
-          <line className="chart-gridline chart-gridline-vertical" x1={x} y1={CHART.top} x2={x} y2={plotBottom} />
-          <text className="chart-tick-label chart-x-tick" data-tick-index={index} x={x} y={plotBottom + 18} textAnchor="middle">
+          <line className="chart-gridline chart-gridline-vertical" x1={x} y1={geometry.top} x2={x} y2={plotBottom} />
+          {showDateAxis && <text className="chart-tick-label chart-x-tick" data-tick-index={index} x={x} y={plotBottom + 18} textAnchor="middle">
             {date}
-          </text>
+          </text>}
         </g>
       ))}
-      <text className="chart-axis-title chart-y-axis-title" transform={`translate(20 ${geometry.height / 2}) rotate(-90)`} textAnchor="middle">
+      <text className="chart-axis-title chart-y-axis-title" transform={`translate(20 ${(geometry.top + plotBottom) / 2}) rotate(-90)`} textAnchor="middle">
         {axisTitle(locale, seriesId, currency)}
       </text>
-      <text className="chart-axis-title chart-x-axis-title" x={CHART.left + plotWidth / 2} y={geometry.height - 8} textAnchor="middle">
+      {showDateAxis && <text className="chart-axis-title chart-x-axis-title" x={CHART.left + plotWidth / 2} y={geometry.height - 8} textAnchor="middle">
         {translate(locale, "chart.dateAxis")}
-      </text>
+      </text>}
     </g>
   );
 }
@@ -262,14 +260,6 @@ function seriesLabel(locale: Locale, series: SeriesDefinition, currency?: string
   return `${translate(locale, series.labelKey)}${units ? ` (${units})` : ""}`;
 }
 
-function overlaySeriesLabel(
-  locale: Locale,
-  series: SeriesDefinition,
-  currency: string | undefined,
-): string {
-  return seriesLabel(locale, series, currency);
-}
-
 function useSeriesHighlight() {
   const [hoveredId, setHoveredId] = useState<ChartSeriesId | null>(null);
   const [focusedId, setFocusedId] = useState<ChartSeriesId | null>(null);
@@ -299,7 +289,7 @@ function SeriesLegend({
           onBlur={() => highlight.setFocusedId(null)}
         >
           <i className="overlay-legend-swatch" style={{ backgroundColor: definition.color }} aria-hidden="true" />
-          {overlaySeriesLabel(locale, definition, currency)}
+          {seriesLabel(locale, definition, currency)}
         </span>
       ))}
     </div>
@@ -342,7 +332,7 @@ function lineCoordinates(
   }));
 }
 
-function LineChart({
+function IndicatorChart({
   locale,
   assets,
   series,
@@ -352,24 +342,22 @@ function LineChart({
   hasBuySignalObservations,
   viewport,
   chartInteractionProps,
-  showCaption = true,
-  compact = false,
+  showDateAxis,
   cursor,
 }: {
   locale: Locale;
   assets: DailyAsset[];
-  series: SeriesDefinition;
+  series: IndicatorSeriesDefinition;
   samples: SeriesSample[];
   symbol?: string;
   thresholdValue: number | null;
   hasBuySignalObservations: boolean;
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
-  showCaption?: boolean;
-  compact?: boolean;
+  showDateAxis: boolean;
   cursor: ChartCursor | null;
 }) {
-  const geometry = compact ? COMPACT_CHART : CHART;
+  const geometry = { ...COMPACT_CHART, bottom: showDateAxis ? COMPACT_CHART.bottom : 8 };
   const highlight = useSeriesHighlight();
   const gradientId = `chart-gradient-${useId()}`;
   if (samples.length === 0) return null;
@@ -382,13 +370,11 @@ function LineChart({
   if (visibleThreshold !== null) values.push(visibleThreshold);
   const scale = chartScale(values, {
     maximumAtZero: series.id === "drawdown",
-    minimumAtZero: series.id === "totalAsset",
   }, geometry);
   const points = lineCoordinates(chartSamples, scale, assets.length, viewport);
   const titleId = `chart-title-${series.id}`;
   const descriptionId = `chart-description-${series.id}`;
-  const figureClass = `chart-panel chart-${series.id}${compact ? " is-compact" : ""}`;
-  const symbolLabel = series.id === "price" ? symbol : series.id === "vix" ? symbol : undefined;
+  const figureClass = `chart-panel chart-${series.id} is-compact`;
   const lastPoint = visibleSamples.at(-1);
   const lineLabel = lastPoint
     ? `${seriesLabel(locale, series, currency)} · ${lastPoint.date} · ${formatAxisValue(lastPoint.value, locale, series.id, currency)}`
@@ -408,8 +394,11 @@ function LineChart({
   }];
   return (
     <figure className={figureClass} data-window-start={viewport.start} data-window-end={viewport.end}>
-      <figcaption className={showCaption ? undefined : "sr-only"}>
-        {symbolLabel ? `${symbolLabel} · ` : ""}{seriesLabel(locale, series, currency)}
+      <figcaption className="indicator-chart-heading">
+        <SeriesLegend locale={locale} series={[series]} currency={currency} highlight={highlight} />
+        {series.id === "vix" && visibleThreshold !== null && (
+          <span className="chart-threshold-label">{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</span>
+        )}
       </figcaption>
       <div className="chart-canvas">
         <ChartReadout date={cursorDate} readings={readings} />
@@ -422,17 +411,19 @@ function LineChart({
           aria-label={translate(locale, "chart.interactionHelp")}
           tabIndex={0}
           data-chart-id={series.id}
+          data-plot-top={geometry.top}
+          data-plot-bottom={geometry.height - geometry.bottom}
         >
-          <title id={titleId}>{seriesLabel(locale, series, currency)}</title>
+          <title id={titleId}>{`${symbol ? `${symbol} · ` : ""}${seriesLabel(locale, series, currency)}`}</title>
           <desc id={descriptionId}>{translate(locale, "chart.description", {
             start: assets[Math.round(range.start)]?.date ?? "",
             end: assets[Math.round(range.end)]?.date ?? "",
             count: String(Math.max(1, Math.round(range.end) - Math.round(range.start) + 1)),
           })}</desc>
-          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId={series.id} currency={currency} viewport={viewport} geometry={geometry} />
+          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId={series.id} currency={currency} viewport={viewport} geometry={geometry} showDateAxis={showDateAxis} />
           <defs>
             <clipPath id={plotClipId}>
-              <rect x={CHART.left} y={CHART.top} width={plotWidth} height={plotHeight} />
+              <rect x={CHART.left} y={geometry.top} width={plotWidth} height={plotHeight} />
             </clipPath>
           </defs>
           <g clipPath={`url(#${plotClipId})`}>
@@ -446,10 +437,10 @@ function LineChart({
             )}
             {points.length > 1 ? (
               <polyline
-                className={`chart-series-line ${series.id === "price" ? "price-close-line" : ""} ${series.id === "vix" ? "chart-vix-line" : ""}${highlight.highlightedId === series.id ? " is-highlighted" : ""}`.trim()}
+                className={`chart-series-line${series.id === "vix" ? " chart-vix-line" : ""}${highlight.highlightedId === series.id ? " is-highlighted" : ""}`}
                 points={points.map((point) => `${point.x},${point.y}`).join(" ")}
                 fill="none"
-                stroke={SERIES.find((item) => item.id === series.id)?.color}
+                stroke={series.color}
                 strokeWidth={highlight.highlightedId === series.id ? 2.4 : 1.2}
                 vectorEffect="non-scaling-stroke"
                 tabIndex={0}
@@ -469,15 +460,10 @@ function LineChart({
             ))}
           </g>
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, assets.length, viewport)} y={cursorY}
-            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, series.id)} geometry={geometry}
+            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, series.id)} geometry={geometry} showDateLabel={showDateAxis}
             points={cursorPoint ? [{ y: scale.y(cursorPoint.value), color: series.color }] : []} />}
         </svg>
       </div>
-      <SeriesLegend locale={locale} series={[series]} currency={currency} highlight={highlight} />
-      {series.id === "vix" && visibleThreshold !== null && (
-        <p className="chart-threshold-label">{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</p>
-      )}
-
     </figure>
   );
 }
@@ -493,6 +479,7 @@ function OverlayChart({
   viewport,
   chartInteractionProps,
   cursor,
+  showDateAxis,
 }: {
   locale: Locale;
   assets: DailyAsset[];
@@ -504,7 +491,9 @@ function OverlayChart({
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
   cursor: ChartCursor | null;
+  showDateAxis: boolean;
 }) {
+  const geometry = showDateAxis ? CHART : MAIN_WITHOUT_DATES;
   const highlight = useSeriesHighlight();
   const gradientId = `chart-gradient-${useId()}`;
   const normalized = series.flatMap((definition) => {
@@ -531,16 +520,14 @@ function OverlayChart({
     100,
     ...visibleNormalized.flatMap(({ chartPoints }) => chartPoints.map((point) => point.indexValue)),
   ];
-  const scale = chartScale(values);
+  const scale = chartScale(values, {}, geometry);
   const titleId = "chart-title-overlay";
   const descriptionId = "chart-description-overlay";
-  const priceSeries = normalized.find(({ definition }) => definition.id === "price");
-  const markerSeries = priceSeries ?? normalized.find(({ definition }) => definition.id === "totalAsset");
+  const markerSeries = normalized.find(({ definition }) => definition.id === "totalAsset");
   const markerByDate = new Map(markerSeries?.result.points.map((point) => [point.date, point]));
-  const priceBaseline = priceSeries?.result.baseValue ?? null;
   const startDate = assets[Math.round(range.start)]?.date ?? "";
   const endDate = assets[Math.round(range.end)]?.date ?? "";
-  const plotHeight = CHART.height - CHART.top - CHART.bottom;
+  const plotHeight = geometry.height - geometry.top - geometry.bottom;
   const plotWidth = CHART.width - CHART.left - CHART.right;
   const plotClipId = "chart-plot-overlay";
   const cursorDate = cursor ? assets[cursor.index]?.date : undefined;
@@ -562,8 +549,9 @@ function OverlayChart({
   readings.push({ label: translate(locale, "chart.principal"), value: preciseValue(cursor ? numericValue(assets[cursor.index]?.totalContributed) : null, locale, currency) });
   return (
     <figure className="chart-panel chart-overlay" data-window-start={viewport.start} data-window-end={viewport.end}>
-      <figcaption>
-        {translate(locale, "chart.overlayTitle")}
+      <figcaption className="core-chart-heading">
+        <span>{translate(locale, "chart.overlayTitle")}</span>
+        <SeriesLegend locale={locale} series={normalized.map(({ definition }) => definition)} currency={currency} highlight={highlight} />
       </figcaption>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
       <div className="chart-canvas">
@@ -571,12 +559,14 @@ function OverlayChart({
         <svg
           {...chartInteractionProps}
           className="result-chart"
-          viewBox={`0 0 ${CHART.width} ${CHART.height}`}
+          viewBox={`0 0 ${CHART.width} ${geometry.height}`}
           role="img"
           aria-labelledby={`${titleId} ${descriptionId}`}
           aria-label={translate(locale, "chart.interactionHelp")}
           tabIndex={0}
           data-chart-id="overlay"
+          data-plot-top={geometry.top}
+          data-plot-bottom={geometry.height - geometry.bottom}
         >
           <title id={titleId}>{translate(locale, "chart.overlayTitle")}</title>
           <desc id={descriptionId}>{translate(locale, "chart.description", {
@@ -584,7 +574,7 @@ function OverlayChart({
             end: endDate,
             count: String(Math.max(1, Math.round(range.end) - Math.round(range.start) + 1)),
           })}</desc>
-          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId="index" viewport={viewport} />
+          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId="index" viewport={viewport} geometry={geometry} showDateAxis={showDateAxis} />
           <defs>
             <clipPath id={plotClipId}>
               <rect x={CHART.left} y={CHART.top} width={plotWidth} height={plotHeight} />
@@ -623,8 +613,8 @@ function OverlayChart({
             }));
             const lastPoint = visiblePoints.at(-1);
             const lastTitle = lastPoint
-              ? `${overlaySeriesLabel(locale, definition, currency)} · ${lastPoint.date} · ${formatAxisValue(lastPoint.value, locale, definition.id, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: lastPoint.indexValue.toFixed(1) })}`
-              : `${overlaySeriesLabel(locale, definition, currency)} · ${translate(locale, "chart.noSeriesInWindow")}`;
+              ? `${seriesLabel(locale, definition, currency)} · ${lastPoint.date} · ${formatAxisValue(lastPoint.value, locale, definition.id, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: lastPoint.indexValue.toFixed(1) })}`
+              : `${seriesLabel(locale, definition, currency)} · ${translate(locale, "chart.noSeriesInWindow")}`;
             return (
               <g className={`overlay-series overlay-${definition.id}`} key={definition.id}>
                 {points.length > 1 ? (
@@ -643,26 +633,22 @@ function OverlayChart({
               const point = markerByDate.get(trade.date);
               const rawPrice = numericValue(trade.price);
               if (!point || rawPrice === null) return [];
-              const value = priceBaseline === null
-                ? point.indexValue
-                : normalizeValueToBase100("price", rawPrice, priceBaseline);
-              if (value === null) return [];
+              const value = point.indexValue;
               const x = xPosition(point.index, dateCount, viewport);
               const y = scale.y(value);
               const direction = trade.side === "buy" ? 1 : -1;
               const markerPoints = `${x},${y + direction * 5} ${x - 5},${y - direction * 4} ${x + 5},${y - direction * 4}`;
               return (
-                <polygon className={`price-trade-marker price-trade-marker-${trade.side}`} data-anchor-series={markerSeries?.definition.id} points={markerPoints} key={`${trade.date}-${trade.side}-${index}`}>
+                <polygon className={`chart-trade-marker chart-trade-marker-${trade.side}`} data-anchor-series={markerSeries?.definition.id} points={markerPoints} key={`${trade.date}-${trade.side}-${index}`}>
                   <title>{`${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(rawPrice, locale, "price", currency)}`}</title>
                 </polygon>
               );
             })}
           </g>
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, dateCount, viewport)} y={cursorY}
-            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={CHART} points={cursorPoints} />}
+            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={cursorPoints} showDateLabel={showDateAxis} />}
         </svg>
       </div>
-      <SeriesLegend locale={locale} series={normalized.map(({ definition }) => definition)} currency={currency} highlight={highlight} />
     </figure>
   );
 }
@@ -675,12 +661,9 @@ export function ResultsCharts({
   vixSymbol,
   vixThreshold,
   visibleSeriesIds,
-  overlayMode = false,
   onSeriesChange,
-  onOverlayModeChange = () => {},
 }: ResultsChartsProps) {
-  const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps, zoomAt, resetRange, toggleWheelZoom } = useChartInteraction(dailyAssets.length, CHART, COMPACT_CHART);
-  const [expandedIndicators, setExpandedIndicators] = useState<Set<ChartSeriesId>>(() => new Set());
+  const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps, zoomAt, resetRange, toggleWheelZoom } = useChartInteraction(dailyAssets.length, CHART);
   const samplesById = useMemo(
     () => new Map(SERIES.map(({ id }) => [id, samplesForSeries(id, dailyAssets, signals)])),
     [dailyAssets, signals],
@@ -700,15 +683,11 @@ export function ResultsCharts({
     () => available.filter((series) => visibleSeriesIds.includes(series.id)),
     [available, visibleSeriesIds],
   );
-  const canOverlaySelection = selected.length >= 2 && selected.some(
-    (series) => series.id === "drawdown" || series.id === "vix",
-  );
-  const combinedOverlay = overlayMode && canOverlaySelection;
   const coreSeries = selected.filter(
     (series) => series.id === "price" || series.id === "totalAsset",
   );
   const indicatorSeries = selected.filter(
-    (series) => series.id === "drawdown" || series.id === "vix",
+    (series): series is IndicatorSeriesDefinition => series.id === "drawdown" || series.id === "vix",
   );
   const currency = dailyAssets[0]?.currency;
   const thresholdValue = numericValue(vixThreshold);
@@ -720,7 +699,7 @@ export function ResultsCharts({
   const visibleEndDate = dailyAssets[Math.round(range.end)]?.date ?? "—";
   const viewportSpan = viewport.end - viewport.start;
   return (
-    <div className={`charts-content${combinedOverlay ? " is-linked" : ""}`} ref={chartContainerRef}>
+    <div className="charts-content" ref={chartContainerRef}>
       <div className="chart-toolbar">
         <div className="chart-controls">
           <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
@@ -744,19 +723,7 @@ export function ResultsCharts({
               );
             })}
           </div>
-          <div className="chart-layout-controls" role="group" aria-label={translate(locale, "chart.layout")}>
-            <button type="button" aria-pressed={!combinedOverlay} onClick={() => onOverlayModeChange(false)}>
-              {translate(locale, "chart.layout.separate")}
-            </button>
-            <button
-              type="button"
-              aria-pressed={combinedOverlay}
-              disabled={!canOverlaySelection}
-              onClick={() => onOverlayModeChange(true)}
-            >
-              {translate(locale, "chart.layout.overlay")}
-            </button>
-          </div>
+
         </div>
         <div className="chart-range-controls" role="group" aria-label={translate(locale, "chart.rangeControls")}>
           <span className="chart-range-label sr-only">
@@ -793,7 +760,7 @@ export function ResultsCharts({
       )}
       {selected.length === 0 ? (
         <p className="chart-empty">{translate(locale, "chart.noVisibleSeries")}</p>
-      ) : combinedOverlay ? (
+      ) : (
         <div className="chart-linked-stack">
           {coreSeries.length > 0 && (
             <OverlayChart
@@ -807,10 +774,11 @@ export function ResultsCharts({
               viewport={viewport}
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
+              showDateAxis={indicatorSeries.length === 0}
             />
           )}
-          {indicatorSeries.map((series) => (
-            <LineChart
+          {indicatorSeries.map((series, index) => (
+            <IndicatorChart
               key={series.id}
               locale={locale}
               assets={dailyAssets}
@@ -822,62 +790,10 @@ export function ResultsCharts({
               viewport={viewport}
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
-              compact
+              showDateAxis={index === indicatorSeries.length - 1}
             />
           ))}
         </div>
-      ) : (
-        <>
-          {coreSeries.length > 0 && (
-            <OverlayChart
-              locale={locale}
-              assets={dailyAssets}
-              trades={trades}
-              series={coreSeries}
-              samplesById={samplesById}
-              normalizedById={normalizedById}
-              currency={currency}
-              viewport={viewport}
-              chartInteractionProps={chartInteractionProps}
-              cursor={cursor}
-            />
-          )}
-          {indicatorSeries.map((series) => {
-            const expanded = expandedIndicators.has(series.id);
-            const title = series.id === "vix" && vixSymbol
-              ? `${vixSymbol} · ${seriesLabel(locale, series, currency)}`
-              : seriesLabel(locale, series, currency);
-            return (
-              <CollapsiblePanel
-                id={`chart-aux-${series.id}`}
-                className="chart-aux-panel"
-                key={series.id}
-                title={title}
-                expanded={expanded}
-                onExpandedChange={(nextExpanded) => setExpandedIndicators((current) => {
-                  const next = new Set(current);
-                  if (nextExpanded) next.add(series.id);
-                  else next.delete(series.id);
-                  return next;
-                })}
-              >
-                <LineChart
-                  locale={locale}
-                  assets={dailyAssets}
-                  series={series}
-                  samples={samplesById.get(series.id) ?? []}
-                  symbol={series.id === "vix" ? vixSymbol : undefined}
-                  thresholdValue={thresholdValue}
-                  hasBuySignalObservations={hasBuySignalObservations}
-                  viewport={viewport}
-                  chartInteractionProps={chartInteractionProps}
-                  cursor={cursor}
-                  showCaption={false}
-                />
-              </CollapsiblePanel>
-            );
-          })}
-        </>
       )}
     </div>
   );
