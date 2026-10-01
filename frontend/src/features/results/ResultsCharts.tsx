@@ -531,6 +531,8 @@ function OverlayChart({
   const plotWidth = CHART.width - CHART.left - CHART.right;
   const plotClipId = "chart-plot-overlay";
   const cursorDate = cursor ? assets[cursor.index]?.date : undefined;
+  const readingIndex = cursor?.index ?? Math.floor(range.end);
+  const readingDate = assets[readingIndex]?.date;
   const cursorY = cursor?.chartId === "overlay" ? CHART.top + cursor.yRatio * plotHeight : undefined;
   const cursorValue = cursor ? scale.maximum - cursor.yRatio * (scale.maximum - scale.minimum) : null;
   const cursorPoints = normalized.flatMap(({ definition, result }) => {
@@ -538,17 +540,17 @@ function OverlayChart({
     return point ? [{ y: scale.y(point.indexValue), color: definition.color }] : [];
   });
   const readings: CursorReading[] = normalized.map(({ definition, result }) => {
-    const point = result.points.find((sample) => sample.index === cursor?.index);
-    const rawPoint = samplesById.get(definition.id)?.find((sample) => sample.index === cursor?.index);
+    const point = result.points.find((sample) => sample.index === readingIndex);
+    const rawPoint = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
     return {
       label: translate(locale, definition.labelKey),
       value: `${preciseValue(rawPoint?.value, locale, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: point?.indexValue.toFixed(1) ?? "—" })}`,
       color: definition.color,
     };
   });
-  readings.push({ label: translate(locale, "chart.principal"), value: preciseValue(cursor ? numericValue(assets[cursor.index]?.totalContributed) : null, locale, currency) });
+  readings.push({ label: translate(locale, "chart.principal"), value: preciseValue(numericValue(assets[readingIndex]?.totalContributed), locale, currency) });
   for (const definition of indicatorSeries) {
-    const point = samplesById.get(definition.id)?.find((sample) => sample.index === cursor?.index);
+    const point = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
     readings.push({ label: translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color });
   }
   return (
@@ -559,7 +561,7 @@ function OverlayChart({
       </figcaption>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
       <div className="chart-core-readout-row">
-        <ChartReadout date={cursorDate} readings={readings} />
+        <ChartReadout date={readingDate} readings={readings} />
       </div>
       <div className="chart-canvas">
         <svg

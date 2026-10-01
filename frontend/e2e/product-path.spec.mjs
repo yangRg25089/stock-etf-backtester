@@ -2056,7 +2056,9 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   expect(dateSpacing, "compact cursor date must not overlap the axis title").toBeGreaterThanOrEqual(2);
   await page.screenshot({ path: test.info().outputPath("linked-crosshair.png") });
   await page.mouse.move(0, 0);
-  await expect(stack.locator(".chart-crosshair-readout")).toHaveCount(0);
+  await expect(stack.locator(".chart-crosshair-readout")).toHaveCount(1);
+  await expect(readout).toHaveAttribute("data-date", result.dailyAssets.at(-1).date);
+  await expect(stack.locator(".chart-crosshair")).toHaveCount(0);
   await coreSvg.focus();
   await page.keyboard.press("Shift+ArrowLeft");
   await expect(core.locator(".chart-crosshair")).toHaveAttribute("data-date", result.dailyAssets[0].date);
@@ -2067,6 +2069,7 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await expect(core.locator(".chart-crosshair")).toHaveAttribute("data-date", day.date);
   await page.keyboard.press("Escape");
   await expect(stack.locator(".chart-crosshair")).toHaveCount(0);
+  await expect(readout).toHaveAttribute("data-date", result.dailyAssets.at(-1).date);
   await page.getByRole("button", { name: "期間を拡大", exact: true }).click();
   await hoverPlot(coreSvg);
   await expect(readout).toHaveAttribute("data-date", day.date);
@@ -2075,6 +2078,8 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await expect(stack.locator(".chart-crosshair")).toHaveCount(0);
   await page.mouse.up();
   await page.mouse.move(0, 0);
+  const visibleEnd = Math.floor(Number(await core.getAttribute("data-window-end")) * (result.dailyAssets.length - 1));
+  await expect(readout).toHaveAttribute("data-date", result.dailyAssets[visibleEnd].date);
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations).toEqual([]);
   expect(errors).toEqual([]);

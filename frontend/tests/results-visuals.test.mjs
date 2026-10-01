@@ -36,6 +36,21 @@ const trades = [
   },
 ];
 
+test("shared chart details are visible before interaction and use the last saved day", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "ja", dailyAssets, trades: [], visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
+    signals: dailyAssets.map(asset => ({ date: asset.date, signalId: "vix.buy", state: "false", observedValue: "20" })),
+    onSeriesChange() {},
+  }));
+  assert.equal((html.match(/class="chart-crosshair-readout"/g) ?? []).length, 1);
+  assert.match(html, /class="chart-crosshair-readout" data-date="2024-01-04"/);
+  assert.match(html, /104\.00 USD/);
+  assert.match(html, /100\.00 USD/);
+  assert.match(html, /ドローダウン/);
+  assert.match(html, /VIX/);
+  assert.doesNotMatch(html, /class="chart-crosshair"/);
+});
+
 test("trades anchor to the contributed-capital asset curve even when price is visible", () => {
   const assets = dailyAssets.map((asset, index) => ({ ...asset, totalAsset: ["100", "198", "203"][index], totalContributed: ["100", "200", "200"][index] }));
   const render = visibleSeriesIds => renderToStaticMarkup(React.createElement(ResultsCharts, {
