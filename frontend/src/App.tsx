@@ -97,6 +97,7 @@ function App() {
   const catalog = catalogState.status === "ready" ? catalogState.value : null;
   const dispatch = useCallback((action: WorkspaceAction) => {
     if (!catalog) return;
+    if (runSubmissionLocked.current && action.type !== "run.update" && action.type !== "run.progress") return;
     setWorkspace((current) => current
       ? workspaceReducer(current, action, catalog)
       : current);
@@ -174,6 +175,7 @@ function App() {
         if (isTerminal(response.status)) return;
 
         activeRunId.current = response.runId;
+        runSubmissionLocked.current = true;
         setRunBusy(true);
         await subscribeToRunEvents(response.runId, restoreProgress, controller.signal);
         if (submittedRunRef.current) return;
@@ -187,6 +189,7 @@ function App() {
         if (activeRunController.current === controller) {
           activeRunController.current = null;
           setRunBusy(false);
+          runSubmissionLocked.current = false;
           activeRunId.current = null;
           setStopping(false);
         }
@@ -210,6 +213,7 @@ function App() {
   const availability = { disabled: !catalog || !workspace, reasonKey: null };
 
   const handleAdd = (presetId: StrategyPresetId) => {
+    if (runSubmissionLocked.current) return;
     const id = `strategy-${presetId}-${strategySequence.current}`;
     strategySequence.current += 1;
     dispatch({ type: "strategy.add", id, presetId });
@@ -335,6 +339,7 @@ function App() {
       return {
         label: translate(locale, definition.translationKey),
         activate: () => {
+          if (runSubmissionLocked.current) return;
           setSharedSettingsFocusKey(sharedKey);
           setSharedSettingsDialogOpen(true);
         },
@@ -457,7 +462,8 @@ function App() {
                     title={translate(locale, "workbench.editSharedSettings")}
                     aria-haspopup="dialog"
                     aria-describedby="shared-settings-summary-detail"
-                    onClick={() => setSharedSettingsDialogOpen(true)}
+                    disabled={runBusy}
+                    onClick={() => { if (!runSubmissionLocked.current) setSharedSettingsDialogOpen(true); }}
                   >
                     <span className="shared-settings-summary-copy">
                       <strong>{translate(locale, "section.sharedSettings")}</strong>
@@ -492,6 +498,7 @@ function App() {
                   )}
                 </div>
                 <StrategyNavigator
+                  busy={runBusy}
                   catalog={catalog}
                   locale={locale}
                   state={workspace}
@@ -515,7 +522,9 @@ function App() {
               hidden={mobilePanel === "config"}
             >
               <section className="results" aria-label={translate(locale, "section.results")}>
-                <ResultViewer locale={locale} state={workspace} dispatch={dispatch} error={runError} />
+                <fieldset className="result-interactions" disabled={runBusy} aria-label={translate(locale, "section.results")}>
+                  <ResultViewer locale={locale} state={workspace} dispatch={dispatch} error={runError} busy={runBusy} />
+                </fieldset>
               </section>
             </section>
           </div>

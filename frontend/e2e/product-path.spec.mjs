@@ -798,7 +798,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
   await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
-  await expect(page.locator(".comparison-table")).toContainText("実際の買付額");
+  await expect(page.locator(".comparison-table")).toContainText("投入済み元本");
   await expect(page.locator("#result-details")).toBeVisible();
   await expect(page.locator(".result-run-id, #result-focus-select, .metric-card")).toHaveCount(0);
   const resultRows = page.locator(".comparison-table tbody tr");
@@ -1010,7 +1010,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   )).toEqual(["1.2", "1.2"]);
   await expect(coreChart.locator(".chart-baseline-line")).toHaveAttribute("data-baseline", "100");
   await expect(coreChart.locator(".overlay-legend")).toContainText("価格 (USD)");
-  await expect(coreChart.locator(".overlay-legend")).toContainText("総資産 (USD)");
+  await expect(coreChart.locator(".overlay-legend")).toContainText("毎月定額積立 (USD)");
   expect(await coreChart.locator(".chart-gridline").count()).toBeGreaterThan(7);
   await expect(coreChart.locator(".candlestick")).toHaveCount(0);
   const chartWindowBeforeCollapse = {
@@ -1718,13 +1718,15 @@ test("strategy menu, condition connectors and comparison selections retain full 
     await page.locator(".run-submit-button").tap();
     await page.locator(".workbench-mobile-view").last().tap();
     await expect(page.locator(".comparison-table")).toBeVisible();
-    targets.push(...await page.locator(".result-select").evaluateAll(nodes =>
+    await expect(page.locator(".run-submit-button")).toBeEnabled();
+    targets.push(...await page.locator(".comparison-table .result-select").evaluateAll(nodes =>
       nodes.map(node => ({ control: "comparison", height: (node.closest("label") ?? node).getBoundingClientRect().height })),
     ));
     expect(targets.length).toBeGreaterThan(10);
     for (const target of targets) expect(target.height, JSON.stringify(targets)).toBeGreaterThanOrEqual(44);
-    await page.locator(".result-select").first().tap();
-    await expect(page.locator(".result-select").first()).toHaveAttribute("aria-pressed", "false");
+    const selected = page.locator('.comparison-table .result-select[aria-pressed="true"]').first();
+    await selected.tap();
+    await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
     const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     expect(accessibility.violations).toEqual([]);
   } finally {
@@ -1889,8 +1891,8 @@ test("linked figures share widths, halve indicator height, and highlight legends
   }
   const mainPlotHeight = await core.locator("svg.result-chart").evaluate(svg =>
     Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop));
-  for (const [toggleLabel, bottomChart] of [["VIX", "drawdown"], ["ドローダウン", "overlay"], ["ドローダウン", "drawdown"], ["VIX", "vix"]]) {
-    await page.locator(".chart-legend .legend-toggle").filter({ hasText: toggleLabel }).click();
+  for (const [seriesId, bottomChart] of [["vix", "drawdown"], ["drawdown", "overlay"], ["drawdown", "drawdown"], ["vix", "vix"]]) {
+    await page.locator(`.chart-legend .legend-toggle[data-series="${seriesId}"]`).click();
     await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
     await expect(page.locator(".chart-date-axis .chart-x-axis-title")).toHaveCount(1);
     await expect(page.locator(`[data-chart-id="${bottomChart}"] .chart-x-axis-title`)).toHaveCount(0);
@@ -2237,7 +2239,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const price = page.locator(".chart-legend button").filter({ hasText: "価格" });
-  const asset = page.locator(".chart-legend button").filter({ hasText: "総資産" });
+  const asset = page.locator('.chart-legend button[data-series="totalAsset"]');
   await expect(page.locator(".chart-overlay .overlay-series-line")).toHaveCount(2);
   await price.click();
   await expect(page.locator(".chart-overlay .overlay-price")).toHaveCount(0);
@@ -2343,7 +2345,7 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await coreSvg.focus();
   await page.keyboard.press("Shift+ArrowLeft");
   await expect(core.locator(".chart-crosshair")).toHaveAttribute("data-date", result.dailyAssets[0].date);
-  const zeroPrincipal = core.locator(".chart-cursor-reading").filter({ hasText: "総資産" });
+  const zeroPrincipal = core.locator(".chart-cursor-reading").filter({ hasText: "ボラティリティ積立" });
   await expect(zeroPrincipal).toContainText("0.00 USD");
   await expect(zeroPrincipal).toContainText("相対指数 —");
   await page.keyboard.press("Shift+ArrowRight");

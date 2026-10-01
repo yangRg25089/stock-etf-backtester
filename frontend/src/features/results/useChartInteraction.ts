@@ -27,7 +27,7 @@ interface ChartGeometry {
   right: number;
 }
 
-export function useChartInteraction(count: number, baseGeometry: ChartGeometry) {
+export function useChartInteraction(count: number, baseGeometry: ChartGeometry, disabled = false) {
   const [viewport, setViewport] = useState<ChartViewport>(FULL_CHART_VIEWPORT);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState(false);
   const [cursor, setCursor] = useState<ChartCursor | null>(null);
@@ -46,6 +46,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry) 
     };
   };
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (disabled) return;
     if (event.button !== 0) return;
     const position = pointerPosition(event);
     if (position.ratio < 0 || position.ratio > 1 || position.y < position.plotTop || position.y > position.plotBottom) return;
@@ -55,6 +56,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry) 
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (disabled) return;
     const activeDrag = dragState.current;
     const position = pointerPosition(event);
     if (!activeDrag) {
@@ -82,10 +84,12 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry) 
     if (dragState.current?.pointerId === event.pointerId) dragState.current = null;
   };
   const zoomAt = (factor: number, anchorRatio = 0.5) => {
+    if (disabled) return;
     setCursor(null);
     setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
   };
   const onWheel = useCallback((event: WheelEvent) => {
+    if (disabled) return;
     const svg = event.target instanceof Element ? event.target.closest("svg.result-chart") : null;
     if (!(svg instanceof SVGSVGElement)) return;
     if (!event.ctrlKey && !event.metaKey && !wheelZoomEnabled) return;
@@ -97,7 +101,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry) 
     const anchorRatio = (svgX - baseGeometry.left) / plotWidth;
     const factor = wheelZoomFactor(event.deltaY, event.deltaMode);
     setViewport((current) => zoomChartViewport(current, factor, anchorRatio));
-  }, [baseGeometry.left, baseGeometry.width, plotWidth, wheelZoomEnabled]);
+  }, [baseGeometry.left, baseGeometry.width, plotWidth, wheelZoomEnabled, disabled]);
   const attachedWheelContainer = useRef<{ element: HTMLDivElement; handler: (event: WheelEvent) => void } | null>(null);
   const chartContainerRef: RefCallback<HTMLDivElement> = useCallback((element) => {
     const attached = attachedWheelContainer.current;
@@ -112,6 +116,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry) 
     }
   }, [onWheel]);
   const onKeyDown = (event: ReactKeyboardEvent<SVGSVGElement>) => {
+    if (disabled) return;
     if (event.key === "Escape") {
       setCursor(null);
       return;

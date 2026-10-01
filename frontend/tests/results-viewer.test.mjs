@@ -10,7 +10,7 @@ const { RunApiError } = require("../.test-output/api/runs.js");
 const { ExportControls } = require("../.test-output/features/results/ExportControls.js");
 const { isExportAvailable } = require("../.test-output/features/results/exportModel.js");
 const { ResultViewer } = require("../.test-output/features/results/ResultViewer.js");
-const { savedChartParameters } = require("../.test-output/features/results/model.js");
+const { savedChartParameters, selectedVolatilitySeries } = require("../.test-output/features/results/model.js");
 const { createInitialWorkspaceState } = require("../.test-output/features/strategies/model.js");
 const catalog = JSON.parse(readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"));
 const resultViewerSource = readFileSync(new URL("../src/features/results/ResultViewer.tsx", import.meta.url), "utf8");
@@ -18,6 +18,7 @@ const resultViewerSource = readFileSync(new URL("../src/features/results/ResultV
 function metrics(endingEquity) {
   return {
     actualInvested: "80.00",
+    investmentBasis: "original_principal",
     totalContributed: "100.00",
     endingEquity,
     netProfit: String(Number(endingEquity) - 100),
@@ -115,6 +116,7 @@ test("VIX chart settings come from the frozen condition, not flat params or edit
   saved.params["vix.buyThreshold"] = 25;
   saved.rules = { buy: { type: "condition", id: "nasdaq", kind: "vix", enabled: true, params: { "vix.symbol": "^VXN", "vix.buyThreshold": 40 } }, sell: null };
   state.focusedResultId = saved.id;
+  state.selectedResultIds = [saved.id];
   state.showChart = true;
   const primary = state.runResponse.result.strategyRuns[0];
   primary.signals = primary.dailyAssets.map(asset => ({ date: asset.date, signalId: "vix.buy:nasdaq", conditionKind: "vix", sourceSymbol: "^VXN", observedUnit: "index_points", state: "true", observedValue: "46" }));
@@ -124,6 +126,28 @@ test("VIX chart settings come from the frozen condition, not flat params or edit
   assert.match(html, /<strong>46<\/strong>/);
   assert.match(html, /chart-threshold-line/);
   assert.doesNotMatch(html, /90\.00/);
+});
+
+test("selected indices retain separate natural units and suppress conflicting thresholds", () => {
+  const state = workspaceWithRun();
+  const run = state.runResponse;
+  const primary = run.result.strategyRuns[0];
+  primary.signals = [{ date:"2024-01-02", signalId:"vix.buy", conditionKind:"vix", sourceSymbol:"^VIX", observedUnit:"index_points", observedValue:"27" }];
+  run.snapshot.config.strategies[0].params["vix.buyThreshold"] = 25;
+  const make = (id, symbol, threshold, value) => {
+    run.snapshot.config.strategies.push({ id, presetId:"composite_dca", params:{ "vix.symbol":symbol, "vix.buyThreshold":threshold } });
+    return { ...primary, id, signals:[{ ...primary.signals[0], sourceSymbol:symbol, observedValue:value }] };
+  };
+  const nasdaq = make("nasdaq", "^VXN", 40, "46");
+  const dow = make("dow", "^VXD", 30, "35");
+  const different = make("different", "^VIX", 35, "27");
+  const empty = make("empty", "^VXN", 80, "");
+  const results = [primary, nasdaq, dow, different, empty];
+  const indices = selectedVolatilitySeries(run, results, results.map(result => result.id));
+  assert.deepEqual(indices.map(index => [index.symbol, index.threshold]), [["^VIX", undefined], ["^VXN", "40"], ["^VXD", "30"]]);
+  assert.deepEqual(indices.map(index => index.signals.map(signal => signal.observedValue)), [["27", "27"], ["46"], ["35"]]);
+  assert.deepEqual(selectedVolatilitySeries(run, results, [nasdaq.id]).map(index => index.symbol), ["^VXN"]);
+  assert.deepEqual(selectedVolatilitySeries(run, results, []), []);
 });
 
 test("grid curves retain the frozen volatility symbol and override only searched values", () => {
@@ -198,12 +222,25 @@ test("result details leads with one complete comparison table and no duplicate K
   assert.match(html, /每月定额定投 · 基准/);
   assert.match(html, /data-export-kind="summary"/);
   assert.equal((html.match(/class="metric-card"/g) ?? []).length, 0);
-  assert.match(html, /实际买入金额/);
+  assert.match(html, /已投入本金/);
   assert.match(html, /注入本金/);
   assert.match(html, /期末资产/);
   assert.match(html, /投入回报率/);
   assert.match(html, /年化回报/);
   assert.match(html, /最大回撤/);
+});
+
+test("selecting another result does not hide volatility from a selected saved strategy", () => {
+  const state = workspaceWithRun();
+  const [volatility, other] = state.runResponse.result.strategyRuns;
+  other.dailyAssets = volatility.dailyAssets.map(asset => ({ ...asset, totalContributed: "100" }));
+  volatility.dailyAssets = other.dailyAssets.map(asset => ({ ...asset }));
+  state.selectedResultIds = [volatility.id, other.id];
+  state.focusedResultId = other.id;
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {} }));
+  assert.match(html, /class="chart-panel chart-vix is-compact"/);
+  assert.match(html, /波动率信号定投/);
+  assert.match(html, /每月定额定投.*USD/);
 });
 
 test("selected curves honor deselection, share row colors, and exclude failed saved values", () => {
@@ -363,6 +400,7 @@ test("trade tables render directly and remain available independently of chart c
 test("VIX chart settings come from the focused frozen strategy snapshot", () => {
   const state = workspaceWithRun();
   state.focusedResultId = state.draft.strategies[0].id;
+  state.selectedResultIds = [state.focusedResultId];
   state.showChart = true;
   state.draft.strategies[0].params["vix.buyThreshold"] = 99;
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {

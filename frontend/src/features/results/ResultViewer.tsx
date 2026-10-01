@@ -4,24 +4,20 @@ import type { RunResponse, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
-import { findFocusedResult, isCompletedResult, resultDisplayName, savedChartParameters } from "./model";
+import { findFocusedResult, isCompletedResult, resultDisplayName, selectedVolatilitySeries } from "./model";
 import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
 import { resultColor } from "./colors";
 
 interface ResultViewerProps {
+  busy?: boolean;
   locale: Locale;
   state: WorkspaceState;
   dispatch(action: WorkspaceAction): void;
   error: RunApiError | null;
 }
 
-function savedParameterText(params: Record<string, unknown>, key: string): string | undefined {
-  const value = params[key];
-  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
-}
-
-export function ResultViewer({ locale, state, dispatch, error }: ResultViewerProps) {
+export function ResultViewer({ locale, state, dispatch, error, busy = false }: ResultViewerProps) {
   const run: RunResponse | null = state.runResponse;
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const strategyRuns = run?.result?.strategyRuns ?? [];
@@ -35,7 +31,7 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
   }, [run?.runId, focusedResult?.id]);
   const candidateResult = candidateView?.runId === run?.runId && candidateView?.parentId === focusedResult?.id ? candidateView?.result : null;
   const selectCandidate = async (candidateId: string) => {
-    if (!run || !focusedResult) return;
+    if (busy || !run || !focusedResult) return;
     candidateController.current?.abort();
     const controller = new AbortController();
     candidateController.current = controller;
@@ -51,7 +47,7 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
   const chartResult = candidateResult ?? (focusedResult && isCompletedResult(focusedResult) ? focusedResult
     : strategyRuns.find((result) => isCompletedResult(result) && selectedIds.includes(result.id))
       ?? strategyRuns.find(isCompletedResult));
-  const params = run && chartResult ? savedChartParameters(run, chartResult, candidateResult ? focusedResult : null) : {};
+  const volatility = run ? selectedVolatilitySeries(run, strategyRuns, selectedIds, candidateResult, focusedResult) : [];
   const selectedComparisons = strategyRuns
     .filter((result) => selectedIds.includes(result.id) && result.id !== (candidateResult ? focusedResult?.id : chartResult?.id) && isCompletedResult(result))
     .flatMap((result) => {
@@ -69,6 +65,7 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
   return (
     <div className="result-content">
       <ResultDetails
+        busy={busy}
         key={run?.runId ?? "no-run"}
         locale={locale}
         run={run}
@@ -92,16 +89,19 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
         >
           {chartResult ? (
             <ResultsCharts
+              busy={busy}
               key={run.runId}
               locale={locale}
               dailyAssets={chartResult.dailyAssets ?? []}
               trades={chartResult.trades ?? []}
-              signals={chartResult.signals ?? []}
+              signals={volatility[0]?.signals ?? []}
+              volatilitySeries={volatility}
+              totalAssetLabel={resultDisplayName(locale, candidateResult && focusedResult ? focusedResult : chartResult, strategyRuns)}
               showFocusedAsset={Boolean(candidateResult) || selectedIds.includes(chartResult.id)}
               comparisonSeries={selectedComparisons}
               totalAssetColor={focusedIndex >= 0 ? resultColor(focusedIndex) : undefined}
-              vixSymbol={savedParameterText(params, "vix.symbol")}
-              vixThreshold={savedParameterText(params, "vix.buyThreshold")}
+              vixSymbol={volatility[0]?.symbol}
+              vixThreshold={volatility[0]?.threshold}
               visibleSeriesIds={state.visibleSeriesIds}
               onSeriesChange={(id, visible) => dispatch({ type: "chart.series", id, visible })}
             />

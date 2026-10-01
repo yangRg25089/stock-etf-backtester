@@ -7,6 +7,7 @@ import type { WorkspaceAction, WorkspaceState } from "./model";
 import { strategyInstanceLimit } from "./model";
 
 interface StrategyNavigatorProps {
+  busy?: boolean;
   catalog: Catalog;
   locale: Locale;
   state: WorkspaceState;
@@ -27,6 +28,7 @@ export interface StrategyFieldNavigation {
 }
 
 export function StrategyNavigator({
+  busy = false,
   catalog,
   locale,
   state,
@@ -89,7 +91,7 @@ export function StrategyNavigator({
   }, [state.draft.strategies]);
 
   useEffect(() => {
-    if (!fieldNavigation) return;
+    if (!fieldNavigation || busy) return;
     const target = state.draft.strategies.find((strategy) => strategy.id === fieldNavigation.strategyId);
     if (!target) {
       onFieldNavigationHandled?.();
@@ -101,9 +103,10 @@ export function StrategyNavigator({
     setFocusConditionId(fieldNavigation.conditionId);
     setEditingStrategyId(target.id);
     onFieldNavigationHandled?.();
-  }, [fieldNavigation, onFieldNavigationHandled, state.draft.strategies]);
+  }, [busy, fieldNavigation, onFieldNavigationHandled, state.draft.strategies]);
 
   const removeStrategy = (id: string, index: number) => {
+    if (busy) return;
     const adjacentStrategy = state.draft.strategies[index + 1] ?? state.draft.strategies[index - 1];
     pendingFocusRef.current = adjacentStrategy
       ? { strategyId: adjacentStrategy.id }
@@ -122,6 +125,7 @@ export function StrategyNavigator({
         </span>
       <div ref={addContainerRef} className={`strategy-add${addMenuOpen ? " is-open" : ""}`}
         onKeyDown={(event) => {
+          if (busy) return;
           if (event.key === "Escape" && addMenuOpen) {
             event.preventDefault();
             setAddMenuOpen(false);
@@ -152,6 +156,7 @@ export function StrategyNavigator({
           aria-haspopup="menu"
           aria-controls="strategy-add-menu"
           type="button"
+          disabled={busy}
           onClick={() => {
             menuFocusRef.current = addMenuOpen ? null : "first";
             setAddMenuOpen((open) => !open);
@@ -179,9 +184,9 @@ export function StrategyNavigator({
                 type="button"
                 role="menuitem"
                 data-preset-id={item.id}
-                disabled={alreadyAdded}
+                disabled={busy || alreadyAdded}
                 onClick={() => {
-                  if (alreadyAdded) return;
+                  if (busy || alreadyAdded) return;
                   onAdd(item.id);
                   setAddMenuOpen(false);
                   addButtonRef.current?.focus();
@@ -228,11 +233,15 @@ export function StrategyNavigator({
                   }}
                   className="strategy-card-open"
                   type="button"
+                  disabled={busy}
                   aria-label={interpolate(translate(locale, "strategy.edit"), { name })}
                   aria-describedby={summaryId}
                   aria-haspopup="dialog"
                   aria-controls={`strategy-dialog-${strategy.id}`}
+                  aria-current={isRunTarget ? "true" : undefined}
                   onClick={(event) => {
+                    if (busy) return;
+                    dispatch({ type: "strategy.select", id: strategy.id });
                     editTriggerRef.current = event.currentTarget;
                     setFocusFieldKey(null);
                     setFocusFieldIndex(undefined);
@@ -250,6 +259,7 @@ export function StrategyNavigator({
                   <button
                     className="icon-button strategy-remove"
                     type="button"
+                    disabled={busy}
                     aria-label={interpolate(translate(locale, "strategy.remove"), { name })}
                     title={interpolate(translate(locale, "strategy.remove"), { name })}
                     onClick={() => removeStrategy(strategy.id, index)}

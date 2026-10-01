@@ -10,6 +10,7 @@ const { ResultComparison } = require("../.test-output/features/results/ResultSum
 function metrics(endingEquity) {
   return {
     actualInvested: "80.00",
+    investmentBasis: "original_principal",
     totalContributed: "100.00",
     endingEquity,
     netProfit: String(Number(endingEquity) - 100),
@@ -103,12 +104,21 @@ test("unavailable optional metrics render as unavailable rather than zero", () =
   assert.ok((html.match(/>—<\/td>/g) ?? []).length >= 2);
 });
 
+test("legacy gross turnover is not presented as invested principal", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultComparison, {
+    locale: "zh", strategyRuns: [{ ...results[0], metrics: { ...metrics("125"), investmentBasis: "buy_turnover", actualInvested: "500" } }],
+    focusedResultId: results[0].id, onFocus() {},
+  }));
+  assert.doesNotMatch(html, /\$500/);
+  assert.match(html, /<td>—<\/td>/);
+});
+
  test("comparison contains every performance field and short labels distinguish repeated presets", () => {
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh", strategyRuns: [...results, { ...results[0], id: "second-vix" }],
     focusedResultId: "second-vix", onFocus() {},
   }));
-  for (const label of ["实际买入金额", "注入本金", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤"]) assert.match(html, new RegExp(label));
+  for (const label of ["已投入本金", "注入本金", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤"]) assert.match(html, new RegExp(label));
   assert.match(html, /波动率信号定投 · 1/);
   assert.match(html, /波动率信号定投 · 2/);
 });

@@ -204,14 +204,15 @@ export function workspaceReducer(
       };
     case "run.update": {
       const savedResults = action.value.result?.strategyRuns ?? [];
+      const sameRun = state.runResponse?.runId === action.value.runId;
       const focusIsAvailable = state.focusedResultId !== null &&
         savedResults.some((result) => result.id === state.focusedResultId);
-      const focusedResultId = focusIsAvailable
+      const focusedResultId = sameRun && focusIsAvailable
         ? state.focusedResultId
         : action.value.selectedStrategyIds[0] ?? savedResults[0]?.id ?? null;
       const availableIds = new Set(savedResults.map((result) => result.id));
       const selectedResultIds = state.selectedResultIds.filter((id) => availableIds.has(id));
-      const nextSelectedResultIds = state.runResponse?.runId === action.value.runId || selectedResultIds.length > 0
+      const nextSelectedResultIds = sameRun
         ? selectedResultIds
         : focusedResultId && availableIds.has(focusedResultId) ? [focusedResultId] : [];
       return {
@@ -219,6 +220,10 @@ export function workspaceReducer(
         runResponse: action.value,
         focusedResultId,
         selectedResultIds: nextSelectedResultIds,
+        ...(!sameRun ? {
+          showChart: catalog ? uiBooleanDefault(catalog, "display.showChart", true) : true,
+          visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
+        } : {}),
       };
     }
     case "run.progress": {

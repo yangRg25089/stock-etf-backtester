@@ -317,7 +317,8 @@ test("VIX chart uses saved observed signal values and frozen threshold", () => {
     visibleSeriesIds: ["vix"],
     onSeriesChange() {},
   }));
-  assert.match(html, /VIX 指数/);
+  assert.match(html, /波动率指数/);
+  assert.match(html, /VIX ·/);
   assert.match(html, /25/);
   assert.match(html, /20\.1/);
   assert.match(html, /chart-threshold-line/);

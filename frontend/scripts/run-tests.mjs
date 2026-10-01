@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -48,21 +48,10 @@ try {
     process.execPath,
     [
       "--test",
-      "tests/catalog-contract.test.mjs",
-      "tests/shared-settings.test.mjs",
-      "tests/strategy-model.test.mjs",
-      "tests/strategy-ui.test.mjs",
-      "tests/runs-api.test.mjs",
-      "tests/diagnostic-display.test.mjs",
-      "tests/results-model.test.mjs",
-      "tests/chart-model.test.mjs",
-      "tests/chart-viewport.test.mjs",
-      "tests/results-components.test.mjs",
-      "tests/results-visuals.test.mjs",
-      "tests/results-search-export.test.mjs",
-      "tests/results-viewer.test.mjs",
-      "tests/ui-accessibility.test.mjs",
-      "tests/responsive-a11y.test.mjs",
+      ...readdirSync(path.join(frontendRoot, "tests"))
+        .filter(name => name.endsWith(".test.mjs"))
+        .sort()
+        .map(name => path.join("tests", name)),
     ],
     { cwd: frontendRoot, stdio: "inherit" },
   );

@@ -1,6 +1,42 @@
-import type { RunResponse, StrategyRun } from "../../api/generated";
+import type { MetricSummary, RunResponse, SignalEvaluation, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { conditionLeaves, conditionParameters } from "../strategies/conditions";
+
+export function investedPrincipalValue(metrics: MetricSummary | null | undefined): string | null {
+  return metrics?.investmentBasis === "original_principal" ? metrics.actualInvested ?? null : null;
+}
+
+export interface SavedVolatilitySeries {
+  symbol: string;
+  signals: SignalEvaluation[];
+  threshold?: string;
+}
+
+export function isVolatilityObservation(signal: SignalEvaluation, symbol?: string): boolean {
+  if (!signal.conditionKind) return ["vix.buy", "vix.exit.low1", "vix.exit.low2", "bollinger.exit.vix"].includes(signal.signalId);
+  return (signal.conditionKind === "vix" || signal.conditionKind === "bollinger")
+    && signal.observedUnit === "index_points" && (!symbol || signal.sourceSymbol === symbol);
+}
+
+export function selectedVolatilitySeries(run: RunResponse, results: StrategyRun[], selectedIds: string[], candidate?: StrategyRun | null, parent?: StrategyRun | null): SavedVolatilitySeries[] {
+  const groups = new Map<string, { signals: SignalEvaluation[]; thresholds: Set<string> }>();
+  const selected = results.filter(result => selectedIds.includes(result.id) && result.id !== (candidate ? parent?.id : undefined));
+  if (candidate) selected.push(candidate);
+  for (const result of selected.filter(isCompletedResult)) {
+    const params = savedChartParameters(run, result, result === candidate ? parent : null);
+    for (const signal of result.signals ?? []) {
+      if (!isVolatilityObservation(signal)) continue;
+      if (signal.observedValue === null || signal.observedValue === undefined || signal.observedValue === "" || !Number.isFinite(Number(signal.observedValue))) continue;
+      const symbol = signal.sourceSymbol ?? String(params["vix.symbol"] ?? "^VIX");
+      const group = groups.get(symbol) ?? { signals: [], thresholds: new Set<string>() };
+      group.signals.push(signal);
+      if (signal.signalId.startsWith("vix.buy") && params["vix.buyThreshold"] !== undefined) group.thresholds.add(String(params["vix.buyThreshold"]));
+      groups.set(symbol, group);
+    }
+  }
+  return [...groups].map(([symbol, group]) => ({ symbol, signals: group.signals,
+    threshold: group.thresholds.size === 1 ? [...group.thresholds][0] : undefined }));
+}
 
 export function savedChartParameters(run: RunResponse, result: StrategyRun, parent?: StrategyRun | null): Record<string, unknown> {
   const strategy = run.snapshot.config.strategies?.find(item => item.id === (parent?.id ?? result.id));

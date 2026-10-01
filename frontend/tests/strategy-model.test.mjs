@@ -95,6 +95,23 @@ test("series visibility remains independent from saved results with no layout mo
   assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown"]);
 });
 
+test("new run resets result preferences while same-run updates preserve them", () => {
+  const initial = createInitialWorkspaceState(catalog);
+  const firstId = initial.activeStrategyId;
+  const makeRun = runId => ({ runId, selectedStrategyIds: [firstId], result: { strategyRuns: [{ id: firstId }, { id: "benchmark" }] } });
+  const edited = { ...initial, runResponse: makeRun("old"), focusedResultId: "benchmark", selectedResultIds: [firstId, "benchmark"], visibleSeriesIds: ["price"], showChart: false };
+  const fresh = workspaceReducer(edited, { type: "run.update", value: makeRun("new") });
+  assert.equal(fresh.focusedResultId, firstId);
+  assert.deepEqual(fresh.selectedResultIds, [firstId]);
+  assert.deepEqual(fresh.visibleSeriesIds, initial.visibleSeriesIds);
+  assert.equal(fresh.showChart, initial.showChart);
+  const selected = { ...fresh, selectedResultIds: [], visibleSeriesIds: ["price"], showChart: false };
+  const updated = workspaceReducer(selected, { type: "run.update", value: makeRun("new") });
+  assert.deepEqual(updated.selectedResultIds, []);
+  assert.deepEqual(updated.visibleSeriesIds, ["price"]);
+  assert.equal(updated.showChart, false);
+});
+
 test("editor selection does not toggle, run, or replace another instance's parameters", () => {
   let state = createInitialWorkspaceState(catalog);
   state = workspaceReducer(state, {

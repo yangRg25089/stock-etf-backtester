@@ -13,6 +13,7 @@ import { TradeTable } from "./TradeTable";
 type ResultTab = "comparison" | "trades" | "search";
 
 interface ResultDetailsProps {
+  busy?: boolean;
   locale: Locale;
   run: RunResponse | null;
   focusedResult: StrategyRun | null;
@@ -36,6 +37,7 @@ function resultOptionLabel(locale: Locale, result: StrategyRun): string {
 }
 
 export function ResultDetails({
+  busy = false,
   locale,
   run,
   focusedResult,
@@ -181,6 +183,7 @@ export function ResultDetails({
                     {translate(locale, "results.comparisonTitle")}
                   </h4>
                   <ResultComparison
+                    busy={busy}
                     locale={locale}
                     strategyRuns={strategyRuns}
                     focusedResultId={state.focusedResultId}

@@ -617,8 +617,16 @@ summary:focus-visible,
   cursor: pointer;
 }
 
-.strategy-card-open:hover {
-  background: #f4faf7;
+.strategy-nav-card.is-active .strategy-card-open,
+.strategy-card-open:hover:enabled {
+  background: #e0eee8;
+}
+
+.result-interactions {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .strategy-card-open:focus-visible {
@@ -1635,6 +1643,23 @@ h2 {
 }
 
 .comparison-table tbody tr { cursor: pointer; }
+.comparison-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: inherit;
+  cursor: pointer;
+}
+.comparison-sort.is-sorted { color: var(--app-accent); }
+.comparison-sort:hover:enabled { color: #105e50; }
+.comparison-sort:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
+.result-rank { min-width: 1.2em; color: #64716c; font-variant-numeric: tabular-nums; }
 .comparison-table tbody tr:hover:not(.is-focused) { background: #f0f7f3; }
 
 .export-download-icon {
@@ -1935,13 +1960,13 @@ h2 {
 
 .chart-tick-label {
   fill: #64716c;
-  font-size: 10px;
+  font-size: calc(0.6875rem * var(--chart-text-scale, 1));
   font-variant-numeric: tabular-nums;
 }
 
 .chart-axis-title {
   fill: #33433d;
-  font-size: 11px;
+  font-size: calc(0.75rem * var(--chart-text-scale, 1));
   font-weight: 600;
 }
 
@@ -2022,7 +2047,7 @@ h2 {
 .chart-crosshair { pointer-events: none; }
 .chart-cursor-vertical, .chart-cursor-horizontal { stroke: #819bb2; stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .chart-cursor-tag { fill: #24372f; }
-.chart-cursor-label { fill: white; font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-cursor-label { fill: white; font-size: calc(0.6875rem * var(--chart-text-scale, 1)); font-variant-numeric: tabular-nums; }
 .chart-cursor-point { stroke: white; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .chart-crosshair-readout {
   position: static;
@@ -2606,6 +2631,7 @@ h2 {
 }
 
 @media (pointer: coarse) {
+  .comparison-sort { min-height: 44px; }
   .result-snapshot-info summary { width: 44px; min-height: 44px; }
 
   button,

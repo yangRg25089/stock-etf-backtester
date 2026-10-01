@@ -1,8 +1,9 @@
-import { useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { DailyAsset, SignalEvaluation, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { ChartCrosshair, ChartReadout, type ChartCursor, type CursorReading } from "./ChartCrosshair";
 import { useChartInteraction, type ChartInteractionProps } from "./useChartInteraction";
+import { isVolatilityObservation, type SavedVolatilitySeries } from "./model";
 import {
   normalizeSeriesToBase100,
   type ChartSeriesId,
@@ -19,6 +20,7 @@ import {
 type AxisSeriesId = ChartSeriesId | "index";
 
 interface ResultsChartsProps {
+  busy?: boolean;
   locale: Locale;
   dailyAssets: DailyAsset[];
   trades: Trade[];
@@ -30,6 +32,8 @@ interface ResultsChartsProps {
     dailyAssets: DailyAsset[];
   }>;
   totalAssetColor?: string;
+  totalAssetLabel?: string;
+  volatilitySeries?: SavedVolatilitySeries[];
   showFocusedAsset?: boolean;
   vixSymbol?: string;
   vixThreshold?: string;
@@ -41,7 +45,10 @@ interface SeriesDefinition {
   id: ChartSeriesId;
   color: string;
   labelKey: string;
+  label?: string;
 }
+
+interface IndicatorComparison { label: string; color: string; samples: SeriesSample[] }
 
 type IndicatorSeriesDefinition = SeriesDefinition & { id: "drawdown" | "vix" };
 
@@ -62,17 +69,9 @@ const SERIES: SeriesDefinition[] = [
   { id: "drawdown", color: "#a7373a", labelKey: "chart.drawdown" },
   { id: "vix", color: "#7656a6", labelKey: "chart.vix" },
 ];
-const VIX_SIGNAL_IDS = new Set(["vix.buy", "vix.exit.low1", "vix.exit.low2", "bollinger.exit.vix"]);
 const CHART = { height: 320, left: 92, right: 26, top: 20, bottom: 54, width: 800 };
 const MAIN_WITHOUT_DATES = { ...CHART, height: 274, bottom: 8 };
 const COMPACT_CHART = { ...CHART, height: 90, top: 8, bottom: 8 };
-
-function isVixObservation(signal: SignalEvaluation, symbol?: string): boolean {
-  if (!signal.conditionKind) return VIX_SIGNAL_IDS.has(signal.signalId);
-  return (signal.conditionKind === "vix" || signal.conditionKind === "bollinger")
-    && signal.observedUnit === "index_points"
-    && (!symbol || signal.sourceSymbol === symbol);
-}
 
 function numericValue(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -258,7 +257,7 @@ function samplesForSeries(
   if (seriesId === "vix") {
     const valueByDate = new Map<string, number>();
     for (const signal of signals) {
-      if (!isVixObservation(signal, vixSymbol)) continue;
+      if (!isVolatilityObservation(signal, vixSymbol)) continue;
       const value = numericValue(signal.observedValue);
       if (value !== null) valueByDate.set(signal.date, value);
     }
@@ -292,7 +291,7 @@ function seriesLabel(locale: Locale, series: SeriesDefinition, currency?: string
     : series.id === "drawdown"
       ? "%"
       : null;
-  return `${translate(locale, series.labelKey)}${units ? ` (${units})` : ""}`;
+  return `${series.label ?? translate(locale, series.labelKey)}${units ? ` (${units})` : ""}`;
 }
 
 function useSeriesHighlight() {
@@ -384,6 +383,7 @@ function IndicatorChart({
   viewport,
   chartInteractionProps,
   cursor,
+  comparisons = [],
 }: {
   locale: Locale;
   assets: DailyAsset[];
@@ -395,6 +395,7 @@ function IndicatorChart({
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
   cursor: ChartCursor | null;
+  comparisons?: IndicatorComparison[];
 }) {
   const geometry = COMPACT_CHART;
   if (samples.length === 0) return null;
@@ -404,6 +405,7 @@ function IndicatorChart({
   const currency = assets[0]?.currency;
   const visibleThreshold = series.id === "vix" && hasBuySignalObservations ? thresholdValue : null;
   const values = chartSamples.map((point) => point.value);
+  values.push(...comparisons.flatMap(comparison => samplesInViewport(comparison.samples, viewport, assets.length).map(point => point.value)));
   if (visibleThreshold !== null) values.push(visibleThreshold);
   const scale = chartScale(values, {
     maximumAtZero: series.id === "drawdown",
@@ -452,6 +454,12 @@ function IndicatorChart({
             </clipPath>
           </defs>
           <g clipPath={`url(#${plotClipId})`}>
+            {comparisons.map(comparison => {
+              const line = lineCoordinates(samplesInViewport(comparison.samples, viewport, assets.length), scale, assets.length, viewport);
+              return line.length > 1 ? <polyline key={comparison.label} className="chart-series-line chart-vix-line"
+                points={line.map(point => `${point.x},${point.y}`).join(" ")} fill="none" stroke={comparison.color}
+                strokeWidth={1.2} vectorEffect="non-scaling-stroke" aria-label={comparison.label}><title>{comparison.label}</title></polyline> : null;
+            })}
             {thresholdY !== null && (
               <line className="chart-threshold-line" x1={CHART.left} y1={thresholdY} x2={CHART.width - CHART.right} y2={thresholdY}>
                 <title>{translate(locale, "chart.threshold", { threshold: String(visibleThreshold) })}</title>
@@ -498,6 +506,7 @@ function OverlayChart({
   viewport,
   chartInteractionProps,
   cursor,
+  volatilityComparisons,
 }: {
   locale: Locale;
   assets: DailyAsset[];
@@ -511,6 +520,7 @@ function OverlayChart({
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
   cursor: ChartCursor | null;
+  volatilityComparisons: IndicatorComparison[];
 }) {
   const geometry = MAIN_WITHOUT_DATES;
   const highlight = useSeriesHighlight();
@@ -580,7 +590,7 @@ function OverlayChart({
     const point = result.points.find((sample) => sample.index === readingIndex);
     const rawPoint = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
     return {
-      label: translate(locale, definition.labelKey),
+      label: definition.label ?? translate(locale, definition.labelKey),
       value: `${preciseValue(rawPoint?.value, locale, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: point?.indexValue.toFixed(1) ?? "—" })}`,
       color: definition.color,
     };
@@ -588,7 +598,11 @@ function OverlayChart({
   readings.push({ label: translate(locale, "chart.principal"), value: preciseValue(numericValue(assets[readingIndex]?.totalContributed), locale, currency) });
   for (const definition of indicatorSeries) {
     const point = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
-    readings.push({ label: translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color });
+    readings.push({ label: definition.label ?? translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color });
+  }
+  for (const comparison of volatilityComparisons) {
+    const point = comparison.samples.find(sample => sample.index === readingIndex);
+    readings.push({ label: comparison.label, value: point ? formatAxisValue(point.value, locale, "vix") : "—", color: comparison.color });
   }
   for (const comparison of comparisonNormalized) {
     const point = comparison.result.points.find((sample) => sample.index === readingIndex);
@@ -603,7 +617,7 @@ function OverlayChart({
       <figcaption className="core-chart-heading">
         <span>{translate(locale, "chart.overlayTitle")}</span>
         <SeriesLegend locale={locale} entries={[
-          ...normalized.map(({ definition }) => ({ ...definition, label: axisTitle(locale, definition.id, currency) })),
+          ...normalized.map(({ definition }) => ({ ...definition, label: definition.label ? seriesLabel(locale, definition, currency) : axisTitle(locale, definition.id, currency) })),
           ...comparisonNormalized,
         ]} highlight={highlight} />
       </figcaption>
@@ -741,19 +755,31 @@ function OverlayChart({
 }
 
 export function ResultsCharts({
+  busy = false,
   locale,
   dailyAssets,
   trades,
   signals = [],
   comparisonSeries = [],
   totalAssetColor,
+  totalAssetLabel,
+  volatilitySeries = [],
   showFocusedAsset = true,
   vixSymbol,
   vixThreshold,
   visibleSeriesIds,
   onSeriesChange,
 }: ResultsChartsProps) {
-  const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps, zoomAt, resetRange, toggleWheelZoom } = useChartInteraction(dailyAssets.length, CHART);
+  const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps, zoomAt, resetRange, toggleWheelZoom } = useChartInteraction(dailyAssets.length, CHART, busy);
+  const rootElement = useRef<HTMLDivElement | null>(null);
+  const containerRef = useCallback((element: HTMLDivElement | null) => {
+    chartContainerRef(element);
+    rootElement.current = element;
+  }, [chartContainerRef]);
+  const volatilityComparisons = volatilitySeries.slice(1).map((source, index) => ({
+    label: source.symbol.replace(/^\^/, ""), color: ["#b06a16", "#385cbe"][index % 2],
+    samples: samplesForSeries("vix", dailyAssets, source.signals, source.symbol),
+  }));
   const samplesById = useMemo(
     () => new Map(SERIES.map(({ id }) => [id, samplesForSeries(id, dailyAssets, signals, vixSymbol)])),
     [dailyAssets, signals, vixSymbol],
@@ -780,17 +806,29 @@ export function ResultsCharts({
   );
   const coreSeries = selected.filter(
     (series) => series.id === "price" || (series.id === "totalAsset" && showFocusedAsset),
-  ).map((series) => series.id === "totalAsset" && totalAssetColor
-    ? { ...series, color: totalAssetColor }
+  ).map((series) => series.id === "totalAsset"
+    ? { ...series, color: totalAssetColor ?? series.color, label: totalAssetLabel }
     : series);
   const indicatorSeries = selected.filter(
     (series): series is IndicatorSeriesDefinition => series.id === "drawdown" || series.id === "vix",
-  );
+  ).map(series => series.id === "vix" ? { ...series, label: (vixSymbol ?? "^VIX").replace(/^\^/, "") } : series);
+  useEffect(() => {
+    const element = rootElement.current;
+    const svg = element?.querySelector("svg.result-chart");
+    if (!element || !svg) return;
+    const updateScale = (width: number) => {
+      if (width > 0) element.style.setProperty("--chart-text-scale", String(CHART.width / width));
+    };
+    updateScale(svg.getBoundingClientRect().width);
+    const observer = new ResizeObserver(entries => updateScale(entries[0]?.contentRect.width ?? 0));
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, [dailyAssets.length, selected.length]);
   const currency = dailyAssets[0]?.currency;
   const thresholdValue = numericValue(vixThreshold);
   const hasBuySignalObservations = signals.some((signal) =>
     (signal.signalId === "vix.buy" || signal.signalId.startsWith("vix.buy:"))
-      && isVixObservation(signal, vixSymbol) && numericValue(signal.observedValue) !== null,
+      && isVolatilityObservation(signal, vixSymbol) && numericValue(signal.observedValue) !== null,
   );
   const range = visibleIndexRange(dailyAssets.length, viewport);
   const visibleStartDate = dailyAssets[Math.round(range.start)]?.date ?? "—";
@@ -798,7 +836,7 @@ export function ResultsCharts({
   const viewportSpan = viewport.end - viewport.start;
   const visibleComparisons = selected.some(series => series.id === "totalAsset") ? comparisonSeries : [];
   return (
-    <div className={`charts-content${wheelZoomEnabled ? " is-wheel-zoom-active" : ""}`} ref={chartContainerRef}>
+    <div className={`charts-content${wheelZoomEnabled ? " is-wheel-zoom-active" : ""}`} ref={containerRef}>
       <div className="chart-toolbar">
         <div className="chart-controls">
           <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
@@ -812,8 +850,9 @@ export function ResultsCharts({
                   className={`legend-toggle${isVisible ? " is-visible" : ""}`}
                   type="button"
                   key={series.id}
+                  data-series={series.id}
                   aria-pressed={isVisible}
-                  disabled={!isAvailable || isLastCore}
+                  disabled={busy || !isAvailable || isLastCore}
                   title={isLastCore ? translate(locale, "chart.keepCoreSeries") : undefined}
                   onClick={() => onSeriesChange(series.id, !isVisible)}
                 >
@@ -881,6 +920,7 @@ export function ResultsCharts({
               viewport={viewport}
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
+              volatilityComparisons={indicatorSeries.some(series => series.id === "vix") ? volatilityComparisons : []}
             />
           )}
           {indicatorSeries.map((series) => (
@@ -896,6 +936,7 @@ export function ResultsCharts({
               viewport={viewport}
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
+              comparisons={series.id === "vix" ? volatilityComparisons : []}
             />
           ))}
           <ChartDateAxis dates={dailyAssets.map((asset) => asset.date)} locale={locale} viewport={viewport} cursor={cursor} />

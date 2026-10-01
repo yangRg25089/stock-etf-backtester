@@ -42,6 +42,7 @@ test('native browser zoom at 100, 125 and 150 percent keeps the saved workbench 
       }, factor);
       expect(actual).toBe(factor);
       await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBeCloseTo(baseline.dpr * factor, 2);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const geometry = await page.evaluate(() => {
         const panel = document.querySelector('.workbench-results').getBoundingClientRect();
         const svg = document.querySelector('.chart-overlay .result-chart');
@@ -56,6 +57,8 @@ test('native browser zoom at 100, 125 and 150 percent keeps the saved workbench 
           visiblePlot: Math.min(bottom, panel.bottom) - Math.max(top, panel.top),
           plotTop: top, plotBottom: bottom, panelBottom: panel.bottom, resultsScroll: document.querySelector(".workbench-results").scrollTop,
           tableHeight: document.querySelector(".comparison-table").getBoundingClientRect().height,
+          axisPixelHeight: svg.querySelector(".chart-y-tick").getBoundingClientRect().height * devicePixelRatio,
+          ordinaryPixelFont: parseFloat(getComputedStyle(document.querySelector(".strategy-navigator h2")).fontSize) * devicePixelRatio,
           toolsHeight: document.querySelector(".chart-toolbar").getBoundingClientRect().height,
           layout: Object.fromEntries([".app-topbar", ".result-details", ".result-details .collapsible-panel-header", ".result-tabs", ".result-tab-panel", "#result-chart-panel", ".chart-toolbar", ".chart-overlay", ".result-chart"].map(selector => { const r = document.querySelector(selector).getBoundingClientRect(); return [selector, {top:r.top,height:r.height}]; })),
         };
@@ -63,6 +66,9 @@ test('native browser zoom at 100, 125 and 150 percent keeps the saved workbench 
       measurements.push({ factor, actual, ...geometry });
       expect(geometry.width * factor).toBeCloseTo(baseline.width, 0);
       expect(geometry.scale).toBe(1);
+      const first = measurements[0];
+      expect(geometry.axisPixelHeight / first.axisPixelHeight).toBeCloseTo(factor, 1);
+      expect(geometry.axisPixelHeight / geometry.ordinaryPixelFont).toBeCloseTo(first.axisPixelHeight / first.ordinaryPixelFont, 1);
       expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.width);
       expect(geometry.documentHeight).toBeLessThanOrEqual(geometry.height + 1);
       expect(geometry.visiblePlot, JSON.stringify(measurements, null, 2)).toBeGreaterThan(factor === 1 ? 280 : 120);
