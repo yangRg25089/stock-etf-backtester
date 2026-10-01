@@ -107,6 +107,24 @@ function workspaceWithRun() {
   };
 }
 
+test("VIX chart settings come from the frozen condition, not flat params or edited draft", () => {
+  const state = workspaceWithRun();
+  const saved = state.runResponse.snapshot.config.strategies[0];
+  saved.params["vix.symbol"] = "^VIX";
+  saved.params["vix.buyThreshold"] = 25;
+  saved.rules = { buy: { type: "condition", id: "nasdaq", kind: "vix", enabled: true, params: { "vix.symbol": "^VXN", "vix.buyThreshold": 40 } }, sell: null };
+  state.focusedResultId = saved.id;
+  state.showChart = true;
+  const primary = state.runResponse.result.strategyRuns[0];
+  primary.signals = primary.dailyAssets.map(asset => ({ date: asset.date, signalId: "vix.buy:nasdaq", conditionKind: "vix", sourceSymbol: "^VXN", observedUnit: "index_points", state: "true", observedValue: "46" }));
+  state.draft.strategies[0].params["vix.buyThreshold"] = 90;
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
+  assert.match(html, /VXN/);
+  assert.match(html, /<strong>46<\/strong>/);
+  assert.match(html, /chart-threshold-line/);
+  assert.doesNotMatch(html, /90\.00/);
+});
+
 test("legacy execution areas never return at any run lifecycle stage", () => {
   for (const status of ["queued", "loading", "running", "completed", "completed_with_warning", "unavailable", "failed"]) {
     const state = workspaceWithRun();

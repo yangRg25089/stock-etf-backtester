@@ -3,6 +3,7 @@ import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
+import { conditionLeaves, conditionParameters } from "../strategies/conditions";
 import { findFocusedResult } from "./model";
 import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
@@ -18,6 +19,11 @@ const SUCCESS_STATUSES = new Set<StrategyStatus>(["completed", "completed_with_w
 
 function savedParameters(run: RunResponse, result: StrategyRun): Record<string, unknown> {
   const strategy = run.snapshot.config.strategies?.find((item) => item.id === result.id);
+  if (strategy?.rules) {
+    const volatility = conditionLeaves(strategy.rules.buy, true).find(node => node.kind === "vix")
+      ?? conditionLeaves(strategy.rules.sell, true).find(node => node.kind === "vix" || node.kind === "bollinger");
+    return conditionParameters(volatility);
+  }
   const params = strategy?.params;
   return typeof params === "object" && params !== null && !Array.isArray(params)
     ? params as Record<string, unknown>

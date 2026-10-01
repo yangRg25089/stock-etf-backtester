@@ -59,6 +59,13 @@ const CHART = { height: 320, left: 92, right: 26, top: 20, bottom: 54, width: 80
 const MAIN_WITHOUT_DATES = { ...CHART, height: 274, bottom: 8 };
 const COMPACT_CHART = { ...CHART, height: 90, top: 8, bottom: 8 };
 
+function isVixObservation(signal: SignalEvaluation, symbol?: string): boolean {
+  if (!signal.conditionKind) return VIX_SIGNAL_IDS.has(signal.signalId);
+  return (signal.conditionKind === "vix" || signal.conditionKind === "bollinger")
+    && signal.observedUnit === "index_points"
+    && (!symbol || signal.sourceSymbol === symbol);
+}
+
 function numericValue(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
@@ -238,11 +245,12 @@ function samplesForSeries(
   seriesId: ChartSeriesId,
   assets: DailyAsset[],
   signals: SignalEvaluation[],
+  vixSymbol?: string,
 ): SeriesSample[] {
   if (seriesId === "vix") {
     const valueByDate = new Map<string, number>();
     for (const signal of signals) {
-      if (!VIX_SIGNAL_IDS.has(signal.signalId)) continue;
+      if (!isVixObservation(signal, vixSymbol)) continue;
       const value = numericValue(signal.observedValue);
       if (value !== null) valueByDate.set(signal.date, value);
     }
@@ -680,8 +688,8 @@ export function ResultsCharts({
 }: ResultsChartsProps) {
   const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps, zoomAt, resetRange, toggleWheelZoom } = useChartInteraction(dailyAssets.length, CHART);
   const samplesById = useMemo(
-    () => new Map(SERIES.map(({ id }) => [id, samplesForSeries(id, dailyAssets, signals)])),
-    [dailyAssets, signals],
+    () => new Map(SERIES.map(({ id }) => [id, samplesForSeries(id, dailyAssets, signals, vixSymbol)])),
+    [dailyAssets, signals, vixSymbol],
   );
   const normalizedById = useMemo(() => new Map<ChartSeriesId, NormalizedSeries | null>(
     SERIES.filter(({ id }) => id === "price" || id === "totalAsset").map(({ id }) => [id,
@@ -707,7 +715,8 @@ export function ResultsCharts({
   const currency = dailyAssets[0]?.currency;
   const thresholdValue = numericValue(vixThreshold);
   const hasBuySignalObservations = signals.some((signal) =>
-    signal.signalId === "vix.buy" && numericValue(signal.observedValue) !== null,
+    (signal.signalId === "vix.buy" || signal.signalId.startsWith("vix.buy:"))
+      && isVixObservation(signal, vixSymbol) && numericValue(signal.observedValue) !== null,
   );
   const range = visibleIndexRange(dailyAssets.length, viewport);
   const visibleStartDate = dailyAssets[Math.round(range.start)]?.date ?? "—";

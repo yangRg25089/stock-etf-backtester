@@ -4,15 +4,23 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from operator import ge, le, lt
+from typing import Literal
 
 from pydantic import Field
 
 from app.catalog.presets import (
     ExecutionModule,
-    PresetDefinition,
     get_preset_definition,
 )
 from app.config.validation import DataKind
+from app.domain.conditions import (
+    ConditionGroup,
+    ConditionKind,
+    ConditionLogic,
+    ConditionNode,
+    condition_signal_id,
+)
 from app.domain.contracts import (
     DataSnapshot,
     FrozenRunConfig,
@@ -22,6 +30,7 @@ from app.domain.contracts import (
     SignalEvaluation,
     ValuationObservation,
 )
+from app.domain.immutability import freeze_mapping
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
@@ -30,6 +39,7 @@ from app.domain.status import (
     SignalState,
 )
 
+from .conditions import combine_conditions
 from .indicators import (
     BollingerBands,
     bollinger_bands,
@@ -155,231 +165,310 @@ def _evaluate_strategy(
     context: _EvaluationContext,
 ) -> StrategySignalSeries:
     preset = get_preset_definition(strategy.preset_id)
-    params = strategy.params
+    rules = strategy.rules
+    if rules is None and preset.execution_module is not ExecutionModule.SCHEDULED:
+        raise ValueError(
+            "condition rules must be materialized by configuration validation"
+        )
     symbol = context.config.shared.run.symbol
     prices = tuple(_simulation_price(context, day, symbol) for day in context.sessions)
-    position_by_date = {day: index for index, day in enumerate(context.sessions)}
-    trend_ma: tuple[Decimal | None, ...] = ()
-    rsi_values: tuple[Decimal | None, ...] = ()
-    ma_buy_values: tuple[Decimal | None, ...] = ()
-    bands: tuple[BollingerBands | None, ...] = ()
-
-    if preset.execution_module is ExecutionModule.TREND:
-        trend_ma = simple_moving_average(
-            prices, period=_period_parameter(params, "ma.period")
-        )
-    if _enabled(preset, params, "rsi.buyEnabled") or (
-        _enabled(preset, params, "exit.enabled")
-        and _enabled(preset, params, "exit.rsi.enabled")
-    ):
-        rsi_values = relative_strength_index(
-            prices,
-            period=_period_parameter(params, "rsi.period"),
-        )
-    if _enabled(preset, params, "ma.buyEnabled"):
-        ma_buy_values = simple_moving_average(
-            prices, period=_period_parameter(params, "ma.period")
-        )
-    if _enabled(preset, params, "bollinger.buyEnabled") or (
-        _enabled(preset, params, "exit.enabled")
-        and _enabled(preset, params, "exit.bollinger.enabled")
-    ):
-        bands = bollinger_bands(
-            prices,
-            period=_period_parameter(params, "bollinger.period"),
-            deviations=_decimal_parameter(params, "bollinger.stddev"),
-        )
-
+    positions = {day: position for position, day in enumerate(context.sessions)}
+    moving_averages: dict[int, tuple[Decimal | None, ...]] = {}
+    strength_indices: dict[int, tuple[Decimal | None, ...]] = {}
+    band_cache: dict[tuple[int, Decimal], tuple[BollingerBands | None, ...]] = {}
     evaluations: list[SignalEvaluation] = []
-    for day in context.run_sessions:
-        position = position_by_date[day]
+
+    def evaluate_node(
+        node: ConditionNode | None, side: Literal["buy", "sell"], day: date, path: str
+    ) -> SignalEvaluation | None:
+        if node is None or not node.enabled:
+            return None
+        if isinstance(node, ConditionGroup):
+            children = tuple(
+                child
+                for position, item in enumerate(node.children)
+                if (
+                    child := evaluate_node(
+                        item, side, day, f"{path}.children[{position}]"
+                    )
+                )
+                is not None
+            )
+            evaluation = combine_conditions(
+                day, f"conditions.{side}:{node.id}", node.operator, children
+            ).model_copy(update={"condition_id": node.id})
+            evaluations.append(evaluation)
+            return evaluation
+
+        params = node.params
+        signal_id = condition_signal_id(node, side)
+        leaf_strategy = strategy.model_copy(update={"params": params})
+        position = positions[day]
         price = prices[position]
-        price_evaluation = _price_evaluation(index, strategy, day, price, symbol)
-        evaluations.append(price_evaluation)
-        buy_signals: list[SignalEvaluation] = []
+        is_buy = side == "buy"
 
-        if _enabled(preset, params, "vix.buyEnabled"):
-            signal = _macro_threshold_evaluation(
-                index,
-                strategy,
-                context,
-                day,
-                signal_id="vix.buy",
-                parameter_key="vix.buyEnabled",
-                symbol=str(params["vix.symbol"]),
-                unit="index_points",
-                threshold=_decimal_parameter(params, "vix.buyThreshold"),
-                compare=lambda value, threshold: value >= threshold,
-            )
-            evaluations.append(signal)
-            buy_signals.append(signal)
-
-        if _enabled(preset, params, "rsi.buyEnabled"):
-            signal = _price_threshold_evaluation(
-                index,
-                strategy,
-                day,
-                "rsi.buy",
-                "rsi.buyEnabled",
-                rsi_values[position],
-                lambda value: value <= _decimal_parameter(params, "rsi.buyThreshold"),
-                symbol,
-            )
-            evaluations.append(signal)
-            buy_signals.append(signal)
-
-        if _enabled(preset, params, "ma.buyEnabled"):
-            ma_value = ma_buy_values[position]
-            deviation = (
-                None
-                if ma_value is None or price is None or ma_value == 0
-                else (price - ma_value) / ma_value * Decimal("100")
-            )
-            signal = _price_threshold_evaluation(
-                index,
-                strategy,
-                day,
-                "ma.buy",
-                "ma.buyEnabled",
-                deviation,
-                lambda value: value <= _decimal_parameter(params, "ma.buyDeviationPct"),
-                symbol,
-            )
-            evaluations.append(signal)
-            buy_signals.append(signal)
-
-        if _enabled(preset, params, "bollinger.buyEnabled"):
-            band = bands[position] if bands else None
-            lower = None if band is None else band.lower
-            signal = _price_threshold_evaluation(
-                index,
-                strategy,
-                day,
-                "bollinger.buy",
-                "bollinger.buyEnabled",
-                None if price is None or lower is None else price - lower,
-                lambda difference: difference <= 0,
-                symbol,
-            )
-            evaluations.append(signal)
-            buy_signals.append(signal)
-
-        if _enabled(preset, params, "rate.buyEnabled"):
-            signal = _macro_threshold_evaluation(
-                index,
-                strategy,
-                context,
-                day,
-                signal_id="rate.buy",
-                parameter_key="rate.buyEnabled",
-                symbol=str(params["rate.symbol"]),
-                unit="percent_point",
-                threshold=_decimal_parameter(params, "rate.thresholdPct"),
-                compare=lambda value, threshold: value <= threshold,
-            )
-            evaluations.append(signal)
-            buy_signals.append(signal)
-
-        if _enabled(preset, params, "pe.buyEnabled"):
-            signal = _valuation_threshold_evaluation(
-                index,
-                strategy,
-                context,
-                day,
-                threshold=_decimal_parameter(params, "pe.threshold"),
-            )
-            evaluations.append(signal)
-            buy_signals.append(signal)
-
-        if preset.execution_module in {
-            ExecutionModule.ACCUMULATION,
-            ExecutionModule.SEARCH,
-        }:
-            aggregate = _combine_buy_signals(
-                day,
-                buy_signals,
-                str(params.get("accumulation.conditionLogic", "OR")),
-            )
-            evaluations.append(aggregate)
-
-        if preset.execution_module is ExecutionModule.TREND:
-            ma_value = trend_ma[position]
-            trend_signal = _price_threshold_evaluation(
-                index,
-                strategy,
-                day,
-                "ma.trend",
-                "ma.period",
-                None if price is None or ma_value is None else price - ma_value,
-                lambda difference: difference > 0,
-                symbol,
-            )
-            evaluations.append(trend_signal)
-            if params.get("trend.sellBelowOrEqualMa") is True:
-                sell_signal = _price_threshold_evaluation(
-                    index,
-                    strategy,
-                    day,
-                    "ma.trend.sell",
-                    "ma.period",
-                    None if price is None or ma_value is None else price - ma_value,
-                    lambda difference: difference <= 0,
-                    symbol,
-                )
-                evaluations.append(sell_signal)
-
-        if _enabled(preset, params, "exit.enabled"):
-            if "exit.vix.low1" in preset.parameter_keys:
-                _append_vix_exit_signals(
-                    index, strategy, context, day, params, evaluations
-                )
-            if _enabled(preset, params, "exit.rsi.enabled"):
-                evaluations.append(
-                    _price_threshold_evaluation(
-                        index,
-                        strategy,
-                        day,
-                        "rsi.exit",
-                        "exit.rsi.enabled",
-                        rsi_values[position],
-                        lambda value: (
-                            value >= _decimal_parameter(params, "exit.rsi.threshold")
+        def decorate(
+            evaluation: SignalEvaluation, key: str, source_symbol: str = symbol
+        ) -> SignalEvaluation:
+            diagnostics = tuple(
+                diagnostic.model_copy(
+                    update={
+                        "field_path": f"{path}.params.{key}",
+                        "details": freeze_mapping(
+                            {
+                                **diagnostic.details,
+                                "conditionId": node.id,
+                                "signalId": evaluation.signal_id,
+                            }
                         ),
-                        symbol,
-                    )
+                    }
                 )
-            if _enabled(preset, params, "exit.bollinger.enabled"):
-                band = bands[position] if bands else None
-                upper = None if band is None else band.upper
-                evaluations.append(
-                    _price_threshold_evaluation(
-                        index,
-                        strategy,
-                        day,
-                        "bollinger.exit",
-                        "exit.bollinger.enabled",
-                        None if price is None or upper is None else price - upper,
-                        lambda difference: difference >= 0,
-                        symbol,
-                    )
-                )
-                evaluations.append(
+                for diagnostic in evaluation.diagnostics
+            )
+            return evaluation.model_copy(
+                update={
+                    "condition_id": node.id,
+                    "condition_kind": node.kind,
+                    "source_symbol": source_symbol,
+                    "diagnostics": diagnostics,
+                }
+            )
+
+        def market(
+            value: Decimal | None,
+            key: str,
+            compare: Callable[[Decimal], bool],
+            name: str = signal_id,
+        ) -> SignalEvaluation:
+            evaluation = _price_threshold_evaluation(
+                index, leaf_strategy, day, name, key, value, compare, symbol
+            )
+            return decorate(
+                evaluation.model_copy(update={"observed_value": value}), key
+            )
+
+        def moving_average() -> Decimal | None:
+            period = _period_parameter(params, "ma.period")
+            if period not in moving_averages:
+                moving_averages[period] = simple_moving_average(prices, period=period)
+            return moving_averages[period][position]
+
+        if node.kind is ConditionKind.VIX:
+            source_symbol = str(params["vix.symbol"])
+            if is_buy:
+                evaluation = decorate(
                     _macro_threshold_evaluation(
                         index,
-                        strategy,
+                        leaf_strategy,
                         context,
                         day,
-                        signal_id="bollinger.exit.vix",
-                        parameter_key="exit.bollinger.enabled",
-                        symbol=str(params["vix.symbol"]),
+                        signal_id=signal_id,
+                        parameter_key="vix.buyThreshold",
+                        symbol=source_symbol,
+                        unit="index_points",
+                        threshold=_decimal_parameter(params, "vix.buyThreshold"),
+                        compare=ge,
+                    ),
+                    "vix.buyThreshold",
+                    source_symbol,
+                )
+            else:
+                tiers: list[SignalEvaluation] = []
+                _append_vix_exit_signals(
+                    index, leaf_strategy, context, day, params, tiers
+                )
+                decorated = tuple(
+                    decorate(
+                        tier.model_copy(
+                            update={
+                                "signal_id": f"{signal_id}.low{number}",
+                                "sell_ratio": _decimal_parameter(
+                                    params, f"exit.vix.ratio{number}"
+                                )
+                                if tier.state is SignalState.TRUE
+                                else Decimal("0"),
+                                "triggered_signal_ids": (f"{signal_id}.low{number}",)
+                                if tier.state is SignalState.TRUE
+                                else (),
+                            }
+                        ),
+                        f"exit.vix.low{number}",
+                        source_symbol,
+                    )
+                    for number, tier in enumerate(tiers, 1)
+                )
+                evaluations.extend(decorated)
+                evaluation = decorate(
+                    combine_conditions(
+                        day, signal_id, ConditionLogic.OR, decorated
+                    ).model_copy(
+                        update={
+                            "observed_value": decorated[0].observed_value,
+                            "observed_unit": "index_points",
+                        }
+                    ),
+                    "vix.symbol",
+                    source_symbol,
+                )
+        elif node.kind is ConditionKind.RATE:
+            source_symbol = str(params["rate.symbol"])
+            evaluation = decorate(
+                _macro_threshold_evaluation(
+                    index,
+                    leaf_strategy,
+                    context,
+                    day,
+                    signal_id=signal_id,
+                    parameter_key="rate.thresholdPct",
+                    symbol=source_symbol,
+                    unit="percent_point",
+                    threshold=_decimal_parameter(params, "rate.thresholdPct"),
+                    compare=le if is_buy else ge,
+                ),
+                "rate.thresholdPct",
+                source_symbol,
+            )
+        elif node.kind is ConditionKind.PE:
+            evaluation = decorate(
+                _valuation_threshold_evaluation(
+                    index,
+                    leaf_strategy,
+                    context,
+                    day,
+                    threshold=_decimal_parameter(params, "pe.threshold"),
+                    signal_id=signal_id,
+                    compare=le if is_buy else ge,
+                ),
+                "pe.threshold",
+            )
+        elif node.kind is ConditionKind.RSI:
+            period = _period_parameter(params, "rsi.period")
+            if period not in strength_indices:
+                strength_indices[period] = relative_strength_index(
+                    prices, period=period
+                )
+            threshold_key = "rsi.buyThreshold" if is_buy else "exit.rsi.threshold"
+            threshold = _decimal_parameter(params, threshold_key)
+            evaluation = market(
+                strength_indices[period][position],
+                threshold_key,
+                lambda value: value <= threshold if is_buy else value >= threshold,
+            )
+        elif node.kind in {ConditionKind.MA_DEVIATION, ConditionKind.MA_TREND}:
+            average = moving_average()
+            if node.kind is ConditionKind.MA_TREND:
+                value = None if price is None or average is None else price - average
+                evaluation = market(
+                    value,
+                    "ma.period",
+                    lambda difference: difference > 0 if is_buy else difference <= 0,
+                )
+            else:
+                value = (
+                    None
+                    if price is None or average is None or average == 0
+                    else (price - average) / average * Decimal("100")
+                )
+                threshold = _decimal_parameter(params, "ma.buyDeviationPct")
+                evaluation = market(
+                    value,
+                    "ma.buyDeviationPct",
+                    lambda deviation: (
+                        deviation <= threshold if is_buy else deviation >= threshold
+                    ),
+                )
+        else:
+            period = _period_parameter(params, "bollinger.period")
+            deviations = _decimal_parameter(params, "bollinger.stddev")
+            if (period, deviations) not in band_cache:
+                band_cache[(period, deviations)] = bollinger_bands(
+                    prices, period=period, deviations=deviations
+                )
+            band = band_cache[(period, deviations)][position]
+            boundary = None if band is None else band.lower if is_buy else band.upper
+            difference = None if price is None or boundary is None else price - boundary
+            evaluation = market(
+                difference,
+                "bollinger.period",
+                lambda value: value <= 0 if is_buy else value >= 0,
+                signal_id if is_buy else f"{signal_id}.price",
+            )
+            if not is_buy:
+                price_signal = evaluation
+                source_symbol = str(params["vix.symbol"])
+                vix_signal = decorate(
+                    _macro_threshold_evaluation(
+                        index,
+                        leaf_strategy,
+                        context,
+                        day,
+                        signal_id=f"{signal_id}.vix",
+                        parameter_key="exit.bollinger.vixCeiling",
+                        symbol=source_symbol,
                         unit="index_points",
                         threshold=_decimal_parameter(
                             params, "exit.bollinger.vixCeiling"
                         ),
-                        compare=lambda value, threshold: value < threshold,
-                    )
+                        compare=lt,
+                    ),
+                    "exit.bollinger.vixCeiling",
+                    source_symbol,
+                )
+                evaluations.extend((price_signal, vix_signal))
+                evaluation = decorate(
+                    combine_conditions(
+                        day, signal_id, ConditionLogic.AND, (price_signal, vix_signal)
+                    ),
+                    "exit.bollinger.vixCeiling",
                 )
 
+        if not is_buy and node.kind is not ConditionKind.VIX:
+            ratio_key = (
+                "exit.rsi.ratio"
+                if node.kind is ConditionKind.RSI
+                else "exit.bollinger.ratio"
+                if node.kind is ConditionKind.BOLLINGER
+                else "exit.ratio"
+            )
+            hit = evaluation.state is SignalState.TRUE
+            evaluation = evaluation.model_copy(
+                update={
+                    "sell_ratio": _decimal_parameter(params, ratio_key)
+                    if hit
+                    else Decimal("0"),
+                    "triggered_signal_ids": (signal_id,) if hit else (),
+                }
+            )
+        evaluations.append(evaluation)
+        return evaluation
+
+    for day in context.run_sessions:
+        evaluations.append(
+            _price_evaluation(index, strategy, day, prices[positions[day]], symbol)
+        )
+        if rules is None:
+            continue
+        buy = evaluate_node(rules.buy, "buy", day, f"strategies[{index}].rules.buy")
+        buy_id = (
+            "ma.trend"
+            if preset.execution_module is ExecutionModule.TREND
+            else "accumulation.buy"
+        )
+        if buy is None or buy.signal_id != buy_id:
+            evaluations.append(
+                combine_conditions(
+                    day, buy_id, ConditionLogic.AND, () if buy is None else (buy,)
+                )
+            )
+        sell = evaluate_node(rules.sell, "sell", day, f"strategies[{index}].rules.sell")
+        evaluations.append(
+            combine_conditions(
+                day,
+                "conditions.sell",
+                ConditionLogic.AND,
+                () if sell is None else (sell,),
+            )
+        )
     return StrategySignalSeries(strategyId=strategy.id, evaluations=tuple(evaluations))
 
 
@@ -550,8 +639,9 @@ def _valuation_threshold_evaluation(
     day: date,
     *,
     threshold: Decimal,
+    signal_id: str = "pe.buy",
+    compare: Callable[[Decimal, Decimal], bool] = le,
 ) -> SignalEvaluation:
-    signal_id = "pe.buy"
     field_path = _field_path(index, "pe.buyEnabled")
     symbol = context.config.shared.run.symbol
     rows = context.valuations.get(day, ())
@@ -573,6 +663,31 @@ def _valuation_threshold_evaluation(
             ),
         )
     observation = rows[0]
+    minimum_coverage = _decimal_parameter(strategy.params, "pe.etfMinCoverage")
+    if observation.method == "etf_equity_earnings_yield" and (
+        observation.coverage is None or observation.coverage < minimum_coverage
+    ):
+        diagnostic = _missing_data_diagnostic(
+            day, strategy.id, signal_id, field_path, DataKind.VALUATION, symbol
+        )
+        return _unavailable_evaluation(
+            day,
+            signal_id,
+            diagnostic.model_copy(
+                update={
+                    "details": freeze_mapping(
+                        {
+                            **diagnostic.details,
+                            "reason": "etf_coverage_below_minimum",
+                            "coverage": None
+                            if observation.coverage is None
+                            else str(observation.coverage),
+                            "minimumCoverage": str(minimum_coverage),
+                        }
+                    )
+                }
+            ),
+        )
     if (
         observation.as_of > day
         or observation.pe is None
@@ -591,7 +706,12 @@ def _valuation_threshold_evaluation(
                 symbol,
             ),
         )
-    return _state_evaluation(day, signal_id, observation.pe <= threshold)
+    return _state_evaluation(
+        day,
+        signal_id,
+        compare(observation.pe, threshold),
+        observed_value=observation.pe,
+    )
 
 
 def _price_threshold_evaluation(
@@ -654,31 +774,6 @@ def _simulation_price(
     return bar.simulation_price if bar.simulation_price > 0 else None
 
 
-def _combine_buy_signals(
-    day: date,
-    signals: list[SignalEvaluation],
-    logic: str,
-) -> SignalEvaluation:
-    if not signals:
-        return _state_evaluation(day, "accumulation.buy", False)
-    unavailable = tuple(
-        diagnostic
-        for signal in signals
-        if signal.state is SignalState.UNAVAILABLE
-        for diagnostic in signal.diagnostics
-    )
-    if unavailable:
-        return SignalEvaluation(
-            date=day,
-            signalId="accumulation.buy",
-            state=SignalState.UNAVAILABLE,
-            diagnostics=unavailable,
-        )
-    states = tuple(signal.state is SignalState.TRUE for signal in signals)
-    triggered = all(states) if logic == "AND" else any(states)
-    return _state_evaluation(day, "accumulation.buy", triggered)
-
-
 def _state_evaluation(
     day: date,
     signal_id: str,
@@ -728,10 +823,6 @@ def _missing_data_diagnostic(
             "symbol": symbol,
         },
     )
-
-
-def _enabled(preset: PresetDefinition, params: Mapping[str, object], key: str) -> bool:
-    return key in preset.parameter_keys and params.get(key) is True
 
 
 def _macro_available_date(observation: MacroObservation) -> date:

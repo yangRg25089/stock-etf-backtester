@@ -7,6 +7,7 @@ from app.calendar import ExchangeCalendar, schedule
 from app.catalog.presets import SearchDimension
 from app.catalog.service import Catalog, get_catalog
 from app.config.validation import validate_draft
+from app.domain.conditions import ConditionGroup, ConditionLeaf, StrategyRules
 from app.domain.contracts import (
     DataSnapshot,
     FrozenStrategyInstance,
@@ -23,6 +24,7 @@ from app.ledger import run_strategy
 from app.metrics import MetricsInput, calculate_metrics
 from app.search.engine import (
     GridSearchInput,
+    _validate_candidate_config,
     build_heatmap_slice,
     calculation_fingerprint,
     rank_candidates,
@@ -449,6 +451,89 @@ def test_grid_search_fingerprint_matches_the_equivalent_accumulation_config() ->
     )
 
     assert fingerprint == candidate.calculation_fingerprint
+
+
+def test_search_updates_matching_leaves_and_preserves_independent_values() -> None:
+    config = _config()
+    original = config.strategies[0]
+    rules = StrategyRules(
+        buy=ConditionGroup(
+            id="root",
+            children=(
+                ConditionLeaf(
+                    id="vix-a",
+                    kind="vix",
+                    params={"vix.symbol": "^VIX", "vix.buyThreshold": Decimal("20")},
+                ),
+                ConditionLeaf(
+                    id="vix-b",
+                    kind="vix",
+                    params={"vix.symbol": "^VXN", "vix.buyThreshold": Decimal("40")},
+                ),
+                ConditionLeaf(
+                    id="rsi",
+                    kind="rsi",
+                    params={"rsi.period": 2, "rsi.buyThreshold": Decimal("15")},
+                ),
+            ),
+        )
+    )
+    strategy = original.model_copy(update={"rules": rules})
+    config = config.model_copy(update={"strategies": (strategy,)})
+    params = dict(strategy.params)
+    params["vix.buyThreshold"] = Decimal("35")
+    result = _validate_candidate_config(
+        config, strategy, "candidate", params, _catalog()
+    )
+    assert result.valid
+    assert result.strategy is not None and result.strategy.rules is not None
+    buy = result.strategy.rules.buy
+    assert isinstance(buy, ConditionGroup)
+    first, second, rsi = buy.children
+    assert (
+        isinstance(first, ConditionLeaf)
+        and isinstance(second, ConditionLeaf)
+        and isinstance(rsi, ConditionLeaf)
+    )
+    assert (
+        first.params["vix.buyThreshold"]
+        == second.params["vix.buyThreshold"]
+        == Decimal("35")
+    )
+    assert second.params["vix.symbol"] == "^VXN"
+    assert rsi.params["rsi.buyThreshold"] == Decimal("15")
+    assert rules.buy == strategy.rules.buy
+    assert second.params != rules.buy.children[1].params
+
+
+def test_calculation_fingerprint_includes_nested_rules_and_independent_values() -> None:
+    config = _config()
+    original = config.strategies[0]
+    source = _input(config)
+    fingerprints = set()
+    for operator, threshold in (("AND", 20), ("OR", 20), ("OR", 30)):
+        rules = StrategyRules(
+            buy=ConditionGroup(
+                id="root",
+                operator=operator,
+                children=(
+                    ConditionLeaf(
+                        id="vix",
+                        kind="vix",
+                        params={
+                            "vix.symbol": "^VIX",
+                            "vix.buyThreshold": Decimal(threshold),
+                        },
+                    ),
+                ),
+            )
+        )
+        fingerprints.add(
+            calculation_fingerprint(
+                source, strategy=original.model_copy(update={"rules": rules})
+            )
+        )
+    assert len(fingerprints) == 3
 
 
 def test_heatmap_slice_records_fixed_values_for_every_other_dimension() -> None:

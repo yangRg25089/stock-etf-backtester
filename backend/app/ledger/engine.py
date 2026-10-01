@@ -32,7 +32,7 @@ from app.signals.evaluate import StrategySignalSeries
 
 from .types import LedgerResult
 
-LEDGER_METHOD_VERSION = "ledger-v2"
+LEDGER_METHOD_VERSION = "ledger-v3"
 
 
 @dataclass(frozen=True, slots=True)
@@ -419,6 +419,22 @@ def _sell_triggers(
     signal_date: date,
     evaluations: Mapping[tuple[date, str], SignalEvaluation],
 ) -> tuple[_SellTrigger, ...]:
+    combined = evaluations.get((signal_date, "conditions.sell"))
+    if combined is not None:
+        if (
+            _is_true(combined)
+            and combined.sell_ratio is not None
+            and combined.sell_ratio > 0
+        ):
+            return (
+                _SellTrigger(
+                    combined.triggered_signal_ids[0]
+                    if combined.triggered_signal_ids
+                    else combined.signal_id,
+                    combined.sell_ratio,
+                ),
+            )
+        return ()
     params = strategy.params
     triggers: list[_SellTrigger] = []
     if "exit.enabled" in parameter_keys and params.get("exit.enabled") is True:

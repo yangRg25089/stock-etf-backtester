@@ -5,6 +5,18 @@ from app.domain.status import Diagnostic, DiagnosticCode
 from app.runs.yahoo_data import _apply_market_gap_policy
 
 
+def test_calendar_range_handles_weekends_at_both_requested_boundaries() -> None:
+    from app.runs.yahoo_data import YahooRunDataProvider, _session_records
+
+    provider = YahooRunDataProvider()
+    start, end = date(2022, 11, 13), date(2022, 11, 20)
+    calendar = provider._get_calendar("XNYS", start, end)
+    records = _session_records(calendar, start, end)
+    assert tuple(item[0] for item in records) == tuple(
+        date(2022, 11, day) for day in range(14, 19)
+    )
+
+
 def test_latest_end_trims_trailing_unpublished_quote_sessions_without_warning() -> None:
     sessions = (date(2026, 9, 28), date(2026, 9, 29))
     diagnostics = (

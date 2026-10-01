@@ -30,6 +30,119 @@ class _InlineExecutor(Executor):
         return future
 
 
+def test_live_fixed_custom_and_indicator_rules_share_results_and_restore(
+    tmp_path,
+) -> None:
+    previous_service = app.state.run_service
+    path = tmp_path / "live-conditions.sqlite3"
+    store = SQLiteRunStore(path)
+    provider = YahooRunDataProvider()
+    app.state.run_service = RunManager(
+        store=store, data_provider=provider, executor=_InlineExecutor()
+    )
+    vix = {
+        "type": "condition",
+        "id": "buy-vix",
+        "kind": "vix",
+        "enabled": True,
+        "params": {"vix.symbol": "^VIX", "vix.buyThreshold": 25},
+    }
+    strategies = [
+        {"id": "fixed", "presetId": "vix_dca", "enabled": True},
+        {
+            "id": "custom",
+            "presetId": "composite_dca",
+            "enabled": True,
+            "params": {
+                "accumulation.fixedDcaEnabled": False,
+                "accumulation.maxSignalBuysPerMonth": 1,
+            },
+            "rules": {"buy": vix, "sell": None},
+        },
+        {"id": "rsi", "presetId": "rsi_dca", "enabled": True},
+        {"id": "trend", "presetId": "ma_trend", "enabled": True},
+    ]
+
+    async def run_and_read():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://live-rules"
+        ) as client:
+            submitted = await client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "real-condition-trees"},
+                json={
+                    "draft": {
+                        "shared": {
+                            "run": {
+                                "symbol": "QQQ",
+                                "startDate": "2024-01-01",
+                                "endDate": "2024-03-28",
+                                "endMode": "fixed",
+                            }
+                        },
+                        "strategies": strategies,
+                    },
+                    "scope": "all_enabled",
+                },
+            )
+            assert submitted.status_code == 202, submitted.text
+            response = await client.get(f"/api/v1/runs/{submitted.json()['runId']}")
+            assert response.status_code == 200, response.text
+            return response.json()
+
+    try:
+        saved = asyncio.run(run_and_read())
+        store.close()
+        restored_store = SQLiteRunStore(path)
+        app.state.run_service = RunManager(
+            store=restored_store, data_provider=provider, executor=_InlineExecutor()
+        )
+
+        async def restore():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://restored-rules"
+            ) as client:
+                response = await client.get(f"/api/v1/runs/{saved['runId']}")
+                assert response.status_code == 200
+                exports = {}
+                for kind in ("summary", "daily-assets", "trades"):
+                    exported = await client.get(
+                        f"/api/v1/runs/{saved['runId']}/export/{kind}",
+                        params={"focusedResultId": "custom"},
+                    )
+                    assert exported.status_code == 200, exported.text
+                    exports[kind] = exported.text
+                return response.json(), exports
+
+        restored, exports = asyncio.run(restore())
+        assert saved == restored
+        rows = {item["id"]: item for item in saved["result"]["strategyRuns"]}
+        assert saved["snapshot"]["dataProvenance"]["sources"] == ["yahoo"]
+        for strategy in strategies:
+            row = rows[strategy["id"]]
+            assert row["status"] == "completed", row.get("diagnostics")
+            assert row["metrics"]["totalContributed"] == "300"
+            assert len(row["dailyAssets"]) >= 60
+            assert all(item["state"] != "unavailable" for item in row["signals"])
+        assert rows["fixed"]["dailyAssets"] == rows["custom"]["dailyAssets"]
+        assert rows["fixed"]["trades"] == rows["custom"]["trades"]
+        assert rows["fixed"]["metrics"] == rows["custom"]["metrics"]
+        saved_buy = saved["snapshot"]["config"]["strategies"][1]["rules"]["buy"]
+        assert saved_buy["id"] == vix["id"]
+        assert saved_buy["kind"] == vix["kind"]
+        assert Decimal(saved_buy["params"]["vix.buyThreshold"]) == 25
+        exported_assets = list(csv.DictReader(io.StringIO(exports["daily-assets"])))
+        assert len(exported_assets) == len(rows["custom"]["dailyAssets"])
+        assert Decimal(exported_assets[-1]["totalAsset"]) == Decimal(
+            rows["custom"]["dailyAssets"][-1]["totalAsset"]
+        )
+    finally:
+        app.state.run_service = previous_service
+        store.close()
+        if "restored_store" in locals():
+            restored_store.close()
+
+
 def test_live_qqq_volatility_index_runs_use_real_yahoo_observations(tmp_path) -> None:
     previous_service = app.state.run_service
     store = SQLiteRunStore(tmp_path / "live-yahoo-runs.sqlite3")

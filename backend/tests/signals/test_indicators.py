@@ -11,7 +11,7 @@ from app.signals.indicators import (
 
 
 def test_indicator_methods_have_a_versioned_contract() -> None:
-    assert INDICATOR_METHOD_VERSION == "indicators-v1"
+    assert INDICATOR_METHOD_VERSION == "indicators-v2"
 
 
 def test_simple_moving_average_uses_trailing_values_and_reports_warmup() -> None:

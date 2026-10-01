@@ -58,14 +58,6 @@ _EXCHANGE_CALENDARS: dict[str, str] = {
     "BTS": "XNYS",
     "PNK": "XNYS",
 }
-_INDICATOR_PARAMETERS: dict[str, str] = {
-    "rsi.buy": "rsi.period",
-    "rsi.exit": "rsi.period",
-    "ma.buy": "ma.period",
-    "ma.trend": "ma.period",
-    "bollinger.buy": "bollinger.period",
-    "bollinger.exit": "bollinger.period",
-}
 
 
 class _VendorCalendar(Protocol):
@@ -497,6 +489,16 @@ def _normalize_exchange_code(value: str) -> str:
 def _session_records(
     calendar: _VendorCalendar, start: Date, end: Date
 ) -> tuple[tuple[Date, datetime], ...]:
+    # Vendor bounds are actual sessions: a requested weekend can fall outside
+    # them even though the calendar was built for that exact date interval.
+    first = _as_date(getattr(calendar, "first_session", None))
+    last = _as_date(getattr(calendar, "last_session", None))
+    if first is not None:
+        start = max(start, first)
+    if last is not None:
+        end = min(end, last)
+    if start > end:
+        return ()
     records: list[tuple[Date, datetime]] = []
     for session in calendar.sessions_in_range(start.isoformat(), end.isoformat()):
         session_date = _as_date(session)
@@ -554,21 +556,12 @@ def _indicator_lookback(
     requirements: Sequence[DataRequirement],
     catalog: Catalog,
 ) -> int:
-    active_signal_ids = {
-        requirement.signal_id
-        for requirement in requirements
-        if requirement.kind is DataKind.MARKET
-    }
     period_keys = {
-        parameter_key
-        for signal_id, parameter_key in _INDICATOR_PARAMETERS.items()
-        if signal_id in active_signal_ids
+        requirement.period_key
+        for requirement in requirements
+        if requirement.period_key is not None
     }
-    periods: list[int] = []
-    for key in period_keys:
-        value = strategy.params.get(key)
-        if isinstance(value, int) and not isinstance(value, bool):
-            periods.append(value + (1 if key == "rsi.period" else 0))
+    periods = [requirement.lookback_sessions for requirement in requirements]
 
     if strategy.preset_id.value == "grid_search":
         preset = catalog.preset(strategy.preset_id)
@@ -596,7 +589,7 @@ def _macro_key(
         else MacroSeriesType.INDEX.value
     )
     source_unit = (
-        str(strategy.params.get("rate.sourceUnit", "auto"))
+        requirement.source_unit or str(strategy.params.get("rate.sourceUnit", "auto"))
         if series_type == MacroSeriesType.RATE.value
         else "index_points"
     )

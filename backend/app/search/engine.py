@@ -15,7 +15,9 @@ from app.calendar import ExchangeCalendar, ScheduleResult
 from app.catalog.definitions import ParameterDefinition
 from app.catalog.presets import ExecutionModule
 from app.catalog.service import Catalog, get_catalog
+from app.config.conditions import materialize_legacy_rules
 from app.config.validation import validate_draft
+from app.domain.conditions import override_rule_parameters
 from app.domain.contracts import (
     DataSnapshot,
     FrozenRunConfig,
@@ -142,6 +144,10 @@ def run_grid_search(
                 presetId=base_strategy.preset_id,
                 enabled=True,
                 params=candidate_params,
+                rules=override_rule_parameters(
+                    base_strategy.rules,
+                    {key: candidate_params[key] for key in dimension_keys},
+                ),
             )
             fingerprint = calculation_fingerprint(
                 source,
@@ -393,6 +399,10 @@ def _validate_candidate_config(
                 "presetId": base_strategy.preset_id.value,
                 "enabled": True,
                 "params": parameters,
+                "rules": override_rule_parameters(
+                    base_strategy.rules,
+                    {key: parameters[key] for key in _dimension_keys(base_strategy)},
+                ),
             }
         ],
     }
@@ -463,7 +473,14 @@ def _strategy_calculation_payload(
     if module is ExecutionModule.SEARCH:
         params.pop("search.dimensions", None)
         params.pop("search.maxCombinations", None)
-    return {"executionModule": module_id, "params": params}
+    rules = strategy.rules or materialize_legacy_rules(preset, params)
+    return {
+        "executionModule": module_id,
+        "params": params,
+        "rules": rules.model_dump(mode="json", by_alias=True)
+        if rules is not None
+        else None,
+    }
 
 
 def _metrics_input_payload(source: MetricsInput, catalog: Catalog) -> dict[str, object]:

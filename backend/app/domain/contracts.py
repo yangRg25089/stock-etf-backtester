@@ -20,8 +20,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.domain.conditions import ConditionKind, StrategyRules
 from app.domain.conditions import ConditionLogic as ConditionLogic
-from app.domain.conditions import StrategyRules
 from app.domain.immutability import FrozenMap, freeze_mapping, thaw_value
 from app.domain.status import (
     Diagnostic,
@@ -399,6 +399,13 @@ class SignalEvaluation(DomainModel):
     state: SignalState
     observed_value: Decimal | None = Field(default=None, alias="observedValue")
     observed_unit: str | None = Field(default=None, alias="observedUnit", min_length=1)
+    condition_id: str | None = Field(default=None, alias="conditionId")
+    condition_kind: ConditionKind | None = Field(default=None, alias="conditionKind")
+    source_symbol: str | None = Field(default=None, alias="sourceSymbol")
+    sell_ratio: Decimal | None = Field(default=None, alias="sellRatio", ge=0, le=1)
+    triggered_signal_ids: tuple[str, ...] = Field(
+        default=(), alias="triggeredSignalIds"
+    )
     diagnostics: tuple[Diagnostic, ...] = ()
 
     @model_validator(mode="after")

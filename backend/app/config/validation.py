@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping
 from decimal import Decimal
 from enum import StrEnum
 from math import prod
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -17,6 +18,12 @@ from app.catalog.definitions import (
 )
 from app.catalog.presets import ExecutionModule, PresetDefinition
 from app.catalog.service import Catalog, get_catalog
+from app.domain.conditions import (
+    ConditionGroup,
+    ConditionKind,
+    ConditionNode,
+    condition_signal_id,
+)
 from app.domain.contracts import (
     ContributionSettings,
     DataSettings,
@@ -60,6 +67,13 @@ class DataRequirement(DomainModel):
     kind: DataKind
     symbol: str = Field(min_length=1)
     field_path: str = Field(alias="fieldPath", min_length=1)
+    condition_id: str | None = Field(default=None, alias="conditionId")
+    lookback_sessions: int = Field(default=0, alias="lookbackSessions", ge=0)
+    period_key: str | None = Field(default=None, alias="periodKey")
+    source_unit: str | None = Field(default=None, alias="sourceUnit")
+    minimum_coverage: Decimal | None = Field(
+        default=None, alias="minimumCoverage", ge=0, le=1
+    )
 
 
 class StrategyValidationResult(DomainModel):
@@ -177,7 +191,6 @@ def validate_draft(
                     index,
                     result.normalized,
                     parsed.shared.run.symbol,
-                    source,
                 )
             )
     return DraftValidationResult(
@@ -490,11 +503,7 @@ def _requirements_for_strategy(
     index: int,
     strategy: FrozenStrategyInstance,
     symbol: str,
-    catalog: Catalog,
 ) -> tuple[DataRequirement, ...]:
-    preset = catalog.preset(strategy.preset_id)
-    keys = set(preset.parameter_keys)
-    params = strategy.params
     requirements = [
         DataRequirement(
             strategyId=strategy.id,
@@ -505,62 +514,82 @@ def _requirements_for_strategy(
         )
     ]
 
-    def enabled(key: str) -> bool:
-        return key in keys and params.get(key) is True
-
-    def add(
-        signal_id: str,
-        kind: DataKind,
-        data_symbol: str,
-        enabled_key: str,
+    def visit(
+        node: ConditionNode | None, side: Literal["buy", "sell"], path: str
     ) -> None:
-        requirements.append(
-            DataRequirement(
-                strategyId=strategy.id,
-                signalId=signal_id,
-                kind=kind,
-                symbol=data_symbol,
-                fieldPath=f"strategies[{index}].params.{enabled_key}",
+        if node is None or not node.enabled:
+            return
+        if isinstance(node, ConditionGroup):
+            for position, child in enumerate(node.children):
+                visit(child, side, f"{path}.children[{position}]")
+            return
+        params = node.params
+        signal_id = condition_signal_id(node, side)
+        period_key = {
+            ConditionKind.RSI: "rsi.period",
+            ConditionKind.MA_DEVIATION: "ma.period",
+            ConditionKind.MA_TREND: "ma.period",
+            ConditionKind.BOLLINGER: "bollinger.period",
+        }.get(node.kind)
+        lookback = (
+            int(str(params[period_key])) + (1 if node.kind is ConditionKind.RSI else 0)
+            if period_key
+            else 0
+        )
+        if node.kind in {ConditionKind.VIX, ConditionKind.RATE}:
+            key = "vix.symbol" if node.kind is ConditionKind.VIX else "rate.symbol"
+            requirements.append(
+                DataRequirement(
+                    strategyId=strategy.id,
+                    signalId=signal_id,
+                    kind=DataKind.MACRO,
+                    symbol=str(params[key]),
+                    fieldPath=f"{path}.params.{key}",
+                    conditionId=node.id,
+                    sourceUnit=str(params.get("rate.sourceUnit", "index_points")),
+                )
             )
-        )
+        elif node.kind is ConditionKind.PE:
+            requirements.append(
+                DataRequirement(
+                    strategyId=strategy.id,
+                    signalId=signal_id,
+                    kind=DataKind.VALUATION,
+                    symbol=symbol,
+                    fieldPath=f"{path}.params.pe.threshold",
+                    conditionId=node.id,
+                    minimumCoverage=Decimal(str(params["pe.etfMinCoverage"])),
+                )
+            )
+        else:
+            requirements.append(
+                DataRequirement(
+                    strategyId=strategy.id,
+                    signalId=signal_id,
+                    kind=DataKind.MARKET,
+                    symbol=symbol,
+                    fieldPath=f"{path}.params.{period_key}",
+                    conditionId=node.id,
+                    lookbackSessions=lookback,
+                    periodKey=period_key,
+                )
+            )
+            if node.kind is ConditionKind.BOLLINGER and side == "sell":
+                requirements.append(
+                    DataRequirement(
+                        strategyId=strategy.id,
+                        signalId=f"{signal_id}.vix",
+                        kind=DataKind.MACRO,
+                        symbol=str(params["vix.symbol"]),
+                        fieldPath=f"{path}.params.vix.symbol",
+                        conditionId=node.id,
+                        sourceUnit="index_points",
+                    )
+                )
 
-    vix_symbol = str(params.get("vix.symbol", ""))
-    if enabled("vix.buyEnabled"):
-        add("vix.buy", DataKind.MACRO, vix_symbol, "vix.buyEnabled")
-    if enabled("exit.enabled") and "exit.vix.low1" in keys:
-        add("vix.exit", DataKind.MACRO, vix_symbol, "exit.enabled")
-    if enabled("rsi.buyEnabled"):
-        add("rsi.buy", DataKind.MARKET, symbol, "rsi.buyEnabled")
-    if enabled("exit.enabled") and enabled("exit.rsi.enabled"):
-        add("rsi.exit", DataKind.MARKET, symbol, "exit.rsi.enabled")
-    if enabled("ma.buyEnabled"):
-        add("ma.buy", DataKind.MARKET, symbol, "ma.buyEnabled")
-    if preset.execution_module is ExecutionModule.TREND:
-        add("ma.trend", DataKind.MARKET, symbol, "ma.period")
-    if enabled("bollinger.buyEnabled"):
-        add("bollinger.buy", DataKind.MARKET, symbol, "bollinger.buyEnabled")
-    if enabled("exit.enabled") and enabled("exit.bollinger.enabled"):
-        add(
-            "bollinger.exit",
-            DataKind.MARKET,
-            symbol,
-            "exit.bollinger.enabled",
-        )
-        add(
-            "bollinger.exit.vix",
-            DataKind.MACRO,
-            vix_symbol,
-            "exit.bollinger.enabled",
-        )
-    if enabled("rate.buyEnabled"):
-        add(
-            "rate.buy",
-            DataKind.MACRO,
-            str(params.get("rate.symbol", "")),
-            "rate.buyEnabled",
-        )
-    if enabled("pe.buyEnabled"):
-        add("pe.buy", DataKind.VALUATION, symbol, "pe.buyEnabled")
+    if strategy.rules is not None:
+        visit(strategy.rules.buy, "buy", f"strategies[{index}].rules.buy")
+        visit(strategy.rules.sell, "sell", f"strategies[{index}].rules.sell")
     return tuple(requirements)
 
 

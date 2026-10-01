@@ -42,7 +42,9 @@ export type ConditionLeaf = {
   id: string;
   kind: ConditionKind;
   enabled?: boolean;
-  params?: unknown;
+  params?: {
+  [key: string]: unknown;
+};
 };
 
 export type ConditionLimits = {
@@ -87,6 +89,11 @@ export type DataRequirement = {
   kind: DataKind;
   symbol: string;
   fieldPath: string;
+  conditionId?: string | null;
+  lookbackSessions?: number;
+  periodKey?: string | null;
+  sourceUnit?: string | null;
+  minimumCoverage?: string | null;
 };
 
 export type DataSettings = {
@@ -303,6 +310,11 @@ export type SignalEvaluation = {
   state: SignalState;
   observedValue?: string | null;
   observedUnit?: string | null;
+  conditionId?: string | null;
+  conditionKind?: ConditionKind | null;
+  sourceSymbol?: string | null;
+  sellRatio?: string | null;
+  triggeredSignalIds?: Array<string>;
   diagnostics?: Array<Diagnostic>;
 };
 

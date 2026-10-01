@@ -48,8 +48,8 @@ class ConditionLeaf(DomainModel):
         return freeze_mapping(value)
 
     @field_serializer("params")
-    def serialize_params(self, value: Mapping[str, object]) -> object:
-        return thaw_value(value)
+    def serialize_params(self, value: Mapping[str, object]) -> dict[str, object]:
+        return {key: thaw_value(item) for key, item in value.items()}
 
 
 class ConditionGroup(DomainModel):
@@ -62,6 +62,21 @@ class ConditionGroup(DomainModel):
 
 ConditionNode = Annotated[ConditionLeaf | ConditionGroup, Field(discriminator="type")]
 ConditionGroup.model_rebuild()
+
+
+def condition_signal_id(node: ConditionLeaf, side: Literal["buy", "sell"]) -> str:
+    """Retain canonical IDs for old templates; independent nodes add their ID."""
+    names = {
+        ConditionKind.VIX: ("vix.buy", "vix.exit"),
+        ConditionKind.RSI: ("rsi.buy", "rsi.exit"),
+        ConditionKind.MA_DEVIATION: ("ma.buy", "ma.exit"),
+        ConditionKind.MA_TREND: ("ma.trend", "ma.trend.sell"),
+        ConditionKind.BOLLINGER: ("bollinger.buy", "bollinger.exit"),
+        ConditionKind.RATE: ("rate.buy", "rate.exit"),
+        ConditionKind.PE: ("pe.buy", "pe.exit"),
+    }
+    base = names[node.kind][0 if side == "buy" else 1]
+    return base if node.id == f"{side}-{node.kind.value}" else f"{base}:{node.id}"
 
 
 def walk_conditions(
@@ -97,3 +112,37 @@ class StrategyRules(DomainModel):
             if isinstance(node, ConditionGroup):
                 stack.extend((child, depth + 1) for child in node.children)
         return self
+
+
+def override_rule_parameters(
+    rules: StrategyRules | None, values: Mapping[str, object]
+) -> StrategyRules | None:
+    """Grid dimensions replace matching stable keys, retaining all other values."""
+    if rules is None:
+        return None
+
+    def override(node: ConditionNode | None) -> ConditionNode | None:
+        if node is None:
+            return None
+        if isinstance(node, ConditionLeaf):
+            return node.model_copy(
+                update={
+                    "params": freeze_mapping(
+                        {
+                            key: values.get(key, value)
+                            for key, value in node.params.items()
+                        }
+                    )
+                }
+            )
+        return node.model_copy(
+            update={
+                "children": tuple(
+                    child
+                    for item in node.children
+                    if (child := override(item)) is not None
+                )
+            }
+        )
+
+    return StrategyRules(buy=override(rules.buy), sell=override(rules.sell))

@@ -373,8 +373,8 @@ def test_or_does_not_hide_missing_enabled_rate_or_pe_capabilities() -> None:
     )
 
     assert {diagnostic.field_path for diagnostic in diagnostics} == {
-        "strategies[0].params.rate.buyEnabled",
-        "strategies[0].params.pe.buyEnabled",
+        "strategies[0].rules.buy.children[4].params.rate.symbol",
+        "strategies[0].rules.buy.children[5].params.pe.threshold",
     }
     assert all(
         diagnostic.code is DiagnosticCode.REQUIRED_DATA_UNAVAILABLE

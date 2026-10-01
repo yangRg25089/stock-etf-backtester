@@ -309,6 +309,21 @@ test("VIX chart uses saved observed signal values and frozen threshold", () => {
   assert.match(html, /chart-threshold-line/);
 });
 
+test("custom VIX nodes use saved source metadata without mixing other indexes", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh", dailyAssets, trades: [], visibleSeriesIds: ["price", "vix"],
+    vixSymbol: "^VXN", vixThreshold: "40", onSeriesChange() {},
+    signals: dailyAssets.flatMap(asset => [
+      { date: asset.date, signalId: "vix.buy:chosen", conditionKind: "vix", sourceSymbol: "^VXN", observedUnit: "index_points", state: "true", observedValue: "46" },
+      { date: asset.date, signalId: "vix.buy:other", conditionKind: "vix", sourceSymbol: "^VIX", observedUnit: "index_points", state: "false", observedValue: "18" },
+    ]),
+  }));
+  assert.match(html, /data-chart-id="vix"/);
+  assert.match(html, /<strong>46<\/strong>/);
+  assert.match(html, /chart-threshold-line/);
+  assert.doesNotMatch(html, /<strong>18<\/strong>/);
+});
+
 test("VIX exit-only observations do not show the buy threshold", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "zh",

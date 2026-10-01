@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
-INDICATOR_METHOD_VERSION = "indicators-v1"
+INDICATOR_METHOD_VERSION = "indicators-v2"
 
 
 @dataclass(frozen=True, slots=True)
