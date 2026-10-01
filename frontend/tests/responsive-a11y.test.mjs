@@ -297,14 +297,16 @@ test("SVG chart labels cannot be selected by drag gestures", () => {
   assert.match(css, /\.chart-linked-stack \.chart-panel\.is-compact \.result-chart\s*\{[^}]*aspect-ratio:\s*800 \/ 90/s);
 });
 
-test("removed trade visibility has no reducer, rendering, translation or style implementation", () => {
+test("removed result controls have no reducer, rendering, translation or style implementation", () => {
   const model = readFileSync(new URL("../src/features/strategies/model.ts", import.meta.url), "utf8");
   const details = readFileSync(new URL("../src/features/results/ResultDetails.tsx", import.meta.url), "utf8");
   const messages = readFileSync(new URL("../src/i18n/messages.ts", import.meta.url), "utf8");
   assert.doesNotMatch(model, /showTrades|display\.trades/);
   assert.doesNotMatch(details, /showTrades|display-toggle|result-display-heading|trade-display-icon|trade\.(hide|toggle|hidden)/);
   assert.doesNotMatch(messages, /display\.showTrades|trade\.(hide|toggle|hidden)/);
+  assert.doesNotMatch(messages, /results\.(snapshotStale|metricsTitle|additionalMetricsTitle|metricUnavailable)"/);
   assert.doesNotMatch(css, /display-toggle|result-display-heading|result-display-toggles|result-section-heading/);
+  assert.doesNotMatch(prototype, /\.aux-chart\b|\.shared-settings svg/);
 });
 
 

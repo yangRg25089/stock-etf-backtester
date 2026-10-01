@@ -1787,6 +1787,14 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   await expect(core.locator(".chart-x-tick")).toHaveCount(0);
   await expect(indicator.locator(".chart-x-tick")).toHaveCount(0);
   await expect(stack.locator(".chart-date-axis .chart-x-tick")).toHaveCount(7);
+  const dateBounds = await stack.locator(".chart-date-axis .chart-x-tick").evaluateAll((labels) => labels.map((label) => {
+    const box = label.getBBox();
+    return { left: box.x, right: box.x + box.width };
+  }));
+  for (const box of dateBounds) {
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(800);
+  }
   await expect(indicator.locator("svg.result-chart")).toHaveAccessibleName(/ドローダウン.*%/);
   await expect(indicator.locator("svg.result-chart")).toHaveAttribute("viewBox", "0 0 800 90");
   const sizes = await stack.locator("svg.result-chart").evaluateAll((charts) => charts.map((chart) => {

@@ -78,7 +78,6 @@
     #backtest-ui-preview .shared-settings-copy { display: grid; min-width: 0; gap: 3px; }
     #backtest-ui-preview .shared-settings-copy strong { font-size: 13px; }
     #backtest-ui-preview .shared-settings-copy span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-    #backtest-ui-preview .shared-settings svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; }
     #backtest-ui-preview .strategy-navigator { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 7px; min-height: 0; }
     #backtest-ui-preview .strategy-nav-heading { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; font-weight: 650; }
     #backtest-ui-preview .strategy-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 7px; padding: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
@@ -134,7 +133,7 @@
     #backtest-ui-preview .chart-gesture-hint { margin: 0 0 4px; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .chart-linked-stack { display: grid; gap: 0; overflow-x: auto; }
     #backtest-ui-preview .chart-figure { min-width: 680px; margin: 0; padding: 0; }
-    #backtest-ui-preview .chart-figure figcaption { margin: 0 0 6px 58px; font-weight: 650; }
+    #backtest-ui-preview .chart-figure figcaption { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 2px; font-weight: 650; }
     #backtest-ui-preview .chart-figure svg { display: block; width: 100%; min-width: 680px; height: auto; user-select: none; -webkit-user-select: none; }
     #backtest-ui-preview .compact-indicator svg { height: auto; aspect-ratio: 800 / 90; }
     #backtest-ui-preview .compact-indicator { border-top: 1px solid var(--border); }
@@ -146,10 +145,7 @@
     #backtest-ui-preview .price-line { vector-effect: non-scaling-stroke; fill: none; stroke: #276d9b; stroke-width: 1.2; }
     #backtest-ui-preview .asset-line { vector-effect: non-scaling-stroke; fill: none; stroke: #147d68; stroke-width: 1.2; }
     #backtest-ui-preview .base-line { stroke: #81918b; stroke-width: 1; stroke-dasharray: 4 4; }
-    #backtest-ui-preview .legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin: 3px 0 0 58px; color: var(--muted); font-size: 11px; }
-    #backtest-ui-preview .aux-chart summary { display: flex; align-items: center; gap: 7px; padding: 9px 10px; cursor: pointer; font-weight: 650; }
-    #backtest-ui-preview .aux-chart summary::marker { color: var(--accent); }
-    #backtest-ui-preview .aux-chart .chart-figure { padding-top: 0; }
+    #backtest-ui-preview .legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin: 0; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .comparison-table-wrap { overflow-x: auto; }
     #backtest-ui-preview [data-panel="trades"] .comparison-table-wrap { max-height: 420px; overflow: auto; }
     #backtest-ui-preview [data-panel="trades"] thead th { position: sticky; top: 0; }
@@ -323,7 +319,7 @@
             <p class="chart-gesture-hint sr-only">通常スクロールは結果欄を移動 · Ctrl/Command＋スクロールは全図を同期して拡大・縮小</p>
             <div class="chart-linked-stack">
             <figure class="chart-figure">
-              <figcaption>価格・元本リターン</figcaption>
+              <figcaption>価格・元本リターン<div class="legend"><span tabindex="0" data-highlight="price"><i class="swatch"></i>価格 (USD)</span><span tabindex="0" data-highlight="asset"><i class="swatch asset"></i>総資産 (USD)</span><span>基準100</span></div></figcaption>
               <svg viewBox="0 0 800 274" role="img" aria-label="価格の開始値と累計投入元本を基準100とした推移。横軸は日付">
                 <g fill="none"><path class="grid-line" d="M92 20.0H774 M92 55.1H774 M92 90.3H774 M92 125.4H774 M92 160.6H774 M92 195.7H774 M92 230.9H774 M92 266.0H774 M92.0 20V266 M205.7 20V266 M319.3 20V266 M433.0 20V266 M546.7 20V266 M660.3 20V266 M774.0 20V266"/><line class="base-line" x1="92" y1="248.4" x2="774" y2="248.4"/></g>
                 <g class="tick"><text x="42" y="24.0">360</text><text x="42" y="59.1">320</text><text x="42" y="94.3">280</text><text x="42" y="129.4">240</text><text x="42" y="164.6">200</text><text x="42" y="199.7">160</text><text x="42" y="234.9">120</text><text x="42" y="270.0">80</text></g>
@@ -332,10 +328,9 @@
                 <polyline class="price-line" points="92,248.4 160,229.1 230,237.0 300,195.7 370,210.7 440,151.8 510,171.1 580,121.9 650,140.4 720,63.1 774,24.4"/><polyline class="asset-line" points="92,248.4 160,238.8 230,245.8 300,222.1 370,236.1 440,197.5 510,209.8 580,177.3 650,199.2 720,165.8 774,156.2"/>
                 <polygon fill="#147d68" stroke="#fff" data-anchor-series="totalAsset" points="440,202.5 435,193.5 445,193.5"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="20" y2="266"/><line x1="92" x2="774" y1="197.5" y2="197.5"/><circle cx="440" cy="197.5" r="3.5" fill="#147d68"/><text class="cursor-reading" x="100" y="33">2023-05-01 · 価格指数 210 · 元本リターン 158</text></g><text class="axis-title" transform="translate(18 144) rotate(-90)" text-anchor="middle">指数（価格の開始値・元本 = 100）</text>
               </svg>
-              <div class="legend"><span tabindex="0" data-highlight="price"><i class="swatch"></i>価格 (USD)</span><span tabindex="0" data-highlight="asset"><i class="swatch asset"></i>総資産 (USD)</span><span>基準100</span></div>
             </figure>
-            <figure class="chart-figure compact-indicator"><svg viewBox="0 0 800 90" role="img" aria-label="ドローダウン (%)、主図と同期した期間"><path class="grid-line" fill="none" d="M92 8H774 M92 45.0H774 M92 82H774 M92.0 8V82 M205.7 8V82 M319.3 8V82 M433.0 8V82 M546.7 8V82 M660.3 8V82 M774.0 8V82"/><text class="tick" x="42" y="12">0</text><text class="tick" x="42" y="49.0">−15</text><text class="tick" x="42" y="86">−30</text><polyline fill="none" stroke="#a7373a" stroke-width="1.2" vector-effect="non-scaling-stroke" points="92,30.2 160,45.0 230,56.1 300,37.6 370,59.8 440,26.5 510,74.60000000000001 580,33.9 650,41.300000000000004 720,19.1 774,30.2"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="8" y2="82"/></g></svg></figure>
-            <figure class="chart-figure compact-indicator"><svg viewBox="0 0 800 90" role="img" aria-label="VIX (指数)、主図と同期した期間"><path class="grid-line" fill="none" d="M92 8H774 M92 45H774 M92 82H774 M92.0 8V82 M205.7 8V82 M319.3 8V82 M433.0 8V82 M546.7 8V82 M660.3 8V82 M774.0 8V82"/><text class="tick" x="42" y="12">40</text><text class="tick" x="42" y="49">25</text><text class="tick" x="42" y="86">10</text><polyline fill="none" stroke="#7656a6" stroke-width="1.2" vector-effect="non-scaling-stroke" points="92,30.2 160,45 230,56.1 300,37.6 370,59.8 440,26.5 510,74.6 580,33.9 650,41.3 720,19.1 774,30.2"/></svg></figure><div class="date-axis-row"><svg viewBox="0 0 800 44" role="img" aria-label="日付"><text class="tick" x="92.0" y="18" text-anchor="middle">2020-01</text><text class="tick" x="205.7" y="18" text-anchor="middle">2021-02</text><text class="tick" x="319.3" y="18" text-anchor="middle">2022-03</text><text class="tick" x="433.0" y="18" text-anchor="middle">2023-05</text><text class="tick" x="546.7" y="18" text-anchor="middle">2024-06</text><text class="tick" x="660.3" y="18" text-anchor="middle">2025-07</text><text class="tick" x="774.0" y="18" text-anchor="middle">2026-09</text><g class="cursor-example" aria-hidden="true"><rect x="397" y="2" width="86" height="19" rx="2"/><text x="440" y="15" text-anchor="middle">2023-05-01</text></g><text class="axis-title" x="433" y="36" text-anchor="middle">日付</text></svg></div>
+            <figure class="chart-figure compact-indicator"><svg viewBox="0 0 800 90" role="img" aria-label="ドローダウン (%)、主図と同期した期間"><path class="grid-line" fill="none" d="M92 8H774 M92 45.0H774 M92 82H774 M92.0 8V82 M205.7 8V82 M319.3 8V82 M433.0 8V82 M546.7 8V82 M660.3 8V82 M774.0 8V82"/><text class="tick" x="42" y="12">0</text><text class="tick" x="42" y="49.0">−15</text><text class="tick" x="42" y="86">−30</text><polyline fill="none" stroke="#a7373a" stroke-width="1.2" vector-effect="non-scaling-stroke" points="92,30.2 160,45.0 230,56.1 300,37.6 370,59.8 440,26.5 510,74.6 580,33.9 650,41.3 720,19.1 774,30.2"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="8" y2="82"/></g></svg></figure>
+            <figure class="chart-figure compact-indicator"><svg viewBox="0 0 800 90" role="img" aria-label="VIX (指数)、主図と同期した期間"><path class="grid-line" fill="none" d="M92 8H774 M92 45H774 M92 82H774 M92.0 8V82 M205.7 8V82 M319.3 8V82 M433.0 8V82 M546.7 8V82 M660.3 8V82 M774.0 8V82"/><text class="tick" x="42" y="12">40</text><text class="tick" x="42" y="49">25</text><text class="tick" x="42" y="86">10</text><polyline fill="none" stroke="#7656a6" stroke-width="1.2" vector-effect="non-scaling-stroke" points="92,30.2 160,45 230,56.1 300,37.6 370,59.8 440,26.5 510,74.6 580,33.9 650,41.3 720,19.1 774,30.2"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="8" y2="82"/></g></svg></figure><div class="date-axis-row"><svg viewBox="0 0 800 44" role="img" aria-label="日付"><text class="tick" x="92.0" y="18" text-anchor="middle">2020-01</text><text class="tick" x="205.7" y="18" text-anchor="middle">2021-02</text><text class="tick" x="319.3" y="18" text-anchor="middle">2022-03</text><text class="tick" x="433.0" y="18" text-anchor="middle">2023-05</text><text class="tick" x="546.7" y="18" text-anchor="middle">2024-06</text><text class="tick" x="660.3" y="18" text-anchor="middle">2025-07</text><text class="tick" x="774.0" y="18" text-anchor="end">2026-09</text><g class="cursor-example" aria-hidden="true"><rect x="397" y="2" width="86" height="19" rx="2"/><text x="440" y="15" text-anchor="middle">2023-05-01</text></g><text class="axis-title" x="433" y="36" text-anchor="middle">日付</text></svg></div>
             </div>
           </div>
         </section>

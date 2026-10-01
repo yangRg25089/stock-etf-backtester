@@ -63,6 +63,7 @@ test("linked figures have one bottom date axis and no separate-layout controls",
     }));
     assert.equal((html.match(/class="chart-axis-title chart-x-axis-title"/g) ?? []).length, 1);
     assert.equal((html.match(/class="chart-tick-label chart-x-tick"/g) ?? []).length, dailyAssets.length);
+    assert.match(html, new RegExp(`data-tick-index="${dailyAssets.length - 1}"[^>]*text-anchor="end"`));
     assert.match(html, /class="chart-linked-stack"/);
     assert.doesNotMatch(html, /chart-layout-controls|chart-aux-panel|分割表示|連動表示/);
     for (const id of visibleSeriesIds.filter(id => id !== "price")) {
@@ -70,6 +71,14 @@ test("linked figures have one bottom date axis and no separate-layout controls",
       assert.match(html, /viewBox="0 0 800 90"/);
     }
   }
+});
+
+test("the shared date axis centers a single saved day", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh", dailyAssets: dailyAssets.slice(0, 1), trades: [], visibleSeriesIds: ["price"], onSeriesChange() {},
+  }));
+  assert.equal((html.match(/class="chart-tick-label chart-x-tick"/g) ?? []).length, 1);
+  assert.match(html, /data-tick-index="0"[^>]*text-anchor="middle"/);
 });
 
 test("half-height indicators retain accessible natural units without captions or compressed plots", () => {

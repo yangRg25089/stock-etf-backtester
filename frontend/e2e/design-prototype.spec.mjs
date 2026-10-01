@@ -18,6 +18,9 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
     expect(chartWidths).toHaveLength(4);
     expect(Math.max(...chartWidths) - Math.min(...chartWidths)).toBeLessThanOrEqual(1);
     await expect(page.locator(".compact-indicator figcaption")).toHaveCount(0);
+    await expect(page.locator(".chart-figure figcaption .legend")).toHaveCount(1);
+    const cursorLines = page.locator(".compact-indicator .cursor-example line");
+    await expect(cursorLines).toHaveCount(2);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   const toggle = page.locator("#prototype-config-toggle");

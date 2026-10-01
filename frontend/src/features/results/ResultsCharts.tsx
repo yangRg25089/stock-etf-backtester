@@ -214,13 +214,15 @@ function ChartDateAxis({ dates, locale, viewport, cursor }: {
   cursor: ChartCursor | null;
 }) {
   const date = cursor ? dates[cursor.index] : undefined;
+  const ticks = dateTicks(dates, viewport);
   const cursorX = cursor ? xPosition(cursor.index, dates.length, viewport) : 0;
   const dateX = Math.min(CHART.width - CHART.right - 43, Math.max(CHART.left + 43, cursorX));
   return (
     <div className="chart-date-axis-row" data-window-start={viewport.start} data-window-end={viewport.end}>
       <svg className="chart-date-axis" viewBox="0 0 800 44" role="img" aria-label={translate(locale, "chart.dateAxis")}>
-        {dateTicks(dates, viewport).map(({ date: tickDate, x }, index) => (
-          <text key={tickDate} className="chart-tick-label chart-x-tick" data-tick-index={index} x={x} y="18" textAnchor="middle">{tickDate}</text>
+        {ticks.map(({ date: tickDate, x }, index) => (
+          <text key={tickDate} className="chart-tick-label chart-x-tick" data-tick-index={index} x={x} y="18"
+            textAnchor={ticks.length > 1 && index === ticks.length - 1 ? "end" : "middle"}>{tickDate}</text>
         ))}
         {date && <g aria-hidden="true">
           <rect className="chart-cursor-tag" x={dateX - 43} y="2" width="86" height="19" rx="2" />
