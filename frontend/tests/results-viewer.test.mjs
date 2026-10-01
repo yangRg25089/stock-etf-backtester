@@ -312,7 +312,7 @@ test("VIX chart settings come from the focused frozen strategy snapshot", () => 
     dispatch() {},
   }));
 
-  assert.match(html, /overlay-legend-item[^>]*role="listitem"[^>]*>.*价格 \(USD\)/);
+  assert.match(html, /<button[^>]*overlay-legend-item[^>]*aria-pressed="false"[^>]*>.*价格 \(USD\)/);
   assert.doesNotMatch(html, /QQQ · 价格/);
   assert.match(html, /阈值 25/);
   assert.doesNotMatch(html, /阈值 99/);

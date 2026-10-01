@@ -282,7 +282,13 @@ function seriesLabel(locale: Locale, series: SeriesDefinition, currency?: string
 function useSeriesHighlight() {
   const [hoveredId, setHoveredId] = useState<ChartSeriesId | null>(null);
   const [focusedId, setFocusedId] = useState<ChartSeriesId | null>(null);
-  return { highlightedId: hoveredId ?? focusedId, setHoveredId, setFocusedId };
+  const [selectedId, setSelectedId] = useState<ChartSeriesId | null>(null);
+  function toggleSelected(id: ChartSeriesId) {
+    setHoveredId(null);
+    setFocusedId(null);
+    setSelectedId((previous) => previous === id ? null : id);
+  }
+  return { highlightedId: hoveredId ?? focusedId ?? selectedId, selectedId, toggleSelected, setHoveredId, setFocusedId };
 }
 
 function SeriesLegend({
@@ -294,22 +300,23 @@ function SeriesLegend({
   highlight: ReturnType<typeof useSeriesHighlight>;
 }) {
   return (
-    <div className="overlay-legend" role="list" aria-label={translate(locale, "chart.legend")}>
+    <div className="overlay-legend" role="group" aria-label={translate(locale, "chart.legend")}>
       {series.map((definition) => (
-        <span
+        <button
+          type="button"
           className={`overlay-legend-item${highlight.highlightedId === definition.id ? " is-highlighted" : ""}`}
-          role="listitem"
-          tabIndex={0}
+          aria-pressed={highlight.selectedId === definition.id}
           key={definition.id}
           data-series={definition.id}
           onMouseEnter={() => highlight.setHoveredId(definition.id)}
           onMouseLeave={() => highlight.setHoveredId(null)}
           onFocus={() => highlight.setFocusedId(definition.id)}
           onBlur={() => highlight.setFocusedId(null)}
+          onClick={() => highlight.toggleSelected(definition.id)}
         >
           <i className="overlay-legend-swatch" style={{ backgroundColor: definition.color }} aria-hidden="true" />
           {axisTitle(locale, definition.id, currency)}
-        </span>
+        </button>
       ))}
     </div>
   );

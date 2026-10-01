@@ -1974,6 +1974,12 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  border: 0;
+  padding: 3px 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .overlay-legend-item:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 3px; }

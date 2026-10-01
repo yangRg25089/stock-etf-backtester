@@ -365,7 +365,7 @@ test("comparison curves default to thin strokes and legends support keyboard hig
     locale: "zh", dailyAssets, trades: [], visibleSeriesIds: ["price", "totalAsset"], onSeriesChange() {},
   }));
   assert.match(html, /stroke-width="1.2"/);
-  assert.match(html, /class="overlay-legend-item" role="listitem" tabindex="0"/);
+  assert.match(html, /<button type="button" class="overlay-legend-item" aria-pressed="false"/);
   assert.doesNotMatch(html, /class="chart-highlight-area"/);
 });
 
