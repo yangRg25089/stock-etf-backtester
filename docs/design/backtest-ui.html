@@ -80,10 +80,12 @@
     #backtest-ui-preview .shared-settings-copy span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     #backtest-ui-preview .strategy-navigator { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 7px; min-height: 0; }
     #backtest-ui-preview .strategy-nav-heading { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; font-weight: 650; }
-    #backtest-ui-preview .strategy-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 7px; padding: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
-    #backtest-ui-preview .strategy-add label { grid-column: 1 / -1; font-size: 12px; font-weight: 650; }
-    #backtest-ui-preview .strategy-add select { min-width: 0; padding: 0 8px; }
-    #backtest-ui-preview .add-button { padding: 0 10px; color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 650; }
+    #backtest-ui-preview .strategy-add { position: relative; display: flex; min-height: 44px; }
+    #backtest-ui-preview .add-button { width: 44px; min-height: 44px; color: white; background: var(--accent); border-color: var(--accent); font-size: 24px; }
+    #backtest-ui-preview .strategy-add-menu { position: absolute; z-index: 8; top: 0; left: 54px; width: calc(100% - 58px); max-height: min(480px, calc(100dvh - 260px)); overflow: auto; padding: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 8px 24px #19232120; }
+    #backtest-ui-preview .strategy-add-menu[hidden] { display: none; }
+    #backtest-ui-preview .strategy-add-menu button { width: 100%; padding: 7px; text-align: left; border: 0; }
+    #backtest-ui-preview .strategy-add-menu button:hover { background: var(--accent-soft); }
     #backtest-ui-preview .strategy-card-list { display: grid; align-content: start; gap: 6px; min-height: 0; overflow: auto; overscroll-behavior: contain; }
     #backtest-ui-preview .strategy-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 6px; padding: 7px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
     #backtest-ui-preview .strategy-card.is-active { background: var(--accent-soft); border-color: #83b3a5; }
@@ -131,12 +133,13 @@
     #backtest-ui-preview .swatch.vix { background: #7656a6; }
     #backtest-ui-preview .range-label { flex: 1 0 100%; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .chart-gesture-hint { margin: 0 0 4px; color: var(--muted); font-size: 11px; }
+    #backtest-ui-preview .is-wheel-zoom-active { outline: 2px solid #147d6880; outline-offset: 4px; }
     #backtest-ui-preview .chart-linked-stack { display: grid; gap: 0; overflow-x: auto; }
     #backtest-ui-preview .chart-figure { min-width: 680px; margin: 0; padding: 0; }
     #backtest-ui-preview .chart-figure figcaption { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 2px; font-weight: 650; }
     #backtest-ui-preview .chart-figure svg { display: block; width: 100%; min-width: 680px; height: auto; user-select: none; -webkit-user-select: none; }
     #backtest-ui-preview .compact-indicator svg { height: auto; aspect-ratio: 800 / 90; }
-    #backtest-ui-preview .chart-core-readout-row { height: 64px; padding: 4px 6px; color: var(--muted); font-size: 11px; }
+    #backtest-ui-preview .chart-core-readout-row { height: 64px; padding: 4px 6px; overflow-y: auto; overscroll-behavior: contain; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .date-axis-row { min-width: 680px; }
     #backtest-ui-preview .date-axis-row svg { display: block; width: 100%; height: auto; aspect-ratio: 800 / 44; user-select: none; }
     #backtest-ui-preview .grid-line { stroke: #dce3df; stroke-width: 1; }
@@ -239,8 +242,11 @@
     #backtest-ui-preview .logic-segments span { display: grid; place-items: center; min-width: 54px; min-height: 36px; padding: 4px; border-radius: 4px; }
     #backtest-ui-preview .logic-segments input:checked + span { color: white; background: var(--accent); }
     #backtest-ui-preview .logic-segments input:focus-visible + span { outline: 3px solid var(--accent); }
-    #backtest-ui-preview .condition-relation { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-    #backtest-ui-preview .condition-chip { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; }
+    #backtest-ui-preview .condition-logic-connector { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+    #backtest-ui-preview .condition-logic-line { height: 1px; flex: 1; background: #bacac2; }
+    #backtest-ui-preview .condition-card { padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; }
+    #backtest-ui-preview .condition-card h3 { margin-bottom: 10px; }
+    #backtest-ui-preview .strategy-rule-block { margin-bottom: 16px; padding: 12px; background: #f3f8f5; border: 1px solid #bcd6ca; border-radius: 8px; }
     #backtest-ui-preview .cursor-example { display: none; pointer-events: none; }
     #backtest-ui-preview .show-cursor .cursor-example { display: block; }
     #backtest-ui-preview .cursor-example line { stroke: #819bb2; stroke-width: 1; stroke-dasharray: 3 3; }
@@ -280,7 +286,7 @@
           </button>
           <nav class="strategy-navigator" aria-label="実行する戦略">
             <div class="strategy-nav-heading"><span>実行する戦略</span><span>1</span></div>
-            <div class="strategy-add"><label for="prototype-preset">戦略を追加</label><select id="prototype-preset"><option>戦略を選択</option><option disabled>VIX シグナル積立</option><option>複合シグナル積立</option><option>移動平均トレンド（売買）</option><option>移動平均トレンド（買付のみ）</option><option>グリッド検索</option></select><button class="add-button" type="button" aria-label="戦略を追加" title="追加">＋</button></div>
+            <div class="strategy-add"><button class="add-button" type="button" aria-label="戦略を追加" aria-haspopup="menu" aria-controls="prototype-strategy-menu" aria-expanded="false">＋</button><div class="strategy-add-menu" id="prototype-strategy-menu" role="menu" aria-label="戦略を選択" hidden><button type="button" role="menuitem" data-preset="vix_dca" disabled>VIX シグナル積立</button><button type="button" role="menuitem" data-preset="composite_dca">カスタム戦略</button><button type="button" role="menuitem" data-preset="ma_trend">移動平均トレンド（売買）</button><button type="button" role="menuitem" data-preset="ma_buy_only">移動平均トレンド（買付のみ）</button><button type="button" role="menuitem" data-preset="rsi_dca">RSI シグナル積立</button><button type="button" role="menuitem" data-preset="ma_deviation_dca">移動平均乖離積立</button><button type="button" role="menuitem" data-preset="bollinger_dca">ボリンジャー積立</button><button type="button" role="menuitem" data-preset="rate_dca">金利シグナル積立</button><button type="button" role="menuitem" data-preset="pe_dca">PER シグナル積立</button><button type="button" role="menuitem" data-preset="grid_search">グリッド検索</button></div></div>
             <div class="strategy-card-list">
               <article class="strategy-card is-active">
                 <button class="strategy-card-open" type="button" aria-label="VIX シグナル積立を編集" aria-haspopup="dialog"><strong class="strategy-card-name">VIX シグナル積立</strong><span class="strategy-card-summary">VIX: ^VIX ≥ 25、月間最大 1 回</span></button>
@@ -301,7 +307,7 @@
           <div id="prototype-result-body" class="panel-body">
             <div class="result-tabs" role="tablist" aria-label="実行結果"><button type="button" role="tab" aria-selected="true" data-tab="comparison">戦略比較</button><button type="button" role="tab" aria-selected="false" data-tab="trades">取引明細</button></div>
             <section class="tab-panel comparison-table-wrap" role="tabpanel" data-panel="comparison">
-              <table><caption class="sr-only">実行結果の比較</caption><thead><tr><th>戦略</th><th>実際の投入額</th><th>期末資産</th><th>純損益</th><th>投入利益率</th><th>資産倍率</th><th>XIRR</th><th>最大ドローダウン</th><th>DCA との差額</th></tr></thead><tbody><tr><th>VIX シグナル積立</th><td>$8,100</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td><td>−$31</td></tr><tr><th>毎月定額積立</th><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td><td>$0</td></tr><tr><th>一括投資</th><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td><td>$12,101</td></tr></tbody></table>
+              <table><caption class="sr-only">実行結果の比較</caption><thead><tr><th>戦略</th><th>実際の買付額</th><th>注入元本</th><th>期末資産</th><th>純損益</th><th>投入利益率</th><th>資産倍率</th><th>XIRR</th><th>最大ドローダウン</th><th>DCA との差額</th></tr></thead><tbody><tr style="--row-color:#147d68"><th><input type="checkbox" checked aria-label="VIX シグナル積立の比較曲線"/> <span style="color:var(--row-color)">●</span> VIX シグナル積立</th><td>$7,800</td><td>$8,100</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td><td>−$31</td></tr><tr style="--row-color:#ba6816"><th><input type="checkbox" aria-label="毎月定額積立の比較曲線"/> <span style="color:var(--row-color)">●</span> 毎月定額積立</th><td>$8,100</td><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td><td>$0</td></tr><tr style="--row-color:#7656a6"><th><input type="checkbox" aria-label="一括投資の比較曲線"/> <span style="color:var(--row-color)">●</span> 一括投資</th><td>$8,100</td><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td><td>$12,101</td></tr></tbody></table>
             </section>
             <section class="tab-panel" role="tabpanel" data-panel="trades" hidden><div class="comparison-table-wrap"><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td>2026-08-03</td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td>2026-09-01</td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
           </div>
@@ -319,7 +325,7 @@
             <p class="chart-gesture-hint sr-only">通常スクロールは結果欄を移動 · Ctrl/Command＋スクロールは全図を同期して拡大・縮小</p>
             <div class="chart-linked-stack">
             <figure class="chart-figure">
-              <figcaption>価格・元本リターン<div class="legend"><span tabindex="0" data-highlight="price"><i class="swatch"></i>価格 (USD)</span><span tabindex="0" data-highlight="asset"><i class="swatch asset"></i>総資産 (USD)</span><span>基準100</span></div></figcaption>
+              <figcaption>価格・元本リターン<div class="legend"><button type="button" aria-pressed="false" data-highlight="price"><i class="swatch"></i>価格 (USD)</button><button type="button" aria-pressed="false" data-highlight="asset"><i class="swatch asset"></i>総資産 (USD)</button><span>基準100</span></div></figcaption>
               <div class="chart-core-readout-row">2023-05-01 · 価格指数 210 · 元本リターン 158 · ドローダウン −8% · VIX 25</div>
               <svg viewBox="0 0 800 274" role="img" aria-label="価格の開始値と累計投入元本を基準100とした推移。横軸は日付">
                 <g fill="none"><path class="grid-line" d="M92 20.0H774 M92 55.1H774 M92 90.3H774 M92 125.4H774 M92 160.6H774 M92 195.7H774 M92 230.9H774 M92 266.0H774 M92.0 20V266 M205.7 20V266 M319.3 20V266 M433.0 20V266 M546.7 20V266 M660.3 20V266 M774.0 20V266"/><line class="base-line" x1="92" y1="248.4" x2="774" y2="248.4"/></g>
@@ -350,7 +356,15 @@
   </dialog>
   <dialog class="strategy-dialog" aria-labelledby="prototype-strategy-title">
     <div class="dialog-shell"><header class="dialog-header"><h2 id="prototype-strategy-title">VIX シグナル積立</h2><button class="icon-button strategy-dialog-close" type="button" aria-label="閉じる" title="閉じる">×</button></header>
-      <div class="dialog-content"><div class="condition-relation"><div class="logic-segments" role="radiogroup" aria-label="買付条件の組み合わせ"><label title="すべての買付条件"><input type="radio" name="prototype-logic" value="AND" checked aria-label="AND"/><span>AND</span></label><label title="いずれかの買付条件"><input type="radio" name="prototype-logic" value="OR" aria-label="OR"/><span>OR</span></label></div><span class="condition-chip">VIX</span></div><fieldset><legend>VIX 買付</legend><div class="signal-switch-row"><strong>買付</strong><button type="button" role="switch" aria-label="VIX買付シグナル" aria-checked="true"><i class="strategy-switch" aria-hidden="true"><span></span></i><span class="signal-state">有効</span></button></div><div class="fields"><div class="field"><label for="prototype-vix-symbol">ボラティリティ指数</label><select id="prototype-vix-symbol"><option>^VIX — S&amp;P 500</option><option>^VXN — Nasdaq 100</option><option>^VXD — Dow Jones</option></select><small>シグナル判定に使う指数。</small></div><div class="field"><label for="prototype-vix-threshold">VIX 買付しきい値</label><input id="prototype-vix-threshold" type="number" value="25"/><small>終値がしきい値以上の日の次の取引日に買付。</small></div></div></fieldset><fieldset><legend>売却</legend><div class="signal-switch-row"><strong>売却</strong><button type="button" role="switch" aria-label="売却シグナルを有効にする" aria-checked="false"><i class="strategy-switch" aria-hidden="true"><span></span></i><span class="signal-state">無効</span></button></div></fieldset><fieldset><legend>資金配分</legend><div class="fields"><div class="field"><label for="prototype-month-cap">月間シグナル買付上限</label><input id="prototype-month-cap" type="number" value="1"/></div><div class="field"><label for="prototype-cash-limit">現金安全上限</label><input id="prototype-cash-limit" type="number" value="1200"/></div></div></fieldset></div>
+      <div class="dialog-content">
+        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>買付 · VIX</h3><button type="button" role="switch" aria-label="買付" aria-checked="true"><i class="strategy-switch" aria-hidden="true"><span></span></i></button></header>
+          <div class="condition-card"><div class="fields"><div class="field"><label for="prototype-vix-symbol">ボラティリティ指数</label><select id="prototype-vix-symbol"><option>^VIX — S&amp;P 500</option><option>^VXN — Nasdaq 100</option><option>^VXD — Dow Jones</option></select><small>判定に使う指数。</small></div><div class="field"><label for="prototype-vix-threshold">買付しきい値</label><div class="unit-field"><input id="prototype-vix-threshold" type="number" value="25"/><span class="unit">pt</span></div><small>終値 ≥ しきい値。</small></div></div></div>
+        </section>
+        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>売却 · VIX</h3><button type="button" role="switch" aria-label="売却" aria-checked="false"><i class="strategy-switch" aria-hidden="true"><span></span></i></button></header>
+          <div class="condition-card"><div class="fields"><div class="field"><label for="prototype-exit-low">売却しきい値</label><input id="prototype-exit-low" type="number" value="15" disabled/></div><div class="field"><label for="prototype-exit-ratio">売却割合</label><input id="prototype-exit-ratio" type="number" value="0.5" disabled/></div></div></div>
+        </section>
+        <fieldset><legend>資金配分</legend><div class="fields"><div class="field"><label for="prototype-month-cap">月間買付上限</label><div class="unit-field"><input id="prototype-month-cap" type="number" value="1"/><span class="unit">回</span></div></div><div class="field"><label for="prototype-cash-limit">現金安全上限</label><div class="unit-field"><input id="prototype-cash-limit" type="number" value="1200"/><span class="unit">USD</span></div></div></div></fieldset>
+      </div>
       <footer class="dialog-footer"><button class="button-primary strategy-dialog-done" type="button">完了</button></footer>
     </div>
   </dialog>
@@ -396,29 +410,55 @@
         button.setAttribute("aria-checked", String(enabled));
         button.closest(".strategy-card").classList.toggle("is-disabled", !enabled);
       }));
+      let pinnedSeries = null;
       root.querySelectorAll("[data-highlight]").forEach((item) => {
         const figure = item.closest("figure");
-        const show = () => figure.classList.add("highlight-" + item.dataset.highlight);
-        const hide = () => figure.classList.remove("highlight-" + item.dataset.highlight);
-        item.addEventListener("mouseenter", show); item.addEventListener("mouseleave", hide);
-        item.addEventListener("focus", show); item.addEventListener("blur", hide);
+        const show = id => {
+          figure.classList.remove("highlight-price", "highlight-asset");
+          if (id) figure.classList.add("highlight-" + id);
+        };
+        item.addEventListener("mouseenter", () => show(item.dataset.highlight));
+        item.addEventListener("mouseleave", () => show(pinnedSeries));
+        item.addEventListener("focus", () => show(item.dataset.highlight));
+        item.addEventListener("blur", () => show(pinnedSeries));
+        item.addEventListener("click", () => {
+          pinnedSeries = pinnedSeries === item.dataset.highlight ? null : item.dataset.highlight;
+          root.querySelectorAll("[data-highlight]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.highlight === pinnedSeries)));
+          show(pinnedSeries);
+        });
       });
       root.querySelectorAll(".signal-switch-row button").forEach((button) => button.addEventListener("click", () => {
         const enabled = button.getAttribute("aria-checked") !== "true";
         button.setAttribute("aria-checked", String(enabled));
-        button.querySelector(".signal-state").textContent = enabled ? "有効" : "無効";
-        if (button.getAttribute("aria-label") === "VIX買付シグナル") {
-          root.querySelector(".condition-chip").hidden = !enabled;
-          root.querySelector("#prototype-vix-threshold").disabled = !enabled;
-        }
+        button.closest(".strategy-rule-block").querySelectorAll("input, select").forEach(field => { field.disabled = !enabled; });
       }));
+      const add = root.querySelector(".add-button");
+      const menu = root.querySelector(".strategy-add-menu");
+      add.addEventListener("click", () => {
+        menu.hidden = !menu.hidden;
+        add.setAttribute("aria-expanded", String(!menu.hidden));
+      });
+      menu.addEventListener("click", event => {
+        if (!event.target.closest("button:not(:disabled)")) return;
+        menu.hidden = true;
+        add.setAttribute("aria-expanded", "false");
+        add.focus();
+      });
+      menu.addEventListener("keydown", event => {
+        if (event.key !== "Escape") return;
+        menu.hidden = true;
+        add.setAttribute("aria-expanded", "false");
+        add.focus();
+      });
       root.querySelectorAll(".chart-figure svg").forEach((svg) => {
         svg.addEventListener("pointerenter", () => root.querySelector("#prototype-chart-body").classList.add("show-cursor"));
         svg.addEventListener("pointerleave", () => root.querySelector("#prototype-chart-body").classList.remove("show-cursor"));
       });
       root.querySelector(".zoom-mode").addEventListener("click", (event) => {
         const button = event.currentTarget;
-        button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
+        const enabled = button.getAttribute("aria-pressed") !== "true";
+        button.setAttribute("aria-pressed", String(enabled));
+        root.querySelector("#prototype-chart-body").classList.toggle("is-wheel-zoom-active", enabled);
       });
     })();
   </script>
