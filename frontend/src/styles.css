@@ -2046,46 +2046,6 @@ h2 {
   stroke-width: 1.5;
 }
 
-.price-marker-legend {
-  display: flex;
-  gap: 14px;
-  margin: 4px 0 0 76px;
-  color: var(--app-muted);
-  font-size: 11px;
-}
-
-.price-marker-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.price-marker-legend i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.price-marker-legend .trade-marker-buy {
-  background: #147d68;
-}
-
-.price-marker-legend .trade-marker-sell {
-  background: #a7373a;
-}
-
-.trade-marker-buy {
-  fill: #147d68;
-  stroke: #fff;
-  stroke-width: 1.5;
-}
-
-.trade-marker-sell {
-  fill: #a7373a;
-  stroke: #fff;
-  stroke-width: 1.5;
-}
-
 .chart-empty,
 .trade-empty {
   padding: 10px 12px;

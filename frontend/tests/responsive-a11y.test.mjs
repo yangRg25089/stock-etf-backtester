@@ -312,3 +312,9 @@ test("split chart layout leaves no rendering branch, state, styles, or prototype
     assert.doesNotMatch(source, /overlayMode|onOverlayModeChange|chart\.overlay\b|chart-layout-controls|charts-split|data-layout=|chart-aux-panel/);
   }
 });
+
+test("removed single-price trade legend has no orphan styles or translations", () => {
+  const messages = readFileSync(new URL("../src/i18n/messages.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(css, /\.price-marker-legend\b|\n\.trade-marker-(?:buy|sell)\b/);
+  assert.doesNotMatch(messages, /"chart\.tradeMarkers"/);
+});

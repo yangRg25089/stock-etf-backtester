@@ -180,7 +180,8 @@ function ChartAxes({
 }) {
   const plotWidth = CHART.width - CHART.left - CHART.right;
   const plotBottom = geometry.height - geometry.bottom;
-  const tickCount = geometry.height === COMPACT_CHART.height ? 3 : 8;
+  const compact = geometry.height === COMPACT_CHART.height;
+  const tickCount = compact ? 3 : 8;
   const ticks = Array.from({ length: tickCount }, (_, index) =>
     scale.maximum - ((scale.maximum - scale.minimum) * index) / (tickCount - 1),
   );
@@ -205,9 +206,9 @@ function ChartAxes({
           </text>}
         </g>
       ))}
-      <text className="chart-axis-title chart-y-axis-title" transform={`translate(20 ${(geometry.top + plotBottom) / 2}) rotate(-90)`} textAnchor="middle">
+      {!compact && <text className="chart-axis-title chart-y-axis-title" transform={`translate(20 ${(geometry.top + plotBottom) / 2}) rotate(-90)`} textAnchor="middle">
         {axisTitle(locale, seriesId, currency)}
-      </text>
+      </text>}
       {showDateAxis && <text className="chart-axis-title chart-x-axis-title" x={CHART.left + plotWidth / 2} y={geometry.height - 8} textAnchor="middle">
         {translate(locale, "chart.dateAxis")}
       </text>}
@@ -289,7 +290,7 @@ function SeriesLegend({
           onBlur={() => highlight.setFocusedId(null)}
         >
           <i className="overlay-legend-swatch" style={{ backgroundColor: definition.color }} aria-hidden="true" />
-          {seriesLabel(locale, definition, currency)}
+          {axisTitle(locale, definition.id, currency)}
         </span>
       ))}
     </div>
@@ -414,7 +415,7 @@ function IndicatorChart({
           data-plot-top={geometry.top}
           data-plot-bottom={geometry.height - geometry.bottom}
         >
-          <title id={titleId}>{`${symbol ? `${symbol} · ` : ""}${seriesLabel(locale, series, currency)}`}</title>
+          <title id={titleId}>{`${symbol ? `${symbol} · ` : ""}${axisTitle(locale, series.id)}`}</title>
           <desc id={descriptionId}>{translate(locale, "chart.description", {
             start: assets[Math.round(range.start)]?.date ?? "",
             end: assets[Math.round(range.end)]?.date ?? "",

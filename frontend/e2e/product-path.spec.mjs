@@ -1673,6 +1673,15 @@ test("linked figures share widths, halve indicator height, and highlight legends
     const gaps = await page.locator(".chart-linked-stack figure").evaluateAll(figures => figures.slice(1).map((figure,index) => figure.getBoundingClientRect().top - figures[index].getBoundingClientRect().bottom));
     for (const gap of gaps) expect(Math.abs(gap)).toBeLessThanOrEqual(1);
     await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
+    const axisLabels = await page.locator(".chart-y-axis-title").evaluateAll(labels => labels.map(label => {
+      const text = label.getBoundingClientRect();
+      const chart = label.ownerSVGElement.getBoundingClientRect();
+      return { top: text.top, bottom: text.bottom, chartTop: chart.top, chartBottom: chart.bottom };
+    }));
+    for (const label of axisLabels) {
+      expect(label.top, "value axis label stays inside its chart").toBeGreaterThanOrEqual(label.chartTop - 1);
+      expect(label.bottom, "value axis label stays inside its chart").toBeLessThanOrEqual(label.chartBottom + 1);
+    }
   }
   const core = page.locator(".chart-overlay");
   const tradeAnchors = await core.evaluate(figure => {
@@ -1729,6 +1738,9 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await page.locator(".workbench-results").evaluate((element) => { element.scrollTop = 0; });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({ path: test.info().outputPath("refined-workbench-1440.png") });
+  await page.locator("#result-details-toggle").click();
+  await page.locator(".workbench-results").evaluate(element => { element.scrollTop = 0; });
+  await page.screenshot({ path: test.info().outputPath("linked-charts-1440.png") });
 });
 
 test("context is concise and strategy dialogs show one combination label", async ({ page }) => {
@@ -1775,7 +1787,7 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   await expect(core.locator(".chart-y-tick")).toHaveCount(8);
   await expect(core.locator(".chart-x-tick")).toHaveCount(0);
   await expect(indicator.locator(".chart-x-tick")).toHaveCount(7);
-  await expect(indicator.locator(".chart-y-axis-title")).toContainText("%");
+  await expect(indicator.locator(".indicator-chart-heading")).toContainText("%");
   await expect(indicator.locator("svg.result-chart")).toHaveAttribute("viewBox", "0 0 800 90");
   const sizes = await stack.locator("svg.result-chart").evaluateAll((charts) => charts.map((chart) => {
     const b = chart.getBoundingClientRect();

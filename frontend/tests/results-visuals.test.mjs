@@ -72,6 +72,23 @@ test("linked figures have one bottom date axis and no separate-layout controls",
   }
 });
 
+test("half-height indicators put natural units in their headings without overflowing vertical titles", () => {
+  for (const [locale, pointUnit] of [["ja", "ポイント"], ["zh", "点"]]) {
+    const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+      locale, dailyAssets, trades: [], visibleSeriesIds: ["price", "drawdown", "vix"],
+      signals: [{ date: dailyAssets[0].date, signalId: "vix.buy", state: "false", observedValue: "20" }],
+      onSeriesChange() {},
+    }));
+    const indicators = [...html.matchAll(/<figure class="chart-panel chart-(drawdown|vix) is-compact"[\s\S]*?<\/figure>/g)];
+    assert.equal(indicators.length, 2);
+    for (const [figure, id] of indicators) {
+      assert.doesNotMatch(figure, /<text class="chart-axis-title chart-y-axis-title"/);
+      const heading = figure.match(/<figcaption[^>]*>[\s\S]*?<\/figcaption>/)[0];
+      assert.ok(heading.includes(id === "vix" ? pointUnit : "%"));
+    }
+  }
+});
+
 test("asset-only comparison preserves saved trades on the visible asset curve", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja", dailyAssets, trades, signals: [], visibleSeriesIds: ["totalAsset"], onSeriesChange() {},
