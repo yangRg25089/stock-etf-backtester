@@ -14,9 +14,9 @@ import type { RunProgressEvent } from "./api/runs";
 import { sharedSummaryEndDate } from "./features/config/summary";
 import { SharedSettingsDialog } from "./features/config/SharedSettingsDialog";
 import { SHARED_FIELD_KEYS } from "./features/config/SharedSettingsForm";
-import { RunControls } from "./features/runs/RunControls";
+import { RunActions } from "./features/runs/RunActions";
 import { readDismissedRunId, rememberDismissedRun } from "./features/runs/resultVisibility";
-import { DiagnosticList, type DiagnosticFieldAction } from "./features/runs/StatusView";
+import { DiagnosticList, type DiagnosticFieldAction } from "./features/runs/DiagnosticList";
 import { ResultViewer } from "./features/results/ResultViewer";
 import {
   createInitialWorkspaceState,
@@ -89,8 +89,6 @@ function App() {
   const activeRunController = useRef<AbortController | null>(null);
   const runSubmissionLocked = useRef(false);
   const submittedRunRef = useRef(false);
-  const completionFeedbackTimer = useRef<number | null>(null);
-  const [completedFeedback, setCompletedFeedback] = useState(false);
 
   const catalog = catalogState.status === "ready" ? catalogState.value : null;
   const draftForValidation = workspace?.draft ?? null;
@@ -212,7 +210,6 @@ function App() {
 
   useEffect(() => () => {
     activeRunController.current?.abort();
-    if (completionFeedbackTimer.current !== null) window.clearTimeout(completionFeedbackTimer.current);
   }, []);
 
   const currentValidation = workspace && validationState?.draft === workspace.draft
@@ -245,9 +242,6 @@ function App() {
     activeRunController.current = controller;
     runSubmissionLocked.current = true;
     setRunBusy(true);
-    if (completionFeedbackTimer.current !== null) window.clearTimeout(completionFeedbackTimer.current);
-    completionFeedbackTimer.current = null;
-    setCompletedFeedback(false);
     setRunError(null);
 
     try {
@@ -295,13 +289,6 @@ function App() {
       );
       const completed = await fetchRun(accepted.runId, controller.signal);
       dispatch({ type: "run.update", value: completed });
-      if (completed.status === "completed" || completed.status === "completed_with_warning") {
-        setCompletedFeedback(true);
-        completionFeedbackTimer.current = window.setTimeout(() => {
-          setCompletedFeedback(false);
-          completionFeedbackTimer.current = null;
-        }, 2400);
-      }
     } catch (error) {
       if (controller.signal.aborted) return;
       setRunError(asRunApiError(error));
@@ -318,9 +305,6 @@ function App() {
     rememberDismissedRun(workspace?.runResponse?.runId ?? null);
     dispatch({ type: "run.reset" });
     setRunError(null);
-    setCompletedFeedback(false);
-    if (completionFeedbackTimer.current !== null) window.clearTimeout(completionFeedbackTimer.current);
-    completionFeedbackTimer.current = null;
   };
 
   const handleSharedSettingsClosed = useCallback(() => {
@@ -389,11 +373,11 @@ function App() {
           </div>
         </div>
         {catalog && workspace && (
-          <RunControls
+          <RunActions
             locale={locale}
             availability={availability}
             busy={runBusy}
-            completedFeedback={completedFeedback}
+            run={workspace.runResponse}
             canReset={Boolean(workspace.runResponse || runError)}
             onReset={handleReset}
             onRun={() => void handleRun()}

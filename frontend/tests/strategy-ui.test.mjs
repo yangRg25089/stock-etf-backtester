@@ -8,7 +8,7 @@ const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { StrategyNavigator } = require("../.test-output/features/strategies/StrategyWorkspace.js");
 const { StrategyEditorForm } = require("../.test-output/features/strategies/StrategyEditorDialog.js");
-const { RunControls } = require("../.test-output/features/runs/RunControls.js");
+const { RunActions } = require("../.test-output/features/runs/RunActions.js");
 const { createInitialWorkspaceState, workspaceReducer } = require("../.test-output/features/strategies/model.js");
 const catalog = JSON.parse(
   readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"),
@@ -45,6 +45,21 @@ function renderEditor(strategy, locale = "ja") {
     onChange() {},
   }));
 }
+
+test("execution offers only two icon buttons even while busy, disabled, or complete", () => {
+  for (const options of [
+    { busy: false, run: null, availability: { disabled: false, reasonKey: null } },
+    { busy: true, run: null, availability: { disabled: false, reasonKey: null } },
+    { busy: false, run: { status: "completed" }, availability: { disabled: false, reasonKey: null } },
+    { busy: false, run: null, availability: { disabled: true, reasonKey: "run.noEnabledStrategies" } },
+  ]) {
+    const html = renderToStaticMarkup(React.createElement(RunActions, {
+      locale: "zh", canReset: true, onRun() {}, onReset() {}, ...options,
+    }));
+    assert.equal((html.match(/<button /g) ?? []).length, 2);
+    assert.doesNotMatch(html, /run-controls|run-control-main|run-reason|run-complete-feedback|<p /);
+  }
+});
 
 test("strategy editor keeps one label per field and no repeated parameter summary", () => {
   const state = createInitialWorkspaceState(catalog);
@@ -130,18 +145,13 @@ test("catalog selector offers five optional strategies and preserves required be
   assert.match(html, /<article class="strategy-card strategy-nav-card is-active">/);
   assert.doesNotMatch(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
 
-  const controls = renderToStaticMarkup(React.createElement(RunControls, {
+  const controls = renderToStaticMarkup(React.createElement(RunActions, {
     locale: "zh",
-    runScope: "active",
-    strategies: createInitialWorkspaceState(catalog).draft.strategies,
-    activeStrategyId: "strategy-vix_dca-1",
-    onTargetChange() {},
     canReset: false,
     onReset() {},
     availability: { disabled: false, reasonKey: null },
     busy: false,
-    completedFeedback: false,
-    onScopeChange() {},
+    run: null,
     onRun() {},
   }));
   assert.doesNotMatch(controls, /run-scope-select|run-scope-help|<select/);

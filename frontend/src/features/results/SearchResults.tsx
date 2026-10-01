@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { SearchCandidate, SearchResult } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
-import { DiagnosticList } from "../runs/StatusView";
+import { DiagnosticList } from "../runs/DiagnosticList";
 import { formatCurrency, formatPercent } from "./format";
 
 const INITIAL_CANDIDATE_LIMIT = 100;

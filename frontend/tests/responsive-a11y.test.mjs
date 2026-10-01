@@ -7,7 +7,7 @@ const prototype = readFileSync(new URL("../../docs/design/backtest-ui.html", imp
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const settingsDialog = readFileSync(new URL("../src/features/config/SharedSettingsDialog.tsx", import.meta.url), "utf8");
 const dividerSource = readFileSync(new URL("../src/shared/ui/WorkbenchDivider.tsx", import.meta.url), "utf8");
-const runControls = readFileSync(new URL("../src/features/runs/RunControls.tsx", import.meta.url), "utf8");
+const runActions = readFileSync(new URL("../src/features/runs/RunActions.tsx", import.meta.url), "utf8");
 
 function luminance(hex) {
   const channels = hex.match(/[a-f\d]{2}/gi).map((channel) => parseInt(channel, 16) / 255);
@@ -100,7 +100,7 @@ test("desktop workbench keeps top controls fixed with independent strategy list 
   assert.match(tablet, /\.workbench-config\s*\{[^}]*position:\s*relative/s);
   assert.match(tablet, /\.workbench-results\s*\{[^}]*overflow-y:\s*auto/s);
   assert.match(blockFor(".app-topbar"), /position:\s*sticky/);
-  assert.match(app, /<header className="app-topbar">[\s\S]*?className="topbar-brand"[\s\S]*?<RunControls/);
+  assert.match(app, /<header className="app-topbar">[\s\S]*?className="topbar-brand"[\s\S]*?<RunActions/);
   assert.doesNotMatch(app, /className="page-heading"/);
 });
 
@@ -152,7 +152,7 @@ test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   assert.match(touch, /\.icon-button\s*\{\s*min-width:\s*44px/);
   assert.match(touch, /\.strategy-nav-card \.strategy-enabled-control\s*\{\s*min-width:\s*44px/);
   assert.match(dividerSource, /aria-expanded=\{!collapsed\}/);
-  assert.match(touch, /\.workbench-results \.run-strategy-details > summary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
+  assert.match(touch, /\.execution-actions \.button-primary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
   assert.match(touch, /\.workbench-results \.legend-toggle,[\s\S]*?\.workbench-results \.chart-range-controls button,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
 });
 
@@ -246,10 +246,11 @@ test("space-saving workbench controls retain an accessible text name", () => {
   assert.match(dividerSource, /aria-label=\{label\}/);
   assert.match(dividerSource, /collapsed \? "m7 5 5 5-5 5"/);
   assert.match(app, /label=\{translate\(locale, configCollapsed \? "workbench\.showConfig" : "workbench\.hideConfig"\)\}/);
-  assert.match(runControls, /aria-label=\{translate\(locale, busy \? "run\.submitting" : completedFeedback \? "run\.complete" : "run\.submit"\)\}/);
-  assert.match(runControls, /className="run-play-icon"/);
-  assert.doesNotMatch(runControls, /run-scope-select/);
-  assert.doesNotMatch(runControls, /translate\(locale, "run\.submit"\)<\/button>/);
+  assert.match(runActions, /aria-label=\{label\}/);
+  assert.match(runActions, /aria-describedby=\{reason \? "run-disabled-reason" : undefined\}/);
+  assert.match(runActions, /className="run-play-icon"/);
+  assert.doesNotMatch(runActions, /run-scope-select/);
+  assert.doesNotMatch(runActions, /translate\(locale, "run\.submit"\)<\/button>/);
   assert.match(css, /\.display-toggle\s*\{[^}]*width:\s*44px/s);
   assert.match(css, /\.display-toggle svg\s*\{[^}]*stroke:\s*currentColor/s);
 });
@@ -272,7 +273,7 @@ test("base button styles precede and preserve emphasized action colors", () => {
 });
 
 test("wheel zoom mode and primary run icon have clear visual affordances", () => {
-  assert.match(runControls, /className="run-play-icon"/);
+  assert.match(runActions, /className="run-play-icon"/);
   assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-accent\)/);
   assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*44px/s);
   assert.match(css, /\.chart-wheel-zoom-toggle\[aria-pressed="true"\]/);
@@ -293,4 +294,12 @@ test("sidebar actions float only on hover or keyboard focus, with a touch fallba
 test("SVG chart labels cannot be selected by drag gestures", () => {
   assert.match(blockFor(".result-chart"), /user-select:\s*none/);
   assert.match(css, /\.chart-linked-stack \.chart-panel\.is-compact \.result-chart\s*\{[^}]*aspect-ratio:\s*800 \/ 180/s);
+});
+
+
+test("removed execution areas have no source, styles, prototype, or completion timers left", () => {
+  const removed = /run-controls|run-control-main|run-status-panel|run-status-heading|run-strategy-details|run-strategy-statuses|run-complete-feedback|run-complete-icon|run-reason|progress-copy/;
+  for (const source of [css, app, prototype, runActions]) assert.doesNotMatch(source, removed);
+  assert.doesNotMatch(css, /\.metric-card|\.metric-grid|\.result-overview-panel|\.preset-catalog/);
+  assert.doesNotMatch(app, /completedFeedback|completionFeedbackTimer|setCompletedFeedback/);
 });

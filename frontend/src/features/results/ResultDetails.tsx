@@ -4,7 +4,7 @@ import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
-import { StatusView } from "../runs/StatusView";
+import { DiagnosticList } from "../runs/DiagnosticList";
 import { ExportControls } from "./ExportControls";
 import { ResultComparison } from "./ResultSummary";
 import { SearchResults } from "./SearchResults";
@@ -40,6 +40,16 @@ export function ResultDetails({
   error,
 }: ResultDetailsProps) {
   const strategyRuns = run?.result?.strategyRuns ?? [];
+  const seenDiagnostics = new Set<string>();
+  const diagnostics = [
+    ...(error?.diagnostics ?? []),
+    ...strategyRuns.flatMap((result) => [...(result.diagnostics ?? []), ...(result.metrics?.diagnostics ?? [])]),
+  ].filter((diagnostic) => {
+    const key = JSON.stringify([diagnostic.code, diagnostic.fieldPath ?? null, diagnostic.messageKey, diagnostic.details ?? null]);
+    if (seenDiagnostics.has(key)) return false;
+    seenDiagnostics.add(key);
+    return true;
+  });
   const searchAvailable = focusedResult?.presetId === "grid_search" && Boolean(focusedResult.searchResult);
   const tabs: ResultTab[] = run ? ["comparison", "trades"] : [];
   if (searchAvailable) tabs.push("search");
@@ -105,7 +115,25 @@ export function ResultDetails({
       onExpandedChange={setExpanded}
       headerDetails={headerDetails}
       headerActions={headerActions}
-      alwaysVisible={<StatusView locale={locale} run={run} error={error} hideCleanSuccess />}
+      alwaysVisible={(!run || error || diagnostics.length > 0) ? (
+        <>
+          {error && !diagnostics.some((diagnostic) => diagnostic.messageKey === error.messageKey) && (
+            <p className="field-error" role="alert">{translate(locale, error.messageKey)}</p>
+          )}
+          {diagnostics.length > 0 && (
+            <div role="alert"><DiagnosticList locale={locale} diagnostics={diagnostics} /></div>
+          )}
+          {!run && !error && (
+            <div className="empty-results" role="status">
+              <span className="empty-mark" aria-hidden="true">⌁</span>
+              <div>
+                <strong>{translate(locale, "results.emptyTitle")}</strong>
+                <p>{translate(locale, "results.emptyHelp")}</p>
+              </div>
+            </div>
+          )}
+        </>
+      ) : undefined}
     >
       {tabs.length > 0 && (
         <>

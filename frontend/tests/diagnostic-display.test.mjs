@@ -6,7 +6,8 @@ const require = createRequire(import.meta.url);
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { RunApiError } = require("../.test-output/api/runs.js");
-const { DiagnosticList, StatusView } = require("../.test-output/features/runs/StatusView.js");
+const { DiagnosticList } = require("../.test-output/features/runs/DiagnosticList.js");
+const { ResultDetails } = require("../.test-output/features/results/ResultDetails.js");
 
 const diagnostic = {
   code: "calculation_failed",
@@ -40,7 +41,7 @@ test("run API errors show the localized message without an internal error code",
     500,
   );
   const html = renderToStaticMarkup(
-    React.createElement(StatusView, { locale: "zh", run: null, error }),
+    React.createElement(ResultDetails, { locale: "zh", run: null, error, focusedResult: null, state: { showTrades: true, focusedResultId: null }, dispatch() {} }),
   );
   assert.match(html, /计算过程中发生错误。/);
   assert.match(html, /用户策略/);

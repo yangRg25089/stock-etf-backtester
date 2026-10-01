@@ -7,8 +7,6 @@ const require = createRequire(import.meta.url);
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { RunApiError } = require("../.test-output/api/runs.js");
-const { StatusView } = require("../.test-output/features/runs/StatusView.js");
-const statusViewSource = readFileSync(new URL("../src/features/runs/StatusView.tsx", import.meta.url), "utf8");
 const { ExportControls } = require("../.test-output/features/results/ExportControls.js");
 const { isExportAvailable } = require("../.test-output/features/results/exportModel.js");
 const { ResultViewer } = require("../.test-output/features/results/ResultViewer.js");
@@ -109,6 +107,20 @@ function workspaceWithRun() {
   };
 }
 
+test("legacy execution areas never return at any run lifecycle stage", () => {
+  for (const status of ["queued", "loading", "running", "completed", "completed_with_warning", "unavailable", "failed"]) {
+    const state = workspaceWithRun();
+    state.runResponse.status = status;
+    state.runResponse.result.strategyRuns[0].status = status;
+    const html = renderToStaticMarkup(React.createElement(ResultViewer, {
+      locale: "zh", state, dispatch() {}, error: null,
+    }));
+    assert.doesNotMatch(html, /run-status-panel|run-status-heading|run-strategy-details|run-strategy-statuses|class="run-id"|progress-copy/, status);
+    assert.match(html, /class="comparison-table"/, status);
+    assert.match(html, /data-export-kind="summary"/, status);
+  }
+});
+
 test("KPI, chart, trades, and exports use the focused saved result, not the active editor", () => {
   const state = workspaceWithRun();
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -157,9 +169,10 @@ test("result details leads with one complete comparison table and no duplicate K
   assert.match(html, /最大回撤/);
 });
 
-test("warning status and diagnostics stay inside the result details card", () => {
+test("saved warning diagnostics stay visible outside the collapsible details body", () => {
   const state = workspaceWithRun();
   state.runResponse.status = "completed_with_warning";
+  state.runResponse.result.strategyRuns[0].diagnostics = [{ code: "required_data_unavailable", severity: "warning", messageKey: "diagnostics.data.required_unavailable" }];
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "zh",
     state,
@@ -167,13 +180,14 @@ test("warning status and diagnostics stay inside the result details card", () =>
   }));
   const detailsPosition = html.indexOf('id="result-details"');
   const alwaysVisiblePosition = html.indexOf('class="collapsible-panel-always-visible"');
-  const runStatusPosition = html.indexOf('class="run-status-panel"');
+  const runStatusPosition = html.indexOf('class="diagnostic-list"');
   const detailsBodyPosition = html.indexOf('id="result-details-content"');
   const metricsPosition = html.indexOf('id="result-panel-comparison"');
   assert.ok(detailsPosition >= 0 && detailsPosition < runStatusPosition);
   assert.ok(alwaysVisiblePosition < runStatusPosition && runStatusPosition < detailsBodyPosition);
   assert.ok(runStatusPosition < metricsPosition);
-  assert.doesNotMatch(html, /class="run-status-panel is-compact"/);
+  assert.doesNotMatch(html, /run-status-panel|run-strategy-details/);
+  assert.match(html, /此策略所需的数据不可用/);
 });
 
 test("request and partial failures stay visible while draft edits do not add result warnings", () => {
@@ -185,7 +199,7 @@ test("request and partial failures stay visible while draft edits do not add res
     dispatch() {},
     error: requestError,
   }));
-  assert.ok(requestFailureHtml.indexOf('id="result-details"') < requestFailureHtml.indexOf('class="catalog-error"'));
+  assert.ok(requestFailureHtml.indexOf('id="result-details"') < requestFailureHtml.indexOf('class="field-error"'));
   assert.match(requestFailureHtml, /无法连接到 API/);
 
   const partialState = workspaceWithRun();
@@ -204,9 +218,11 @@ test("request and partial failures stay visible while draft edits do not add res
     state: partialState,
     dispatch() {},
   }));
-  assert.ok(partialHtml.indexOf('id="result-details"') < partialHtml.indexOf('class="run-status-panel"'));
-  assert.ok(partialHtml.indexOf('class="run-status-panel"') < partialHtml.indexOf('id="result-details-content"'));
-  assert.match(partialHtml, /部分策略已完成/);
+  assert.ok(partialHtml.indexOf('id="result-details"') < partialHtml.indexOf('class="diagnostic-list"'));
+  assert.ok(partialHtml.indexOf('class="diagnostic-list"') < partialHtml.indexOf('id="result-details-content"'));
+  assert.doesNotMatch(partialHtml, /run-status-panel|run-strategy-statuses|部分策略已完成/);
+  assert.match(partialHtml, /status-tag">失败/);
+  assert.match(partialHtml, /status-tag">已完成/);
   assert.match(partialHtml, /计算过程中发生错误/);
   assert.equal((partialHtml.match(/计算过程中发生错误/g) ?? []).length, 1);
   assert.equal((partialHtml.match(/class="metric-card"/g) ?? []).length, 0);
@@ -368,91 +384,53 @@ test("an empty workspace keeps the details card first and every CSV kind visible
   assert.match(html, /data-export-kind="search-results" disabled/);
 });
 
-test("result statuses distinguish partial success, full failure, and completed empty trades", () => {
-  const partialHtml = renderToStaticMarkup(React.createElement(StatusView, {
-    locale: "zh",
-    error: null,
-    run: {
-      runId: "partial-run",
-      status: "completed_with_warning",
-      selectedStrategyIds: ["good", "bad"],
-      snapshot: { runId: "partial-run", config: {} },
-      result: { runId: "partial-run", strategyRuns: [
-        { id: "good", presetId: "vix_dca", role: "strategy", status: "completed" },
-        { id: "bad", presetId: "composite_dca", role: "strategy", status: "failed" },
-      ] },
-    },
-  }));
-  assert.match(partialHtml, /部分策略已完成/);
-
-  const failedHtml = renderToStaticMarkup(React.createElement(StatusView, {
-    locale: "zh",
-    error: null,
-    run: {
-      runId: "failed-run",
-      status: "failed",
-      selectedStrategyIds: ["bad"],
-      snapshot: { runId: "failed-run", config: {} },
-      result: { runId: "failed-run", strategyRuns: [
-        { id: "bad", presetId: "vix_dca", role: "strategy", status: "failed" },
-      ] },
-    },
-  }));
-  assert.match(failedHtml, /失败/);
-  assert.doesNotMatch(failedHtml, /部分策略已完成/);
+test("comparison rows distinguish partial success and full failure without duplicate status summaries", () => {
+  const state = workspaceWithRun();
+  state.runResponse.status = "completed_with_warning";
+  state.runResponse.result.strategyRuns[0].status = "failed";
+  const render = () => renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
+  const partial = render();
+  assert.match(partial, /status-tag">失败/);
+  assert.match(partial, /status-tag">已完成/);
+  assert.doesNotMatch(partial, /run-status-panel|run-strategy-statuses|部分策略已完成/);
+  state.runResponse.status = "failed";
+  state.runResponse.result.strategyRuns[1].status = "failed";
+  const failed = render();
+  assert.equal((failed.match(/status-tag">失败/g) ?? []).length, 2);
+  assert.doesNotMatch(failed, /status-tag">已完成/);
 });
 
-test("clean completed runs collapse duplicate per-strategy statuses while warnings stay expanded", () => {
-  const run = {
-    runId: "clean-run",
-    status: "completed",
-    selectedStrategyIds: ["one", "two"],
-    snapshot: { runId: "clean-run", config: {} },
-    result: { runId: "clean-run", strategyRuns: [
-      { id: "one", presetId: "vix_dca", role: "strategy", status: "completed" },
-      { id: "two", presetId: "monthly_dca", role: "benchmark", status: "completed" },
-    ] },
-  };
-  const cleanHtml = renderToStaticMarkup(React.createElement(StatusView, {
-    locale: "zh",
-    error: null,
-    run,
-  }));
-  assert.match(cleanHtml, /<details class="run-strategy-details">/);
-  assert.match(cleanHtml, /<summary>已运行策略与基准（2 项）<\/summary>/);
-  assert.match(cleanHtml, /clean-run/);
-  assert.match(cleanHtml, /two/);
-  assert.match(cleanHtml, /每月定额定投/);
-
-  run.status = "completed_with_warning";
-  const warningHtml = renderToStaticMarkup(React.createElement(StatusView, {
-    locale: "zh",
-    error: null,
-    run,
-  }));
-  assert.match(warningHtml, /<details class="run-strategy-details" open="">/);
-  assert.match(warningHtml, /已完成，有警告/);
+test("clean completion and warnings never add a separate status list or run identity", () => {
+  const state = workspaceWithRun();
+  for (const status of ["completed", "completed_with_warning"]) {
+    state.runResponse.status = status;
+    const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
+    assert.doesNotMatch(html, /run-status-panel|run-strategy-details|run-strategy-statuses|saved-run/);
+    assert.match(html, /class="comparison-table"/);
+  }
 });
 
-test("running jobs keep the run ID visible before strategy results exist", () => {
-  const html = renderToStaticMarkup(React.createElement(StatusView, {
-    locale: "ja",
-    error: null,
-    run: {
-      runId: "pending-run-id",
-      status: "running",
-      selectedStrategyIds: ["strategy-one"],
-      progress: { completedStrategies: 0, totalStrategies: 1, currentStrategyId: null },
-      snapshot: { runId: "pending-run-id", config: {} },
-      result: { runId: "pending-run-id", strategyRuns: [] },
-    },
-  }));
-  assert.match(html, /<p class="run-id">pending-run-id<\/p>/);
-  assert.doesNotMatch(html, /class="run-strategy-details"/);
+test("pending jobs render their comparison statuses without a run ID or progress panel", () => {
+  const state = workspaceWithRun();
+  state.runResponse.runId = "pending-run-id";
+  state.runResponse.status = "running";
+  state.runResponse.progress = { completedStrategies: 0, totalStrategies: 1, currentStrategyId: null };
+  state.runResponse.result.strategyRuns.forEach(result => { result.status = "running"; });
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
+  assert.doesNotMatch(html, /pending-run-id|run-status-panel|progress-copy|run-strategy-details/);
+  assert.equal((html.match(/status-tag">実行中/g) ?? []).length, 2);
 });
 
-test("strategy status details reset their expanded state for each saved run", () => {
-  assert.ok(statusViewSource.includes('<details className="run-strategy-details" key={run?.runId ?? "no-run"} open={expandStrategyDetails}>'));
+test("result errors announce one localized reason when the API title duplicates its diagnostic", () => {
+  const state = createInitialWorkspaceState(catalog);
+  const diagnostic = { code: "calculation_failed", severity: "error", messageKey: "diagnostics.calculation_failed" };
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "zh", state, dispatch() {},
+    error: new RunApiError(diagnostic.code, diagnostic.messageKey, [diagnostic], 500),
+  }));
+  assert.equal((html.match(/计算过程中发生错误/g) ?? []).length, 1);
+  assert.match(html, /<div role="alert"><ul class="diagnostic-list"/);
+  assert.doesNotMatch(html, /run-status-panel/);
 });
 
  test("comparison is the sole metrics page and exports visibly indicate CSV download", () => {

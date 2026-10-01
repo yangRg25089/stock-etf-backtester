@@ -78,7 +78,7 @@ test.describe("responsive product shell", () => {
 
         const layout = await page.evaluate(() => {
           const controls = [
-            document.querySelector(".run-controls .button-primary"),
+            document.querySelector(".run-submit-button"),
             document.querySelector(".strategy-add .add-strategy-button"),
             document.querySelector(".app-topbar"),
           ].filter((element) => element instanceof HTMLElement);
@@ -230,8 +230,8 @@ test("one fixed topbar owns run and reset without a scope selector", async ({ pa
   await expect(page.locator(".page-heading")).toHaveCount(0);
   await expect(page.locator(".workbench-config-header")).toHaveCount(0);
   await expect(page.locator(".results-heading")).toHaveCount(0);
-  await expect(topbar.locator(".run-controls")).toBeVisible();
-  await expect(page.locator(".run-controls")).toHaveCount(1);
+  await expect(topbar.locator(".execution-actions")).toBeVisible();
+  await expect(page.locator(".run-controls, .run-status-panel")).toHaveCount(0);
   await expect(page.locator(".run-submit-button")).toHaveCount(1);
 
   await expect(page.locator("#run-scope-select, #run-scope-help")).toHaveCount(0);
@@ -264,7 +264,89 @@ test("one fixed topbar owns run and reset without a scope selector", async ({ pa
   expect(payload.activeStrategyId).toBeUndefined();
   await completed;
   expect(postRequests).toHaveLength(1);
-  await expect(page.locator(".run-complete-feedback")).toBeVisible();
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
+  await expect(page.locator(".run-submit-button")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator(".run-complete-feedback, .run-controls, .run-status-panel")).toHaveCount(0);
+});
+
+test("legacy execution panels never mount during restored progress, failure, or warnings", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.goto("/");
+  await openSharedSettings(page);
+  await page.getByLabel("開始日").fill("2024-01-31");
+  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+  await page.locator("#field-run-endDate").fill("2024-02-02");
+  await closeSharedSettings(page);
+  const completedResponse = page.waitForResponse(async response => {
+    if (!/\/api\/v1\/runs\/[^/]+$/.test(response.url()) || response.url().endsWith("/runs/latest") || !response.ok()) return false;
+    return ["completed", "completed_with_warning", "unavailable", "failed"].includes((await response.json()).status);
+  });
+  await page.locator(".run-submit-button").click();
+  const saved = await (await completedResponse).json();
+  expect(saved.status, JSON.stringify(saved.result.strategyRuns.map(result => result.diagnostics))).toBe("completed");
+  const removed = ".run-controls, .run-status-panel, .run-control-main, .run-reason, .run-complete-feedback, .run-strategy-details, .run-strategy-statuses, .run-id, .progress-copy";
+  const button = page.locator(".run-submit-button");
+  await expect(button).toBeEnabled();
+  const initialBounds = await button.boundingBox();
+  const resultGets = [];
+  page.on("request", request => {
+    if (request.method() === "GET" && request.url().endsWith(`/api/v1/runs/${saved.runId}`)) resultGets.push(request.url());
+  });
+  for (const status of ["queued", "loading", "running"]) {
+    const pending = structuredClone(saved);
+    pending.status = status;
+    pending.progress.completedStrategies = 1;
+    pending.result.strategyRuns.forEach(result => { result.status = status; });
+    await page.unroute("**/api/v1/runs/latest");
+    await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: pending }));
+    const eventUrl = `**/api/v1/runs/${saved.runId}/events`;
+    await page.route(eventUrl, async route => {
+      await new Promise(resolve => setTimeout(resolve, 2500));
+      await route.fulfill({ contentType: "text/event-stream", body: `event: terminal\ndata: ${JSON.stringify({
+        runId: saved.runId, status: saved.status, progress: saved.progress,
+        strategyStatuses: Object.fromEntries(saved.result.strategyRuns.map(result => [result.id, result.status])),
+      })}\n\n` });
+    });
+    const stream = page.waitForRequest(request => request.url().endsWith(`/api/v1/runs/${saved.runId}/events`));
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await stream;
+      await expect(button).toHaveAttribute("aria-busy", "true");
+      await expect(button).toBeDisabled();
+      await expect(button).toHaveAccessibleName(/1\/3/);
+      await expect(page.locator(".run-reset-button")).toBeDisabled();
+      await expect(page.locator(removed)).toHaveCount(0);
+      await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+      expect(await button.boundingBox()).toEqual(initialBounds);
+    await expect(button).toBeEnabled();
+    await expect(button).toHaveAttribute("aria-busy", "false");
+    await expect(page.locator(removed)).toHaveCount(0);
+    await page.unroute(eventUrl);
+  }
+  expect(resultGets).toHaveLength(3);
+  for (const status of ["completed_with_warning", "unavailable", "failed"]) {
+    const terminal = structuredClone(saved);
+    terminal.status = status;
+    terminal.result.strategyRuns[0].status = status === "completed_with_warning" ? "failed" : status;
+    terminal.result.strategyRuns[0].diagnostics = [{
+      code: "calculation_failed", severity: "error", messageKey: "diagnostics.calculation_failed",
+      details: { stage: "strategy", strategyId: terminal.result.strategyRuns[0].id, runId: saved.runId },
+    }];
+    await page.unroute("**/api/v1/runs/latest");
+    await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: terminal }));
+    await page.reload();
+    await expect(page.locator(".diagnostic-list")).toBeVisible();
+    await expect(page.locator(removed)).toHaveCount(0);
+    await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+    await page.locator("#result-details-toggle").click();
+    await expect(page.locator("#result-details-content")).toBeHidden();
+    await expect(page.locator(".diagnostic-list")).toBeVisible();
+  }
+  for (const language of ["日本語", "中文"]) {
+    await page.getByRole("button", { name: language, exact: true }).click();
+    const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(accessibility.violations).toEqual([]);
+  }
 });
 
 test("workbench avoids reserved blank space across width and height breakpoints", async ({ page }) => {

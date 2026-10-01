@@ -44,13 +44,13 @@
     }
     #backtest-ui-preview .topbar-brand,
     #backtest-ui-preview .brand,
-    #backtest-ui-preview .run-controls,
+    #backtest-ui-preview .execution-actions,
     #backtest-ui-preview .topbar-right,
     #backtest-ui-preview .locale-switch { display: flex; align-items: center; gap: 8px; }
     #backtest-ui-preview .topbar-brand { min-width: 0; }
     #backtest-ui-preview .brand-mark { display: grid; place-items: center; width: 28px; height: 28px; color: #fff; background: var(--accent); border-radius: 5px; font-weight: 700; }
     #backtest-ui-preview .brand-name { font-weight: 650; white-space: nowrap; }
-    #backtest-ui-preview .run-controls { flex: 1 1 auto; justify-content: flex-end; }
+    #backtest-ui-preview .execution-actions { flex: 1 1 auto; justify-content: flex-end; }
     #backtest-ui-preview button,
     #backtest-ui-preview input,
     #backtest-ui-preview select { min-height: 38px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; }
@@ -200,7 +200,7 @@
       #backtest-ui-preview .divider { display: none; }
       #backtest-ui-preview .app-topbar { flex-wrap: wrap; }
       #backtest-ui-preview .brand-name { font-size: 12px; }
-      #backtest-ui-preview .run-controls { flex: 1 1 auto; }
+      #backtest-ui-preview .execution-actions { flex: 1 1 auto; }
 
 
       #backtest-ui-preview main { height: auto; min-height: 0; overflow: visible; padding: 8px; }
@@ -260,7 +260,7 @@
 
       <div class="brand"><span class="brand-mark" aria-hidden="true">B</span><span class="brand-name">株式・ETF バックテスター</span></div>
     </div>
-    <div class="run-controls" aria-label="バックテスト実行">
+    <div class="execution-actions" role="group" aria-label="実行操作">
       <button class="icon-button run-button" type="button" aria-label="バックテストを実行" title="バックテストを実行"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8c0-.7.8-1.1 1.4-.7l11 7.1a1 1 0 0 1 0 1.6l-11 7.1a.9.9 0 0 1-1.4-.7V2.8Z"/></svg></button>
       <button class="icon-button reset-button" type="button" aria-label="結果をクリア" title="結果をクリア">↺</button>
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ExportKind, StrategyRun } from "../../api/generated";
 import { ExportApiError } from "../../api/exports";
 import { translate, type Locale } from "../../i18n/messages";
-import { DiagnosticList } from "../runs/StatusView";
+import { DiagnosticList } from "../runs/DiagnosticList";
 import { isExportAvailable, performCsvExport } from "./exportModel";
 
 const EXPORT_KINDS: ExportKind[] = ["summary", "daily-assets", "trades", "search-results"];
