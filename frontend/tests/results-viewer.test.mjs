@@ -221,8 +221,8 @@ test("request and partial failures stay visible while draft edits do not add res
   assert.ok(partialHtml.indexOf('id="result-details"') < partialHtml.indexOf('class="diagnostic-list"'));
   assert.ok(partialHtml.indexOf('class="diagnostic-list"') < partialHtml.indexOf('id="result-details-content"'));
   assert.doesNotMatch(partialHtml, /run-status-panel|run-strategy-statuses|部分策略已完成/);
-  assert.match(partialHtml, /status-tag">失败/);
-  assert.match(partialHtml, /status-tag">已完成/);
+  assert.doesNotMatch(partialHtml, /status-tag/);
+  assert.match(partialHtml, />—<\/td>/);
   assert.match(partialHtml, /计算过程中发生错误/);
   assert.equal((partialHtml.match(/计算过程中发生错误/g) ?? []).length, 1);
   assert.equal((partialHtml.match(/class="metric-card"/g) ?? []).length, 0);
@@ -381,20 +381,20 @@ test("an empty workspace keeps the details card first and every CSV kind visible
   assert.match(html, /data-export-kind="search-results" disabled/);
 });
 
-test("comparison rows distinguish partial success and full failure without duplicate status summaries", () => {
+test("comparison withholds failed metrics without role or status columns", () => {
   const state = workspaceWithRun();
   state.runResponse.status = "completed_with_warning";
   state.runResponse.result.strategyRuns[0].status = "failed";
   const render = () => renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
   const partial = render();
-  assert.match(partial, /status-tag">失败/);
-  assert.match(partial, /status-tag">已完成/);
+  assert.doesNotMatch(partial, /status-tag/);
+  assert.equal((partial.match(/>—<\/td>/g) ?? []).length, 8);
   assert.doesNotMatch(partial, /run-status-panel|run-strategy-statuses|部分策略已完成/);
   state.runResponse.status = "failed";
   state.runResponse.result.strategyRuns[1].status = "failed";
   const failed = render();
-  assert.equal((failed.match(/status-tag">失败/g) ?? []).length, 2);
-  assert.doesNotMatch(failed, /status-tag">已完成/);
+  assert.equal((failed.match(/>—<\/td>/g) ?? []).length, 16);
+  assert.doesNotMatch(failed, /status-tag/);
 });
 
 test("clean completion and warnings never add a separate status list or run identity", () => {
@@ -407,7 +407,7 @@ test("clean completion and warnings never add a separate status list or run iden
   }
 });
 
-test("pending jobs render their comparison statuses without a run ID or progress panel", () => {
+test("pending jobs withhold comparison metrics without a status column or progress panel", () => {
   const state = workspaceWithRun();
   state.runResponse.runId = "pending-run-id";
   state.runResponse.status = "running";
@@ -415,7 +415,8 @@ test("pending jobs render their comparison statuses without a run ID or progress
   state.runResponse.result.strategyRuns.forEach(result => { result.status = "running"; });
   const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
   assert.doesNotMatch(html, /pending-run-id|run-status-panel|progress-copy|run-strategy-details/);
-  assert.equal((html.match(/status-tag">実行中/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /status-tag/);
+  assert.equal((html.match(/>—<\/td>/g) ?? []).length, 16);
 });
 
 test("result errors announce one localized reason when the API title duplicates its diagnostic", () => {

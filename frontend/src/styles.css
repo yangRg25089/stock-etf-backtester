@@ -1986,16 +1986,11 @@ h2 {
 .chart-cursor-label { fill: white; font-size: 11px; font-variant-numeric: tabular-nums; }
 .chart-cursor-point { stroke: white; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .chart-crosshair-readout {
-  position: absolute;
-  z-index: 2;
-  top: 7px;
-  left: 11.5%;
-  right: 3.25%;
+  position: static;
   display: flex;
   flex-wrap: wrap;
   gap: 3px 12px;
   padding: 3px 6px;
-  background: #ffffffed;
   color: var(--app-foreground);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -2003,6 +1998,10 @@ h2 {
   user-select: none;
 }
 .chart-cursor-reading { white-space: nowrap; }
+.chart-core-readout-row {
+  height: 64px;
+  min-width: 680px;
+}
 
 .overlay-legend-swatch {
   width: 16px;
@@ -2664,8 +2663,7 @@ h2 {
 .workbench-results .chart-linked-stack .chart-panel { min-width: 680px; padding: 0; border: 0; border-radius: 0; overflow: visible; }
 .workbench-results .chart-linked-stack .chart-panel.is-compact {
   margin-top: 0;
-  padding-top: 3px;
-  border-top: 1px solid var(--app-border);
+  padding-top: 0;
 }
 .chart-linked-stack .chart-panel.is-compact .result-chart {
   aspect-ratio: 800 / 90;

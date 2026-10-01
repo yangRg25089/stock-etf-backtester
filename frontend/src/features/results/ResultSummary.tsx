@@ -25,8 +25,6 @@ export function ResultComparison({
         <thead>
           <tr>
             <th scope="col">{translate(locale, "results.strategy")}</th>
-            <th scope="col">{translate(locale, "results.role")}</th>
-            <th scope="col">{translate(locale, "results.status")}</th>
             <th scope="col">{translate(locale, "results.totalContributed")}</th>
             <th scope="col">{translate(locale, "results.endingEquity")}</th>
             <th scope="col">{translate(locale, "results.netProfit")}</th>
@@ -54,8 +52,6 @@ export function ResultComparison({
                     <span>{displayName}</span>
                   </button>
                 </th>
-                <td>{translate(locale, `results.role.${result.role}`)}</td>
-                <td><span className="status-tag">{translate(locale, `status.${result.status ?? "queued"}`)}</span></td>
                 <td>{formatCurrency(metrics?.totalContributed, metrics?.currency, locale)}</td>
                 <td>{formatCurrency(metrics?.endingEquity, metrics?.currency, locale)}</td>
                 <td>{formatCurrency(metrics?.netProfit, metrics?.currency, locale)}</td>

@@ -45,7 +45,7 @@ const results = [
   },
 ];
 
-test("comparison table focuses the saved result identity and shows backend statuses", () => {
+test("comparison table focuses saved identity without role or status columns", () => {
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh",
     strategyRuns: results,
@@ -56,7 +56,7 @@ test("comparison table focuses the saved result identity and shows backend statu
   assert.match(html, /aria-pressed="true"><span>每月定额定投/);
   assert.match(html, /aria-pressed="false"><span>VIX 信号定投/);
   assert.doesNotMatch(html, /benchmark-dca|vix-instance/);
-  assert.match(html, /已完成，有警告/);
+  assert.doesNotMatch(html, /角色|状态|基准策略|已完成，有警告|status-tag/);
   assert.match(html, /资本倍数/);
 });
 

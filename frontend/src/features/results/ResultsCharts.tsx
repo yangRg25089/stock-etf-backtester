@@ -402,15 +402,9 @@ function IndicatorChart({
   const cursorPoint = samples.find((point) => point.index === cursor?.index);
   const cursorY = cursor?.chartId === series.id ? geometry.top + cursor.yRatio * plotHeight : undefined;
   const cursorValue = cursor ? scale.maximum - cursor.yRatio * (scale.maximum - scale.minimum) : null;
-  const readings: CursorReading[] = [{
-    label: translate(locale, series.labelKey),
-    value: cursorPoint ? formatAxisValue(cursorPoint.value, locale, series.id) : "—",
-    color: series.color,
-  }];
   return (
     <figure className={figureClass} data-window-start={viewport.start} data-window-end={viewport.end}>
       <div className="chart-canvas">
-        <ChartReadout date={cursorDate} readings={readings} />
         <svg
           {...chartInteractionProps}
           className="result-chart"
@@ -479,6 +473,7 @@ function OverlayChart({
   assets,
   trades,
   series,
+  indicatorSeries,
   samplesById,
   normalizedById,
   currency,
@@ -490,6 +485,7 @@ function OverlayChart({
   assets: DailyAsset[];
   trades: Trade[];
   series: SeriesDefinition[];
+  indicatorSeries: IndicatorSeriesDefinition[];
   samplesById: Map<ChartSeriesId, SeriesSample[]>;
   normalizedById: Map<ChartSeriesId, NormalizedSeries | null>;
   currency?: string;
@@ -551,6 +547,10 @@ function OverlayChart({
     };
   });
   readings.push({ label: translate(locale, "chart.principal"), value: preciseValue(cursor ? numericValue(assets[cursor.index]?.totalContributed) : null, locale, currency) });
+  for (const definition of indicatorSeries) {
+    const point = samplesById.get(definition.id)?.find((sample) => sample.index === cursor?.index);
+    readings.push({ label: translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color });
+  }
   return (
     <figure className="chart-panel chart-overlay" data-window-start={viewport.start} data-window-end={viewport.end}>
       <figcaption className="core-chart-heading">
@@ -558,8 +558,10 @@ function OverlayChart({
         <SeriesLegend locale={locale} series={normalized.map(({ definition }) => definition)} currency={currency} highlight={highlight} />
       </figcaption>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
-      <div className="chart-canvas">
+      <div className="chart-core-readout-row">
         <ChartReadout date={cursorDate} readings={readings} />
+      </div>
+      <div className="chart-canvas">
         <svg
           {...chartInteractionProps}
           className="result-chart"
@@ -772,6 +774,7 @@ export function ResultsCharts({
               assets={dailyAssets}
               trades={trades}
               series={coreSeries}
+              indicatorSeries={indicatorSeries}
               samplesById={samplesById}
               normalizedById={normalizedById}
               currency={currency}

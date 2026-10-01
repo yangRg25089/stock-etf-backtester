@@ -790,7 +790,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".run-status-panel")).toHaveCount(0);
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
-  await expect(page.locator(".comparison-table thead th")).toHaveCount(11);
+  await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
   await expect(page.locator(".comparison-table")).toContainText("実際の投入額");
   await expect(page.locator("#result-details")).toBeVisible();
   await expect(page.locator(".result-run-id, #result-focus-select, .metric-card")).toHaveCount(0);
@@ -1617,7 +1617,7 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   await page.reload();
   await expect(page.locator("#result-tab-comparison")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#result-focus-select, #result-tab-overview, #result-tab-metrics, .metric-card")).toHaveCount(0);
-  await expect(page.locator(".comparison-table thead th")).toHaveCount(11);
+  await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
   const benchmark = saved.result.strategyRuns.find((result) => result.presetId === "monthly_dca" && result.role === "benchmark");
   const row = page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" });
   await row.locator("td").last().click();
@@ -2002,6 +2002,10 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   const vix = stack.locator(".chart-vix");
   const coreSvg = core.locator("svg.result-chart");
   const vixSvg = vix.locator("svg.result-chart");
+  for (const figure of await stack.locator(".is-compact").all()) {
+    await expect(figure).toHaveCSS("border-top-width", "0px");
+    await expect(figure).toHaveCSS("padding-top", "0px");
+  }
   async function hoverPlot(svg, yRatio = 0.5) {
     await svg.scrollIntoViewIfNeeded();
     const geometry = await svg.evaluate((el) => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, viewHeight: el.viewBox.baseVal.height, top: Number(el.dataset.plotTop), bottom: Number(el.dataset.plotBottom) }));
@@ -2024,6 +2028,16 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
     await expect(readout).toContainText(new Intl.NumberFormat("ja-JP", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value)) + " USD");
   }
   await expect(readout).toContainText("相対指数");
+  await expect(stack.locator(".chart-crosshair-readout")).toHaveCount(1);
+  await expect(stack.locator(".is-compact .chart-crosshair-readout")).toHaveCount(0);
+  const reservedReadout = await core.locator(".chart-crosshair-readout").boundingBox();
+  expect(reservedReadout.y + reservedReadout.height, "shared readout stays above every curve plot").toBeLessThanOrEqual((await coreSvg.boundingBox()).y);
+  const helpers = await stack.locator(".is-compact").evaluateAll((figures) => figures.map((figure) => {
+    const svg = figure.querySelector("svg.result-chart");
+    return { top: figure.getBoundingClientRect().top, bottom: figure.getBoundingClientRect().bottom, height: svg.getBoundingClientRect().height };
+  }));
+  expect(helpers[1].height).toBeCloseTo(helpers[0].height, 1);
+  expect(helpers[1].top - helpers[0].bottom).toBeCloseTo(0, 1);
   await hoverPlot(vixSvg, 0.25);
   await expect(core.locator(".chart-cursor-horizontal")).toHaveCount(0);
   const horizontal = vix.locator(".chart-cursor-horizontal");
@@ -2031,7 +2045,8 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await expect(stack.locator(".chart-cursor-date")).toHaveCount(1);
   await expect(stack.locator(".chart-date-axis .chart-cursor-date")).toHaveCount(1);
   const vixValue = result.signals.find((signal) => signal.date === day.date && signal.signalId === "vix.buy").observedValue;
-  await expect(vix.locator(".chart-crosshair-readout")).toContainText(String(Number(vixValue)));
+  await expect(readout).toContainText(String(Number(vixValue)));
+  await expect(readout).toContainText("ドローダウン");
   await expect(vix.locator(".chart-cursor-point")).toHaveCount(1);
   const dateSpacing = await stack.locator(".chart-date-axis").evaluate((figure) => {
     const date = figure.querySelector(".chart-cursor-date").getBoundingClientRect();

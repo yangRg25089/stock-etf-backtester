@@ -297,6 +297,17 @@ test("SVG chart labels cannot be selected by drag gestures", () => {
   assert.match(css, /\.chart-linked-stack \.chart-panel\.is-compact \.result-chart\s*\{[^}]*aspect-ratio:\s*800 \/ 90/s);
 });
 
+test("linked figures have no separator and keep one shared readout under the core heading", () => {
+  const compact = blockFor(".workbench-results .chart-linked-stack .chart-panel.is-compact");
+  assert.doesNotMatch(compact, /border-top|padding-top:\s*[1-9]/);
+  const charts = readFileSync(new URL("../src/features/results/ResultsCharts.tsx", import.meta.url), "utf8");
+  assert.match(css, /\.chart-core-readout-row\s*\{[^}]*height:\s*64px/s);
+  assert.match(css, /\.chart-crosshair-readout\s*\{[^}]*position:\s*static/s);
+  assert.doesNotMatch(charts, /chart-indicator-readout-row/);
+  assert.equal((charts.match(/<ChartReadout\b/g) ?? []).length, 1);
+  assert.doesNotMatch(prototype, /\.compact-indicator\s*\{[^}]*border-top/s);
+});
+
 test("removed result controls have no reducer, rendering, translation or style implementation", () => {
   const model = readFileSync(new URL("../src/features/strategies/model.ts", import.meta.url), "utf8");
   const details = readFileSync(new URL("../src/features/results/ResultDetails.tsx", import.meta.url), "utf8");
