@@ -49,7 +49,7 @@ from .indicators import (
 
 
 class StrategySignalSeries(DomainModel):
-    """One enabled strategy's evaluations; unavailable dependencies are strict."""
+    """One strategy's evaluations; unavailable dependencies are strict."""
 
     strategy_id: str = Field(alias="strategyId", min_length=1)
     evaluations: tuple[SignalEvaluation, ...] = ()
@@ -72,7 +72,7 @@ class StrategySignalSeries(DomainModel):
 
 
 class SignalBatch(DomainModel):
-    """Signal series for every enabled strategy in a frozen run config."""
+    """Signal series for every strategy in a frozen run config."""
 
     strategies: tuple[StrategySignalSeries, ...] = ()
 
@@ -80,7 +80,7 @@ class SignalBatch(DomainModel):
         for series in self.strategies:
             if series.strategy_id == strategy_id:
                 return series
-        raise KeyError(f"no enabled strategy signal series: {strategy_id}")
+        raise KeyError(f"no strategy signal series: {strategy_id}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +118,6 @@ def evaluate_signals(
     series = tuple(
         _evaluate_strategy(index, strategy, context)
         for index, strategy in enumerate(config.strategies)
-        if strategy.enabled
     )
     return SignalBatch(strategies=series)
 

@@ -112,12 +112,11 @@ def test_schedule_clamps_a_future_fixed_end_to_latest_complete_exchange_date() -
     )
 
 
-def test_latest_mode_uses_latest_complete_session() -> None:
+def test_selected_end_date_is_limited_by_the_latest_complete_session() -> None:
     settings = _settings(
         start=date(2024, 1, 1),
         end=date(2024, 12, 31),
         day=1,
-        end_mode=EndMode.LATEST,
     )
     calendar = ExchangeCalendar.from_dates(
         [date(2024, 1, 2), date(2024, 3, 1)],
@@ -128,6 +127,42 @@ def test_latest_mode_uses_latest_complete_session() -> None:
     result = schedule(settings, calendar)
 
     assert result.effective_end_date == date(2024, 3, 1)
+    assert result.contributions[-1].date == date(2024, 3, 1)
+
+
+def test_legacy_end_mode_cannot_extend_the_selected_date_range() -> None:
+    settings = _settings(
+        start=date(2024, 1, 1),
+        end=date(2024, 2, 1),
+        day=1,
+        end_mode=EndMode.LATEST,
+    )
+    calendar = ExchangeCalendar.from_dates(
+        [date(2024, 1, 2), date(2024, 2, 1), date(2024, 3, 1)],
+        as_of_date=date(2024, 3, 1),
+        latest_complete_date=date(2024, 3, 1),
+    )
+
+    result = schedule(settings, calendar)
+
+    assert result.requested_end_date == date(2024, 2, 1)
+    assert result.effective_end_date == date(2024, 2, 1)
+    assert result.contributions[-1].date == date(2024, 2, 1)
+
+
+def test_today_uses_available_complete_sessions_without_a_tail_warning() -> None:
+    settings = _settings(start=date(2024, 1, 1), end=date(2024, 3, 4), day=1)
+    calendar = ExchangeCalendar.from_dates(
+        [date(2024, 1, 2), date(2024, 2, 1), date(2024, 3, 1), date(2024, 3, 4)],
+        as_of_date=date(2024, 3, 4),
+        latest_complete_date=date(2024, 3, 1),
+    )
+    result = schedule(settings, calendar)
+    assert result.requested_end_date == date(2024, 3, 4)
+    assert result.effective_end_date == date(2024, 3, 1)
+    assert not any(
+        item.message_key == "calendar.end_date_clamped" for item in result.diagnostics
+    )
     assert result.contributions[-1].date == date(2024, 3, 1)
 
 

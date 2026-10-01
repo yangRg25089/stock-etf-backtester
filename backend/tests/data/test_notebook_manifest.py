@@ -51,8 +51,6 @@ def test_manifest_contains_every_explicit_compare_input_mapping() -> None:
         "contribution.amount",
         "accumulation.cashSafetyLimit",
         "accumulation.conditionLogic",
-        "accumulation.fixedDcaEnabled",
-        "accumulation.fixedDcaRatio",
         "vix.buyEnabled",
         "vix.symbol",
         "vix.buyThreshold",
@@ -101,6 +99,17 @@ def test_notebook_trade_output_is_preserved_without_a_visibility_parameter() -> 
     }
     assert all(item["targetKey"] == [] for item in mappings)
     assert all(item["mappingKind"] == "alwaysAvailableOutput" for item in mappings)
+
+
+def test_retired_notebook_inputs_have_no_active_parameter_mapping() -> None:
+    retired = {"启用固定比例定投", "固定定投比例", "网格固定比例列表"}
+    mappings = [
+        item for item in _manifest()["mappings"] if item["sourceKey"] in retired
+    ]
+    assert {item["sourceKey"] for item in mappings} == retired
+    assert all(item["targetKey"] == [] for item in mappings)
+    assert all(item["mappingKind"] == "retiredInput" for item in mappings)
+    assert all(item["reason"] for item in mappings)
 
 
 def test_manifest_is_self_contained_and_does_not_read_external_notebooks() -> None:

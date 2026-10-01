@@ -100,7 +100,7 @@ class RunSettings(DomainModel):
     symbol: str = Field(min_length=1)
     start_date: Date = Field(alias="startDate")
     end_date: Date = Field(alias="endDate")
-    end_mode: EndMode = Field(alias="endMode")
+    end_mode: EndMode = Field(default=EndMode.FIXED, alias="endMode")
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "RunSettings":
@@ -146,12 +146,19 @@ class SharedSettings(DomainModel):
     data: DataSettings
 
 
+class InstrumentMetadata(DomainModel):
+    symbol: str
+    currency: str | None = None
+    diagnostics: tuple[Diagnostic, ...] = ()
+
+
 class StrategyInstance(MutableDomainModel):
     """Editable draft instance; its values are copied when a run is submitted."""
 
     id: str = Field(min_length=1)
     preset_id: StrategyPresetId = Field(alias="presetId")
-    enabled: bool
+    enabled: bool = True
+    instance_number: int | None = Field(default=None, alias="instanceNumber", ge=1)
     params: dict[str, object] = Field(default_factory=dict)
     rules: StrategyRules | None = None
 
@@ -182,7 +189,8 @@ class FrozenStrategyInstance(DomainModel):
 
     id: str = Field(min_length=1)
     preset_id: StrategyPresetId = Field(alias="presetId")
-    enabled: bool
+    enabled: bool = True
+    instance_number: int | None = Field(default=None, alias="instanceNumber", ge=1)
     params: Mapping[str, object] = Field(default_factory=dict, validate_default=True)
     rules: StrategyRules | None = None
 
@@ -218,6 +226,7 @@ class FrozenRunConfig(DomainModel):
                     id=strategy.id,
                     presetId=strategy.preset_id,
                     enabled=strategy.enabled,
+                    instanceNumber=strategy.instance_number,
                     params=strategy.params,
                     rules=strategy.rules,
                 )
@@ -485,9 +494,18 @@ class MetricSummary(DomainModel):
     capital_multiple: Decimal | None = Field(default=None, alias="capitalMultiple")
     xirr: Decimal | None = None
     maximum_drawdown: Decimal | None = Field(default=None, alias="maximumDrawdown")
-    relative_to_dca: Decimal | None = Field(default=None, alias="relativeToDca")
     currency: str | None = Field(default=None, min_length=1)
     diagnostics: tuple[Diagnostic, ...] = ()
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_legacy_summary(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+        fields = dict(value)
+        fields.pop("relativeToDca", None)
+        fields.pop("relative_to_dca", None)
+        return fields
 
 
 class SearchResultDimension(DomainModel):
@@ -622,6 +640,7 @@ class StrategyRun(DomainModel):
 
     id: str = Field(min_length=1)
     preset_id: StrategyPresetId = Field(alias="presetId")
+    instance_number: int | None = Field(default=None, alias="instanceNumber", ge=1)
     role: ResultRole
     status: StrategyStatus = StrategyStatus.QUEUED
     diagnostics: tuple[Diagnostic, ...] = ()
@@ -736,6 +755,9 @@ def _aggregate_status(strategy_runs: tuple[StrategyRun, ...]) -> StrategyStatus:
         return StrategyStatus.LOADING
     if StrategyStatus.QUEUED in statuses:
         return StrategyStatus.QUEUED
+
+    if StrategyStatus.CANCELLED in statuses:
+        return StrategyStatus.CANCELLED
 
     successes = {
         StrategyStatus.COMPLETED,

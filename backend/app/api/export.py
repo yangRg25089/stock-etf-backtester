@@ -41,6 +41,18 @@ def export_run_result(
             "run_not_found",
             "api.errors.run_not_found",
         )
+    if run.result is not None and not any(
+        item.id == focused_result_id for item in run.result.strategy_runs
+    ):
+        candidate = _run_service(request).get_candidate(run_id, focused_result_id)
+        if candidate is not None:
+            run = run.model_copy(
+                update={
+                    "result": run.result.model_copy(
+                        update={"strategy_runs": (candidate,)}
+                    )
+                }
+            )
     try:
         content = export_csv(
             run,

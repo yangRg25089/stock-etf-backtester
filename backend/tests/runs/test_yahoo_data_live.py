@@ -6,6 +6,7 @@ import asyncio
 import csv
 import io
 from concurrent.futures import Executor, Future
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -54,7 +55,6 @@ def test_live_fixed_custom_and_indicator_rules_share_results_and_restore(
             "presetId": "composite_dca",
             "enabled": True,
             "params": {
-                "accumulation.fixedDcaEnabled": False,
                 "accumulation.maxSignalBuysPerMonth": 1,
             },
             "rules": {"buy": vix, "sell": None},
@@ -168,83 +168,80 @@ def test_live_qqq_volatility_index_runs_use_real_yahoo_observations(tmp_path) ->
         executor=_InlineExecutor(),
     )
 
-    async def submit_and_read() -> dict[str, Any]:
+    selected_end = date.today().isoformat()
+
+    async def submit_and_read(symbol: str) -> dict[str, Any]:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
-            base_url="http://live-yahoo-test",
+            transport=httpx.ASGITransport(app=app), base_url="http://live-yahoo-test"
         ) as client:
             submitted = await client.post(
                 "/api/v1/runs",
-                headers={"Idempotency-Key": "live-yahoo-qqq-vix"},
-                json=jsonable_encoder(
-                    {
-                        "draft": {
-                            "shared": {
-                                "run": {
-                                    "symbol": "QQQ",
-                                    "startDate": "2020-01-01",
-                                    "endDate": "2020-01-01",
-                                    "endMode": "latest",
-                                },
-                                "contribution": {"day": 1, "amount": 100},
+                headers={"Idempotency-Key": f"live-yahoo-qqq-{symbol}"},
+                json={
+                    "draft": {
+                        "shared": {
+                            "run": {
+                                "symbol": "QQQ",
+                                "startDate": "2020-01-01",
+                                "endDate": selected_end,
                             },
-                            "strategies": [
-                                {
-                                    "id": f"live-yahoo-{symbol[1:].lower()}",
-                                    "presetId": "vix_dca",
-                                    "enabled": True,
-                                    "params": {"vix.symbol": symbol},
-                                }
-                                for symbol in ("^VIX", "^VXN", "^VXD")
-                            ],
+                            "contribution": {"day": 1, "amount": 100},
                         },
-                        "scope": "all_enabled",
-                    }
-                ),
+                        "strategies": [
+                            {
+                                "id": "volatility",
+                                "presetId": "vix_dca",
+                                "params": {"vix.symbol": symbol},
+                            }
+                        ],
+                    },
+                    "scope": "all_enabled",
+                },
             )
             assert submitted.status_code == 202, submitted.text
-            run_id = submitted.json()["runId"]
-            completed = await client.get(f"/api/v1/runs/{run_id}")
+            completed = await client.get(f"/api/v1/runs/{submitted.json()['runId']}")
             assert completed.status_code == 200, completed.text
             return completed.json()
 
     try:
-        result = asyncio.run(submit_and_read())
+        results = [
+            asyncio.run(submit_and_read(symbol)) for symbol in ("^VIX", "^VXN", "^VXD")
+        ]
     finally:
         app.state.run_service = previous_service
         store.close()
 
-    assert result["snapshot"]["dataProvenance"]["sources"] == ["yahoo"]
-    assert result["snapshot"]["config"]["shared"]["run"]["endDate"] is not None
-    for symbol in ("^VIX", "^VXN", "^VXD"):
+    for result in results:
+        snapshot = result["snapshot"]
+        assert snapshot["dataProvenance"]["sources"] == ["yahoo"]
+        assert snapshot["config"]["shared"]["run"]["endDate"] == selected_end
         strategy = next(
             item
             for item in result["result"]["strategyRuns"]
-            if item["id"] == f"live-yahoo-{symbol[1:].lower()}"
+            if item["id"] == "volatility"
         )
-        assert strategy["status"] in {
-            "completed",
-            "completed_with_warning",
-        }, strategy.get("diagnostics")
-        assert all(
-            diagnostic["severity"] == "warning"
-            for diagnostic in strategy.get("diagnostics", [])
+        assert strategy["status"] in {"completed", "completed_with_warning"}, (
+            strategy.get("diagnostics")
         )
         assert all(
-            diagnostic["messageKey"] != "market.latest_quote_delayed"
-            for diagnostic in strategy.get("diagnostics", [])
+            item["severity"] == "warning" for item in strategy.get("diagnostics", [])
+        )
+        assert all(
+            item["messageKey"] != "market.latest_quote_delayed"
+            for item in strategy.get("diagnostics", [])
         )
         assert (
             strategy["dailyAssets"][-1]["date"]
-            == result["snapshot"]["config"]["shared"]["run"]["endDate"]
+            == snapshot["dataProvenance"]["marketDataThrough"]
         )
-        assert strategy["metrics"]["relativeToDca"] is not None
-        vix_signals = [
+        assert strategy["dailyAssets"][-1]["date"] <= selected_end
+        assert "relativeToDca" not in strategy["metrics"]
+        signals = [
             item for item in strategy["signals"] if item["signalId"] == "vix.buy"
         ]
-        assert vix_signals
-        assert all(item["state"] != "unavailable" for item in vix_signals)
-        assert any(item.get("observedValue") is not None for item in vix_signals)
+        assert signals
+        assert all(item["state"] != "unavailable" for item in signals)
+        assert any(item.get("observedValue") is not None for item in signals)
 
 
 def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> None:
@@ -417,3 +414,12 @@ def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> Non
     assert [row["totalContributed"] for row in daily_asset_rows] == [
         asset["totalContributed"] for asset in strategy["dailyAssets"]
     ]
+
+
+def test_live_instrument_metadata_resolves_real_usd_and_jpy_quotes():
+    provider = YahooRunDataProvider()
+    for symbol, currency in (("QQQ", "USD"), ("7203.T", "JPY")):
+        metadata = provider.instrument_metadata(symbol)
+        assert metadata.symbol == symbol
+        assert metadata.currency == currency, metadata.diagnostics
+        assert not metadata.diagnostics

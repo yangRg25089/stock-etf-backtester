@@ -37,10 +37,6 @@ class RunSubmission(DomainModel):
             raise ValueError("submission must freeze every selected strategy")
         if validation_ids != self.selected_strategy_ids:
             raise ValueError("submission validation must match selected strategies")
-        if any(not result.enabled for result in self.strategy_validations):
-            raise ValueError("only enabled strategy validations may be submitted")
-        if any(not strategy.enabled for strategy in self.config.strategies):
-            raise ValueError("only enabled strategies may be submitted")
         if self.scope is RunScope.ACTIVE and len(config_ids) != 1:
             raise ValueError("active scope must select exactly one strategy")
         return self

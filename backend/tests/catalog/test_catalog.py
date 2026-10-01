@@ -52,7 +52,6 @@ EXPECTED_PARAMETER_KEYS = {
     "run.symbol",
     "run.startDate",
     "run.endDate",
-    "run.endMode",
     "contribution.day",
     "contribution.amount",
     "data.macroStalenessSessions",
@@ -61,8 +60,6 @@ EXPECTED_PARAMETER_KEYS = {
     "accumulation.cashSafetyLimit",
     "accumulation.maxSignalBuysPerMonth",
     "accumulation.conditionLogic",
-    "accumulation.fixedDcaEnabled",
-    "accumulation.fixedDcaRatio",
     "vix.buyEnabled",
     "vix.symbol",
     "vix.buyThreshold",
@@ -104,7 +101,7 @@ EXPECTED_PARAMETER_KEYS = {
 
 
 def test_catalog_version_advances_for_shared_condition_templates() -> None:
-    assert CATALOG_VERSION == "catalog-v6"
+    assert CATALOG_VERSION == "catalog-v7"
 
 
 def test_removed_trade_visibility_is_not_a_catalog_parameter() -> None:
@@ -235,12 +232,12 @@ def test_valuation_staleness_policies_are_registered_shared_data_settings() -> N
 
 
 def test_ratio_and_percent_point_conventions_are_explicit() -> None:
-    ratio = get_parameter_definition("accumulation.fixedDcaRatio")
+    ratio = get_parameter_definition("exit.ratio")
     assert ratio.type is ParameterType.RATIO
     assert ratio.unit == "ratio"
     assert ratio.minimum == Decimal("0")
     assert ratio.maximum == Decimal("1")
-    assert ratio.default == Decimal("0.5")
+    assert ratio.default == Decimal("0.25")
 
     rate_threshold = get_parameter_definition("rate.thresholdPct")
     assert rate_threshold.type is ParameterType.PERCENT_POINT
@@ -248,7 +245,7 @@ def test_ratio_and_percent_point_conventions_are_explicit() -> None:
 
 
 def test_parameter_value_validator_keeps_ratio_range_and_percent_point_scale() -> None:
-    ratio = get_parameter_definition("accumulation.fixedDcaRatio")
+    ratio = get_parameter_definition("exit.ratio")
     rate = get_parameter_definition("rate.thresholdPct")
 
     validate_parameter_value(ratio, Decimal("0.5"))
@@ -346,7 +343,6 @@ def test_grid_search_references_registered_numeric_keys_and_default_ranges() -> 
         "vix.buyThreshold",
         "rsi.buyThreshold",
         "accumulation.cashSafetyLimit",
-        "accumulation.fixedDcaRatio",
     }
 
 
@@ -367,7 +363,7 @@ def test_catalog_service_returns_a_serializable_snapshot_and_isolation() -> None
 def test_searchable_parameters_are_filtered_by_preset_applicability() -> None:
     keys = {definition.key for definition in get_searchable_parameters()}
     assert "vix.buyThreshold" in keys
-    assert "accumulation.fixedDcaRatio" in keys
+    assert "accumulation.cashSafetyLimit" in keys
     assert "run.symbol" not in keys
 
     trend_keys = {

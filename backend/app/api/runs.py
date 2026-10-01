@@ -17,8 +17,10 @@ from app.config.validation import (
 from app.domain.contracts import (
     FrozenRunConfig,
     FrozenStrategyInstance,
+    InstrumentMetadata,
     RunScope,
     StrategyInstance,
+    StrategyRun,
 )
 from app.domain.status import (
     Diagnostic,
@@ -54,6 +56,12 @@ class RunService(Protocol):
     ) -> RunResponse: ...
 
     def get_run(self, run_id: str) -> RunResponse | None: ...
+
+    def stop_run(self, run_id: str) -> RunResponse | None: ...
+
+    def get_candidate(self, run_id: str, candidate_id: str) -> StrategyRun | None: ...
+
+    def instrument_metadata(self, symbol: str) -> InstrumentMetadata: ...
 
     def get_latest_run(self) -> RunResponse | None: ...
 
@@ -112,6 +120,14 @@ def submit_run(
 
 
 @router.get(
+    "/instruments/{symbol}",
+    response_model=InstrumentMetadata,
+)
+def read_instrument(symbol: str, request: Request) -> InstrumentMetadata:
+    return _run_service(request).instrument_metadata(symbol.strip().upper())
+
+
+@router.get(
     "/runs/latest",
     response_model=RunResponse | None,
     responses={503: {"model": APIErrorResponse}},
@@ -138,6 +154,22 @@ def read_run(run_id: str, request: Request) -> RunResponse:
             "api.errors.run_not_found",
         )
     return record
+
+
+@router.post("/runs/{run_id}/stop", response_model=RunResponse)
+def stop_run(run_id: str, request: Request) -> RunResponse:
+    record = _run_service(request).stop_run(run_id)
+    if record is None:
+        raise APIException(404, "run_not_found", "api.errors.run_not_found")
+    return record
+
+
+@router.get("/runs/{run_id}/candidates/{candidate_id}", response_model=StrategyRun)
+def read_candidate(run_id: str, candidate_id: str, request: Request) -> StrategyRun:
+    candidate = _run_service(request).get_candidate(run_id, candidate_id)
+    if candidate is None:
+        raise APIException(404, "result_not_found", "api.errors.result_not_found")
+    return candidate
 
 
 @router.get(
@@ -199,6 +231,19 @@ def _run_event_payload(change: RunChange) -> dict[str, object]:
         "strategyStatuses": {
             strategy_run.id: strategy_run.status.value for strategy_run in strategy_runs
         },
+        "strategySummaries": {
+            item.id: {
+                "metrics": None
+                if item.metrics is None
+                else item.metrics.model_dump(mode="json", by_alias=True),
+                "diagnostics": [
+                    diagnostic.model_dump(mode="json", by_alias=True)
+                    for diagnostic in item.diagnostics
+                ],
+            }
+            for item in strategy_runs
+            if is_terminal(item.status)
+        },
     }
 
 
@@ -225,9 +270,10 @@ def _build_submission(
             FrozenStrategyInstance(
                 id=raw.id,
                 presetId=raw.preset_id,
-                enabled=raw.enabled,
+                enabled=True,
                 params=raw.params,
                 rules=raw.rules,
+                instanceNumber=raw.instance_number,
             )
         )
 
@@ -273,26 +319,19 @@ def _select_strategies(
                 "api.errors.active_strategy_not_found",
                 (_scope_diagnostic("activeStrategyId", "unknown_strategy"),),
             )
-        if not active.enabled:
-            raise APIException(
-                422,
-                "active_strategy_not_enabled",
-                "api.errors.active_strategy_not_enabled",
-                (_scope_diagnostic("activeStrategyId", "strategy_not_enabled"),),
-            )
         if active.diagnostics:
             raise _configuration_error(active.diagnostics)
         return (active,)
 
-    enabled = tuple(result for result in validation.strategies if result.enabled)
-    if not enabled:
+    selected = tuple(validation.strategies)
+    if not selected:
         raise APIException(
             422,
-            "no_enabled_strategies",
-            "api.errors.no_enabled_strategies",
-            (_scope_diagnostic("strategies", "no_enabled_strategies"),),
+            "no_strategies",
+            "api.errors.no_strategies",
+            (_scope_diagnostic("strategies", "no_strategies"),),
         )
-    return enabled
+    return selected
 
 
 def _raw_strategies(draft: Mapping[str, object]) -> dict[str, StrategyInstance]:

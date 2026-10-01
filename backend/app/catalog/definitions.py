@@ -73,9 +73,6 @@ PARAMETER_GROUP_DEFINITIONS: Final[tuple[ParameterGroupDefinition, ...]] = (
     ParameterGroupDefinition(
         id="signal_combination", translationKey="parameterGroups.signal_combination"
     ),
-    ParameterGroupDefinition(
-        id="fixed_contribution", translationKey="parameterGroups.fixed_contribution"
-    ),
     ParameterGroupDefinition(id="vix", translationKey="parameterGroups.vix"),
     ParameterGroupDefinition(id="rsi", translationKey="parameterGroups.rsi"),
     ParameterGroupDefinition(
@@ -392,8 +389,6 @@ def _condition_applicability(key: str) -> tuple[StrategyPresetId, ...]:
         and key
         not in {
             "accumulation.conditionLogic",
-            "accumulation.fixedDcaEnabled",
-            "accumulation.fixedDcaRatio",
         }
         or key == "exit.enabled"
     ):
@@ -476,18 +471,9 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
     _d(
         "run.endDate",
         ParameterType.DATE,
-        None,
+        date.today(),
         group_id="run",
         unit="date",
-        level=ParameterLevel.SHARED,
-        nullable=True,
-    ),
-    _d(
-        "run.endMode",
-        ParameterType.ENUM,
-        "latest",
-        group_id="run",
-        allowed_values=("fixed", "latest"),
         level=ParameterLevel.SHARED,
     ),
     _d(
@@ -572,27 +558,6 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         presets=_ACCUMULATION_PRESETS,
         allowed_values=("AND", "OR"),
     ),
-    _d(
-        "accumulation.fixedDcaEnabled",
-        ParameterType.BOOLEAN,
-        True,
-        group_id="fixed_contribution",
-        presets=_COMPOSITE_PRESETS,
-    ),
-    _d(
-        "accumulation.fixedDcaRatio",
-        ParameterType.RATIO,
-        Decimal("0.5"),
-        group_id="fixed_contribution",
-        presets=_COMPOSITE_PRESETS,
-        unit="ratio",
-        minimum=0,
-        maximum=1,
-        step="0.01",
-        searchable=True,
-    ),
-    # Signal parameters.  These definitions are shared by normal and search
-    # configurations; a search dimension only supplies candidate values.
     _d(
         "vix.buyEnabled",
         ParameterType.BOOLEAN,
@@ -945,7 +910,6 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
             "vix.buyThreshold",
             "rsi.buyThreshold",
             "accumulation.cashSafetyLimit",
-            "accumulation.fixedDcaRatio",
         ),
         group_id="search",
         presets=_GRID_PRESET,
@@ -953,7 +917,6 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
             "vix.buyThreshold",
             "rsi.buyThreshold",
             "accumulation.cashSafetyLimit",
-            "accumulation.fixedDcaRatio",
         ),
         level=ParameterLevel.SEARCH,
     ),

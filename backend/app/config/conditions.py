@@ -107,6 +107,7 @@ def normalize_rules(
     normalize_value: Callable[[ParameterType, object], object],
 ) -> tuple[StrategyRules, tuple[Diagnostic, ...]]:
     diagnostics: list[Diagnostic] = []
+    seen: dict[str, set[ConditionKind]] = {"buy": set(), "sell": set()}
 
     def normalize_node(
         node: ConditionNode | None, side: Literal["buy", "sell"], path: str
@@ -127,6 +128,15 @@ def normalize_rules(
                     is not None
                 ),
             )
+        if node.kind in seen[side]:
+            diagnostics.append(
+                invalid_parameter(
+                    issue=ConfigurationIssue.DUPLICATE_CONDITION,
+                    field_path=f"{path}.kind",
+                    details={"conditionId": node.id, "issue": "duplicate_condition"},
+                )
+            )
+        seen[side].add(node.kind)
         metadata = next(
             (item for item in catalog.conditions if item.kind is node.kind), None
         )

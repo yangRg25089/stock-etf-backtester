@@ -148,7 +148,9 @@ def _strategy(
     copied_params["vix.buyThreshold"] = threshold
     return {
         "id": strategy_id,
-        "presetId": "vix_dca",
+        "presetId": "vix_dca"
+        if strategy_id in ("active", "valid", "strategy-1", "same")
+        else "composite_dca",
         "enabled": enabled,
         "params": copied_params,
     }
@@ -357,19 +359,19 @@ def test_partial_run_freezes_invalid_condition_input_without_losing_the_tree() -
 
 def test_run_scope_errors_and_missing_run_use_the_structured_error_envelope() -> None:
     service = _FakeRunService()
-    no_enabled = _draft([_strategy("disabled", enabled=False)])
+    empty_draft = _draft([])
 
     empty_response = _request(
         "POST",
         "/api/v1/runs",
         service=service,
         headers={"Idempotency-Key": "empty-run-intent"},
-        json_body={"draft": no_enabled, "scope": "all_enabled"},
+        json_body={"draft": empty_draft, "scope": "all_enabled"},
     )
     missing_response = _request("GET", "/api/v1/runs/missing", service=service)
 
     assert empty_response.status_code == 422
-    assert empty_response.json()["error"]["code"] == "no_enabled_strategies"
+    assert empty_response.json()["error"]["code"] == "no_strategies"
     assert missing_response.status_code == 404
     assert missing_response.json()["error"]["code"] == "run_not_found"
 
@@ -392,7 +394,7 @@ def test_idempotency_body_conflict_uses_stable_http_error_contract() -> None:
     assert response.json()["error"]["messageKey"] == "api.errors.idempotency_conflict"
 
 
-def test_active_run_requires_an_enabled_selected_instance() -> None:
+def test_new_submissions_reject_the_removed_instance_disabled_state() -> None:
     service = _FakeRunService()
 
     response = _request(
@@ -408,7 +410,7 @@ def test_active_run_requires_an_enabled_selected_instance() -> None:
     )
 
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "active_strategy_not_enabled"
+    assert response.json()["error"]["code"] == "configuration_invalid"
     assert service.submissions == []
 
 

@@ -46,8 +46,6 @@ def _params(
         "accumulation.cashSafetyLimit": Decimal("1200"),
         "accumulation.maxSignalBuysPerMonth": None,
         "accumulation.conditionLogic": "OR",
-        "accumulation.fixedDcaEnabled": False,
-        "accumulation.fixedDcaRatio": Decimal("0.7"),
         "vix.buyEnabled": True,
         "vix.symbol": "^VIX",
         "rsi.buyEnabled": False,
@@ -178,7 +176,7 @@ def _input(
 def test_grid_search_covers_each_selected_value_and_keeps_base_parameters() -> None:
     config = _config(
         dimensions=["vix.buyThreshold"],
-        overrides={"accumulation.fixedDcaRatio": Decimal("0.4")},
+        overrides={"accumulation.cashSafetyLimit": Decimal("400")},
     )
 
     result = run_grid_search(_input(config))
@@ -191,7 +189,7 @@ def test_grid_search_covers_each_selected_value_and_keeps_base_parameters() -> N
         for candidate in result.candidates
     ] == [Decimal("25"), Decimal("28"), Decimal("30"), Decimal("35")]
     assert all(
-        candidate.parameter_values["accumulation.fixedDcaRatio"] == Decimal("0.4")
+        candidate.parameter_values["accumulation.cashSafetyLimit"] == Decimal("400")
         for candidate in result.candidates
     )
     assert all(candidate.metrics is not None for candidate in result.candidates)
@@ -201,9 +199,8 @@ def test_grid_search_covers_each_selected_value_and_keeps_base_parameters() -> N
 
 def test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark() -> None:
     grid_config = _config(
-        dimensions=["accumulation.fixedDcaRatio"],
+        dimensions=["vix.buyThreshold"],
         overrides={
-            "accumulation.fixedDcaEnabled": True,
             "vix.buyEnabled": False,
             "rsi.buyEnabled": False,
             "ma.buyEnabled": False,
@@ -220,7 +217,7 @@ def test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark() 
     candidate = next(
         candidate
         for candidate in search.candidates
-        if candidate.parameter_values["accumulation.fixedDcaRatio"] == Decimal("1")
+        if candidate.parameter_values["vix.buyThreshold"] == Decimal("25")
     )
     assert candidate.status is StrategyStatus.COMPLETED
     assert candidate.role is ResultRole.STRATEGY
@@ -325,14 +322,24 @@ def test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark() 
         metrics=benchmark_metrics.summary,
     )
 
-    assert ordinary_ledger.trades == benchmark_ledger.trades
-    assert ordinary_ledger.daily_assets == benchmark_ledger.daily_assets
-    assert ordinary_metrics.summary == benchmark_metrics.summary
+    assert ordinary_ledger.trades == ()
+    assert benchmark_ledger.trades
+    assert (
+        ordinary_ledger.daily_assets[-1].cash
+        == ordinary_metrics.summary.total_contributed
+    )
+    assert (
+        ordinary_metrics.summary.total_contributed
+        == benchmark_metrics.summary.total_contributed
+    )
     assert candidate.metrics == ordinary_metrics.summary
     assert ordinary_run.role is ResultRole.STRATEGY
     assert benchmark_run.role is ResultRole.BENCHMARK
-    assert ordinary_run.daily_assets == benchmark_run.daily_assets
-    assert ordinary_run.metrics == benchmark_run.metrics
+    assert ordinary_run.daily_assets != benchmark_run.daily_assets
+    assert (
+        ordinary_run.metrics.total_contributed
+        == benchmark_run.metrics.total_contributed
+    )
 
 
 def test_unavailable_candidates_keep_their_diagnostic_and_are_not_ranked() -> None:
@@ -432,6 +439,52 @@ def test_search_reuses_calculations_without_merging_candidate_identity() -> None
     assert first.candidates[0].metrics == second.candidates[0].metrics
 
 
+def test_persisted_search_materializes_curves_from_a_metrics_only_cache() -> None:
+    source = _input(_config(dimensions=["vix.buyThreshold", "rsi.buyThreshold"]))
+    cache = {}
+    metrics_only = run_grid_search(source, calculation_cache=cache)
+    details: dict[str, StrategyRun] = {}
+
+    def save(detail: StrategyRun) -> None:
+        details[detail.id] = detail
+
+    saved = run_grid_search(
+        source,
+        calculation_cache=cache,
+        save_candidate=save,
+        load_candidate=details.get,
+    )
+
+    assert saved.total_candidate_count == metrics_only.total_candidate_count
+    assert saved.ranked_candidate_ids == metrics_only.ranked_candidate_ids
+    assert len(details) == len(saved.candidates)
+    assert len({item.calculation_fingerprint for item in saved.candidates}) == len(
+        saved.candidates
+    )
+    assert all(not candidate.reused_calculation for candidate in saved.candidates)
+    for candidate, original in zip(
+        saved.candidates, metrics_only.candidates, strict=True
+    ):
+        detail = details[candidate.candidate_id]
+        assert detail.id == candidate.candidate_id
+        assert candidate.metrics is not None
+        assert detail.metrics == candidate.metrics == original.metrics
+        assert len(detail.daily_assets) == len(_DATES)
+        assert detail.daily_assets[-1].total_asset == candidate.metrics.ending_equity
+
+
+@pytest.mark.parametrize("save_only", [True, False])
+def test_search_requires_paired_candidate_persistence_callbacks(
+    save_only: bool,
+) -> None:
+    with pytest.raises(ValueError, match="both save and load"):
+        run_grid_search(
+            _input(_config()),
+            save_candidate=(lambda detail: None) if save_only else None,
+            load_candidate=None if save_only else (lambda candidate_id: None),
+        )
+
+
 def test_grid_search_fingerprint_matches_the_equivalent_accumulation_config() -> None:
     search_config = _config(dimensions=["vix.buyThreshold"])
     search_input = _input(search_config)
@@ -466,9 +519,9 @@ def test_search_updates_matching_leaves_and_preserves_independent_values() -> No
                     params={"vix.symbol": "^VIX", "vix.buyThreshold": Decimal("20")},
                 ),
                 ConditionLeaf(
-                    id="vix-b",
-                    kind="vix",
-                    params={"vix.symbol": "^VXN", "vix.buyThreshold": Decimal("40")},
+                    id="rate-b",
+                    kind="rate",
+                    params={"rate.symbol": "^TNX", "rate.thresholdPct": Decimal("4")},
                 ),
                 ConditionLeaf(
                     id="rsi",
@@ -495,12 +548,9 @@ def test_search_updates_matching_leaves_and_preserves_independent_values() -> No
         and isinstance(second, ConditionLeaf)
         and isinstance(rsi, ConditionLeaf)
     )
-    assert (
-        first.params["vix.buyThreshold"]
-        == second.params["vix.buyThreshold"]
-        == Decimal("35")
-    )
-    assert second.params["vix.symbol"] == "^VXN"
+    assert first.params["vix.buyThreshold"] == Decimal("35")
+    assert second.params["rate.symbol"] == "^TNX"
+    assert second.params["rate.thresholdPct"] == Decimal("4")
     assert rsi.params["rsi.buyThreshold"] == Decimal("15")
     assert rules.buy == strategy.rules.buy
     assert second.params != rules.buy.children[1].params
@@ -540,7 +590,7 @@ def test_heatmap_slice_records_fixed_values_for_every_other_dimension() -> None:
     config = _config(
         dimensions=[
             "vix.buyThreshold",
-            "accumulation.fixedDcaRatio",
+            "rsi.buyThreshold",
             "accumulation.cashSafetyLimit",
         ]
     )
@@ -549,12 +599,12 @@ def test_heatmap_slice_records_fixed_values_for_every_other_dimension() -> None:
     heatmap = build_heatmap_slice(
         result,
         x_dimension="vix.buyThreshold",
-        y_dimension="accumulation.fixedDcaRatio",
+        y_dimension="rsi.buyThreshold",
         fixed_values={"accumulation.cashSafetyLimit": Decimal("600")},
     )
 
     assert heatmap.fixed_values == {"accumulation.cashSafetyLimit": Decimal("600")}
-    assert len(heatmap.candidates) == 16
+    assert len(heatmap.candidates) == 12
     assert all(
         candidate.parameter_values["accumulation.cashSafetyLimit"] == Decimal("600")
         for candidate in heatmap.candidates
@@ -563,7 +613,7 @@ def test_heatmap_slice_records_fixed_values_for_every_other_dimension() -> None:
         build_heatmap_slice(
             result,
             x_dimension="vix.buyThreshold",
-            y_dimension="accumulation.fixedDcaRatio",
+            y_dimension="rsi.buyThreshold",
             fixed_values={},
         )
 

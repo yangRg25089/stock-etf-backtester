@@ -46,7 +46,7 @@ def config(buy, sell=None):
                     "id": "custom",
                     "presetId": "composite_dca",
                     "enabled": True,
-                    "params": {"accumulation.fixedDcaEnabled": False},
+                    "params": {},
                     "rules": {"buy": buy, "sell": sell},
                 }
             ],
@@ -66,7 +66,7 @@ def test_nested_buy_rules_use_independent_thresholds_and_parentheses():
             "volatility",
             "OR",
             leaf("vix25", "vix", {"vix.buyThreshold": 25}),
-            leaf("vix35", "vix", {"vix.buyThreshold": 35}),
+            leaf("rsi35", "rsi", {"rsi.period": 2, "rsi.buyThreshold": 35}),
         ),
     )
     frozen, _ = config(buy)
@@ -81,7 +81,7 @@ def test_nested_buy_rules_use_independent_thresholds_and_parentheses():
     assert series.available
     assert signals["accumulation.buy"].state is SignalState.TRUE
     assert signals["vix.buy:vix25"].state is SignalState.TRUE
-    assert signals["vix.buy:vix35"].state is SignalState.FALSE
+    assert signals["rsi.buy:rsi35"].state is SignalState.FALSE
     assert signals["vix.buy:vix25"].observed_value == Decimal("30")
 
 
@@ -164,12 +164,15 @@ def test_leaf_dependencies_keep_independent_periods_codes_and_units():
             "root",
             "OR",
             leaf("short", "ma_trend", {"ma.period": 2}),
-            leaf("long", "ma_trend", {"ma.period": 200}),
+            leaf("long", "ma_deviation", {"ma.period": 200}),
             leaf("rsi", "rsi", {"rsi.period": 250}),
             leaf("nasdaq", "vix", {"vix.symbol": "^VXN"}),
             leaf("yield", "rate", {"rate.sourceUnit": "decimal"}),
             group(
-                "off", "AND", leaf("unused", "rsi", {"rsi.period": 300}), enabled=False
+                "off",
+                "AND",
+                leaf("unused", "bollinger", {"bollinger.period": 300}),
+                enabled=False,
             ),
         )
     )
@@ -193,44 +196,49 @@ def test_leaf_dependencies_keep_independent_periods_codes_and_units():
 
 
 def test_each_pe_leaf_checks_its_own_etf_coverage_minimum():
-    frozen, _ = config(
-        group(
-            "pe",
-            "OR",
-            leaf("covered", "pe", {"pe.etfMinCoverage": Decimal("0.6")}),
-            leaf("incomplete", "pe", {"pe.etfMinCoverage": Decimal("0.9")}),
+    # The same reusable PE component runs independently in separate strategies.
+    for minimum, expected in (
+        ("0.6", SignalState.TRUE),
+        ("0.9", SignalState.UNAVAILABLE),
+    ):
+        frozen, _ = config(
+            leaf("coverage", "pe", {"pe.etfMinCoverage": Decimal(minimum)})
         )
-    )
-    snapshot = _snapshot(("10",) * 7, pe_values={day: "20" for day in _SESSIONS[2:]})
-    valuation = snapshot.valuation
-    assert valuation is not None
-    snapshot = snapshot.model_copy(
-        update={
-            "valuation": valuation.model_copy(
-                update={
-                    "observations": tuple(
-                        item.model_copy(
-                            update={
-                                "coverage": Decimal("0.8"),
-                                "method": "etf_equity_earnings_yield",
-                            }
+        snapshot = _snapshot(
+            ("10",) * 7, pe_values={day: "20" for day in _SESSIONS[2:]}
+        )
+        valuation = snapshot.valuation
+        assert valuation is not None
+        snapshot = snapshot.model_copy(
+            update={
+                "valuation": valuation.model_copy(
+                    update={
+                        "observations": tuple(
+                            item.model_copy(
+                                update={
+                                    "coverage": Decimal("0.8"),
+                                    "method": "etf_equity_earnings_yield",
+                                }
+                            )
+                            for item in valuation.observations
                         )
-                        for item in valuation.observations
-                    )
-                }
-            )
+                    }
+                )
+            }
+        )
+        series = evaluate_signals(frozen, snapshot, sessions=_SESSIONS).strategies[0]
+        signals = {
+            item.signal_id: item
+            for item in series.evaluations
+            if item.date == _SESSIONS[2]
         }
-    )
-    series = evaluate_signals(frozen, snapshot, sessions=_SESSIONS).strategies[0]
-    signals = {
-        item.signal_id: item for item in series.evaluations if item.date == _SESSIONS[2]
-    }
-    assert signals["pe.buy:covered"].state is SignalState.TRUE
-    assert signals["pe.buy:incomplete"].state is SignalState.UNAVAILABLE
-    assert signals["accumulation.buy"].state is SignalState.UNAVAILABLE
-    assert (
-        signals["pe.buy:incomplete"].diagnostics[0].details["minimumCoverage"] == "0.9"
-    )
+        assert signals["pe.buy:coverage"].state is expected
+        assert signals["accumulation.buy"].state is expected
+        if expected is SignalState.UNAVAILABLE:
+            assert (
+                signals["pe.buy:coverage"].diagnostics[0].details["minimumCoverage"]
+                == minimum
+            )
 
 
 def test_nested_sell_rules_control_actual_next_day_trades():

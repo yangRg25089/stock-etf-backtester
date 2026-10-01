@@ -34,6 +34,21 @@ def _config(
     )
 
 
+def test_legacy_instance_flag_does_not_skip_signal_evaluation() -> None:
+    config = _config(preset="vix_dca")
+    legacy = config.strategies[0].model_copy(update={"enabled": False})
+    config = config.model_copy(update={"strategies": (legacy,)})
+    batch = evaluate_signals(
+        config,
+        _snapshot(
+            tuple("100" for _ in _SESSIONS), vix_values={day: "30" for day in _SESSIONS}
+        ),
+        sessions=_SESSIONS,
+    )
+    assert tuple(item.strategy_id for item in batch.strategies) == (legacy.id,)
+    assert batch.strategy(legacy.id).evaluations
+
+
 def _config_for_strategies(
     strategies: list[dict[str, object]], strategy_ids: tuple[str, ...]
 ) -> FrozenRunConfig:

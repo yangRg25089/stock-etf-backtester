@@ -30,6 +30,7 @@ class ConditionKind(StrEnum):
 class ConditionLimits(DomainModel):
     max_depth: int = Field(default=8, alias="maxDepth", ge=1)
     max_nodes: int = Field(default=96, alias="maxNodes", ge=1)
+    max_instances_per_kind: int = Field(default=1, alias="maxInstancesPerKind", ge=1)
 
 
 CONDITION_LIMITS = ConditionLimits()

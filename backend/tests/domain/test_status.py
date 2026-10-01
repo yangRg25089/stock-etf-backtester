@@ -24,6 +24,7 @@ def test_strategy_status_values_match_the_shared_contract() -> None:
         "completed_with_warning",
         "unavailable",
         "failed",
+        "cancelled",
     ]
     assert ResultPageState.EMPTY.value == "empty"
 

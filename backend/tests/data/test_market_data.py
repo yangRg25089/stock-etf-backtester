@@ -1269,3 +1269,25 @@ def test_market_request_rejects_prewarm_after_backtest_start() -> None:
             end=date(2024, 1, 31),
             prewarm_start=date(2024, 1, 31),
         )
+
+
+@pytest.mark.parametrize("currency", ["USD", "JPY"])
+def test_quote_currency_uses_real_adapter_metadata_without_requiring_price_history(
+    currency,
+):
+    ticker = _Ticker(_Frame([], []), currency=currency, metadata={"currency": currency})
+    adapter = YahooFinanceAdapter(ticker_factory=lambda _symbol: ticker)
+    resolved, diagnostic = adapter.quote_currency("instrument")
+    assert resolved == currency
+    assert diagnostic is None
+
+
+def test_quote_currency_never_invents_a_currency_for_missing_or_conflicting_metadata():
+    for currency, metadata in ((None, {}), ("USD", {"currency": "JPY"})):
+        ticker = _Ticker(_Frame([], []), currency=currency, metadata=metadata)
+        adapter = YahooFinanceAdapter(
+            ticker_factory=lambda _symbol, current=ticker: current
+        )
+        resolved, diagnostic = adapter.quote_currency("instrument")
+        assert resolved is None
+        assert diagnostic is not None

@@ -29,6 +29,7 @@ class StrategyStatus(StrEnum):
     COMPLETED_WITH_WARNING = "completed_with_warning"
     UNAVAILABLE = "unavailable"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 # ``RunStatus`` is a descriptive alias for callers that model the whole job.
@@ -46,6 +47,7 @@ class ResultPageState(StrEnum):
     COMPLETED_WITH_WARNING = StrategyStatus.COMPLETED_WITH_WARNING.value
     UNAVAILABLE = StrategyStatus.UNAVAILABLE.value
     FAILED = StrategyStatus.FAILED.value
+    CANCELLED = StrategyStatus.CANCELLED.value
 
 
 class SignalState(StrEnum):
@@ -78,6 +80,7 @@ class DiagnosticCode(StrEnum):
     COMPARISON_UNAVAILABLE = "comparison_unavailable"
     INVALID_STATUS_TRANSITION = "invalid_status_transition"
     RUN_INTERRUPTED = "run_interrupted"
+    RUN_CANCELLED = "run_cancelled"
 
 
 class Diagnostic(DomainModel):
@@ -123,6 +126,7 @@ _STATUS_TRANSITIONS: Final[dict[StrategyStatus, frozenset[StrategyStatus]]] = {
             StrategyStatus.LOADING,
             StrategyStatus.UNAVAILABLE,
             StrategyStatus.FAILED,
+            StrategyStatus.CANCELLED,
         }
     ),
     StrategyStatus.LOADING: frozenset(
@@ -131,6 +135,7 @@ _STATUS_TRANSITIONS: Final[dict[StrategyStatus, frozenset[StrategyStatus]]] = {
             StrategyStatus.RUNNING,
             StrategyStatus.UNAVAILABLE,
             StrategyStatus.FAILED,
+            StrategyStatus.CANCELLED,
         }
     ),
     StrategyStatus.RUNNING: frozenset(
@@ -140,6 +145,7 @@ _STATUS_TRANSITIONS: Final[dict[StrategyStatus, frozenset[StrategyStatus]]] = {
             StrategyStatus.COMPLETED_WITH_WARNING,
             StrategyStatus.UNAVAILABLE,
             StrategyStatus.FAILED,
+            StrategyStatus.CANCELLED,
         }
     ),
     StrategyStatus.COMPLETED: frozenset({StrategyStatus.COMPLETED}),
@@ -148,6 +154,7 @@ _STATUS_TRANSITIONS: Final[dict[StrategyStatus, frozenset[StrategyStatus]]] = {
     ),
     StrategyStatus.UNAVAILABLE: frozenset({StrategyStatus.UNAVAILABLE}),
     StrategyStatus.FAILED: frozenset({StrategyStatus.FAILED}),
+    StrategyStatus.CANCELLED: frozenset({StrategyStatus.CANCELLED}),
 }
 
 
@@ -179,6 +186,7 @@ def is_terminal(status: StrategyStatus) -> bool:
         StrategyStatus.COMPLETED_WITH_WARNING,
         StrategyStatus.UNAVAILABLE,
         StrategyStatus.FAILED,
+        StrategyStatus.CANCELLED,
     }
 
 

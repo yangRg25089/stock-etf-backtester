@@ -1,6 +1,6 @@
 """Grid candidate enumeration and execution through the shared core modules."""
 
-from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -17,6 +17,7 @@ from app.catalog.presets import ExecutionModule
 from app.catalog.service import Catalog, get_catalog
 from app.config.conditions import materialize_legacy_rules
 from app.config.validation import validate_draft
+from app.domain.cancellation import RunCancelled
 from app.domain.conditions import override_rule_parameters
 from app.domain.contracts import (
     DataSnapshot,
@@ -24,6 +25,7 @@ from app.domain.contracts import (
     FrozenStrategyInstance,
     ResultRole,
     StrategyPresetId,
+    StrategyRun,
 )
 from app.domain.immutability import thaw_value
 from app.domain.status import (
@@ -48,7 +50,7 @@ from app.search.types import (
 )
 from app.signals import INDICATOR_METHOD_VERSION, evaluate_signals
 
-SEARCH_METHOD_VERSION = "search-v1"
+SEARCH_METHOD_VERSION = "search-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +63,6 @@ class GridSearchInput:
     exchange_calendar: ExchangeCalendar
     snapshot: DataSnapshot
     catalog: Catalog | None = None
-    dca_baseline: MetricsInput | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +83,9 @@ def run_grid_search(
     source: GridSearchInput,
     *,
     calculation_cache: _CalculationCache | None = None,
+    check_cancelled: Callable[[], None] | None = None,
+    save_candidate: Callable[[StrategyRun], None] | None = None,
+    load_candidate: Callable[[str], StrategyRun | None] | None = None,
 ) -> SearchResult:
     """Enumerate and run every selected combination, preserving each outcome."""
 
@@ -89,8 +93,6 @@ def run_grid_search(
     preset = catalog.preset(source.strategy.preset_id)
     if source.strategy.preset_id is not StrategyPresetId.GRID_SEARCH:
         raise ValueError("grid search requires a grid_search strategy instance")
-    if not source.strategy.enabled:
-        raise ValueError("grid search strategy must be enabled")
     _require_source_strategy(source.config, source.strategy)
 
     validated_base = _validate_candidate_config(
@@ -116,11 +118,17 @@ def run_grid_search(
             f"search has {combination_count} combinations, above its configured limit"
         )
 
+    if (save_candidate is None) != (load_candidate is None):
+        raise ValueError("candidate persistence requires both save and load callbacks")
+
     cache = {} if calculation_cache is None else calculation_cache
     candidates: list[SearchCandidate] = []
+    detail_ids: dict[str, str] = {}
     for sequence, values in enumerate(
         product(*(dimension.values for dimension in dimensions)), start=1
     ):
+        if check_cancelled is not None:
+            check_cancelled()
         candidate_id = f"{source.strategy.id}:candidate:{sequence:05d}"
         candidate_params = dict(base_strategy.params)
         candidate_params.update(
@@ -176,7 +184,14 @@ def run_grid_search(
             catalog_version=catalog.version,
         )
         cached = cache.get(fingerprint)
+        if save_candidate is not None and fingerprint not in detail_ids:
+            cached = None  # A metrics-only cache cannot supply a saved curve.
         if cached is not None:
+            if save_candidate is not None and load_candidate is not None:
+                original = load_candidate(detail_ids[fingerprint])
+                if original is None:
+                    raise RuntimeError("saved candidate detail is missing")
+                save_candidate(original.model_copy(update={"id": candidate_id}))
             metrics_result, diagnostics = cached
             candidates.append(
                 _completed_candidate(
@@ -204,6 +219,7 @@ def run_grid_search(
                 source.snapshot,
                 batch.strategy(candidate_id),
                 exchange_calendar=source.exchange_calendar,
+                check_cancelled=check_cancelled,
             )
             if not ledger.available:
                 candidates.append(
@@ -226,11 +242,34 @@ def run_grid_search(
                     ledger=ledger,
                     data_fingerprint=source.snapshot.fingerprint,
                 ),
-                dca_baseline=source.dca_baseline,
             )
             diagnostics = _unique_diagnostics(
                 (*ledger.diagnostics, *metrics_result.summary.diagnostics)
             )
+            if save_candidate is not None:
+                candidate_status = (
+                    StrategyStatus.COMPLETED_WITH_WARNING
+                    if any(
+                        item.severity is DiagnosticSeverity.WARNING
+                        for item in diagnostics
+                    )
+                    else StrategyStatus.COMPLETED
+                )
+                save_candidate(
+                    StrategyRun(
+                        id=candidate_id,
+                        presetId=StrategyPresetId.GRID_SEARCH,
+                        role=ResultRole.STRATEGY,
+                        status=candidate_status,
+                        metrics=metrics_result.summary,
+                        dailyAssets=metrics_result.daily_assets,
+                        trades=ledger.trades,
+                        signals=ledger.signals,
+                        unexecutedSignals=ledger.unexecuted_signals,
+                        diagnostics=diagnostics,
+                    )
+                )
+                detail_ids[fingerprint] = candidate_id
             cache[fingerprint] = (metrics_result, diagnostics)
             candidates.append(
                 _completed_candidate(
@@ -243,6 +282,8 @@ def run_grid_search(
                     reused=False,
                 )
             )
+        except RunCancelled:
+            raise
         except Exception as error:
             diagnostic = Diagnostic(
                 code=DiagnosticCode.CALCULATION_FAILED,
@@ -303,11 +344,6 @@ def calculation_fingerprint(
         "indicatorMethod": INDICATOR_METHOD_VERSION,
         "ledgerMethod": LEDGER_METHOD_VERSION,
         "metricMethod": METRIC_METHOD_VERSION,
-        "dcaBaseline": (
-            None
-            if source.dca_baseline is None
-            else _metrics_input_payload(source.dca_baseline, catalog)
-        ),
     }
     serialized = dumps(
         payload,
@@ -480,14 +516,6 @@ def _strategy_calculation_payload(
         "rules": rules.model_dump(mode="json", by_alias=True)
         if rules is not None
         else None,
-    }
-
-
-def _metrics_input_payload(source: MetricsInput, catalog: Catalog) -> dict[str, object]:
-    return {
-        "strategy": _strategy_calculation_payload(source.strategy, catalog),
-        "schedule": source.schedule.model_dump(mode="json", by_alias=True),
-        "dataFingerprint": source.data_fingerprint,
     }
 
 

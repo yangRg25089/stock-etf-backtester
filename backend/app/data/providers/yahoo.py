@@ -110,6 +110,13 @@ class YahooFinanceAdapter:
             start_date=request.macro_source_start_date,
         )
 
+    def quote_currency(self, symbol: str) -> tuple[str | None, Diagnostic | None]:
+        """Use the same normalized currency lookup as market snapshots."""
+        try:
+            return _quote_currency(self._ticker(symbol))
+        except Exception as error:
+            return None, _provider_error(error, symbol)
+
     def exchange_code(self, symbol: str) -> tuple[str | None, Diagnostic | None]:
         """Read Yahoo's exchange identifier without retaining vendor objects."""
 

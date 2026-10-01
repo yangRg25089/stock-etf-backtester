@@ -172,14 +172,12 @@ def test_fixture_run_preserves_t_plus_one_benchmark_identity_and_csv_values() ->
     )
 
 
-def test_one_hundred_percent_fixed_dca_matches_the_saved_monthly_benchmark() -> None:
+def test_no_signal_custom_funds_remain_cash_separate_from_monthly_benchmark() -> None:
     async def exercise(client: httpx.AsyncClient):
         _submitted, queried = await _submit_and_read(
             client,
             _draft(
                 {
-                    "accumulation.fixedDcaEnabled": True,
-                    "accumulation.fixedDcaRatio": 1,
                     "vix.buyEnabled": True,
                     "vix.buyThreshold": 40,
                     "rsi.buyEnabled": False,
@@ -199,12 +197,14 @@ def test_one_hundred_percent_fixed_dca_matches_the_saved_monthly_benchmark() -> 
     strategy = next(item for item in results if item["id"] == "strategy-composite-1")
     dca = next(item for item in results if item["id"] == "benchmark:monthly-dca")
     assert strategy["status"] == dca["status"] == "completed"
-    assert strategy["trades"] == dca["trades"]
+    assert strategy["trades"] == []
+    assert len(dca["trades"]) == 1
     assert strategy["metrics"]["totalContributed"] == dca["metrics"]["totalContributed"]
-    assert strategy["metrics"]["endingEquity"] == dca["metrics"]["endingEquity"]
-    assert [item["totalAsset"] for item in strategy["dailyAssets"]] == [
-        item["totalAsset"] for item in dca["dailyAssets"]
-    ]
+    assert strategy["metrics"]["actualInvested"] == "0"
+    assert (
+        strategy["metrics"]["endingEquity"] == strategy["metrics"]["totalContributed"]
+    )
+    assert all(item["cash"] == item["totalAsset"] for item in strategy["dailyAssets"])
 
 
 def test_successful_zero_trade_fixture_run_still_exports_the_trade_header() -> None:
@@ -213,7 +213,6 @@ def test_successful_zero_trade_fixture_run_still_exports_the_trade_header() -> N
             client,
             _draft(
                 {
-                    "accumulation.fixedDcaEnabled": False,
                     "vix.buyEnabled": True,
                     "vix.buyThreshold": 40,
                     "rsi.buyEnabled": False,
@@ -261,7 +260,6 @@ def test_pe_signal_uses_valuation_price_and_does_not_read_future_publications() 
 
     async def exercise(client: httpx.AsyncClient):
         common_params = {
-            "accumulation.fixedDcaEnabled": False,
             "vix.buyEnabled": False,
             "rsi.buyEnabled": False,
             "ma.buyEnabled": False,
@@ -377,7 +375,6 @@ def test_unknown_rate_publication_is_unavailable_instead_of_a_false_signal() -> 
             client,
             _draft(
                 {
-                    "accumulation.fixedDcaEnabled": False,
                     "vix.buyEnabled": False,
                     "rsi.buyEnabled": False,
                     "ma.buyEnabled": False,
@@ -424,7 +421,6 @@ def test_grid_search_candidates_and_search_csv_share_the_saved_result() -> None:
             client,
             _draft(
                 {
-                    "accumulation.fixedDcaEnabled": False,
                     "vix.buyEnabled": True,
                     "rsi.buyEnabled": False,
                     "ma.buyEnabled": False,
@@ -481,7 +477,6 @@ def test_partial_run_keeps_successful_results_and_freezes_the_old_snapshot() -> 
         vix = _draft()["strategies"][0]
         pe = _draft(
             {
-                "accumulation.fixedDcaEnabled": False,
                 "vix.buyEnabled": False,
                 "rsi.buyEnabled": False,
                 "ma.buyEnabled": False,
@@ -494,7 +489,6 @@ def test_partial_run_keeps_successful_results_and_freezes_the_old_snapshot() -> 
         )["strategies"][0]
         rate = _draft(
             {
-                "accumulation.fixedDcaEnabled": False,
                 "vix.buyEnabled": False,
                 "rsi.buyEnabled": False,
                 "ma.buyEnabled": False,

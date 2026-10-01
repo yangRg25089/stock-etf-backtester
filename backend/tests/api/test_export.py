@@ -33,6 +33,9 @@ from app.runs.types import RunProgress, RunResponse
 
 
 class _SavedRunService:
+    def get_candidate(self, run_id, candidate_id):
+        return None
+
     def __init__(self, run: RunResponse) -> None:
         self.run = run
 

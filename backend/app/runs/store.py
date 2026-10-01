@@ -8,6 +8,7 @@ from time import monotonic
 from typing import Protocol
 from uuid import uuid4
 
+from app.domain.contracts import StrategyRun
 from app.runs.types import RunResponse
 
 
@@ -54,6 +55,10 @@ class RunStore(Protocol):
 
     def get_latest(self) -> RunResponse | None: ...
 
+    def save_candidate(self, run_id: str, candidate: StrategyRun) -> None: ...
+
+    def get_candidate(self, run_id: str, candidate_id: str) -> StrategyRun | None: ...
+
     def wait_for_change(
         self, run_id: str, after_version: int, timeout_seconds: float
     ) -> RunChange | None: ...
@@ -76,7 +81,16 @@ class InMemoryRunStore:
         self._reservations: dict[str, _ReservationState] = {}
         self._records: dict[str, RunResponse] = {}
         self._versions: dict[str, int] = {}
+        self._candidates: dict[tuple[str, str], StrategyRun] = {}
         self._latest_run_id: str | None = None
+
+    def save_candidate(self, run_id: str, candidate: StrategyRun) -> None:
+        with self._lock:
+            self._candidates[(run_id, candidate.id)] = candidate
+
+    def get_candidate(self, run_id: str, candidate_id: str) -> StrategyRun | None:
+        with self._lock:
+            return self._candidates.get((run_id, candidate_id))
 
     def reserve(self, idempotency_key: str, request_fingerprint: str) -> RunReservation:
         """Return the unique run reservation for this key and request identity."""

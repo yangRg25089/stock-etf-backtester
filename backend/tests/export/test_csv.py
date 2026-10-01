@@ -90,7 +90,7 @@ def _response(*, trades: tuple[Trade, ...] = ()) -> RunResponse:
         ),
         strategies=(ordinary, grid),
     )
-    candidate_metrics = summary.model_copy(update={"relative_to_dca": Decimal("0")})
+    candidate_metrics = summary
     search = SearchResult(
         strategyId="grid-search",
         dimensions=[
@@ -210,7 +210,7 @@ def test_summary_export_is_bound_to_run_and_focused_result() -> None:
     assert content.splitlines()[0] == (
         "runId,resultId,role,presetId,status,symbol,startDate,endDate,"
         "actualInvested,totalContributed,endingEquity,netProfit,returnOnContributions,"
-        "capitalMultiple,xirr,maximumDrawdown,relativeToDca,currency,diagnostics,"
+        "capitalMultiple,xirr,maximumDrawdown,currency,diagnostics,"
         "dataSources,calendarAsOf,marketDataThrough"
     )
     assert rows == [
@@ -231,7 +231,6 @@ def test_summary_export_is_bound_to_run_and_focused_result() -> None:
             "capitalMultiple": "1.09123456789",
             "xirr": "",
             "maximumDrawdown": "0.123400",
-            "relativeToDca": "-1.234",
             "currency": "USD",
             "dataSources": '["sec:companyfacts","yahoo"]',
             "calendarAsOf": "2024-01-04",
@@ -342,7 +341,7 @@ def test_search_export_includes_all_candidates_and_stable_parameter_keys() -> No
         "calculationFingerprint,reusedCalculation,vix.buyThreshold,"
         "accumulation.cashSafetyLimit,"
         "actualInvested,totalContributed,endingEquity,netProfit,returnOnContributions,"
-        "capitalMultiple,xirr,maximumDrawdown,relativeToDca,currency,diagnostics"
+        "capitalMultiple,xirr,maximumDrawdown,currency,diagnostics"
         ",dataSources,calendarAsOf,marketDataThrough"
     )
     assert [row["candidateId"] for row in rows] == [

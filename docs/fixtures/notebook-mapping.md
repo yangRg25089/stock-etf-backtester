@@ -14,8 +14,8 @@ kept so a future re-check can detect a changed source.
 
 The first and third source hashes are the concatenated code-cell source. The
 `compare_strategies` source hash is the SHA-256 of newline-joined cell source
-strings. The full manifest also records every explicit CONFIG key and its
-stable catalog key, including derived controls (`run.scope`, preset identity,
+strings. The full manifest records every explicit CONFIG key and its current
+catalog mapping or retirement, including derived contracts (`run.scope`, preset identity,
 search dimensions, `rate.sourceUnit`, `pe.etfMinCoverage`, and the explicit
 Bollinger VIX ceiling).
 
@@ -37,6 +37,9 @@ not reproduce their conflicting behavior:
 - Point-in-time disclosure, missing PE, split bases, and ETF coverage are
   represented by repository-owned offline fixtures and later provider
   adapters.
+- Phase 21 removes the notebook's fixed contribution ratio and its search
+  dimension. Their provenance remains as `retiredInput` records without active
+  parameter mappings. Monthly DCA and lump sum remain automatic benchmarks.
 
 The `qqq_vix_dca_backtest copy` notebook is explicitly non-normative and is
 retained only to explain the inventory discrepancy.

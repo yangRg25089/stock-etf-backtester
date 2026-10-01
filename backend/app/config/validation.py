@@ -28,6 +28,7 @@ from app.domain.contracts import (
     ContributionSettings,
     DataSettings,
     DataSnapshot,
+    EndMode,
     FrozenRunConfig,
     FrozenStrategyInstance,
     RunConfig,
@@ -179,13 +180,25 @@ def validate_draft(
     if not isinstance(parsed, RunConfig):
         raise TypeError("draft must be a RunConfig or mapping")
 
-    shared_diagnostics = _validate_shared(parsed.shared, source)
+    disabled_diagnostics = tuple(
+        invalid_parameter(
+            issue=ConfigurationIssue.INVALID_CHOICE,
+            field_path=f"strategies[{index}].enabled",
+        )
+        for index, item in enumerate(parsed.strategies)
+        if not item.enabled
+    )
+    shared_diagnostics = (
+        *disabled_diagnostics,
+        *_validate_shared(parsed.shared, source),
+        *_validate_strategy_counts(parsed.strategies, source),
+    )
     strategy_results: list[StrategyValidationResult] = []
     requirements: list[DataRequirement] = []
     for index, strategy in enumerate(parsed.strategies):
         result = _validate_strategy(index, strategy, source)
         strategy_results.append(result)
-        if result.enabled and result.normalized is not None:
+        if result.normalized is not None:
             requirements.extend(
                 _requirements_for_strategy(
                     index,
@@ -199,6 +212,33 @@ def validate_draft(
         strategies=tuple(strategy_results),
         dataRequirements=tuple(requirements),
     )
+
+
+def _validate_strategy_counts(
+    strategies: list[StrategyInstance], catalog: Catalog
+) -> tuple[Diagnostic, ...]:
+    diagnostics: list[Diagnostic] = []
+    counts: dict[StrategyPresetId, int] = {}
+    for index, strategy in enumerate(strategies):
+        count = counts.get(strategy.preset_id, 0) + 1
+        counts[strategy.preset_id] = count
+        custom = strategy.preset_id is StrategyPresetId.COMPOSITE_DCA
+        maximum = (
+            catalog.strategy_limits.max_custom_instances
+            if custom
+            else catalog.strategy_limits.max_fixed_instances
+        )
+        if count > maximum:
+            diagnostics.append(
+                invalid_parameter(
+                    issue=ConfigurationIssue.TOO_MANY_STRATEGIES
+                    if custom
+                    else ConfigurationIssue.DUPLICATE_STRATEGY,
+                    field_path=f"strategies[{index}].presetId",
+                    details={"maximum": maximum},
+                )
+            )
+    return tuple(diagnostics)
 
 
 def diagnose_capabilities(
@@ -280,6 +320,13 @@ def _validate_shared(
         "contribution": shared.contribution,
         "data": shared.data,
     }
+    if shared.run.end_mode is not EndMode.FIXED:
+        diagnostics.append(
+            invalid_parameter(
+                issue=ConfigurationIssue.INVALID_CHOICE,
+                field_path="run.endMode",
+            )
+        )
     for definition in catalog.parameters:
         if definition.level is not ParameterLevel.SHARED:
             continue
@@ -323,7 +370,7 @@ def _validate_strategy(
         return StrategyValidationResult(
             strategyId=strategy.id,
             presetId=strategy.preset_id,
-            enabled=strategy.enabled,
+            enabled=True,
             diagnostics=(
                 invalid_parameter(
                     issue=ConfigurationIssue.INVALID_CHOICE,
@@ -411,21 +458,22 @@ def _validate_strategy(
         return StrategyValidationResult(
             strategyId=strategy.id,
             presetId=strategy.preset_id,
-            enabled=strategy.enabled,
+            enabled=True,
             diagnostics=tuple(diagnostics),
         )
 
     normalized = FrozenStrategyInstance(
         id=strategy.id,
         presetId=strategy.preset_id,
-        enabled=strategy.enabled,
+        enabled=True,
+        instanceNumber=strategy.instance_number,
         params=resolved,
         rules=rules,
     )
     return StrategyValidationResult(
         strategyId=strategy.id,
         presetId=strategy.preset_id,
-        enabled=strategy.enabled,
+        enabled=True,
         normalized=normalized,
     )
 

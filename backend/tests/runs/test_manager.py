@@ -205,17 +205,19 @@ def _snapshot() -> DataSnapshot:
 def _submission(
     *strategy_ids: str,
     scope: RunScope = RunScope.ALL_ENABLED,
-    end_mode: str = "fixed",
     end_date: date = _DATES[-1],
 ) -> RunSubmission:
     strategies = [
         {
             "id": strategy_id,
-            "presetId": "vix_dca",
+            "presetId": "composite_dca" if index else "vix_dca",
             "enabled": True,
             "params": {},
+            "rules": get_catalog()
+            .preset("vix_dca")
+            .default_rules.model_dump(mode="python", by_alias=True),
         }
-        for strategy_id in strategy_ids
+        for index, strategy_id in enumerate(strategy_ids)
     ]
     validation = validate_draft(
         {
@@ -224,7 +226,7 @@ def _submission(
                     "symbol": "QQQ",
                     "startDate": _DATES[0],
                     "endDate": end_date,
-                    "endMode": end_mode,
+                    "endMode": "fixed",
                 },
                 "contribution": {"day": 2, "amount": Decimal("100")},
             },
@@ -247,6 +249,23 @@ def _submission(
         engineVersion="test-engine-v1",
         strategyValidations=selected,
         dataRequirements=selected_requirements,
+    )
+
+
+def _grid_submission(strategy_id: str) -> RunSubmission:
+    base = _submission(strategy_id)
+    draft = base.config.model_dump(mode="python", by_alias=True)
+    draft["strategies"][0]["presetId"] = "grid_search"
+    draft["strategies"][0]["params"] = {"search.dimensions": ["vix.buyThreshold"]}
+    validation = validate_draft(draft)
+    config = validation.config_for()
+    assert config is not None, validation.diagnostics_for()
+    return base.model_copy(
+        update={
+            "config": config,
+            "strategy_validations": validation.strategies,
+            "data_requirements": validation.data_requirements,
+        }
     )
 
 
@@ -294,7 +313,7 @@ def test_manager_freezes_inputs_and_completes_zero_trade_result_and_benchmarks()
     assert StrategyStatus.RUNNING in store.statuses
 
 
-def test_manager_resolves_latest_date_into_the_frozen_snapshot() -> None:
+def test_manager_preserves_selected_today_date_in_the_frozen_snapshot() -> None:
     executor = _ManualExecutor()
     manager = RunManager(
         store=InMemoryRunStore(),
@@ -305,13 +324,12 @@ def test_manager_resolves_latest_date_into_the_frozen_snapshot() -> None:
     accepted = manager.submit_run(
         _submission(
             "latest-vix",
-            end_mode="latest",
             end_date=date(2024, 1, 31),
         ),
         idempotency_key="latest-run",
     )
 
-    assert accepted.snapshot.config.shared.run.end_date == _DATES[-1]
+    assert accepted.snapshot.config.shared.run.end_date == date(2024, 1, 31)
     assert accepted.snapshot.config.shared.run.end_mode.value == "fixed"
     executor.run_next()
 
@@ -560,3 +578,250 @@ def test_market_data_coverage_is_unavailable_if_a_loaded_snapshot_has_no_quotes(
     )
 
     assert accepted.snapshot.data_provenance.market_data_through is None
+
+
+def test_stop_queued_run_is_terminal_idempotent_and_never_executes() -> None:
+    from concurrent.futures import Executor
+    from typing import cast
+
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(),
+        data_provider=_FixtureProvider(),
+        executor=cast(Executor, executor),
+    )
+    accepted = manager.submit_run(
+        _submission("stop-queued"), idempotency_key="stop-queued"
+    )
+    stopped = manager.stop_run(accepted.run_id)
+    assert stopped is not None and stopped.status is StrategyStatus.CANCELLED
+    assert all(
+        item.status is StrategyStatus.CANCELLED and item.metrics is None
+        for item in _runs(stopped).values()
+    )
+    assert manager.stop_run(accepted.run_id) == stopped
+    executor.run_next()
+    assert manager.get_run(accepted.run_id) == stopped
+    assert manager.stop_run("missing") is None
+
+
+def test_stop_running_preserves_completed_benchmarks_and_true_queue_states(
+    monkeypatch,
+) -> None:
+    from concurrent.futures import Executor
+    from typing import cast
+
+    from app.ledger import run_strategy as original_run_strategy
+
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(),
+        data_provider=_FixtureProvider(),
+        executor=cast(Executor, executor),
+    )
+    accepted = manager.submit_run(
+        _submission("stop-running", "waiting"), idempotency_key="stop-running"
+    )
+    observed = []
+
+    def stop_inside_calculation(config, strategy, *args, **kwargs):
+        if strategy.id == "stop-running":
+            current = manager.get_run(accepted.run_id)
+            assert current is not None
+            rows = _runs(current)
+            assert rows["stop-running"].status is StrategyStatus.RUNNING
+            assert rows["waiting"].status is StrategyStatus.QUEUED
+            assert rows["benchmark:monthly-dca"].metrics is not None
+            observed.append(current)
+            manager.stop_run(accepted.run_id)
+        return original_run_strategy(config, strategy, *args, **kwargs)
+
+    monkeypatch.setattr("app.runs.manager.run_strategy", stop_inside_calculation)
+    executor.run_next()
+    assert observed
+    stopped = manager.get_run(accepted.run_id)
+    assert stopped is not None and stopped.status is StrategyStatus.CANCELLED
+    rows = _runs(stopped)
+    assert rows["stop-running"].metrics is None
+    assert rows["waiting"].status is StrategyStatus.CANCELLED
+    assert rows["benchmark:monthly-dca"].status is StrategyStatus.COMPLETED
+    assert rows["benchmark:monthly-dca"].daily_assets
+
+
+def test_stop_between_search_candidates_preserves_completed_results(
+    monkeypatch,
+) -> None:
+    from concurrent.futures import Executor
+    from typing import cast
+
+    store = InMemoryRunStore()
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=store, data_provider=_FixtureProvider(), executor=cast(Executor, executor)
+    )
+    accepted = manager.submit_run(
+        _grid_submission("stop-grid"), idempotency_key="stop-search"
+    )
+    saved_ids: list[str] = []
+    save_candidate = store.save_candidate
+
+    def stop_after_first_candidate(run_id: str, candidate: StrategyRun) -> None:
+        save_candidate(run_id, candidate)
+        saved_ids.append(candidate.id)
+        current = manager.get_run(run_id)
+        assert current is not None
+        assert _runs(current)["stop-grid"].status is StrategyStatus.RUNNING
+        assert _runs(current)["benchmark:monthly-dca"].metrics is not None
+        manager.stop_run(run_id)
+
+    monkeypatch.setattr(store, "save_candidate", stop_after_first_candidate)
+    executor.run_next()
+    stopped = manager.get_run(accepted.run_id)
+    assert stopped is not None and stopped.status is StrategyStatus.CANCELLED
+    rows = _runs(stopped)
+    assert rows["stop-grid"].status is StrategyStatus.CANCELLED
+    assert rows["stop-grid"].search_result is None
+    assert rows["stop-grid"].metrics is None
+    for benchmark_id in ("benchmark:monthly-dca", "benchmark:lump-sum"):
+        assert rows[benchmark_id].status is StrategyStatus.COMPLETED
+        assert rows[benchmark_id].metrics is not None
+        assert rows[benchmark_id].daily_assets
+    assert saved_ids == ["stop-grid:candidate:00001"]
+    first = manager.get_candidate(accepted.run_id, saved_ids[0])
+    assert first is not None and first.metrics is not None and first.daily_assets
+    assert manager.get_candidate(accepted.run_id, "stop-grid:candidate:00002") is None
+
+
+def test_grid_best_and_every_candidate_curve_survive_restart_without_calculation(
+    tmp_path,
+) -> None:
+    from concurrent.futures import Executor
+    from typing import cast
+
+    from app.runs.sqlite_store import SQLiteRunStore
+
+    submission = _grid_submission("grid")
+    executor = _ManualExecutor()
+    path = tmp_path / "candidates.sqlite3"
+    store = SQLiteRunStore(path)
+    manager = RunManager(
+        store=store, data_provider=_FixtureProvider(), executor=cast(Executor, executor)
+    )
+    accepted = manager.submit_run(submission, idempotency_key="saved-candidates")
+    executor.run_next()
+    completed = manager.get_run(accepted.run_id)
+    assert completed is not None
+    grid = _runs(completed)["grid"]
+    assert grid.search_result is not None and grid.daily_assets
+    candidates = grid.search_result.candidates
+    assert len(candidates) == 4
+    best = manager.get_candidate(
+        accepted.run_id, grid.search_result.ranked_candidate_ids[0]
+    )
+    assert best is not None and grid.daily_assets == best.daily_assets
+    saved = {
+        item.candidate_id: manager.get_candidate(accepted.run_id, item.candidate_id)
+        for item in candidates
+    }
+    store.close()
+    restored = SQLiteRunStore(path)
+    for candidate in candidates:
+        detail = restored.get_candidate(accepted.run_id, candidate.candidate_id)
+        assert detail == saved[candidate.candidate_id]
+        assert detail is not None and detail.metrics == candidate.metrics
+        assert len(detail.daily_assets) == len(_DATES)
+    assert restored.get_candidate("other-run", candidates[0].candidate_id) is None
+    restored.close()
+
+
+def test_stop_and_candidate_http_contracts_use_saved_results(monkeypatch) -> None:
+    import asyncio
+    import csv
+    import io
+    import json
+    from concurrent.futures import Executor
+    from typing import cast
+
+    import httpx
+    from fastapi.encoders import jsonable_encoder
+
+    from app.main import app
+
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(),
+        data_provider=_FixtureProvider(),
+        executor=cast(Executor, executor),
+    )
+    monkeypatch.setattr(app.state, "run_service", manager)
+    draft = jsonable_encoder(
+        _submission("http-grid").config.model_dump(mode="python", by_alias=True),
+        custom_encoder={Decimal: float},
+    )
+    draft["strategies"][0]["presetId"] = "grid_search"
+    draft["strategies"][0]["params"] = {"search.dimensions": ["vix.buyThreshold"]}
+
+    async def exercise():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://fixture"
+        ) as client:
+            payload = {"draft": draft, "scope": "all_enabled"}
+            queued = await client.post(
+                "/api/v1/runs", json=payload, headers={"Idempotency-Key": "stop-http"}
+            )
+            assert queued.status_code == 202, queued.text
+            run_id = queued.json()["runId"]
+            first = await client.post(f"/api/v1/runs/{run_id}/stop")
+            second = await client.post(f"/api/v1/runs/{run_id}/stop")
+            assert first.status_code == 200 and first.json()["status"] == "cancelled"
+            assert second.json() == first.json()
+            terminal = await client.get(f"/api/v1/runs/{run_id}/events")
+            frame = json.loads(
+                next(
+                    line[6:]
+                    for line in terminal.text.splitlines()
+                    if line.startswith("data: ")
+                )
+            )
+            assert frame["status"] == "cancelled"
+            assert frame["strategyStatuses"]["http-grid"] == "cancelled"
+            assert "strategySummaries" in frame
+            assert (await client.post("/api/v1/runs/missing/stop")).status_code == 404
+            executor.run_next()
+            accepted = await client.post(
+                "/api/v1/runs", json=payload, headers={"Idempotency-Key": "grid-http"}
+            )
+            assert accepted.status_code == 202, accepted.text
+            run_id = accepted.json()["runId"]
+            executor.run_next()
+            finished = await client.get(f"/api/v1/runs/{run_id}")
+            parent = next(
+                row
+                for row in finished.json()["result"]["strategyRuns"]
+                if row["id"] == "http-grid"
+            )
+            assert parent["searchResult"] is not None, parent["diagnostics"]
+            candidate_id = parent["searchResult"]["rankedCandidateIds"][-1]
+            detail = await client.get(
+                f"/api/v1/runs/{run_id}/candidates/{candidate_id}"
+            )
+            assert detail.status_code == 200, detail.text
+            assets = detail.json()["dailyAssets"]
+            assert len(assets) == len(_DATES)
+            downloaded = await client.get(
+                f"/api/v1/runs/{run_id}/export/daily-assets",
+                params={"focusedResultId": candidate_id},
+            )
+            assert downloaded.status_code == 200, downloaded.text
+            rows = list(csv.DictReader(io.StringIO(downloaded.text)))
+            assert len(rows) == len(assets)
+            assert Decimal(rows[-1]["totalAsset"]) == Decimal(assets[-1]["totalAsset"])
+            assert (
+                await client.get(f"/api/v1/runs/{run_id}/candidates/missing")
+            ).status_code == 404
+            assert (await client.get("/api/v1/instruments/qqq")).json()[
+                "currency"
+            ] == "USD"
+            assert manager.stop_run(run_id).status is StrategyStatus.COMPLETED
+
+    asyncio.run(exercise())

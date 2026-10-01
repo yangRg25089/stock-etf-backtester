@@ -2,7 +2,7 @@
 
 from calendar import monthrange
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -32,7 +32,7 @@ from app.signals.evaluate import StrategySignalSeries
 
 from .types import LedgerResult
 
-LEDGER_METHOD_VERSION = "ledger-v3"
+LEDGER_METHOD_VERSION = "ledger-v4"
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +49,7 @@ def run_strategy(
     signals: StrategySignalSeries,
     *,
     exchange_calendar: ExchangeCalendar,
+    check_cancelled: Callable[[], None] | None = None,
 ) -> LedgerResult:
     """Run one strategy over a frozen schedule and provider-neutral snapshot.
 
@@ -76,6 +77,8 @@ def run_strategy(
     bar_by_date = _market_bars(snapshot)
     prices: dict[date, Decimal] = {}
     for day in contribution_schedule.trading_dates:
+        if check_cancelled is not None:
+            check_cancelled()
         bar = bar_by_date.get(day)
         if (
             bar is None
@@ -125,6 +128,8 @@ def run_strategy(
     previous_day: date | None = None
 
     for day in contribution_schedule.trading_dates:
+        if check_cancelled is not None:
+            check_cancelled()
         price = prices[day]
 
         planned_amount = contributions_by_date.get(day, Decimal("0"))
@@ -132,16 +137,7 @@ def run_strategy(
             ExecutionModule.ACCUMULATION,
             ExecutionModule.SEARCH,
         }:
-            timing_cash, fixed_quantity = _apply_accumulation_contribution(
-                day,
-                planned_amount,
-                price,
-                currency,
-                strategy,
-                timing_cash,
-                fixed_quantity,
-                trades,
-            )
+            timing_cash += planned_amount
         elif preset.execution_module is ExecutionModule.SCHEDULED:
             funding_mode = str(params["scheduled.fundingMode"])
             if funding_mode == "upfront" and day == contribution_schedule.upfront_date:
@@ -348,41 +344,6 @@ def _market_bars(snapshot: DataSnapshot) -> dict[date, MarketBar]:
             raise ValueError(f"duplicate market bar for {bar.date}")
         result[bar.date] = bar
     return result
-
-
-def _apply_accumulation_contribution(
-    day: date,
-    amount: Decimal,
-    price: Decimal,
-    currency: str,
-    strategy: FrozenStrategyInstance,
-    timing_cash: Decimal,
-    fixed_quantity: Decimal,
-    trades: list[Trade],
-) -> tuple[Decimal, Decimal]:
-    fixed_enabled = strategy.params.get("accumulation.fixedDcaEnabled") is True
-    fixed_ratio = (
-        _decimal_parameter(strategy.params, "accumulation.fixedDcaRatio")
-        if fixed_enabled
-        else Decimal("0")
-    )
-    fixed_amount = amount * fixed_ratio
-    timing_cash += amount - fixed_amount
-    if fixed_amount > 0:
-        shares = fixed_amount / price
-        fixed_quantity += shares
-        trades.append(
-            Trade(
-                date=day,
-                side=TradeSide.BUY,
-                reason=TradeReason.FIXED_DCA,
-                quantity=shares,
-                price=price,
-                cashAmount=fixed_amount,
-                currency=currency,
-            )
-        )
-    return timing_cash, fixed_quantity
 
 
 def _buy_all(

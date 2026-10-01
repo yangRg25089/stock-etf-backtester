@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from pydantic import Field, model_validator
 
-from app.domain.contracts import EndMode, SharedSettings
+from app.domain.contracts import SharedSettings
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
@@ -166,8 +166,8 @@ def schedule(
             )
         )
 
-    is_future_fixed_end = run.end_mode is EndMode.FIXED and run.end_date > as_of_date
-    if is_future_fixed_end and latest_complete is None:
+    is_future_end = run.end_date > as_of_date
+    if is_future_end and latest_complete is None:
         diagnostics.append(
             Diagnostic(
                 code=DiagnosticCode.STALE_DATA,
@@ -182,31 +182,27 @@ def schedule(
             )
         )
 
-    if run.end_mode is EndMode.LATEST:
-        end_limit = latest_complete
-    else:
-        end_limit = (
-            min(run.end_date, latest_complete) if latest_complete is not None else None
-        )
-        if latest_complete is not None and run.end_date > latest_complete:
-            diagnostics.append(
-                Diagnostic(
-                    code=DiagnosticCode.STALE_DATA,
-                    severity=DiagnosticSeverity.WARNING,
-                    messageKey="calendar.end_date_clamped",
-                    fieldPath="run.endDate",
-                    details={
-                        "requestedEndDate": run.end_date.isoformat(),
-                        "effectiveEndDate": latest_complete.isoformat(),
-                        "asOfDate": as_of_date.isoformat(),
-                    },
-                )
+    end_limit = (
+        min(run.end_date, latest_complete) if latest_complete is not None else None
+    )
+    if latest_complete is not None and is_future_end:
+        diagnostics.append(
+            Diagnostic(
+                code=DiagnosticCode.STALE_DATA,
+                severity=DiagnosticSeverity.WARNING,
+                messageKey="calendar.end_date_clamped",
+                fieldPath="run.endDate",
+                details={
+                    "requestedEndDate": run.end_date.isoformat(),
+                    "effectiveEndDate": latest_complete.isoformat(),
+                    "asOfDate": as_of_date.isoformat(),
+                },
             )
+        )
 
     schedule_end_date = end_limit
     if (
-        run.end_mode is EndMode.FIXED
-        and not is_future_fixed_end
+        not is_future_end
         and end_limit is not None
         and run.end_date.year == end_limit.year
         and run.end_date.month == end_limit.month

@@ -1,6 +1,5 @@
 from datetime import date
 
-from app.domain.contracts import EndMode
 from app.domain.status import Diagnostic, DiagnosticCode
 from app.runs.yahoo_data import _apply_market_gap_policy
 
@@ -38,7 +37,6 @@ def test_latest_end_trims_trailing_unpublished_quote_sessions_without_warning() 
     effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         sessions,
         diagnostics,
-        end_mode=EndMode.LATEST,
         scheduled_end=date(2026, 9, 29),
         latest_quote=date(2026, 9, 28),
     )
@@ -60,7 +58,6 @@ def test_latest_end_skips_an_isolated_interior_session_without_filling_prices() 
     effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         (date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30)),
         diagnostics,
-        end_mode=EndMode.LATEST,
         scheduled_end=date(2026, 9, 30),
         latest_quote=date(2026, 9, 30),
     )
@@ -89,7 +86,6 @@ def test_latest_end_skips_one_interior_gap_and_trims_unpublished_tail() -> None:
     effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         (date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30)),
         diagnostics,
-        end_mode=EndMode.LATEST,
         scheduled_end=date(2026, 9, 30),
         latest_quote=date(2026, 9, 29),
     )
@@ -111,7 +107,6 @@ def test_fixed_end_skips_isolated_missing_session_without_inventing_price() -> N
     effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         (date(2026, 9, 28), date(2026, 9, 29)),
         diagnostics,
-        end_mode=EndMode.FIXED,
         scheduled_end=date(2026, 9, 29),
         latest_quote=date(2026, 9, 28),
     )
@@ -133,7 +128,6 @@ def test_consecutive_missing_sessions_remain_a_required_data_error() -> None:
     effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         (date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30)),
         diagnostics,
-        end_mode=EndMode.FIXED,
         scheduled_end=date(2026, 9, 30),
         latest_quote=date(2026, 9, 30),
     )
@@ -166,7 +160,6 @@ def test_separate_single_session_gaps_are_each_skipped() -> None:
     effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         sessions,
         diagnostics,
-        end_mode=EndMode.FIXED,
         scheduled_end=date(2026, 10, 2),
         latest_quote=date(2026, 10, 2),
     )
@@ -192,7 +185,6 @@ def test_latest_end_keeps_original_calendar_when_quote_precedes_every_session() 
     effective_sessions, effective_diagnostics = _apply_market_gap_policy(
         (date(2026, 9, 28), date(2026, 9, 29)),
         diagnostics,
-        end_mode=EndMode.LATEST,
         scheduled_end=date(2026, 9, 29),
         latest_quote=date(2026, 9, 27),
     )

@@ -118,7 +118,7 @@ def test_return_on_contributions_is_distinct_from_capital_multiple() -> None:
 
 
 def test_metrics_method_version_is_stable() -> None:
-    assert METRIC_METHOD_VERSION == "metrics-v3"
+    assert METRIC_METHOD_VERSION == "metrics-v4"
 
 
 def test_xirr_uses_each_contribution_date_with_actual_365_day_count() -> None:
@@ -307,75 +307,30 @@ def test_xirr_rejects_multiple_sign_changes_and_zero_time_span() -> None:
     assert same_day_reason == "insufficient_time_span"
 
 
-def test_relative_to_dca_is_absolute_ending_equity_excess_for_matching_inputs() -> None:
+def test_removed_dca_difference_is_not_calculated_or_serialized() -> None:
     dates = (date(2021, 1, 1), date(2022, 1, 1))
-    contribution = ((dates[0], "100"),)
-    strategy_input = _input(
-        _strategy("vix_dca", *dates), dates, contribution, ("100", "110")
+    source = _input(
+        _strategy("vix_dca", *dates), dates, ((dates[0], "100"),), ("100", "110")
     )
-    dca_input = _input(
-        _strategy("monthly_dca", *dates, strategy_id="dca"),
-        dates,
-        contribution,
-        ("100", "100"),
+    result = calculate_metrics(source)
+    assert result.summary.net_profit == Decimal("10")
+    assert "relativeToDca" not in result.summary.model_dump(by_alias=True)
+    assert "relative_to_dca" not in type(result.summary).model_fields
+
+
+def test_legacy_dca_difference_is_discarded_when_reading_saved_metrics() -> None:
+    from app.domain.contracts import MetricSummary
+
+    summary = MetricSummary.model_validate(
+        {
+            "totalContributed": "100",
+            "endingEquity": "110",
+            "netProfit": "10",
+            "relativeToDca": "10",
+        }
     )
-
-    result = calculate_metrics(strategy_input, dca_baseline=dca_input)
-
-    assert result.summary.relative_to_dca == Decimal("10")
-
-
-def test_relative_to_dca_is_omitted_when_snapshot_or_period_differs() -> None:
-    dates = (date(2021, 1, 1), date(2022, 1, 1))
-    contribution = ((dates[0], "100"),)
-    source = _input(_strategy("vix_dca", *dates), dates, contribution, ("100", "110"))
-    other_snapshot = _input(
-        _strategy("monthly_dca", *dates, strategy_id="dca"),
-        dates,
-        contribution,
-        ("100", "100"),
-        data_fingerprint="different-data",
-    )
-
-    result = calculate_metrics(source, dca_baseline=other_snapshot)
-
-    assert result.summary.relative_to_dca is None
-    assert any(
-        diagnostic.code is DiagnosticCode.COMPARISON_UNAVAILABLE
-        for diagnostic in result.summary.diagnostics
-    )
-
-    shorter_dates = (date(2021, 1, 2), date(2022, 1, 1))
-    other_period = _input(
-        _strategy(
-            "monthly_dca",
-            shorter_dates[0],
-            shorter_dates[-1],
-            strategy_id="other-period-dca",
-        ),
-        shorter_dates,
-        ((shorter_dates[0], "100"),),
-        ("100", "100"),
-    )
-    period_result = calculate_metrics(source, dca_baseline=other_period)
-
-    assert period_result.summary.relative_to_dca is None
-    assert (
-        "different_period" in period_result.summary.diagnostics[-1].details["reasons"]
-    )
-
-    upfront_baseline = _input(
-        _strategy("lump_sum", dates[0], dates[-1], strategy_id="lump-sum"),
-        dates,
-        contribution,
-        ("100", "100"),
-    )
-    upfront_result = calculate_metrics(source, dca_baseline=upfront_baseline)
-    assert upfront_result.summary.relative_to_dca is None
-    assert (
-        "baseline_is_not_monthly_dca"
-        in upfront_result.summary.diagnostics[-1].details["reasons"]
-    )
+    assert summary.ending_equity == Decimal("110")
+    assert "relativeToDca" not in summary.model_dump(by_alias=True)
 
 
 def test_daily_contributed_amount_uses_real_external_cash_flow_timing() -> None:

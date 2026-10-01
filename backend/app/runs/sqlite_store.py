@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+import zlib
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -77,7 +78,40 @@ class SQLiteRunStore:
             )
             """
         )
+        self._connection.execute("""
+            CREATE TABLE IF NOT EXISTS candidate_results (
+                run_id TEXT NOT NULL,
+                candidate_id TEXT NOT NULL,
+                result_blob BLOB NOT NULL,
+                PRIMARY KEY (run_id, candidate_id)
+            )
+        """)
         self._recover_after_restart()
+
+    def save_candidate(self, run_id: str, candidate: StrategyRun) -> None:
+        payload = zlib.compress(candidate.model_dump_json(by_alias=True).encode())
+        with self._lock, self._transaction():
+            self._ensure_open()
+            self._connection.execute(
+                "INSERT INTO candidate_results VALUES (?, ?, ?) "
+                "ON CONFLICT(run_id, candidate_id) DO UPDATE "
+                "SET result_blob=excluded.result_blob",
+                (run_id, candidate.id, payload),
+            )
+
+    def get_candidate(self, run_id: str, candidate_id: str) -> StrategyRun | None:
+        with self._lock:
+            self._ensure_open()
+            row = self._connection.execute(
+                "SELECT result_blob FROM candidate_results "
+                "WHERE run_id=? AND candidate_id=?",
+                (run_id, candidate_id),
+            ).fetchone()
+        return (
+            None
+            if row is None
+            else StrategyRun.model_validate_json(zlib.decompress(row[0]))
+        )
 
     def reserve(self, idempotency_key: str, request_fingerprint: str) -> RunReservation:
         """Create a durable retry claim or return its original run identity."""

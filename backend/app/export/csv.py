@@ -49,7 +49,6 @@ _SUMMARY_FIELDS = (
     "capitalMultiple",
     "xirr",
     "maximumDrawdown",
-    "relativeToDca",
     "currency",
     "diagnostics",
     "dataSources",
@@ -110,7 +109,6 @@ _METRIC_FIELDS = (
     "capitalMultiple",
     "xirr",
     "maximumDrawdown",
-    "relativeToDca",
     "currency",
 )
 
@@ -315,7 +313,6 @@ def _metric_values(metrics: MetricSummary | None) -> dict[str, object]:
         "capitalMultiple": metrics.capital_multiple,
         "xirr": metrics.xirr,
         "maximumDrawdown": metrics.maximum_drawdown,
-        "relativeToDca": metrics.relative_to_dca,
         "currency": metrics.currency,
     }
 

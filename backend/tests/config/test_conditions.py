@@ -95,7 +95,7 @@ def test_nested_conditions_are_catalog_normalized_and_independent() -> None:
                 "operator": "OR",
                 "children": [
                     leaf("vix-25", "vix", **{"vix.buyThreshold": 25}),
-                    leaf("vix-35", "vix", **{"vix.buyThreshold": 35}),
+                    leaf("rsi-35", "rsi", **{"rsi.buyThreshold": 35}),
                 ],
             },
         ],
@@ -111,7 +111,7 @@ def test_nested_conditions_are_catalog_normalized_and_independent() -> None:
     first, second = entry.children
     assert isinstance(first, ConditionLeaf) and isinstance(second, ConditionLeaf)
     assert first.params["vix.buyThreshold"] == Decimal("25")
-    assert second.params["vix.buyThreshold"] == Decimal("35")
+    assert second.params["rsi.buyThreshold"] == Decimal("35")
     assert first.params["vix.symbol"] == "^VIX"
     with pytest.raises(TypeError):
         setitem(first.params, "vix.buyThreshold", Decimal("0"))

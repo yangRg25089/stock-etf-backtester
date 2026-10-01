@@ -9,15 +9,17 @@ from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
+from threading import Event, RLock
 
-from app.calendar import ExchangeCalendar, schedule
+from app.calendar import schedule
 from app.catalog.service import Catalog, get_catalog
 from app.config.validation import DataRequirement
+from app.domain.cancellation import RunCancelled
 from app.domain.contracts import (
     DailyAsset,
-    EndMode,
     FrozenRunConfig,
     FrozenStrategyInstance,
+    InstrumentMetadata,
     MetricSummary,
     ResultRole,
     RunDataProvenance,
@@ -75,6 +77,8 @@ class RunManager:
         catalog: Catalog | None = None,
         executor: Executor | None = None,
     ) -> None:
+        self._state_lock = RLock()
+        self._cancellations: dict[str, Event] = {}
         self._store = store
         self._data_provider = data_provider or UnconfiguredRunDataProvider()
         self._catalog = get_catalog() if catalog is None else catalog
@@ -94,6 +98,8 @@ class RunManager:
         if not reservation.owner:
             return self._store.wait_for_record(reservation)
 
+        with self._state_lock:
+            self._cancellations[reservation.run_id] = Event()
         try:
             data_loads = self._load_strategy_data(submission)
             snapshot = self._make_snapshot(reservation.run_id, submission, data_loads)
@@ -110,6 +116,8 @@ class RunManager:
             )
         except BaseException as error:
             self._store.abort(reservation, error)
+            with self._state_lock:
+                self._cancellations.pop(reservation.run_id, None)
             raise
 
         try:
@@ -132,12 +140,75 @@ class RunManager:
                 error, run_id=reservation.run_id, stage="queue"
             )
             self._fail_unfinished(reservation.run_id, diagnostic)
+            with self._state_lock:
+                self._cancellations.pop(reservation.run_id, None)
             current = self._store.get(reservation.run_id)
             return response if current is None else current
         return response
 
+    def stop_run(self, run_id: str) -> RunResponse | None:
+        with self._state_lock:
+            response = self._store.get(run_id)
+            if response is None or is_terminal(response.status):
+                return response
+            self._cancellations.setdefault(run_id, Event()).set()
+            diagnostic = Diagnostic(
+                code=DiagnosticCode.RUN_CANCELLED,
+                severity=DiagnosticSeverity.INFO,
+                messageKey="runs.cancelled",
+            )
+            assert response.result is not None
+            self._save_result(
+                response,
+                tuple(
+                    item
+                    if is_terminal(item.status)
+                    else item.with_status(
+                        StrategyStatus.CANCELLED, diagnostics=(diagnostic,)
+                    )
+                    for item in response.result.strategy_runs
+                ),
+            )
+            self._clear_current(run_id)
+            return self._store.get(run_id)
+
+    def get_candidate(self, run_id: str, candidate_id: str) -> StrategyRun | None:
+        return self._store.get_candidate(run_id, candidate_id)
+
+    def _check_cancelled(self, run_id: str) -> None:
+        event = self._cancellations.get(run_id)
+        if event is not None and event.is_set():
+            raise RunCancelled()
+
     def get_run(self, run_id: str) -> RunResponse | None:
         return self._store.get(run_id)
+
+    def instrument_metadata(self, symbol: str) -> InstrumentMetadata:
+        suggestion = next(
+            (
+                item
+                for item in self._catalog.symbol_suggestions
+                if item.symbol == symbol
+            ),
+            None,
+        )
+        if suggestion is not None:
+            return InstrumentMetadata(symbol=symbol, currency=suggestion.currency)
+        loader = getattr(self._data_provider, "instrument_metadata", None)
+        if callable(loader):
+            metadata = loader(symbol)
+            if isinstance(metadata, InstrumentMetadata):
+                return metadata
+        return InstrumentMetadata(
+            symbol=symbol,
+            diagnostics=(
+                Diagnostic(
+                    code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+                    messageKey="data.currency_missing",
+                    fieldPath="run.symbol",
+                ),
+            ),
+        )
 
     def get_latest_run(self) -> RunResponse | None:
         return self._store.get_latest()
@@ -182,6 +253,8 @@ class RunManager:
                             for strategy in eligible_strategies
                         },
                     )
+                except RunCancelled:
+                    raise
                 except Exception as error:
                     for strategy in eligible_strategies:
                         loaded[strategy.id] = StrategyDataLoad(
@@ -275,12 +348,7 @@ class RunManager:
         submission: RunSubmission,
         data_loads: Mapping[str, StrategyDataLoad],
     ) -> RunSnapshot:
-        calendars = tuple(
-            item.calendar
-            for item in data_loads.values()
-            if item.calendar is not None and item.snapshot is not None
-        )
-        config = _resolve_latest_end(submission.config, calendars)
+        config = submission.config
         data_payload = {
             "providerVersion": self._data_provider.version,
             "strategyData": [
@@ -319,6 +387,7 @@ class RunManager:
             StrategyRun(
                 id=strategy.id,
                 presetId=strategy.preset_id,
+                instanceNumber=strategy.instance_number,
                 role=ResultRole.STRATEGY,
                 status=StrategyStatus.QUEUED,
             )
@@ -359,14 +428,12 @@ class RunManager:
                     "status": StrategyStatus.RUNNING.value,
                 },
             )
-            self._advance_all(run_id, StrategyStatus.LOADING)
-            self._advance_all(run_id, StrategyStatus.RUNNING)
+            self._check_cancelled(run_id)
             response = self._store.get(run_id)
             if response is None:
                 return
             config = response.snapshot.config
             reference_load = _reference_load(data_loads)
-            baseline_input: MetricsInput | None = None
 
             if reference_load is None:
                 unavailable = _context_failure(data_loads.values())
@@ -377,14 +444,18 @@ class RunManager:
                         _failure_outcome(unavailable),
                     )
             else:
+                self._check_cancelled(run_id)
+                self._set_current(run_id, _BENCHMARKS[0][0])
                 try:
-                    dca_outcome, baseline_input = self._run_benchmark(
+                    dca_outcome = self._run_benchmark(
                         config,
                         reference_load,
+                        run_id=run_id,
                         benchmark_id=_BENCHMARKS[0][0],
                         preset_id=_BENCHMARKS[0][1],
-                        dca_baseline=None,
                     )
+                except RunCancelled:
+                    raise
                 except Exception as error:
                     dca_outcome = _failure_outcome(
                         (
@@ -393,16 +464,19 @@ class RunManager:
                             ),
                         )
                     )
-                    baseline_input = None
                 self._complete_run(run_id, _BENCHMARKS[0][0], dca_outcome)
+                self._check_cancelled(run_id)
+                self._set_current(run_id, _BENCHMARKS[1][0])
                 try:
-                    lump_outcome, _ = self._run_benchmark(
+                    lump_outcome = self._run_benchmark(
                         config,
                         reference_load,
+                        run_id=run_id,
                         benchmark_id=_BENCHMARKS[1][0],
                         preset_id=_BENCHMARKS[1][1],
-                        dca_baseline=baseline_input,
                     )
+                except RunCancelled:
+                    raise
                 except Exception as error:
                     lump_outcome = _failure_outcome(
                         (
@@ -418,6 +492,7 @@ class RunManager:
                 for validation in submission.strategy_validations
             }
             for strategy in config.strategies:
+                self._check_cancelled(run_id)
                 self._set_current(run_id, strategy.id)
                 validation = validation_by_id[strategy.id]
                 context = data_loads[strategy.id]
@@ -437,8 +512,10 @@ class RunManager:
                             config,
                             strategy,
                             context,
-                            baseline_input=baseline_input,
+                            run_id=run_id,
                         )
+                except RunCancelled:
+                    raise
                 except Exception as error:
                     outcome = _failure_outcome(
                         (
@@ -470,6 +547,8 @@ class RunManager:
                         ),
                     },
                 )
+        except RunCancelled:
+            return
         except Exception as error:
             _LOGGER.warning(
                 "Run execution failed",
@@ -483,19 +562,22 @@ class RunManager:
                 run_id,
                 _calculation_diagnostic(error, run_id=run_id, stage="execution"),
             )
+        finally:
+            with self._state_lock:
+                self._cancellations.pop(run_id, None)
 
     def _run_benchmark(
         self,
         config: FrozenRunConfig,
         data_load: StrategyDataLoad,
         *,
+        run_id: str,
         benchmark_id: str,
         preset_id: StrategyPresetId,
-        dca_baseline: MetricsInput | None,
-    ) -> tuple[_Outcome, MetricsInput | None]:
+    ) -> _Outcome:
         strategy = _benchmark_strategy(self._catalog, benchmark_id, preset_id)
         if data_load.snapshot is None or data_load.calendar is None:
-            return _failure_outcome(data_load.diagnostics), None
+            return _failure_outcome(data_load.diagnostics)
         benchmark_data = data_load.model_copy(
             update={
                 "diagnostics": tuple(
@@ -505,13 +587,12 @@ class RunManager:
                 )
             }
         )
-        outcome, metrics_input = self._run_basic_strategy(
+        return self._run_basic_strategy(
             config,
             strategy,
             benchmark_data,
-            dca_baseline=dca_baseline,
+            run_id=run_id,
         )
-        return outcome, metrics_input
 
     def _run_strategy(
         self,
@@ -519,7 +600,7 @@ class RunManager:
         strategy: FrozenStrategyInstance,
         data_load: StrategyDataLoad,
         *,
-        baseline_input: MetricsInput | None,
+        run_id: str,
     ) -> _Outcome:
         if strategy.preset_id is StrategyPresetId.GRID_SEARCH:
             assert data_load.snapshot is not None
@@ -536,17 +617,39 @@ class RunManager:
                     exchange_calendar=data_load.calendar,
                     snapshot=data_load.snapshot,
                     catalog=self._catalog,
-                    dca_baseline=baseline_input,
-                )
+                ),
+                check_cancelled=lambda: self._check_cancelled(run_id),
+                save_candidate=lambda item: self._store.save_candidate(run_id, item),
+                load_candidate=lambda item_id: self._store.get_candidate(
+                    run_id, item_id
+                ),
             )
-            return _search_outcome(result, data_load.diagnostics)
+            outcome = _search_outcome(result, data_load.diagnostics)
+            best_id = (
+                result.ranked_candidate_ids[0] if result.ranked_candidate_ids else None
+            )
+            best = (
+                None if best_id is None else self._store.get_candidate(run_id, best_id)
+            )
+            if best is not None:
+                outcome = _Outcome(
+                    status=outcome.status,
+                    diagnostics=outcome.diagnostics,
+                    search_result=result,
+                    metrics=best.metrics,
+                    daily_assets=best.daily_assets,
+                    trades=best.trades,
+                    signals=best.signals,
+                    unexecuted_signals=best.unexecuted_signals,
+                )
+            return outcome
 
         return self._run_basic_strategy(
             config,
             strategy,
             data_load,
-            dca_baseline=baseline_input,
-        )[0]
+            run_id=run_id,
+        )
 
     def _run_basic_strategy(
         self,
@@ -554,8 +657,8 @@ class RunManager:
         strategy: FrozenStrategyInstance,
         data_load: StrategyDataLoad,
         *,
-        dca_baseline: MetricsInput | None,
-    ) -> tuple[_Outcome, MetricsInput | None]:
+        run_id: str,
+    ) -> _Outcome:
         assert data_load.snapshot is not None
         assert data_load.calendar is not None
         strategy_config = FrozenRunConfig(
@@ -576,6 +679,7 @@ class RunManager:
             data_load.snapshot,
             signals,
             exchange_calendar=data_load.calendar,
+            check_cancelled=lambda: self._check_cancelled(run_id),
         )
         diagnostics = _unique(
             (
@@ -585,14 +689,11 @@ class RunManager:
             )
         )
         if not ledger.available:
-            return (
-                _Outcome(
-                    status=StrategyStatus.UNAVAILABLE,
-                    diagnostics=diagnostics,
-                    signals=ledger.signals,
-                    unexecuted_signals=ledger.unexecuted_signals,
-                ),
-                None,
+            return _Outcome(
+                status=StrategyStatus.UNAVAILABLE,
+                diagnostics=diagnostics,
+                signals=ledger.signals,
+                unexecuted_signals=ledger.unexecuted_signals,
             )
 
         metrics_input = MetricsInput(
@@ -601,10 +702,7 @@ class RunManager:
             ledger=ledger,
             data_fingerprint=data_load.snapshot.fingerprint,
         )
-        baseline = dca_baseline
-        if strategy.preset_id is StrategyPresetId.MONTHLY_DCA and baseline is None:
-            baseline = metrics_input
-        metrics_result = calculate_metrics(metrics_input, dca_baseline=baseline)
+        metrics_result = calculate_metrics(metrics_input)
         diagnostics = _unique((*diagnostics, *metrics_result.summary.diagnostics))
         outcome = _Outcome(
             status=(
@@ -622,101 +720,103 @@ class RunManager:
             daily_assets=metrics_result.daily_assets,
             metrics=metrics_result.summary,
         )
-        return outcome, metrics_input
-
-    def _advance_all(self, run_id: str, target: StrategyStatus) -> None:
-        response = self._store.get(run_id)
-        if response is None or response.result is None:
-            return
-        updated_runs = tuple(
-            item.with_status(target)
-            for item in response.result.strategy_runs
-            if not is_terminal(item.status)
-        )
-        terminal_runs = tuple(
-            item for item in response.result.strategy_runs if is_terminal(item.status)
-        )
-        self._save_result(response, (*terminal_runs, *updated_runs))
+        return outcome
 
     def _set_current(self, run_id: str, strategy_id: str) -> None:
-        response = self._store.get(run_id)
-        if response is None or response.result is None or response.progress is None:
-            return
-        completed = sum(
-            is_terminal(item.status) for item in response.result.strategy_runs
-        )
-        self._store.update(
-            response.model_copy(
-                update={
-                    "progress": response.progress.model_copy(
-                        update={
-                            "completed_strategies": completed,
-                            "current_strategy_id": strategy_id,
-                        }
-                    )
-                }
+        with self._state_lock:
+            response = self._store.get(run_id)
+            if response is None or response.result is None or response.progress is None:
+                return
+            self._check_cancelled(run_id)
+            for status in (StrategyStatus.LOADING, StrategyStatus.RUNNING):
+                response = self._store.get(run_id)
+                assert response is not None and response.result is not None
+                self._save_result(
+                    response,
+                    tuple(
+                        item.with_status(status) if item.id == strategy_id else item
+                        for item in response.result.strategy_runs
+                    ),
+                )
+            response = self._store.get(run_id)
+            assert response is not None and response.progress is not None
+            self._store.update(
+                response.model_copy(
+                    update={
+                        "progress": response.progress.model_copy(
+                            update={"current_strategy_id": strategy_id}
+                        )
+                    }
+                )
             )
-        )
 
     def _clear_current(self, run_id: str) -> None:
-        response = self._store.get(run_id)
-        if response is None or response.progress is None:
-            return
-        completed = (
-            0
-            if response.result is None
-            else sum(is_terminal(item.status) for item in response.result.strategy_runs)
-        )
-        self._store.update(
-            response.model_copy(
-                update={
-                    "progress": response.progress.model_copy(
-                        update={
-                            "completed_strategies": completed,
-                            "current_strategy_id": None,
-                        }
-                    )
-                }
+        with self._state_lock:
+            response = self._store.get(run_id)
+            if response is None or response.progress is None:
+                return
+            completed = (
+                0
+                if response.result is None
+                else sum(
+                    is_terminal(item.status) for item in response.result.strategy_runs
+                )
             )
-        )
+            self._store.update(
+                response.model_copy(
+                    update={
+                        "progress": response.progress.model_copy(
+                            update={
+                                "completed_strategies": completed,
+                                "current_strategy_id": None,
+                            }
+                        )
+                    }
+                )
+            )
 
     def _complete_run(self, run_id: str, strategy_id: str, outcome: _Outcome) -> None:
-        response = self._store.get(run_id)
-        if response is None or response.result is None:
-            return
-        runs: list[StrategyRun] = []
-        found = False
-        for item in response.result.strategy_runs:
-            if item.id != strategy_id:
-                runs.append(item)
-                continue
-            found = True
-            updated = item.model_copy(
-                update={
-                    "signals": outcome.signals,
-                    "unexecuted_signals": outcome.unexecuted_signals,
-                    "trades": outcome.trades,
-                    "daily_assets": outcome.daily_assets,
-                    "metrics": outcome.metrics,
-                    "search_result": outcome.search_result,
-                }
+        with self._state_lock:
+            response = self._store.get(run_id)
+            if response is None or response.result is None:
+                return
+            runs: list[StrategyRun] = []
+            found = False
+            for item in response.result.strategy_runs:
+                if item.id != strategy_id:
+                    runs.append(item)
+                    continue
+                found = True
+                if is_terminal(item.status):
+                    return
+                updated = item.model_copy(
+                    update={
+                        "signals": outcome.signals,
+                        "unexecuted_signals": outcome.unexecuted_signals,
+                        "trades": outcome.trades,
+                        "daily_assets": outcome.daily_assets,
+                        "metrics": outcome.metrics,
+                        "search_result": outcome.search_result,
+                    }
+                )
+                runs.append(
+                    updated.with_status(outcome.status, diagnostics=outcome.diagnostics)
+                )
+            if not found:
+                raise KeyError(f"run result does not contain strategy: {strategy_id}")
+            self._save_result(response, tuple(runs))
+            _LOGGER.info(
+                "Strategy execution finished",
+                extra={
+                    "event": "strategy_finished",
+                    "run_id": run_id,
+                    "strategy_id": strategy_id,
+                    "status": outcome.status.value,
+                    "diagnostic_codes": [
+                        item.code.value for item in outcome.diagnostics
+                    ],
+                },
             )
-            runs.append(
-                updated.with_status(outcome.status, diagnostics=outcome.diagnostics)
-            )
-        if not found:
-            raise KeyError(f"run result does not contain strategy: {strategy_id}")
-        self._save_result(response, tuple(runs))
-        _LOGGER.info(
-            "Strategy execution finished",
-            extra={
-                "event": "strategy_finished",
-                "run_id": run_id,
-                "strategy_id": strategy_id,
-                "status": outcome.status.value,
-                "diagnostic_codes": [item.code.value for item in outcome.diagnostics],
-            },
-        )
 
     def _save_result(
         self, response: RunResponse, strategy_runs: Sequence[StrategyRun]
@@ -738,42 +838,20 @@ class RunManager:
         )
 
     def _fail_unfinished(self, run_id: str, diagnostic: Diagnostic) -> None:
-        response = self._store.get(run_id)
-        if response is None or response.result is None:
-            return
-        failed = tuple(
-            item.with_status(
-                StrategyStatus.FAILED,
-                diagnostics=_unique((*item.diagnostics, diagnostic)),
+        with self._state_lock:
+            response = self._store.get(run_id)
+            if response is None or response.result is None:
+                return
+            failed = tuple(
+                item.with_status(
+                    StrategyStatus.FAILED,
+                    diagnostics=_unique((*item.diagnostics, diagnostic)),
+                )
+                if not is_terminal(item.status)
+                else item
+                for item in response.result.strategy_runs
             )
-            if not is_terminal(item.status)
-            else item
-            for item in response.result.strategy_runs
-        )
-        self._save_result(response, failed)
-
-
-def _resolve_latest_end(
-    config: FrozenRunConfig,
-    calendars: Sequence[ExchangeCalendar],
-) -> FrozenRunConfig:
-    available_latest = tuple(
-        calendar.latest_complete_date
-        for calendar in calendars
-        if calendar.latest_complete_date is not None
-    )
-    if not available_latest:
-        return config
-    if config.shared.run.end_mode is not EndMode.LATEST:
-        return config
-    latest = min(available_latest)
-    if latest < config.shared.run.start_date:
-        return config
-    run_settings = config.shared.run.model_copy(
-        update={"end_date": latest, "end_mode": EndMode.FIXED}
-    )
-    shared_settings = config.shared.model_copy(update={"run": run_settings})
-    return config.model_copy(update={"shared": shared_settings})
+            self._save_result(response, failed)
 
 
 def _data_provenance(

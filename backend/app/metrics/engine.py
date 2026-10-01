@@ -16,40 +16,7 @@ from app.domain.status import (
 from .types import MetricsInput, MetricsResult
 
 _DAY_COUNT = Decimal("365")
-METRIC_METHOD_VERSION = "metrics-v3"
-
-
-def calculate_metrics(
-    source: MetricsInput,
-    *,
-    dca_baseline: MetricsInput | None = None,
-) -> MetricsResult:
-    """Calculate the shared KPIs, unit NAV/drawdown, and optional DCA excess."""
-
-    result = _calculate_without_comparison(source)
-    if dca_baseline is None:
-        return result
-
-    reasons = _comparison_mismatch_reasons(source, dca_baseline)
-    if reasons:
-        diagnostic = Diagnostic(
-            code=DiagnosticCode.COMPARISON_UNAVAILABLE,
-            severity=DiagnosticSeverity.WARNING,
-            messageKey="metrics.relative_to_dca_unavailable",
-            fieldPath="metrics.relativeToDca",
-            details={"reasons": reasons},
-        )
-        return _with_metric_diagnostic(result, diagnostic)
-
-    baseline = _calculate_without_comparison(dca_baseline)
-    relative_to_dca = result.summary.ending_equity - baseline.summary.ending_equity
-    return result.model_copy(
-        update={
-            "summary": result.summary.model_copy(
-                update={"relative_to_dca": relative_to_dca}
-            )
-        }
-    )
+METRIC_METHOD_VERSION = "metrics-v4"
 
 
 def calculate_xirr(
@@ -138,7 +105,7 @@ def calculate_xirr(
             return None, "xirr_calculation_failed"
 
 
-def _calculate_without_comparison(source: MetricsInput) -> MetricsResult:
+def calculate_metrics(source: MetricsInput) -> MetricsResult:
     _validate_metrics_input(source)
     total_contributed = source.schedule.total_amount
     actual_invested = sum(
@@ -285,51 +252,3 @@ def _with_unit_nav(
         previous_nav = nav
 
     return tuple(result), maximum_drawdown
-
-
-def _comparison_mismatch_reasons(
-    source: MetricsInput,
-    baseline: MetricsInput,
-) -> tuple[str, ...]:
-    reasons: list[str] = []
-    baseline_preset = get_preset_definition(baseline.strategy.preset_id)
-    if (
-        baseline_preset.id.value != "monthly_dca"
-        or baseline_preset.execution_module is not ExecutionModule.SCHEDULED
-        or baseline.strategy.params.get("scheduled.fundingMode") != "monthly"
-    ):
-        reasons.append("baseline_is_not_monthly_dca")
-    if not source.ledger.available or not baseline.ledger.available:
-        reasons.append("ledger_unavailable")
-    if source.data_fingerprint != baseline.data_fingerprint:
-        reasons.append("different_data_snapshot")
-    if source.schedule.trading_dates != baseline.schedule.trading_dates:
-        reasons.append("different_period")
-    if (
-        source.schedule.total_amount != baseline.schedule.total_amount
-        or source.schedule.contributions != baseline.schedule.contributions
-    ):
-        reasons.append("different_contribution_budget")
-    if (
-        source.ledger.daily_assets
-        and baseline.ledger.daily_assets
-        and source.ledger.daily_assets[-1].currency
-        != baseline.ledger.daily_assets[-1].currency
-    ):
-        reasons.append("different_currency")
-    return tuple(reasons)
-
-
-def _with_metric_diagnostic(
-    result: MetricsResult,
-    diagnostic: Diagnostic,
-) -> MetricsResult:
-    return result.model_copy(
-        update={
-            "summary": result.summary.model_copy(
-                update={
-                    "diagnostics": (*result.summary.diagnostics, diagnostic),
-                }
-            )
-        }
-    )

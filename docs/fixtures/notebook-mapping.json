@@ -115,7 +115,7 @@
       "sourceId": "qqq_vix_dca",
       "sourceKey": "回测结束日",
       "targetKey": "run.endDate",
-      "note": "V1 also supports endMode=latest and freezes the resolved date."
+      "note": "日期框默认本机今天；运行冻结所选日期，行情截至日另存于来源信息。"
     },
     {
       "sourceId": "qqq_vix_dca",
@@ -211,12 +211,16 @@
     {
       "sourceId": "compare_strategies",
       "sourceKey": "启用固定比例定投",
-      "targetKey": "accumulation.fixedDcaEnabled"
+      "targetKey": [],
+      "mappingKind": "retiredInput",
+      "reason": "阶段 21 删除独立固定比例定投；每月定额定投作为自动基准保留。"
     },
     {
       "sourceId": "compare_strategies",
       "sourceKey": "固定定投比例",
-      "targetKey": "accumulation.fixedDcaRatio"
+      "targetKey": [],
+      "mappingKind": "retiredInput",
+      "reason": "阶段 21 删除独立固定比例定投及比例参数。"
     },
     {
       "sourceId": "compare_strategies",
@@ -389,7 +393,9 @@
     {
       "sourceId": "compare_strategies",
       "sourceKey": "网格固定比例列表",
-      "targetKey": "search.dimensions[accumulation.fixedDcaRatio]"
+      "targetKey": [],
+      "mappingKind": "retiredInput",
+      "reason": "阶段 21 删除固定比例搜索维度；历史 notebook 来源信息保留。"
     },
     {
       "sourceId": "compare_strategies",

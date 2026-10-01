@@ -141,8 +141,6 @@ _COMPOSITE_KEYS: Final[tuple[str, ...]] = (
     "accumulation.cashSafetyLimit",
     "accumulation.maxSignalBuysPerMonth",
     "accumulation.conditionLogic",
-    "accumulation.fixedDcaEnabled",
-    "accumulation.fixedDcaRatio",
     "vix.buyEnabled",
     "vix.symbol",
     "vix.buyThreshold",
@@ -362,15 +360,6 @@ PRESET_DEFINITIONS: Final[Mapping[StrategyPresetId, PresetDefinition]] = (
                     SearchDimension(
                         key="accumulation.cashSafetyLimit",
                         values=(Decimal("400"), Decimal("600"), Decimal("800")),
-                    ),
-                    SearchDimension(
-                        key="accumulation.fixedDcaRatio",
-                        values=(
-                            Decimal("0.3"),
-                            Decimal("0.5"),
-                            Decimal("0.7"),
-                            Decimal("1"),
-                        ),
                     ),
                 ),
             ),

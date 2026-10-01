@@ -21,6 +21,9 @@ class ConfigurationIssue(StrEnum):
     NOT_APPLICABLE = "not_applicable"
     CROSS_FIELD = "cross_field"
     TOO_MANY_COMBINATIONS = "too_many_combinations"
+    DUPLICATE_CONDITION = "duplicate_condition"
+    DUPLICATE_STRATEGY = "duplicate_strategy"
+    TOO_MANY_STRATEGIES = "too_many_strategies"
 
 
 _PARAMETER_ISSUES: dict[ParameterValueIssue, ConfigurationIssue] = {

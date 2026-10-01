@@ -1,6 +1,7 @@
 """Catalog assembly and read-only lookup helpers."""
 
 from copy import deepcopy
+from datetime import date
 from functools import lru_cache
 from typing import Final
 
@@ -29,7 +30,53 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v6"
+CATALOG_VERSION: Final[str] = "catalog-v7"
+
+
+class SymbolSuggestion(DomainModel):
+    symbol: str
+    name: str
+    currency: str
+    source: str
+
+
+SYMBOL_SUGGESTIONS = (
+    SymbolSuggestion(
+        symbol="QQQ",
+        name="Nasdaq-100",
+        currency="USD",
+        source="https://www.invesco.com/qqq-etf/en/home.html",
+    ),
+    SymbolSuggestion(
+        symbol="SPY",
+        name="S&P 500",
+        currency="USD",
+        source="https://www.ssga.com/us/en/individual/etfs/state-street-spdr-sp-500-etf-trust-spy",
+    ),
+    SymbolSuggestion(
+        symbol="VOO",
+        name="S&P 500",
+        currency="USD",
+        source="https://investor.vanguard.com/investment-products/etfs/profile/voo",
+    ),
+    SymbolSuggestion(
+        symbol="VTI",
+        name="Total Stock Market",
+        currency="USD",
+        source="https://investor.vanguard.com/investment-products/etfs/profile/vti",
+    ),
+    SymbolSuggestion(
+        symbol="IVV",
+        name="S&P 500",
+        currency="USD",
+        source="https://www.ishares.com/us/products/239726/ishares-core-sp-500-etf-ivv",
+    ),
+)
+
+
+class StrategyLimits(DomainModel):
+    max_custom_instances: int = Field(default=10, alias="maxCustomInstances", ge=1)
+    max_fixed_instances: int = Field(default=1, alias="maxFixedInstances", ge=1)
 
 
 class Catalog(DomainModel):
@@ -44,6 +91,12 @@ class Catalog(DomainModel):
     conditions: tuple[ConditionDefinition, ...] = ()
     condition_limits: ConditionLimits = Field(
         default=CONDITION_LIMITS, alias="conditionLimits"
+    )
+    symbol_suggestions: tuple[SymbolSuggestion, ...] = Field(
+        default=SYMBOL_SUGGESTIONS, alias="symbolSuggestions"
+    )
+    strategy_limits: StrategyLimits = Field(
+        default_factory=StrategyLimits, alias="strategyLimits"
     )
 
     @model_validator(mode="after")
@@ -165,6 +218,8 @@ class Catalog(DomainModel):
             "presets",
             "conditions",
             "conditionLimits",
+            "symbolSuggestions",
+            "strategyLimits",
         }:
             raise KeyError(key)
         return getattr(
@@ -172,17 +227,28 @@ class Catalog(DomainModel):
             {
                 "parameterGroups": "parameter_groups",
                 "conditionLimits": "condition_limits",
+                "symbolSuggestions": "symbol_suggestions",
+                "strategyLimits": "strategy_limits",
             }.get(key, key),
         )
 
 
-@lru_cache(maxsize=1)
 def get_catalog() -> Catalog:
-    """Build and cache the one catalog instance for this process."""
+    """Resolve today's default without retaining yesterday across midnight."""
+    return _catalog_for_day(date.today())
+
+
+@lru_cache(maxsize=2)
+def _catalog_for_day(today: date) -> Catalog:
 
     catalog = Catalog(
         version=CATALOG_VERSION,
-        parameters=ALL_PARAMETER_DEFINITIONS,
+        parameters=tuple(
+            parameter.model_copy(update={"default": today})
+            if parameter.key == "run.endDate"
+            else parameter
+            for parameter in ALL_PARAMETER_DEFINITIONS
+        ),
         presets=tuple(PRESET_DEFINITIONS.values()),
         conditions=CONDITION_DEFINITIONS,
     )

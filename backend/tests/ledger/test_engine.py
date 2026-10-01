@@ -171,7 +171,6 @@ def _run(
     [
         ("cash", "0"),
         ("signal", "100"),
-        ("fixed", "50"),
         ("safety", "200"),
         ("reinvest", "300"),
         ("monthly_dca", "200"),
@@ -196,8 +195,6 @@ def test_actual_buy_amount_tracks_fills_and_reinvestment_without_changing_princi
     )
     params: dict[str, object] = {
         "accumulation.cashSafetyLimit": Decimal("10000"),
-        "accumulation.fixedDcaEnabled": mode == "fixed",
-        "accumulation.fixedDcaRatio": Decimal("0.25"),
         "accumulation.maxSignalBuysPerMonth": 3,
         "exit.enabled": mode == "reinvest",
         "exit.rsi.enabled": mode == "reinvest",
@@ -328,26 +325,9 @@ def test_trend_buy_and_full_exit_share_the_same_next_session_ledger() -> None:
     assert result.daily_assets[2].cash == Decimal("100")
 
 
-def test_zero_cash_still_keeps_daily_valuation_and_evaluated_sell_signals() -> None:
+def test_monthly_benchmark_ignores_timing_sell_signals_and_values_every_day() -> None:
     dates = (date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4))
-    config = _config(
-        start=date(2024, 1, 1),
-        end=dates[-1],
-        preset="composite_dca",
-        contribution_day=1,
-        params={
-            "accumulation.fixedDcaEnabled": True,
-            "accumulation.fixedDcaRatio": Decimal("1"),
-            "vix.buyEnabled": False,
-            "rsi.buyEnabled": False,
-            "ma.buyEnabled": False,
-            "bollinger.buyEnabled": False,
-            "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
-            "exit.enabled": True,
-            "exit.rsi.enabled": True,
-        },
-    )
+    config = _config(start=date(2024, 1, 1), end=dates[-1], preset="monthly_dca")
     signals = _signals(
         config,
         dates,
@@ -410,7 +390,6 @@ def test_sell_precedes_buy_and_safety_and_uses_only_the_largest_exit_ratio() -> 
         params={
             "accumulation.cashSafetyLimit": Decimal("0"),
             "accumulation.maxSignalBuysPerMonth": None,
-            "accumulation.fixedDcaEnabled": False,
             "vix.buyEnabled": False,
             "rsi.buyEnabled": False,
             "ma.buyEnabled": False,
@@ -450,7 +429,7 @@ def test_sell_precedes_buy_and_safety_and_uses_only_the_largest_exit_ratio() -> 
     assert result.daily_assets[-1].cash == Decimal("60")
 
 
-def test_fixed_dca_still_runs_on_a_timing_sell_day() -> None:
+def test_contribution_precedes_sell_and_stays_in_timing_cash_on_sell_day() -> None:
     dates = (date(2024, 1, 2), date(2024, 1, 31), date(2024, 2, 1))
     config = _config(
         start=date(2024, 1, 1),
@@ -460,8 +439,6 @@ def test_fixed_dca_still_runs_on_a_timing_sell_day() -> None:
         params={
             "accumulation.cashSafetyLimit": Decimal("0"),
             "accumulation.maxSignalBuysPerMonth": None,
-            "accumulation.fixedDcaEnabled": True,
-            "accumulation.fixedDcaRatio": Decimal("0.5"),
             "vix.buyEnabled": False,
             "rsi.buyEnabled": False,
             "ma.buyEnabled": False,
@@ -485,15 +462,13 @@ def test_fixed_dca_still_runs_on_a_timing_sell_day() -> None:
     result = _run(config, dates, ("10", "10", "10"), signals=signals)
 
     assert [(trade.date, trade.reason) for trade in result.trades] == [
-        (dates[0], TradeReason.FIXED_DCA),
         (dates[1], TradeReason.SIGNAL_BUY),
-        (dates[2], TradeReason.FIXED_DCA),
         (dates[2], TradeReason.SIGNAL_SELL),
     ]
-    assert result.trades[2].cash_amount == Decimal("50")
-    assert result.trades[3].quantity == Decimal("2.5")
-    assert result.daily_assets[-1].fixed_quantity == Decimal("10")
-    assert result.daily_assets[-1].cash == Decimal("75")
+    assert result.trades[0].cash_amount == Decimal("100")
+    assert result.trades[1].quantity == Decimal("5")
+    assert result.daily_assets[-1].fixed_quantity == Decimal("0")
+    assert result.daily_assets[-1].cash == Decimal("150")
 
 
 def test_signal_buy_limit_counts_filled_trades_by_execution_month() -> None:
@@ -660,7 +635,9 @@ def test_no_valid_contribution_returns_unavailable_without_fabricated_assets() -
     )
 
 
-def test_one_hundred_percent_fixed_dca_matches_monthly_dca_daily_assets() -> None:
+def test_no_signal_custom_strategy_keeps_principal_while_benchmark_buys_monthly() -> (
+    None
+):
     dates = (date(2024, 6, 3), date(2024, 6, 14), date(2024, 6, 28))
     shared = {
         "run": {
@@ -693,7 +670,6 @@ def test_one_hundred_percent_fixed_dca_matches_monthly_dca_daily_assets() -> Non
                         "rate.buyEnabled": False,
                         "pe.buyEnabled": False,
                         "exit.enabled": False,
-                        "accumulation.fixedDcaRatio": Decimal("1"),
                     },
                 },
             ],
@@ -729,8 +705,13 @@ def test_one_hundred_percent_fixed_dca_matches_monthly_dca_daily_assets() -> Non
         exchange_calendar=calendar,
     )
 
-    assert composite_result.daily_assets == monthly_result.daily_assets
-    assert composite_result.trades == monthly_result.trades
+    assert composite_result.trades == ()
+    assert composite_result.daily_assets[-1].cash == Decimal("100")
+    assert (
+        monthly_result.daily_assets[-1].total_asset
+        > composite_result.daily_assets[-1].total_asset
+    )
+    assert len(monthly_result.trades) == 1
 
 
 @pytest.mark.parametrize("preset", ["lump_sum"])

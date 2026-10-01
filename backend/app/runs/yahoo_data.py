@@ -29,8 +29,8 @@ from app.data.market_data import (
 from app.data.providers.yahoo import YahooFinanceAdapter
 from app.domain.contracts import (
     DataSnapshot,
-    EndMode,
     FrozenStrategyInstance,
+    InstrumentMetadata,
     SharedSettings,
 )
 from app.domain.status import Diagnostic, DiagnosticCode
@@ -97,6 +97,14 @@ class YahooRunDataProvider:
             calendar_version = "uninstalled"
         self.version = (
             f"{self._adapter.data_version}+exchange-calendars-{calendar_version}"
+        )
+
+    def instrument_metadata(self, symbol: str) -> InstrumentMetadata:
+        currency, diagnostic = self._adapter.quote_currency(symbol)
+        return InstrumentMetadata(
+            symbol=symbol,
+            currency=currency,
+            diagnostics=() if diagnostic is None else (diagnostic,),
         )
 
     def load_for_strategy(
@@ -226,11 +234,7 @@ class YahooRunDataProvider:
             )
 
         latest_closed_session = completed_before_request[-1]
-        request_end = (
-            latest_closed_session
-            if shared.run.end_mode is EndMode.LATEST
-            else min(shared.run.end_date, latest_closed_session)
-        )
+        request_end = min(shared.run.end_date, latest_closed_session)
         if request_end < shared.run.start_date:
             return _failed_loads(
                 strategies,
@@ -308,7 +312,6 @@ class YahooRunDataProvider:
             _apply_market_gap_policy(
                 calendar_dates,
                 market_result.diagnostics,
-                end_mode=shared.run.end_mode,
                 scheduled_end=request_end,
                 latest_quote=(
                     actual_latest_quote
@@ -638,14 +641,13 @@ def _apply_market_gap_policy(
     calendar_dates: tuple[Date, ...],
     diagnostics: tuple[Diagnostic, ...],
     *,
-    end_mode: EndMode,
     scheduled_end: Date,
     latest_quote: Date | None,
 ) -> tuple[tuple[Date, ...], tuple[Diagnostic, ...]]:
-    """Skip isolated missing sessions and trim a delayed dynamic end without filling."""
+    """Skip isolated gaps and trim unreported final quotes without filling."""
 
-    latest_mode = end_mode is EndMode.LATEST and latest_quote is not None
-    if latest_mode:
+    has_quote = latest_quote is not None
+    if has_quote:
         assert latest_quote is not None
         effective_dates = tuple(day for day in calendar_dates if day <= latest_quote)
     else:
@@ -659,7 +661,7 @@ def _apply_market_gap_policy(
     retained: list[Diagnostic] = []
     for diagnostic in diagnostics:
         if (
-            latest_mode
+            has_quote
             and diagnostic.code is DiagnosticCode.PRICE_BASIS_UNAVAILABLE
             and diagnostic.as_of is not None
             and latest_quote is not None
@@ -690,7 +692,7 @@ def _apply_market_gap_policy(
             missing_indices: list[int] = []
             for missing_date in missing_dates:
                 if (
-                    latest_mode
+                    has_quote
                     and latest_quote is not None
                     and latest_quote < missing_date <= scheduled_end
                 ):

@@ -131,7 +131,7 @@ def test_ordinary_and_grid_configs_share_ratio_boundaries_and_error_paths() -> N
     for preset_id in ("composite_dca", "grid_search"):
         draft = _draft(
             preset_id=preset_id,
-            params={"accumulation.fixedDcaRatio": Decimal("1.01")},
+            params={"exit.ratio": Decimal("1.01")},
         )
         result = validate_draft(draft)
         diagnostics = result.diagnostics_for(("strategy-1",))
@@ -140,9 +140,7 @@ def test_ordinary_and_grid_configs_share_ratio_boundaries_and_error_paths() -> N
         assert len(diagnostics) == 1
         assert diagnostics[0].code is DiagnosticCode.INVALID_PARAMETER
         assert diagnostics[0].message_key == "diagnostics.configuration.out_of_range"
-        assert diagnostics[0].field_path == (
-            "strategies[0].params.accumulation.fixedDcaRatio"
-        )
+        assert diagnostics[0].field_path == ("strategies[0].params.exit.ratio")
 
 
 def test_validation_distinguishes_empty_and_non_applicable_fields() -> None:
@@ -254,7 +252,7 @@ def test_invalid_unselected_strategy_does_not_block_selected_valid_strategy() ->
             "id": "unused-invalid",
             "presetId": "composite_dca",
             "enabled": True,
-            "params": {"accumulation.fixedDcaRatio": Decimal("1.1")},
+            "params": {"exit.ratio": Decimal("1.1")},
         },
     ]
 
