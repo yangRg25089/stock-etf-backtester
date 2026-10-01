@@ -147,10 +147,10 @@ test("wide data tables scroll inside their panels instead of widening the page",
 test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   const touch = mediaBlock("@media (pointer: coarse)");
   assert.match(touch, /button,[\s\S]*\.input,[\s\S]*min-height:\s*44px/);
-  assert.match(touch, /\.checkbox-control,[\s\S]*\.latest-toggle,[\s\S]*\.strategy-enabled-control\s*\{\s*min-height:\s*44px/);
+  assert.match(touch, /\.checkbox-control\s*\{\s*min-height:\s*44px/);
   assert.match(touch, /\.input\s*\{\s*font-size:\s*16px/);
   assert.match(touch, /\.icon-button\s*\{\s*min-width:\s*44px/);
-  assert.match(touch, /\.strategy-nav-card \.strategy-enabled-control\s*\{\s*min-width:\s*44px/);
+  assert.doesNotMatch(css, /strategy-enabled-control/);
   assert.match(dividerSource, /aria-expanded=\{!collapsed\}/);
   assert.match(touch, /\.execution-actions \.button-primary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
   assert.match(touch, /\.workbench-results \.legend-toggle,[\s\S]*?\.workbench-results \.chart-range-controls button,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
@@ -213,8 +213,8 @@ test("workbench explanatory text meets the readable type scale", () => {
 test("the fixed strategy navigator does not stretch cards to fill unused height", () => {
   const navigator = blockFor(".strategy-navigator");
   const cards = blockFor(".strategy-navigator .strategy-card-list");
-  assert.match(navigator, /grid-template-rows:\s*auto auto minmax\(0, 1fr\)/);
-  assert.match(navigator, /overflow:\s*hidden/);
+  assert.match(navigator, /grid-template-rows:\s*auto minmax\(0, 1fr\)/);
+  assert.match(navigator, /overflow:\s*visible/);
   assert.match(cards, /align-content:\s*start/);
   assert.match(cards, /min-height:\s*0/);
   assert.match(cards, /overflow-y:\s*auto/);

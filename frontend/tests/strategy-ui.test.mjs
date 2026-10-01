@@ -26,7 +26,7 @@ function render(state, locale = "ja") {
       strategies: state.draft.strategies.map((strategy) => ({
         strategyId: strategy.id,
         presetId: strategy.presetId,
-        enabled: strategy.enabled,
+        enabled: true,
         diagnostics: [],
       })),
     },
@@ -48,17 +48,17 @@ function renderEditor(strategy, locale = "ja") {
   }));
 }
 
-test("execution offers only two icon buttons even while busy, disabled, or complete", () => {
+test("execution offers play reset and a stop button only while busy even while busy, disabled, or complete", () => {
   for (const options of [
     { busy: false, run: null, availability: { disabled: false, reasonKey: null } },
     { busy: true, run: null, availability: { disabled: false, reasonKey: null } },
     { busy: false, run: { status: "completed" }, availability: { disabled: false, reasonKey: null } },
-    { busy: false, run: null, availability: { disabled: true, reasonKey: "run.noEnabledStrategies" } },
+    { busy: false, run: null, availability: { disabled: true, reasonKey: "run.noStrategies" } },
   ]) {
     const html = renderToStaticMarkup(React.createElement(RunActions, {
-      locale: "zh", canReset: true, onRun() {}, onReset() {}, ...options,
+      locale: "zh", canReset: true, onRun() {}, onReset() {}, onStop() {}, stopping: false, ...options,
     }));
-    assert.equal((html.match(/<button /g) ?? []).length, 2);
+    assert.equal((html.match(/<button /g) ?? []).length, options.busy ? 3 : 2);
     assert.doesNotMatch(html, /run-controls|run-control-main|run-reason|run-complete-feedback|<p /);
   }
 });
@@ -75,10 +75,31 @@ test("fixed strategy uses independent buy sell cards and header switches without
   assert.doesNotMatch(sharedField, /appearance === "segments"|hideLabel|optionHints/);
 });
 
+test("custom strategy shows an unlimited placeholder for a blank monthly buy limit", () => {
+  const state = workspaceReducer(createInitialWorkspaceState(catalog), { type: "strategy.add", id: "custom", presetId: "composite_dca" }, catalog);
+  const strategy = state.draft.strategies.find(item => item.id === "custom");
+  assert.equal(strategy.params["accumulation.maxSignalBuysPerMonth"], null);
+  assert.match(renderEditor(strategy, "ja"), /placeholder="制限なし"/);
+  assert.match(renderEditor(strategy, "zh"), /placeholder="不限次数"/);
+});
+
+test("strategy menu and reducer consume the same catalog instance limits", () => {
+  const restricted = { ...catalog, strategyLimits: { maxCustomInstances: 2, maxFixedInstances: 2 } };
+  let state = createInitialWorkspaceState(restricted);
+  const renderCurrent = () => renderToStaticMarkup(React.createElement(StrategyNavigator, { catalog: restricted, locale: "ja", state, validation: null, dispatch() {}, onAdd() {} }));
+  assert.doesNotMatch(renderCurrent(), /data-preset-id="vix_dca" disabled/);
+  state = workspaceReducer(state, { type: "strategy.add", id: "second-vix", presetId: "vix_dca" }, restricted);
+  assert.equal(state.draft.strategies.filter(item => item.presetId === "vix_dca").length, 2);
+  for (let index = 1; index <= 2; index++) state = workspaceReducer(state, { type: "strategy.add", id: `custom-${index}`, presetId: "composite_dca" }, restricted);
+  const html = renderCurrent();
+  for (const preset of ["vix_dca", "composite_dca"]) assert.match(html, new RegExp(`data-preset-id="${preset}" disabled`));
+  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "third-custom", presetId: "composite_dca" }, restricted), state);
+});
+
 test("strategy editor keeps one label per field and no repeated parameter summary", () => {
   const state = createInitialWorkspaceState(catalog);
   const html = renderEditor(state.draft.strategies[0]);
-  assert.match(html, /VIX シグナル積立/);
+  assert.match(html, /ボラティリティ積立/);
   assert.doesNotMatch(html, /strategy-editor-summary|strategy-parameter-nav/);
   assert.match(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
   assert.match(html, /VXN — Nasdaq 100 ボラティリティ指数/);
@@ -102,7 +123,7 @@ test("strategy parameters follow catalog groups and select controls explain thei
   const ja = renderEditor(strategy, "ja");
   const zh = renderEditor(strategy, "zh");
 
-  assert.ok((ja.match(/class="strategy-parameter-group"/g) ?? []).length >= 2);
+  assert.ok((ja.match(/class="strategy-parameter-group"/g) ?? []).length >= 1);
   assert.match(ja, /ボリンジャー/);
   assert.match(ja, /data-rule-side="sell"/);
   assert.match(ja, /role="radiogroup" aria-label="隣接する条件カードの関係"/);
@@ -155,12 +176,12 @@ test("catalog selector offers five optional strategies and preserves required be
     if (["monthly_dca", "lump_sum"].includes(preset.id)) assert.doesNotMatch(html, new RegExp(`data-preset-id="${preset.id}"`));
     else assert.match(html, new RegExp(`data-preset-id="${preset.id}"`));
   }
-  assert.match(html, /role="switch"[^>]*aria-checked="true"/);
+  assert.doesNotMatch(html, /role="switch"/);
   assert.doesNotMatch(html, /strategy-run-target/);
   assert.match(html, /class="strategy-add-option"[^>]*data-preset-id="composite_dca"/);
   assert.match(html, /id="strategy-add-menu"[^>]*role="menu"/);
-  assert.match(html, /aria-label="启用VIX 信号定投"/);
-  assert.match(html, /aria-label="删除VIX 信号定投"/);
+  assert.doesNotMatch(html, /strategy-enabled-control|status-tag/);
+  assert.match(html, /aria-label="删除波动率信号定投"/);
   assert.match(html, /<article class="strategy-card strategy-nav-card is-active">/);
   assert.doesNotMatch(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
 
@@ -187,7 +208,7 @@ test("strategy picker precedes summary cards and editing stays separate from the
   assert.match(html, /class="strategy-card-open"[^>]*aria-haspopup="dialog"/);
   assert.doesNotMatch(html, /strategy-run-target/);
   assert.doesNotMatch(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
-  assert.match(html, /role="switch"/);
+  assert.doesNotMatch(html, /role="switch"/);
 });
 
 test("strategy navigation lists every instance while the editor only expands the selected one", () => {
@@ -200,7 +221,7 @@ test("strategy navigation lists every instance while the editor only expands the
   const html = render(second, "zh");
   assert.equal((html.match(/class="strategy-card strategy-nav-card(?: is-active)?"/g) ?? []).length, 2);
   assert.match(html, /class="strategy-card strategy-nav-card is-active"/);
-  assert.match(html, /aria-label="编辑VIX 信号定投"/);
-  assert.match(html, /aria-label="编辑自定义策略"/);
+  assert.match(html, /aria-label="编辑波动率信号定投"/);
+  assert.match(html, /aria-label="编辑自定义策略 1"/);
   assert.doesNotMatch(html, /id="field-strategy-(?:vix_dca-1-vix-symbol|composite-1-accumulation-fixedDcaRatio)"/);
 });

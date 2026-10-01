@@ -152,11 +152,10 @@
     #backtest-ui-preview .comparison-table-wrap { overflow-x: auto; }
     #backtest-ui-preview [data-panel="trades"] .comparison-table-wrap { max-height: 420px; overflow: auto; }
     #backtest-ui-preview [data-panel="trades"] thead th { position: sticky; top: 0; }
-    #backtest-ui-preview .strategy-switch { width: 36px; height: 22px; min-height: 22px; background: var(--accent); border-radius: 12px; border: 0; padding: 3px; }
-    #backtest-ui-preview .strategy-switch span { display: block; width: 16px; height: 16px; background: #fff; border-radius: 50%; transform: translateX(14px); }
-    #backtest-ui-preview .strategy-switch[aria-checked="false"] { background: #87968d; }
-    #backtest-ui-preview .strategy-switch[aria-checked="false"] span { transform: none; }
-    #backtest-ui-preview .strategy-card.is-disabled { background: #edf0ee; color: var(--muted); }
+    #backtest-ui-preview .signal-switch { width: 36px; height: 22px; min-height: 22px; background: var(--accent); border-radius: 12px; border: 0; padding: 3px; }
+    #backtest-ui-preview .signal-switch span { display: block; width: 16px; height: 16px; background: #fff; border-radius: 50%; transform: translateX(14px); }
+    #backtest-ui-preview .signal-switch[aria-checked="false"] { background: #87968d; }
+    #backtest-ui-preview .signal-switch[aria-checked="false"] span { transform: none; }
     #backtest-ui-preview .unit-field { position: relative; }
     #backtest-ui-preview .unit-field input { width: 100%; padding-right: 54px; }
     #backtest-ui-preview .unit { position: absolute; right: 10px; top: 11px; color: var(--muted); }
@@ -233,9 +232,9 @@
     #backtest-ui-preview [hidden] { display: none !important; }
     #backtest-ui-preview .signal-switch-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 12px; padding: 6px 10px; border-radius: 6px; background: var(--bg); }
     #backtest-ui-preview .signal-switch-row button { width: auto; padding-inline: 8px; display: flex; gap: 8px; align-items: center; color: var(--muted); background: transparent; border: 0; }
-    #backtest-ui-preview .signal-switch-row .strategy-switch { display: inline-block; }
-    #backtest-ui-preview .signal-switch-row button[aria-checked="false"] .strategy-switch { background: #87968d; }
-    #backtest-ui-preview .signal-switch-row button[aria-checked="false"] .strategy-switch span { transform: none; }
+    #backtest-ui-preview .signal-switch-row .signal-switch { display: inline-block; }
+    #backtest-ui-preview .signal-switch-row button[aria-checked="false"] .signal-switch { background: #87968d; }
+    #backtest-ui-preview .signal-switch-row button[aria-checked="false"] .signal-switch span { transform: none; }
     #backtest-ui-preview .logic-segments { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 7px; }
     #backtest-ui-preview .logic-segments label { position: relative; cursor: pointer; }
     #backtest-ui-preview .logic-segments input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; }
@@ -257,7 +256,14 @@
       #backtest-ui-preview .chart-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
       #backtest-ui-preview .chart-controls { flex: 1 1 auto; }
     }
-  </style>
+    #backtest-ui-preview .strategy-navigator { grid-template-rows: auto minmax(0, 1fr); }
+  #backtest-ui-preview .strategy-add { margin-left: auto; }
+  #backtest-ui-preview .strategy-add-menu { left: auto; right: 0; top: calc(100% + 6px); }
+  #backtest-ui-preview .result-select { border: 0; padding: 6px 8px; background: transparent; color: inherit; }
+  #backtest-ui-preview .result-select[aria-pressed="true"] { background: #d8ece6; }
+  #backtest-ui-preview .etf-options { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  #backtest-ui-preview .etf-options button { padding: 8px 12px; }
+</style>
 
   <header class="app-topbar">
     <div class="topbar-brand">
@@ -285,12 +291,12 @@
 
           </button>
           <nav class="strategy-navigator" aria-label="実行する戦略">
-            <div class="strategy-nav-heading"><span>実行する戦略</span><span>1</span></div>
-            <div class="strategy-add"><button class="add-button" type="button" aria-label="戦略を追加" aria-haspopup="menu" aria-controls="prototype-strategy-menu" aria-expanded="false">＋</button><div class="strategy-add-menu" id="prototype-strategy-menu" role="menu" aria-label="戦略を選択" hidden><button type="button" role="menuitem" data-preset="vix_dca" disabled>VIX シグナル積立</button><button type="button" role="menuitem" data-preset="composite_dca">カスタム戦略</button><button type="button" role="menuitem" data-preset="ma_trend">移動平均トレンド（売買）</button><button type="button" role="menuitem" data-preset="ma_buy_only">移動平均トレンド（買付のみ）</button><button type="button" role="menuitem" data-preset="rsi_dca">RSI シグナル積立</button><button type="button" role="menuitem" data-preset="ma_deviation_dca">移動平均乖離積立</button><button type="button" role="menuitem" data-preset="bollinger_dca">ボリンジャー積立</button><button type="button" role="menuitem" data-preset="rate_dca">金利シグナル積立</button><button type="button" role="menuitem" data-preset="pe_dca">PER シグナル積立</button><button type="button" role="menuitem" data-preset="grid_search">グリッド検索</button></div></div>
+            <div class="strategy-nav-heading"><span>戦略一覧</span><div class="strategy-add"><button class="add-button" type="button" aria-label="戦略を追加" aria-haspopup="menu" aria-controls="prototype-strategy-menu" aria-expanded="false">＋</button><div class="strategy-add-menu" id="prototype-strategy-menu" role="menu" aria-label="戦略を選択" hidden><button type="button" role="menuitem" data-preset="vix_dca" disabled>ボラティリティ積立</button><button type="button" role="menuitem" data-preset="composite_dca">カスタム戦略</button><button type="button" role="menuitem" data-preset="ma_trend">移動平均トレンド（売買）</button><button type="button" role="menuitem" data-preset="ma_buy_only">移動平均トレンド（買付のみ）</button><button type="button" role="menuitem" data-preset="rsi_dca">RSI シグナル積立</button><button type="button" role="menuitem" data-preset="ma_deviation_dca">移動平均乖離積立</button><button type="button" role="menuitem" data-preset="bollinger_dca">ボリンジャー積立</button><button type="button" role="menuitem" data-preset="rate_dca">金利シグナル積立</button><button type="button" role="menuitem" data-preset="pe_dca">PER シグナル積立</button><button type="button" role="menuitem" data-preset="grid_search">グリッド検索</button></div></div></div>
+
             <div class="strategy-card-list">
               <article class="strategy-card is-active">
-                <button class="strategy-card-open" type="button" aria-label="VIX シグナル積立を編集" aria-haspopup="dialog"><strong class="strategy-card-name">VIX シグナル積立</strong><span class="strategy-card-summary">VIX: ^VIX ≥ 25、月間最大 1 回</span></button>
-                <div class="strategy-actions"><button class="strategy-switch" role="switch" type="button" aria-checked="true" aria-label="VIX シグナル積立を有効にする"><span aria-hidden="true"></span></button><button type="button" aria-label="VIX シグナル積立を削除" title="削除">×</button></div>
+                <button class="strategy-card-open" type="button" aria-label="ボラティリティ積立を編集" aria-haspopup="dialog"><strong class="strategy-card-name">ボラティリティ積立</strong><span class="strategy-card-summary">VIX: ^VIX ≥ 25、月間最大 1 回</span></button>
+                <div class="strategy-actions"><button type="button" aria-label="ボラティリティ積立を削除" title="削除">×</button></div>
               </article>
             </div>
           </nav>
@@ -301,13 +307,13 @@
       <section class="results-pane" aria-label="結果">
         <section class="result-card" id="prototype-result-details" aria-label="実行結果">
           <header class="panel-heading">
-            <div class="panel-heading-main"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-result-body"><span class="chevron" aria-hidden="true">⌄</span>実行結果</button><details class="snapshot-info"><summary aria-label="保存した設定" title="保存した設定">ⓘ</summary><p>QQQ · 2020-01-01 — 2026-09-29<br/>VIX シグナル積立 · ユーザー戦略</p></details></div>
+            <div class="panel-heading-main"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-result-body"><span class="chevron" aria-hidden="true">⌄</span>実行結果</button><details class="snapshot-info"><summary aria-label="保存した設定" title="保存した設定">ⓘ</summary><p>QQQ · 2020-01-01 — 2026-09-29<br/>ボラティリティ積立 · ユーザー戦略</p></details></div>
             <div class="result-context-actions"><div class="export-controls" role="group" aria-label="CSV をエクスポート"><button type="button" title="サマリー CSV">↓ サマリー.csv</button><button type="button" title="日次資産 CSV">↓ 日次資産.csv</button><button type="button" title="取引 CSV">↓ 取引.csv</button><button type="button" disabled title="検索結果なし">↓ 検索結果.csv</button></div></div>
           </header>
           <div id="prototype-result-body" class="panel-body">
             <div class="result-tabs" role="tablist" aria-label="実行結果"><button type="button" role="tab" aria-selected="true" data-tab="comparison">戦略比較</button><button type="button" role="tab" aria-selected="false" data-tab="trades">取引明細</button></div>
             <section class="tab-panel comparison-table-wrap" role="tabpanel" data-panel="comparison">
-              <table><caption class="sr-only">実行結果の比較</caption><thead><tr><th>戦略</th><th>実際の買付額</th><th>注入元本</th><th>期末資産</th><th>純損益</th><th>投入利益率</th><th>資産倍率</th><th>XIRR</th><th>最大ドローダウン</th><th>DCA との差額</th></tr></thead><tbody><tr style="--row-color:#147d68"><th><input type="checkbox" checked aria-label="VIX シグナル積立の比較曲線"/> <span style="color:var(--row-color)">●</span> VIX シグナル積立</th><td>$7,800</td><td>$8,100</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td><td>−$31</td></tr><tr style="--row-color:#ba6816"><th><input type="checkbox" aria-label="毎月定額積立の比較曲線"/> <span style="color:var(--row-color)">●</span> 毎月定額積立</th><td>$8,100</td><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td><td>$0</td></tr><tr style="--row-color:#7656a6"><th><input type="checkbox" aria-label="一括投資の比較曲線"/> <span style="color:var(--row-color)">●</span> 一括投資</th><td>$8,100</td><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td><td>$12,101</td></tr></tbody></table>
+              <table><caption class="sr-only">実行結果の比較</caption><thead><tr><th>戦略</th><th>実際の買付額</th><th>注入元本</th><th>期末資産</th><th>純損益</th><th>投入利益率</th><th>資産倍率</th><th>XIRR</th><th>最大ドローダウン</th></tr></thead><tbody><tr style="--row-color:#147d68"><th><button type="button" class="result-select" aria-pressed="true"><span style="color:var(--row-color)">●</span> ボラティリティ積立</button></th><td>$7,800</td><td>$8,100</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td></tr><tr style="--row-color:#a65b0f"><th><button type="button" class="result-select" aria-pressed="false"><span style="color:var(--row-color)">●</span> 毎月定額積立</button></th><td>$8,100</td><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td></tr><tr style="--row-color:#7656a6"><th><button type="button" class="result-select" aria-pressed="false"><span style="color:var(--row-color)">●</span> 一括投資</button></th><td>$8,100</td><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td></tr></tbody></table>
             </section>
             <section class="tab-panel" role="tabpanel" data-panel="trades" hidden><div class="comparison-table-wrap"><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td>2026-08-03</td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td>2026-09-01</td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
           </div>
@@ -348,22 +354,22 @@
   <dialog class="shared-dialog" aria-labelledby="prototype-shared-title">
     <div class="dialog-shell"><header class="dialog-header"><h2 id="prototype-shared-title">共通設定</h2><button class="icon-button dialog-close" type="button" aria-label="閉じる" title="閉じる">×</button></header>
       <div class="dialog-content">
-        <fieldset><legend>対象</legend><div class="fields"><div class="field"><label for="prototype-symbol">銘柄コード</label><input id="prototype-symbol" value="QQQ"/><small>Yahoo Finance の銘柄コード</small></div></div></fieldset>
-        <fieldset><legend>期間</legend><div class="fields"><div class="field"><label for="prototype-start">開始日</label><input id="prototype-start" type="date" value="2020-01-01"/></div><div class="field"><label for="prototype-end">終了日</label><input id="prototype-end" type="date" value="2026-09-29" disabled/><small>最新の完了日を使用</small></div></div></fieldset>
+        <fieldset><legend>対象</legend><div class="fields"><div class="field"><label for="prototype-symbol">銘柄コード</label><input id="prototype-symbol" value="QQQ"/><div class="etf-options"><button type="button">QQQ</button><button type="button">SPY</button><button type="button">VOO</button><button type="button">VTI</button><button type="button">IVV</button></div></div></div></fieldset>
+        <fieldset><legend>期間</legend><div class="fields"><div class="field"><label for="prototype-start">開始日</label><input id="prototype-start" type="date" value="2020-01-01"/></div><div class="field"><label for="prototype-end">終了日</label><input id="prototype-end" type="date" value="2026-10-01"/></div></div></fieldset>
         <fieldset><legend>投入計画</legend><div class="fields"><div class="field"><label for="prototype-cash">毎月の投入額</label><div class="unit-field"><input id="prototype-cash" type="number" value="100"/><span class="unit">USD</span></div></div><div class="field"><label for="prototype-day">毎月の投入日</label><input id="prototype-day" type="number" min="1" max="31" value="1"/></div></div></fieldset>
       </div><footer class="dialog-footer"><button class="button-primary dialog-done" type="button">完了</button></footer>
     </div>
   </dialog>
   <dialog class="strategy-dialog" aria-labelledby="prototype-strategy-title">
-    <div class="dialog-shell"><header class="dialog-header"><h2 id="prototype-strategy-title">VIX シグナル積立</h2><button class="icon-button strategy-dialog-close" type="button" aria-label="閉じる" title="閉じる">×</button></header>
-      <div class="dialog-content">
-        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>買付 · VIX</h3><button type="button" role="switch" aria-label="買付" aria-checked="true"><i class="strategy-switch" aria-hidden="true"><span></span></i></button></header>
+    <div class="dialog-shell"><header class="dialog-header"><h2 id="prototype-strategy-title">ボラティリティ積立</h2><button class="icon-button strategy-dialog-close" type="button" aria-label="閉じる" title="閉じる">×</button></header>
+      <div class="dialog-content"><fieldset><legend>買付上限</legend><div class="fields"><div class="field"><label for="prototype-month-cap">月間買付上限</label><div class="unit-field"><input id="prototype-month-cap" type="number" value="1"/><span class="unit">回</span></div></div><div class="field"><label for="prototype-cash-limit">現金安全上限</label><div class="unit-field"><input id="prototype-cash-limit" type="number" value="1200"/><span class="unit">USD</span></div></div></div></fieldset>
+        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>買付 · VIX</h3><button type="button" role="switch" aria-label="買付" aria-checked="true"><i class="signal-switch" aria-hidden="true"><span></span></i></button></header>
           <div class="condition-card"><div class="fields"><div class="field"><label for="prototype-vix-symbol">ボラティリティ指数</label><select id="prototype-vix-symbol"><option>^VIX — S&amp;P 500</option><option>^VXN — Nasdaq 100</option><option>^VXD — Dow Jones</option></select><small>判定に使う指数。</small></div><div class="field"><label for="prototype-vix-threshold">買付しきい値</label><div class="unit-field"><input id="prototype-vix-threshold" type="number" value="25"/><span class="unit">pt</span></div><small>終値 ≥ しきい値。</small></div></div></div>
         </section>
-        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>売却 · VIX</h3><button type="button" role="switch" aria-label="売却" aria-checked="false"><i class="strategy-switch" aria-hidden="true"><span></span></i></button></header>
+        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>売却 · VIX</h3><button type="button" role="switch" aria-label="売却" aria-checked="false"><i class="signal-switch" aria-hidden="true"><span></span></i></button></header>
           <div class="condition-card"><div class="fields"><div class="field"><label for="prototype-exit-low">売却しきい値</label><input id="prototype-exit-low" type="number" value="15" disabled/></div><div class="field"><label for="prototype-exit-ratio">売却割合</label><input id="prototype-exit-ratio" type="number" value="0.5" disabled/></div></div></div>
         </section>
-        <fieldset><legend>資金配分</legend><div class="fields"><div class="field"><label for="prototype-month-cap">月間買付上限</label><div class="unit-field"><input id="prototype-month-cap" type="number" value="1"/><span class="unit">回</span></div></div><div class="field"><label for="prototype-cash-limit">現金安全上限</label><div class="unit-field"><input id="prototype-cash-limit" type="number" value="1200"/><span class="unit">USD</span></div></div></div></fieldset>
+
       </div>
       <footer class="dialog-footer"><button class="button-primary strategy-dialog-done" type="button">完了</button></footer>
     </div>
@@ -405,10 +411,11 @@
       root.querySelectorAll(".chart-legend button").forEach((button) => button.addEventListener("click", () => {
         button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
       }));
-      root.querySelectorAll("button.strategy-switch").forEach((button) => button.addEventListener("click", () => {
-        const enabled = button.getAttribute("aria-checked") !== "true";
-        button.setAttribute("aria-checked", String(enabled));
-        button.closest(".strategy-card").classList.toggle("is-disabled", !enabled);
+      root.querySelectorAll(".result-select").forEach(button => button.addEventListener("click", () => {
+        button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
+      }));
+      root.querySelectorAll(".etf-options button").forEach(button => button.addEventListener("click", () => {
+        root.querySelector("#prototype-symbol").value = button.textContent;
       }));
       let pinnedSeries = null;
       root.querySelectorAll("[data-highlight]").forEach((item) => {

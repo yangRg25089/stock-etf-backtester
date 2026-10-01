@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
@@ -31,6 +33,26 @@ test("localized diagnostics hide internal field paths and stable codes", () => {
   assert.match(html, /策略 ID：strategy-vix-1/);
   assert.match(html, /运行 ID：run-safe-1/);
   assertNoInternalDetails(html);
+});
+
+test("backend diagnostic messages have readable Japanese and Chinese text", () => {
+  function diagnosticKeys(directory) {
+    return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return diagnosticKeys(path);
+      if (!entry.name.endsWith(".py")) return [];
+      const source = readFileSync(path, "utf8");
+      return [...source.matchAll(/messageKey=["']([^"']+)["']/g), ...source.matchAll(/["'](api\.errors\.[^"']+)["']/g)].map(match => match[1]);
+    });
+  }
+  const keys = [...new Set(diagnosticKeys(new URL("../../backend/app", import.meta.url).pathname))];
+  assert.ok(keys.length > 30);
+  for (const locale of ["ja", "zh"]) {
+    for (const messageKey of keys) {
+      const html = renderToStaticMarkup(React.createElement(DiagnosticList, { locale, diagnostics: [{ code: "stale_data", severity: "warning", messageKey }] }));
+      assert.ok(!html.includes(messageKey), `${locale}: missing diagnostic translation ${messageKey}`);
+    }
+  }
 });
 
 test("run API errors show the localized message without an internal error code", () => {

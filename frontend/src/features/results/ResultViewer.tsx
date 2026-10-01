@@ -1,10 +1,10 @@
+import { useEffect, useRef, useState } from "react";
+import { fetchCandidate, RunApiError } from "../../api/runs";
 import type { RunResponse, StrategyRun } from "../../api/generated";
-import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
-import { conditionLeaves, conditionParameters } from "../strategies/conditions";
-import { findFocusedResult, isCompletedResult, resultDisplayName } from "./model";
+import { findFocusedResult, isCompletedResult, resultDisplayName, savedChartParameters } from "./model";
 import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
 import { resultColor } from "./colors";
@@ -14,19 +14,6 @@ interface ResultViewerProps {
   state: WorkspaceState;
   dispatch(action: WorkspaceAction): void;
   error: RunApiError | null;
-}
-
-function savedParameters(run: RunResponse, result: StrategyRun): Record<string, unknown> {
-  const strategy = run.snapshot.config.strategies?.find((item) => item.id === result.id);
-  if (strategy?.rules) {
-    const volatility = conditionLeaves(strategy.rules.buy, true).find(node => node.kind === "vix")
-      ?? conditionLeaves(strategy.rules.sell, true).find(node => node.kind === "vix" || node.kind === "bollinger");
-    return conditionParameters(volatility);
-  }
-  const params = strategy?.params;
-  return typeof params === "object" && params !== null && !Array.isArray(params)
-    ? params as Record<string, unknown>
-    : {};
 }
 
 function savedParameterText(params: Record<string, unknown>, key: string): string | undefined {
@@ -39,12 +26,34 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const strategyRuns = run?.result?.strategyRuns ?? [];
   const selectedIds = state.selectedResultIds;
-  const chartResult = focusedResult && isCompletedResult(focusedResult) ? focusedResult
+  const [candidateView, setCandidateView] = useState<{ runId: string; parentId: string; result: StrategyRun } | null>(null);
+  const [candidatePending, setCandidatePending] = useState(false);
+  const [candidateErrorKey, setCandidateErrorKey] = useState<string | null>(null);
+  const candidateController = useRef<AbortController | null>(null);
+  useEffect(() => { setCandidateView(null); setCandidatePending(false); setCandidateErrorKey(null);
+    return () => candidateController.current?.abort();
+  }, [run?.runId, focusedResult?.id]);
+  const candidateResult = candidateView?.runId === run?.runId && candidateView?.parentId === focusedResult?.id ? candidateView?.result : null;
+  const selectCandidate = async (candidateId: string) => {
+    if (!run || !focusedResult) return;
+    candidateController.current?.abort();
+    const controller = new AbortController();
+    candidateController.current = controller;
+    setCandidatePending(true); setCandidateErrorKey(null);
+    try {
+      const result = await fetchCandidate(run.runId, candidateId, controller.signal);
+      if (!controller.signal.aborted) setCandidateView({ runId: run.runId, parentId: focusedResult.id, result });
+    } catch (error) {
+      if (!controller.signal.aborted) setCandidateErrorKey(error instanceof RunApiError ? error.messageKey : "api.errors.connection_failed");
+    }
+    finally { if (!controller.signal.aborted) setCandidatePending(false); }
+  };
+  const chartResult = candidateResult ?? (focusedResult && isCompletedResult(focusedResult) ? focusedResult
     : strategyRuns.find((result) => isCompletedResult(result) && selectedIds.includes(result.id))
-      ?? strategyRuns.find(isCompletedResult);
-  const params = run && chartResult ? savedParameters(run, chartResult) : {};
+      ?? strategyRuns.find(isCompletedResult));
+  const params = run && chartResult ? savedChartParameters(run, chartResult, candidateResult ? focusedResult : null) : {};
   const selectedComparisons = strategyRuns
-    .filter((result) => selectedIds.includes(result.id) && result.id !== chartResult?.id && isCompletedResult(result))
+    .filter((result) => selectedIds.includes(result.id) && result.id !== (candidateResult ? focusedResult?.id : chartResult?.id) && isCompletedResult(result))
     .flatMap((result) => {
       if (!result.dailyAssets || result.dailyAssets.length === 0) return [];
       const index = strategyRuns.findIndex((item) => item.id === result.id);
@@ -55,7 +64,7 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
         dailyAssets: result.dailyAssets,
       }];
     });
-  const focusedIndex = chartResult ? strategyRuns.findIndex((result) => result.id === chartResult.id) : -1;
+  const focusedIndex = chartResult ? strategyRuns.findIndex((result) => result.id === (candidateResult ? focusedResult?.id : chartResult.id)) : -1;
 
   return (
     <div className="result-content">
@@ -67,6 +76,10 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
         state={state}
         dispatch={dispatch}
         error={error}
+        candidateResult={candidateResult ?? null}
+        candidatePending={candidatePending}
+        candidateErrorKey={candidateErrorKey}
+        onSelectCandidate={id => void selectCandidate(id)}
       />
 
       {run && focusedResult && (
@@ -84,7 +97,7 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
               dailyAssets={chartResult.dailyAssets ?? []}
               trades={chartResult.trades ?? []}
               signals={chartResult.signals ?? []}
-              showFocusedAsset={selectedIds.includes(chartResult.id)}
+              showFocusedAsset={Boolean(candidateResult) || selectedIds.includes(chartResult.id)}
               comparisonSeries={selectedComparisons}
               totalAssetColor={focusedIndex >= 0 ? resultColor(focusedIndex) : undefined}
               vixSymbol={savedParameterText(params, "vix.symbol")}

@@ -1,22 +1,26 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { Catalog, Diagnostic, PresetDefinition, StrategyRules } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
+import { validateDraft } from "../../api/runs";
+import { serializeDraftForApi } from "./model";
+import { useDialogValidation } from "../../shared/ui/useDialogValidation";
+import { DiagnosticList } from "../runs/DiagnosticList";
 import { ParameterField } from "../../shared/ui/ParameterField";
 import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 import { ConditionEditor } from "./ConditionEditor";
 import { conditionFieldOwner, conditionLeaves } from "./conditions";
-import type { StrategyDraft } from "./model";
+import type { BacktestDraft, StrategyDraft } from "./model";
 
 interface StrategyEditorDialogProps {
   catalog: Catalog;
   strategy: StrategyDraft;
   locale: Locale;
-  errors?: Diagnostic[];
+  draft: BacktestDraft;
+  onCommit(value: StrategyDraft): void;
   focusFieldKey?: string | null;
   focusFieldIndex?: number;
   focusConditionId?: string | null;
-  onChange(key: string, value: unknown): void;
-  onRulesChange(value: StrategyRules): void;
   onClose(): void;
   onFieldFocusHandled?(): void;
   returnFocusRef: RefObject<HTMLButtonElement>;
@@ -28,6 +32,7 @@ interface StrategyEditorFormProps {
   preset: PresetDefinition;
   locale: Locale;
   errors: Diagnostic[];
+  currency?: string;
   onChange(key: string, value: unknown): void;
   onRulesChange(value: StrategyRules): void;
 }
@@ -47,14 +52,12 @@ function groupedFields(catalog: Catalog, preset: PresetDefinition) {
   return [...groups.entries()];
 }
 
-export function StrategyEditorForm({ catalog, strategy, preset, locale, errors, onChange, onRulesChange }: StrategyEditorFormProps) {
+export function StrategyEditorForm({ catalog, strategy, preset, locale, errors, currency, onChange, onRulesChange }: StrategyEditorFormProps) {
   const dependencyValues = Object.fromEntries((catalog.parameters ?? []).map(definition => [definition.key,
     Object.hasOwn(strategy.params, definition.key) ? strategy.params[definition.key] : definition.default,
   ]));
   return <section className="strategy-editor" aria-label={translate(locale, preset.nameKey)}>
-    {strategy.rules && <ConditionEditor catalog={catalog} strategyId={strategy.id} locale={locale} rules={strategy.rules}
-      custom={preset.editorMode === "custom" || preset.editorMode === "search"} fixedTrend={preset.id === "ma_trend"}
-      errors={errors} onChange={onRulesChange} />}
+
     <fieldset className="strategy-parameters">
       <legend className="sr-only">{translate(locale, "strategy.parameters")}</legend>
       <div className="strategy-parameter-groups">
@@ -64,38 +67,47 @@ export function StrategyEditorForm({ catalog, strategy, preset, locale, errors, 
           <div className="strategy-parameter-grid">
             {group.fields.map(definition => <ParameterField key={definition.key} id={parameterFieldId(definition.key, strategy.id)}
               definition={definition} value={strategy.params[definition.key]} locale={locale} dependencyValues={dependencyValues}
-              errors={errors.filter(error => !error.fieldPath?.includes(".rules."))}
+              currency={currency} errors={errors.filter(error => !error.fieldPath?.includes(".rules."))}
+              placeholder={definition.key === "accumulation.maxSignalBuysPerMonth" ? translate(locale, "strategy.unlimited") : undefined}
               appearance={definition.type === "boolean" ? "switch" : "default"} onChange={value => onChange(definition.key, value)} />)}
           </div>
         </section>)}
       </div>
     </fieldset>
+    {strategy.rules && <ConditionEditor catalog={catalog} strategyId={strategy.id} locale={locale} rules={strategy.rules}
+      custom={preset.editorMode === "custom" || preset.editorMode === "search"} fixedTrend={preset.id === "ma_trend"}
+      currency={currency} errors={errors} onChange={onRulesChange} />}
   </section>;
 }
 
 export function StrategyEditorDialog({
   catalog,
-  strategy,
+  strategy: originalStrategy,
+  draft,
+  onCommit,
   locale,
-  errors = [],
   focusFieldKey = null,
   focusFieldIndex,
   focusConditionId,
-  onChange,
-  onRulesChange,
   onClose,
   onFieldFocusHandled,
   returnFocusRef,
 }: StrategyEditorDialogProps) {
+  const [strategy, setStrategy] = useState(() => structuredClone(originalStrategy));
+  const validation = useDialogValidation();
+  const errors = validation.errors;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const preset = catalog.presets?.find((item) => item.id === strategy.presetId);
-
-  const closeDialog = () => {
-    const dialog = dialogRef.current;
-    if (dialog?.open) dialog.close();
+  const closeDialog = () => void validation.attemptClose(dialogRef.current, async signal => {
+    const submitted = { ...draft, strategies: draft.strategies.map(item => item.id === strategy.id ? strategy : item) };
+    const response = await validateDraft(serializeDraftForApi(submitted), signal);
+    return [...(response.diagnostics ?? []), ...(response.strategies?.find(item => item.strategyId === strategy.id)?.diagnostics ?? [])];
+  }, () => {
+    onCommit(strategy);
+    if (dialogRef.current?.open) dialogRef.current.close();
     returnFocusRef.current?.focus();
     onClose();
-  };
+  });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -124,10 +136,10 @@ export function StrategyEditorDialog({
 
   if (!preset) return null;
 
-  const name = translate(locale, preset.nameKey);
+  const name = `${translate(locale, preset.nameKey)}${strategy.instanceNumber ? ` ${strategy.instanceNumber}` : ""}`;
   const hasError = errors.some((diagnostic) => diagnostic.severity === "error");
 
-  return (
+  const content = (
     <dialog
       ref={dialogRef}
       className="strategy-dialog"
@@ -151,9 +163,6 @@ export function StrategyEditorDialog({
           </div>
           <div className="strategy-dialog-heading-actions">
             {hasError && <span className="strategy-nav-error">{translate(locale, "strategy.hasErrors")}</span>}
-            <span className={`status-tag${strategy.enabled ? "" : " is-muted"}`}>
-              {translate(locale, strategy.enabled ? "strategy.enabled" : "strategy.disabled")}
-            </span>
             <button
               className="button icon-only-button strategy-dialog-close"
               type="button"
@@ -165,23 +174,26 @@ export function StrategyEditorDialog({
             </button>
           </div>
         </header>
-        <div className="strategy-dialog-content">
+        <fieldset className="strategy-dialog-content dialog-fields" disabled={validation.pending}>
           <StrategyEditorForm
             catalog={catalog}
             strategy={strategy}
             preset={preset}
             locale={locale}
             errors={errors}
-            onChange={onChange}
-            onRulesChange={onRulesChange}
+            currency={draft.shared.currency}
+            onChange={(key, value) => { validation.clearErrors(); setStrategy(current => ({ ...current, params: { ...current.params, [key]: value } })); }}
+            onRulesChange={rules => { validation.clearErrors(); setStrategy(current => ({ ...current, rules })); }}
           />
-        </div>
+        </fieldset>
         <footer className="strategy-dialog-footer">
-          <button className="button button-primary dialog-done" type="button" onClick={closeDialog}>
+          <DiagnosticList diagnostics={errors.filter(item => !catalog.parameters?.some(parameter => item.fieldPath?.endsWith(`.${parameter.key}`)))} locale={locale} />
+          <button className="button button-primary dialog-done" type="button" disabled={validation.pending} onClick={closeDialog}>
             {translate(locale, "workbench.settingsDone")}
           </button>
         </footer>
       </div>
     </dialog>
   );
+  return typeof document === "undefined" ? content : createPortal(content, document.body);
 }

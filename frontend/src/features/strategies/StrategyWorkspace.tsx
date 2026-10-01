@@ -4,6 +4,7 @@ import { interpolate, translate, type Locale } from "../../i18n/messages";
 import { StrategyEditorDialog } from "./StrategyEditorDialog";
 import { formatStrategySummary } from "./strategySummary";
 import type { WorkspaceAction, WorkspaceState } from "./model";
+import { strategyInstanceLimit } from "./model";
 
 interface StrategyNavigatorProps {
   catalog: Catalog;
@@ -49,11 +50,8 @@ export function StrategyNavigator({
   const pendingFocusRef = useRef<PendingFocus | null>(null);
   const presets = catalog.presets ?? [];
   const addablePresets = presets.filter((preset) => preset.id !== "monthly_dca" && preset.id !== "lump_sum");
-  const addedPresetIds = new Set(state.draft.strategies.map((strategy) => strategy.presetId));
+
   const editingStrategy = state.draft.strategies.find((item) => item.id === editingStrategyId);
-  const editingDiagnostics = editingStrategy
-    ? validation?.strategies?.find((item) => item.strategyId === editingStrategy.id)?.diagnostics ?? []
-    : [];
   const handleFieldFocusHandled = useCallback(() => {
     setFocusFieldKey(null);
     setFocusFieldIndex(undefined);
@@ -115,6 +113,13 @@ export function StrategyNavigator({
 
   return (
     <section className="strategy-navigator" aria-labelledby="strategy-list-heading">
+
+
+      <div className="section-heading strategy-navigator-heading">
+        <h2 id="strategy-list-heading">{translate(locale, "strategy.listTitle")}</h2>
+        <span className="strategy-count" aria-label={`${state.draft.strategies.length}`}>
+          {state.draft.strategies.length}
+        </span>
       <div ref={addContainerRef} className={`strategy-add${addMenuOpen ? " is-open" : ""}`}
         onKeyDown={(event) => {
           if (event.key === "Escape" && addMenuOpen) {
@@ -164,7 +169,9 @@ export function StrategyNavigator({
         >
           <span className="strategy-add-menu-label">{translate(locale, "strategy.choosePreset")}</span>
           {addablePresets.map((item) => {
-            const alreadyAdded = addedPresetIds.has(item.id);
+            const count = state.draft.strategies.filter(strategy => strategy.presetId === item.id).length;
+            const maximum = strategyInstanceLimit(catalog, item.id);
+            const alreadyAdded = maximum === undefined || count >= maximum;
             return (
               <button
                 key={item.id}
@@ -187,12 +194,6 @@ export function StrategyNavigator({
           })}
         </div>
       </div>
-
-      <div className="section-heading strategy-navigator-heading">
-        <h2 id="strategy-list-heading">{translate(locale, "strategy.listTitle")}</h2>
-        <span className="strategy-count" aria-label={`${state.draft.strategies.length}`}>
-          {state.draft.strategies.length}
-        </span>
       </div>
 
       {state.draft.strategies.length === 0 ? (
@@ -205,7 +206,7 @@ export function StrategyNavigator({
           {state.draft.strategies.map((strategy, index) => {
             const preset = presets.find((item) => item.id === strategy.presetId);
             if (!preset) return null;
-            const name = translate(locale, preset.nameKey);
+            const name = translate(locale, preset.nameKey) + (strategy.instanceNumber ? ` ${strategy.instanceNumber}` : "");
             const isRunTarget = strategy.id === state.activeStrategyId;
             const strategyValidation = validation?.strategies?.find(
               (item) => item.strategyId === strategy.id,
@@ -217,7 +218,7 @@ export function StrategyNavigator({
 
             return (
               <article
-                className={`strategy-card strategy-nav-card${isRunTarget ? " is-active" : ""}${strategy.enabled ? "" : " is-disabled"}`}
+                className={`strategy-card strategy-nav-card${isRunTarget ? " is-active" : ""}`}
                 key={strategy.id}
               >
                 <button
@@ -247,18 +248,6 @@ export function StrategyNavigator({
                 <div className="strategy-card-actions">
                   {hasError && <span className="strategy-nav-error">{translate(locale, "strategy.hasErrors")}</span>}
                   <button
-                    className="strategy-enabled-control strategy-enable-switch"
-                    type="button"
-                    role="switch"
-                    aria-checked={strategy.enabled}
-                    aria-label={interpolate(translate(locale, "strategy.toggleEnabled"), { name })}
-                    title={translate(locale, strategy.enabled ? "strategy.enabled" : "strategy.disabled")}
-                    onClick={() => dispatch({ type: "strategy.enabled", id: strategy.id, value: !strategy.enabled })}
-                  >
-                    <span className="switch-track" aria-hidden="true"><span className="switch-thumb" /></span>
-                    <span className="sr-only">{translate(locale, strategy.enabled ? "strategy.enabled" : "strategy.disabled")}</span>
-                  </button>
-                  <button
                     className="icon-button strategy-remove"
                     type="button"
                     aria-label={interpolate(translate(locale, "strategy.remove"), { name })}
@@ -282,19 +271,13 @@ export function StrategyNavigator({
           catalog={catalog}
           strategy={editingStrategy}
           locale={locale}
-          errors={editingDiagnostics}
+          draft={state.draft}
+          onCommit={value => dispatch({ type: "strategy.commit", value })}
           focusFieldKey={focusFieldKey}
           focusFieldIndex={focusFieldIndex}
           focusConditionId={focusConditionId}
           onFieldFocusHandled={handleFieldFocusHandled}
           returnFocusRef={editTriggerRef}
-          onChange={(key, value) => dispatch({
-            type: "strategy.param",
-            id: editingStrategy.id,
-            key,
-            value,
-          })}
-          onRulesChange={value => dispatch({ type: "strategy.rules", id: editingStrategy.id, value })}
           onClose={() => {
             setEditingStrategyId(null);
             setFocusFieldKey(null);

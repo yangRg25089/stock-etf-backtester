@@ -22,7 +22,7 @@ function validationFor(state, overrides = {}) {
     strategies: state.draft.strategies.map((strategy) => ({
       strategyId: strategy.id,
       presetId: strategy.presetId,
-      enabled: strategy.enabled,
+      enabled: true,
       diagnostics: [],
     })),
     ...overrides,
@@ -35,7 +35,7 @@ test("initial workspace comes from the VIX preset and shared catalog defaults", 
 
   assert.equal(state.activeStrategyId, strategy.id);
   assert.equal(strategy.presetId, "vix_dca");
-  assert.equal(strategy.enabled, true);
+  assert.equal("enabled" in strategy, false);
   assert.equal(strategy.params["vix.buyEnabled"], true);
   assert.equal(strategy.params["vix.symbol"], "^VIX");
   assert.equal(String(strategy.params["vix.buyThreshold"]), "25");
@@ -44,8 +44,8 @@ test("initial workspace comes from the VIX preset and shared catalog defaults", 
   assert.equal(strategy.params["exit.enabled"], false);
   assert.equal(state.draft.shared.run.symbol, "QQQ");
   assert.equal(state.draft.shared.run.startDate, "2020-01-01");
-  assert.equal(state.draft.shared.run.endMode, "latest");
-  assert.equal(state.draft.shared.run.endDate, null);
+  assert.equal("endMode" in state.draft.shared.run, false);
+  assert.equal(state.draft.shared.run.endDate, catalog.parameters.find(item => item.key === "run.endDate").default);
   assert.equal(state.draft.shared.contribution.amount, "100");
   assert.equal(state.draft.shared.contribution.day, 1);
   assert.equal("overlayMode" in state, false);
@@ -76,7 +76,6 @@ test("reset clears the displayed run and focus while preserving draft and displa
     ...initial,
     runResponse: { runId: "saved-result" },
     focusedResultId: initial.activeStrategyId,
-    runRequestedEndMode: "latest",
   };
   const cleared = workspaceReducer(state, { type: "run.reset" });
   assert.equal(cleared.runResponse, null);
@@ -110,7 +109,7 @@ test("editor selection does not toggle, run, or replace another instance's param
   state = workspaceReducer(state, { type: "strategy.select", id: "strategy-vix_dca-1" });
 
   assert.equal(state.activeStrategyId, "strategy-vix_dca-1");
-  assert.equal(state.draft.strategies[1].enabled, true);
+  assert.equal("enabled" in state.draft.strategies[1], false);
   assert.equal(state.draft.strategies[1].params["vix.buyThreshold"], "31");
   assert.equal(state.runResponse, null);
   assert.equal(state.draft.strategies[0].params["vix.buyThreshold"], "25");
@@ -133,26 +132,11 @@ test("disabling the VIX signal retains the preset identity and its other values"
   assert.equal(state.draft.strategies[0].params["vix.buyThreshold"], original.params["vix.buyThreshold"]);
 });
 
-test("strategy enable switches preserve parameters and expose accurate run reasons", () => {
-  let state = createInitialWorkspaceState(catalog);
-  state = workspaceReducer(state, { type: "run.scope", value: "active" });
-  const id = state.activeStrategyId;
-  const params = state.draft.strategies[0].params;
-  state = workspaceReducer(state, { type: "strategy.enabled", id, value: false });
-  const validation = validationFor(state);
-
-  assert.equal(state.draft.strategies[0].params["vix.buyThreshold"], params["vix.buyThreshold"]);
-  assert.deepEqual(getRunAvailability(state, validation), {
-    disabled: true,
-    reasonKey: "run.activeDisabled",
-  });
-  state = workspaceReducer(state, { type: "run.scope", value: "all_enabled" });
-  assert.deepEqual(getRunAvailability(state, validation), {
-    disabled: true,
-    reasonKey: "run.noEnabledStrategies",
-  });
-  state = workspaceReducer(state, { type: "strategy.enabled", id, value: true });
-  assert.deepEqual(getRunAvailability(state, validation), { disabled: false, reasonKey: null });
+test("every added strategy is submitted enabled with no instance toggle state", () => {
+  const state = createInitialWorkspaceState(catalog);
+  assert.equal("enabled" in state.draft.strategies[0], false);
+  assert.equal(Object.hasOwn(serializeDraftForApi(state.draft).strategies[0], "enabled"), false);
+  assert.deepEqual(getRunAvailability(state, validationFor(state)), { disabled: false, reasonKey: null });
 });
 
 test("delete and re-add uses the selected catalog preset with a fresh instance identity", () => {
@@ -212,7 +196,7 @@ test("run availability distinguishes active and all-enabled validation rules", (
   });
 });
 
-test("scope and result focus remain independent from draft edits; latest date uses a request placeholder", () => {
+test("scope and result focus remain independent from draft edits; dates use the explicitly selected day", () => {
   let state = createInitialWorkspaceState(catalog);
   const snapshot = {
     runId: "run-1",
@@ -236,8 +220,8 @@ test("scope and result focus remain independent from draft edits; latest date us
   assert.equal(state.runResponse, snapshot);
   assert.equal(state.runResponse.snapshot.config.strategies.length, 0);
   assert.equal(state.draft.strategies[0].params["vix.buyThreshold"], "30");
-  assert.equal(serializeDraftForApi(state.draft).shared.run.endDate, "2020-01-01");
-  assert.equal(serializeDraftForApi(state.draft).shared.run.endMode, "latest");
+  assert.equal(serializeDraftForApi(state.draft).shared.run.endDate, state.draft.shared.run.endDate);
+  assert.equal("endMode" in serializeDraftForApi(state.draft).shared.run, false);
 });
 
 test("partial success is derived from backend strategy statuses", () => {
@@ -256,15 +240,14 @@ test("partial success is derived from backend strategy statuses", () => {
 });
 
 
-test("a preset can be added only once even when its existing card is disabled", () => {
-  const initial = createInitialWorkspaceState(catalog);
-  const disabled = workspaceReducer(initial, { type: "strategy.enabled", id: initial.activeStrategyId, value: false });
-  for (const state of [initial, disabled]) {
-    const rejected = workspaceReducer(state, { type: "strategy.add", id: "duplicate-vix", presetId: "vix_dca" }, catalog);
-    assert.equal(rejected, state);
-  }
-  const removed = workspaceReducer(disabled, { type: "strategy.remove", id: disabled.activeStrategyId });
-  const readded = workspaceReducer(removed, { type: "strategy.add", id: "replacement-vix", presetId: "vix_dca" }, catalog);
-  assert.equal(readded.draft.strategies.length, 1);
-  assert.equal(readded.draft.strategies[0].id, "replacement-vix");
+test("fixed strategies cannot repeat; custom strategies allow ten and stable sequence numbers", () => {
+  let state = createInitialWorkspaceState(catalog);
+  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "duplicate-vix", presetId: "vix_dca" }, catalog), state);
+  for (let index = 1; index <= 10; index += 1) state = workspaceReducer(state, { type: "strategy.add", id: `custom-${index}`, presetId: "composite_dca" }, catalog);
+  assert.deepEqual(state.draft.strategies.slice(1).map(item => item.instanceNumber), [1,2,3,4,5,6,7,8,9,10]);
+  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "eleven", presetId: "composite_dca" }, catalog), state);
+  state = workspaceReducer(state, { type: "strategy.remove", id: "custom-2" });
+  state = workspaceReducer(state, { type: "strategy.add", id: "replacement", presetId: "composite_dca" }, catalog);
+  assert.equal(state.draft.strategies.at(-1).instanceNumber, 11);
+  assert.equal(state.draft.strategies[2].instanceNumber, 3);
 });

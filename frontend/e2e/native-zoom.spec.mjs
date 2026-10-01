@@ -28,7 +28,6 @@ test('native browser zoom at 100, 125 and 150 percent keeps the saved workbench 
     await page.goto(baseURL);
     await page.locator('.shared-settings-open-button').click();
     await page.getByLabel('開始日').fill('2024-01-31');
-    await page.getByRole('checkbox', { name: '最新の完了日まで' }).uncheck();
     await page.locator('#field-run-endDate').fill('2024-03-01');
     await page.locator('.shared-settings-dialog .dialog-done').click();
     await page.locator('.run-submit-button').click();

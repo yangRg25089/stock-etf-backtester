@@ -26,7 +26,7 @@ function candidate(candidateId, sequence, status = "completed") {
       capitalMultiple: "1.20",
       xirr: "0.1",
       maximumDrawdown: "-0.05",
-      relativeToDca: "2.00",
+
       currency: "USD",
       diagnostics: [],
     } : null,
@@ -51,8 +51,8 @@ test("search results retain backend ranking, invalid candidates, and stable diag
     },
   }));
 
-  assert.ok(html.indexOf('<th scope="row"><span>2</span>') < html.indexOf('<th scope="row"><span>0</span>'));
-  assert.ok(html.indexOf('<th scope="row"><span>0</span>') < html.indexOf('<th scope="row"><span>1</span>'));
+  assert.ok(html.indexOf('>2</button>') < html.indexOf('>0</button>'));
+  assert.ok(html.indexOf('>0</button>') < html.indexOf('>1</button>'));
   assert.doesNotMatch(html, /candidate-[123]/);
   assert.match(html, /计算过程中发生错误/);
   assert.doesNotMatch(html, /strategies\[0\]\.params\.vix\.buyThreshold/);
@@ -74,7 +74,7 @@ test("large searches render an initial page and expose the remaining candidate c
     },
   }));
 
-  assert.equal((html.match(/<tr>/g) ?? []).length, 101);
+  assert.equal((html.match(/<tr(?: class="[^"]*")?>/g) ?? []).length, 101);
   assert.match(html, /残り 5 件を表示/);
 });
 

@@ -174,3 +174,50 @@ test("run event subscription is cancelled with its AbortSignal", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("invalid progress summaries are rejected before reaching result state", async () => {
+  const original = globalThis.fetch;
+  const delivered = [];
+  try {
+    for (const strategySummaries of [[], { one: null }, { one: { metrics: "invalid", diagnostics: [] } }, { one: { metrics: null, diagnostics: "invalid" } }]) {
+      const event = { runId: "bad-summary", status: "completed", progress: { completedStrategies: 1, totalStrategies: 1 }, strategyStatuses: { one: "completed" }, strategySummaries };
+      globalThis.fetch = async () => new Response(`event: terminal\ndata: ${JSON.stringify(event)}\n\n`, { headers: { "Content-Type": "text/event-stream" } });
+      await assert.rejects(subscribeToRunEvents(event.runId, item => delivered.push(item)), error => error instanceof RunApiError && error.code === "invalid_response");
+    }
+    assert.deepEqual(delivered, []);
+  } finally { globalThis.fetch = original; }
+});
+
+test("instrument metadata, stop and candidate reads use their own saved API endpoints", async () => {
+  const { fetchInstrument, stopRun, fetchCandidate } = require("../.test-output/api/runs.js");
+  const original = globalThis.fetch;
+  const calls = [];
+  const metadata = { symbol: "7203.T", currency: "JPY", diagnostics: [] };
+  const stopped = { runId: "one", status: "cancelled" };
+  const candidate = { id: "candidate:2", status: "completed", dailyAssets: [{ date: "2024-01-02", totalAsset: "111" }] };
+  const payloads = [metadata, stopped, candidate];
+  globalThis.fetch = async (url, init) => { calls.push([url, init.method]); return response(payloads.shift()); };
+  try {
+    assert.deepEqual(await fetchInstrument("7203.T"), metadata);
+    assert.deepEqual(await stopRun("one"), stopped);
+    assert.deepEqual(await fetchCandidate("one", "candidate:2"), candidate);
+    assert.deepEqual(calls, [["/api/v1/instruments/7203.T", "GET"], ["/api/v1/runs/one/stop", "POST"], ["/api/v1/runs/one/candidates/candidate%3A2", "GET"]]);
+  } finally { globalThis.fetch = original; }
+});
+
+test("progress includes completed metrics while queued rows wait and cancellation is terminal", async () => {
+  const original = globalThis.fetch;
+  const summary = { metrics: { currency: "USD", endingEquity: "101" }, diagnostics: [] };
+  const frames = [
+    { runId: "progress", status: "running", progress: { completedStrategies: 1, totalStrategies: 3 }, strategyStatuses: { one: "completed", two: "running", three: "queued" }, strategySummaries: { one: summary } },
+    { runId: "progress", status: "cancelled", progress: { completedStrategies: 3, totalStrategies: 3 }, strategyStatuses: { one: "completed", two: "cancelled", three: "cancelled" }, strategySummaries: { one: summary } },
+  ];
+  globalThis.fetch = async () => new Response(frames.map((frame, index) => `event: ${index ? "terminal" : "progress"}\ndata: ${JSON.stringify(frame)}\n\n`).join(""), { headers: { "Content-Type": "text/event-stream" } });
+  try {
+    const received = [];
+    await subscribeToRunEvents("progress", event => received.push(event));
+    assert.deepEqual(received, frames);
+    assert.equal(received[1].strategySummaries.one.metrics.endingEquity, "101");
+    assert.equal(received[0].strategyStatuses.three, "queued");
+  } finally { globalThis.fetch = original; }
+});

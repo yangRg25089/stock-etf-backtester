@@ -8,6 +8,9 @@ import type {
   RunScope,
   RunSubmissionRequest,
   StrategyStatus,
+  InstrumentMetadata,
+  MetricSummary,
+  StrategyRun,
 } from "./generated";
 
 const RUN_STATUSES: ReadonlySet<string> = new Set([
@@ -18,6 +21,7 @@ const RUN_STATUSES: ReadonlySet<string> = new Set([
   "completed_with_warning",
   "unavailable",
   "failed",
+  "cancelled",
 ]);
 
 export interface RunProgressEvent {
@@ -25,6 +29,7 @@ export interface RunProgressEvent {
   status: StrategyStatus;
   progress: RunProgress | null;
   strategyStatuses: Record<string, StrategyStatus>;
+  strategySummaries?: Record<string, { metrics: MetricSummary | null; diagnostics: Diagnostic[] }>;
 }
 
 export class RunApiError extends Error {
@@ -46,6 +51,10 @@ export class RunApiError extends Error {
     this.diagnostics = diagnostics;
     this.status = status;
   }
+}
+
+export function fetchInstrument(symbol: string, signal?: AbortSignal): Promise<InstrumentMetadata> {
+  return requestJson(`/api/v1/instruments/${encodeURIComponent(symbol)}`, { method: "GET" }, signal);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -263,6 +272,11 @@ function isRunProgressEvent(value: unknown): value is RunProgressEvent {
   ) {
     return false;
   }
+  if (value.strategySummaries !== undefined && (
+    !isRecord(value.strategySummaries) || !Object.values(value.strategySummaries).every(
+      summary => isRecord(summary) && (summary.metrics === null || isRecord(summary.metrics)) && Array.isArray(summary.diagnostics),
+    )
+  )) return false;
   return isRecord(value.strategyStatuses) && Object.values(value.strategyStatuses).every(
     (status) => typeof status === "string" && RUN_STATUSES.has(status),
   );
@@ -279,4 +293,12 @@ export function fetchLatestRun(signal?: AbortSignal): Promise<RunResponse | null
 export function createIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function stopRun(runId: string, signal?: AbortSignal): Promise<RunResponse> {
+  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" }, signal);
+}
+
+export function fetchCandidate(runId: string, candidateId: string, signal?: AbortSignal): Promise<StrategyRun> {
+  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/candidates/${encodeURIComponent(candidateId)}`, { method: "GET" }, signal);
 }

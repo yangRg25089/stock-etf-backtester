@@ -18,6 +18,8 @@ export type Catalog = {
   presets?: Array<PresetDefinition>;
   conditions?: Array<ConditionDefinition>;
   conditionLimits?: ConditionLimits;
+  symbolSuggestions?: Array<SymbolSuggestion>;
+  strategyLimits?: StrategyLimits;
 };
 
 export type ConditionDefinition = {
@@ -50,6 +52,7 @@ export type ConditionLeaf = {
 export type ConditionLimits = {
   maxDepth?: number;
   maxNodes?: number;
+  maxInstancesPerKind?: number;
 };
 
 export type ConditionLogic = "AND" | "OR";
@@ -112,7 +115,7 @@ export type Diagnostic = {
   details?: unknown;
 };
 
-export type DiagnosticCode = "invalid_parameter" | "required_data_unavailable" | "provider_request_failed" | "calculation_failed" | "source_quality_warning" | "stale_data" | "unknown_source_unit" | "price_basis_unavailable" | "no_valid_contribution" | "no_valid_xirr" | "comparison_unavailable" | "invalid_status_transition" | "run_interrupted";
+export type DiagnosticCode = "invalid_parameter" | "required_data_unavailable" | "provider_request_failed" | "calculation_failed" | "source_quality_warning" | "stale_data" | "unknown_source_unit" | "price_basis_unavailable" | "no_valid_contribution" | "no_valid_xirr" | "comparison_unavailable" | "invalid_status_transition" | "run_interrupted" | "run_cancelled";
 
 export type DiagnosticSeverity = "info" | "warning" | "error";
 
@@ -144,7 +147,8 @@ export type FrozenRunConfig = {
 export type FrozenStrategyInstance = {
   id: string;
   presetId: StrategyPresetId;
-  enabled: boolean;
+  enabled?: boolean;
+  instanceNumber?: number | null;
   params?: unknown;
   rules?: StrategyRules | null;
 };
@@ -157,6 +161,12 @@ export type HealthResponse = {
   status: "ok";
 };
 
+export type InstrumentMetadata = {
+  symbol: string;
+  currency?: string | null;
+  diagnostics?: Array<Diagnostic>;
+};
+
 export type MetricSummary = {
   totalContributed: string;
   actualInvested?: string | null;
@@ -166,7 +176,6 @@ export type MetricSummary = {
   capitalMultiple?: string | null;
   xirr?: string | null;
   maximumDrawdown?: string | null;
-  relativeToDca?: string | null;
   currency?: string | null;
   diagnostics?: Array<Diagnostic>;
 };
@@ -246,7 +255,7 @@ export type RunSettings = {
   symbol: string;
   startDate: string;
   endDate: string;
-  endMode: EndMode;
+  endMode?: EndMode;
 };
 
 export type RunSnapshot = {
@@ -321,6 +330,11 @@ export type SignalEvaluation = {
 
 export type SignalState = "true" | "false" | "unavailable";
 
+export type StrategyLimits = {
+  maxCustomInstances?: number;
+  maxFixedInstances?: number;
+};
+
 export type StrategyPresetId = "vix_dca" | "composite_dca" | "ma_trend" | "ma_buy_only" | "monthly_dca" | "lump_sum" | "grid_search" | "rsi_dca" | "ma_deviation_dca" | "bollinger_dca" | "rate_dca" | "pe_dca";
 
 export type StrategyRules = {
@@ -331,6 +345,7 @@ export type StrategyRules = {
 export type StrategyRun = {
   id: string;
   presetId: StrategyPresetId;
+  instanceNumber?: number | null;
   role: ResultRole;
   status?: StrategyStatus;
   diagnostics?: Array<Diagnostic>;
@@ -342,7 +357,7 @@ export type StrategyRun = {
   searchResult?: SearchResult | null;
 };
 
-export type StrategyStatus = "queued" | "loading" | "running" | "completed" | "completed_with_warning" | "unavailable" | "failed";
+export type StrategyStatus = "queued" | "loading" | "running" | "completed" | "completed_with_warning" | "unavailable" | "failed" | "cancelled";
 
 export type StrategyValidationResult = {
   strategyId: string;
@@ -350,6 +365,13 @@ export type StrategyValidationResult = {
   enabled: boolean;
   normalized?: FrozenStrategyInstance | null;
   diagnostics?: Array<Diagnostic>;
+};
+
+export type SymbolSuggestion = {
+  symbol: string;
+  name: string;
+  currency: string;
+  source: string;
 };
 
 export type Trade = {

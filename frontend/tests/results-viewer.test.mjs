@@ -10,6 +10,7 @@ const { RunApiError } = require("../.test-output/api/runs.js");
 const { ExportControls } = require("../.test-output/features/results/ExportControls.js");
 const { isExportAvailable } = require("../.test-output/features/results/exportModel.js");
 const { ResultViewer } = require("../.test-output/features/results/ResultViewer.js");
+const { savedChartParameters } = require("../.test-output/features/results/model.js");
 const { createInitialWorkspaceState } = require("../.test-output/features/strategies/model.js");
 const catalog = JSON.parse(readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"));
 const resultViewerSource = readFileSync(new URL("../src/features/results/ResultViewer.tsx", import.meta.url), "utf8");
@@ -24,7 +25,7 @@ function metrics(endingEquity) {
     capitalMultiple: "1.2",
     xirr: "0.1",
     maximumDrawdown: "-0.05",
-    relativeToDca: "0.00",
+
     currency: "USD",
     diagnostics: [],
   };
@@ -104,7 +105,6 @@ function workspaceWithRun() {
     ...initial,
     runResponse: run,
     focusedResultId: benchmark.id,
-    runRequestedEndMode: "fixed",
   };
 }
 
@@ -124,6 +124,23 @@ test("VIX chart settings come from the frozen condition, not flat params or edit
   assert.match(html, /<strong>46<\/strong>/);
   assert.match(html, /chart-threshold-line/);
   assert.doesNotMatch(html, /90\.00/);
+});
+
+test("grid curves retain the frozen volatility symbol and override only searched values", () => {
+  const state = workspaceWithRun();
+  const frozen = state.runResponse.snapshot.config.strategies[0];
+  frozen.rules = { buy: { type: "condition", id: "dow", kind: "vix", enabled: true, params: { "vix.symbol": "^VXD", "vix.buyThreshold": 37 } }, sell: null };
+  const grid = state.runResponse.result.strategyRuns[0];
+  grid.searchResult = {
+    dimensions: [{ key: "vix.buyThreshold" }],
+    rankedCandidateIds: ["best", "other"],
+    candidates: [
+      { candidateId: "best", parameterValues: { "vix.symbol": "^VIX", "vix.buyThreshold": "28" } },
+      { candidateId: "other", parameterValues: { "vix.symbol": "^VIX", "vix.buyThreshold": "35" } },
+    ],
+  };
+  assert.deepEqual(savedChartParameters(state.runResponse, grid), { "vix.symbol": "^VXD", "vix.buyThreshold": "28" });
+  assert.deepEqual(savedChartParameters(state.runResponse, { id: "other" }, grid), { "vix.symbol": "^VXD", "vix.buyThreshold": "35" });
 });
 
 test("legacy execution areas never return at any run lifecycle stage", () => {
@@ -295,7 +312,7 @@ test("saved details default to comparison, consolidate metrics, and gate search 
   assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>取引明細/);
   assert.doesNotMatch(html, /role="tab"[^>]*>検索結果/);
   assert.doesNotMatch(html, /result-panel-metrics|result-panel-overview/);
-  assert.match(html, /純利益|DCA との差額/);
+  assert.match(html, /損益/);
   assert.doesNotMatch(html, /CSV 出力<\/button>/);
 
   const result = state.runResponse.result.strategyRuns.find((item) => item.id === state.focusedResultId);
@@ -371,7 +388,6 @@ test("editing shared settings and strategy parameters leaves the complete saved 
   edited.draft.shared.run.symbol = "INVALID";
   edited.draft.shared.contribution.amount = "-100";
   edited.draft.strategies[0].params["vix.buyThreshold"] = "-1";
-  edited.draft.strategies[0].enabled = false;
   assert.equal(render(edited), original);
 });
 
@@ -430,12 +446,12 @@ test("comparison withholds failed metrics without role or status columns", () =>
   const render = () => renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
   const partial = render();
   assert.doesNotMatch(partial, /status-tag/);
-  assert.equal((partial.match(/>—<\/td>/g) ?? []).length, 9);
+  assert.equal((partial.match(/>—<\/td>/g) ?? []).length, 8);
   assert.doesNotMatch(partial, /run-status-panel|run-strategy-statuses|部分策略已完成/);
   state.runResponse.status = "failed";
   state.runResponse.result.strategyRuns[1].status = "failed";
   const failed = render();
-  assert.equal((failed.match(/>—<\/td>/g) ?? []).length, 18);
+  assert.equal((failed.match(/>—<\/td>/g) ?? []).length, 16);
   assert.doesNotMatch(failed, /status-tag/);
 });
 
@@ -458,7 +474,7 @@ test("pending jobs withhold comparison metrics without a status column or progre
   const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
   assert.doesNotMatch(html, /pending-run-id|run-status-panel|progress-copy|run-strategy-details/);
   assert.doesNotMatch(html, /status-tag/);
-  assert.equal((html.match(/>—<\/td>/g) ?? []).length, 18);
+  assert.equal((html.match(/>—<\/td>/g) ?? []).length, 16);
 });
 
 test("result errors announce one localized reason when the API title duplicates its diagnostic", () => {

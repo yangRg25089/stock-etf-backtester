@@ -174,7 +174,7 @@ test("numeric draft values never rewrite the saved Decimal strings", () => {
   assert.equal(state.draft.strategies[0].params["vix.buyThreshold"], 31);
 });
 
-test("adding, disabling and removing draft strategies cannot change saved identities", () => {
+test("adding, editing and removing draft strategies cannot change saved identities", () => {
   let state = createInitialWorkspaceState(catalog);
   const first = state.draft.strategies[0];
   const response = {
@@ -185,7 +185,6 @@ test("adding, disabling and removing draft strategies cannot change saved identi
   const original = structuredClone(response);
   state = workspaceReducer(state, { type: "run.update", value: response });
   state = workspaceReducer(state, { type: "strategy.add", id: "strategy-ma-2", presetId: "ma_buy_only" }, catalog);
-  state = workspaceReducer(state, { type: "strategy.enabled", id: first.id, value: false });
   state = workspaceReducer(state, { type: "strategy.remove", id: first.id });
   assert.equal(state.runResponse, response);
   assert.deepEqual(response, original);

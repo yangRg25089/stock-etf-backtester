@@ -17,7 +17,7 @@ function metrics(endingEquity) {
     capitalMultiple: "1.25",
     xirr: "0.12",
     maximumDrawdown: "0.08",
-    relativeToDca: "5.00",
+
     currency: "USD",
     diagnostics: [],
   };
@@ -51,11 +51,12 @@ test("comparison table focuses saved identity without role or status columns", (
     locale: "zh",
     strategyRuns: results,
     focusedResultId: "benchmark-dca",
+    selectedResultIds: ["benchmark-dca"],
     onFocus() {},
   }));
 
   assert.match(html, /aria-pressed="true"><span>每月定额定投/);
-  assert.match(html, /aria-pressed="false"><span>VIX 信号定投/);
+  assert.match(html, /aria-pressed="false"><span>波动率信号定投/);
   assert.doesNotMatch(html, /benchmark-dca|vix-instance/);
   assert.doesNotMatch(html, /角色|状态|基准策略|已完成，有警告|status-tag/);
   assert.match(html, /资本倍数/);
@@ -70,9 +71,10 @@ test("comparison rows expose independent curve selection and stable row colors",
     onFocus() {},
     onToggleSelection() {},
   }));
-  assert.match(html, /class="result-compare-toggle"[^>]*checked=""/);
+  assert.doesNotMatch(html, /type="checkbox"/);
+  assert.match(html, /aria-pressed="true"><span>波动率信号定投/);
   assert.match(html, /data-result-color|--result-color/);
-  assert.match(html, /aria-label="每月定额定投 · 加入比较曲线"/);
+  assert.match(html, /aria-pressed="false"><span>每月定额定投/);
 });
 
 test("metric cards label contribution return separately from capital multiple", () => {
@@ -106,7 +108,7 @@ test("unavailable optional metrics render as unavailable rather than zero", () =
     locale: "zh", strategyRuns: [...results, { ...results[0], id: "second-vix" }],
     focusedResultId: "second-vix", onFocus() {},
   }));
-  for (const label of ["实际买入金额", "注入本金", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤", "相对定投差额"]) assert.match(html, new RegExp(label));
-  assert.match(html, /VIX 信号定投 · 1/);
-  assert.match(html, /VIX 信号定投 · 2/);
+  for (const label of ["实际买入金额", "注入本金", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤"]) assert.match(html, new RegExp(label));
+  assert.match(html, /波动率信号定投 · 1/);
+  assert.match(html, /波动率信号定投 · 2/);
 });

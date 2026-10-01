@@ -32,8 +32,7 @@ function parameter(key, type, defaultValue, extra = {}) {
 const fields = [
   parameter("run.symbol", "symbol", "QQQ", { unit: "symbol" }),
   parameter("run.startDate", "date", "2020-01-01", { unit: "date" }),
-  parameter("run.endDate", "date", null, { unit: "date", nullable: true }),
-  parameter("run.endMode", "enum", "latest", { allowedValues: ["fixed", "latest"] }),
+  parameter("run.endDate", "date", "2024-07-01", { unit: "date" }),
   parameter("contribution.amount", "decimal", "100", {
     unit: "currency",
     minimum: "0",
@@ -74,7 +73,7 @@ test("numeric edits submit numbers while dates and symbols retain text and empty
   }
 });
 
-test("shared settings render catalog defaults once and lock a resolved latest date", () => {
+test("shared settings render selected dates once with no latest toggle", () => {
   const html = renderToStaticMarkup(
     React.createElement(SharedSettingsForm, {
       catalog,
@@ -99,19 +98,18 @@ test("shared settings render catalog defaults once and lock a resolved latest da
   assert.match(fundingGroup, /field-contribution-amount[\s\S]*field-contribution-day/);
   const resolvedInput = html.match(/<input[^>]*id="field-run-endDate"[^>]*>/)?.[0] ?? "";
   assert.match(resolvedInput, /type="date"/);
-  assert.match(resolvedInput, /value="2024-06-28"/);
-  assert.match(resolvedInput, /disabled/);
-  assert.match(html, /前回の終了日：2024-06-28/);
+  assert.match(resolvedInput, /value="2024-07-01"/);
+  assert.doesNotMatch(resolvedInput, /disabled/);
+  assert.doesNotMatch(html, /latest-toggle|最近完整行情日/);
   assert.match(html, /id="field-contribution-amount"[^>]*min="0"[^>]*step="0.01"/);
   assert.match(html, /id="field-contribution-day"[^>]*min="1"[^>]*max="31"/);
   assert.equal((html.match(/for="field-run-endDate"/g) ?? []).length, 1);
   assert.doesNotMatch(html, /代码|日付|銘柄の通貨|标的报价币种/);
-  assert.match(html, /銘柄と同じ通貨/);
   assert.match(html, /aria-describedby="field-contribution-day-unit"/);
   assert.match(html, /<span class="unit-label" id="field-contribution-day-unit">日<\/span>/);
 });
 
-test("latest mode with no run snapshot does not invent a date", () => {
+test("default calendar date is editable and has no relative date mode", () => {
   const html = renderToStaticMarkup(
     React.createElement(SharedSettingsForm, {
       catalog,
@@ -120,13 +118,13 @@ test("latest mode with no run snapshot does not invent a date", () => {
       onChange() {},
     }),
   );
-  assert.match(html, /运行至最近完整行情日/);
+  assert.doesNotMatch(html, /最近完整行情日|latest-toggle/);
   assert.match(html, /<legend>标的<\/legend>/);
   assert.match(html, /<legend>区间<\/legend>/);
   assert.match(html, /<legend>投入计划<\/legend>/);
   const unresolvedInput = html.match(/<input[^>]*id="field-run-endDate"[^>]*>/)?.[0] ?? "";
-  assert.match(unresolvedInput, /value=""/);
-  assert.match(unresolvedInput, /disabled/);
+  assert.match(unresolvedInput, /value="2024-07-01"/);
+  assert.doesNotMatch(unresolvedInput, /disabled/);
   assert.doesNotMatch(html, /value="2026-/);
 });
 
@@ -185,17 +183,14 @@ test("parameter fields use catalog units, bounds, dependency state, and diagnost
       catalog, value: createDefaultSharedDraft(catalog), locale: "zh", currency, onChange() {},
     }));
     assert.match(html, new RegExp(`id="field-contribution-amount-unit">${expected}<`));
-    assert.match(html, /aria-describedby="field-contribution-amount-hint field-contribution-amount-unit"/);
+    assert.match(html, /aria-describedby="(?:field-contribution-amount-hint )?field-contribution-amount-unit"/);
   }
 });
 
 
-test("the shared summary uses confirmed saved dates for the same ticker and never fabricates a date", () => {
+test("the shared summary displays the committed selected end date independently of old results", () => {
   const { sharedSummaryEndDate } = require("../.test-output/features/config/summary.js");
   const shared = createDefaultSharedDraft(catalog);
-  const saved = { snapshot: { config: { shared: { run: { symbol: "QQQ", endMode: "fixed", endDate: "2024-02-02" } } }, dataProvenance: { marketDataThrough: "2024-02-01" } } };
-  assert.equal(sharedSummaryEndDate(shared, saved), "2024-02-01");
-  assert.equal(sharedSummaryEndDate({ ...shared, run: { ...shared.run, symbol: "SMH" } }, saved), null);
-  assert.equal(sharedSummaryEndDate(shared, null), null);
-  assert.equal(sharedSummaryEndDate({ ...shared, run: { ...shared.run, endMode: "fixed", endDate: "2023-12-29" } }, saved), "2023-12-29");
+  assert.equal(sharedSummaryEndDate(shared), "2024-07-01");
+  assert.equal(sharedSummaryEndDate({ ...shared, run: { ...shared.run, endDate: "2023-12-29" } }), "2023-12-29");
 });

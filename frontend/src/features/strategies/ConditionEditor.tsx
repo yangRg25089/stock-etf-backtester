@@ -3,7 +3,7 @@ import { translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
 import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 import { ToggleSwitch } from "../../shared/ui/ToggleSwitch";
-import { conditionFieldOwner, conditionParameters, createCondition, ruleConditionCount, type ConditionNode } from "./conditions";
+import { conditionFieldOwner, conditionLeaves, conditionParameters, createCondition, ruleConditionCount, type ConditionNode } from "./conditions";
 
 type Side = "buy" | "sell";
 interface ConditionEditorProps {
@@ -13,6 +13,7 @@ interface ConditionEditorProps {
   rules: StrategyRules;
   custom: boolean;
   fixedTrend?: boolean;
+  currency?: string;
   errors: Diagnostic[];
   onChange(value: StrategyRules): void;
 }
@@ -23,6 +24,7 @@ interface NodeProps extends Omit<ConditionEditorProps, "rules" | "onChange"> {
   depth: number;
   disabled: boolean;
   remaining: number;
+  usedKinds: ReadonlySet<ConditionKind>;
   root?: boolean;
   onChange(node: ConditionNode): void;
   onRemove?(): void;
@@ -78,7 +80,7 @@ function ConditionNodeEditor(props: NodeProps) {
           const reverseThreshold = side === "sell" && ["ma.buyDeviationPct", "rate.thresholdPct", "pe.threshold"].includes(key);
           return <ParameterField key={key} definition={definition} value={params[key]} locale={locale}
             id={parameterFieldId(key, conditionFieldOwner(strategyId, node))} errors={nodeErrors}
-            disabled={disabled} respectDependencies={false}
+            disabled={disabled} respectDependencies={false} currency={props.currency}
             labelText={reverseThreshold ? translate(locale, "conditions.sellThreshold") : undefined}
             onChange={value => onChange({ ...node, params: { ...params, [key]: value } })} />;
         })}
@@ -109,7 +111,7 @@ function ConditionNodeEditor(props: NodeProps) {
       <select id={`condition-add-${node.id}`} className="input condition-add-select" value="" disabled={!canAdd}
         onChange={event => {
           const value = event.target.value;
-          if (!value) return;
+          if (!value || (value !== "group" && props.usedKinds.has(value as ConditionKind))) return;
           const id = `${side}-${value}-${crypto.randomUUID()}`;
           const child: ConditionNode = value === "group"
             ? { type: "group", id, enabled: true, operator: "AND", children: [] }
@@ -117,7 +119,7 @@ function ConditionNodeEditor(props: NodeProps) {
           onChange({ ...node, children: [...children, child] });
         }}>
         <option value="">＋ {translate(locale, "conditions.add")}</option>
-        {(catalog.conditions ?? []).map(item => <option key={item.kind} value={item.kind}>{translate(locale, item.nameKey)}</option>)}
+        {(catalog.conditions ?? []).map(item => <option key={item.kind} value={item.kind} disabled={props.usedKinds.has(item.kind)}>{translate(locale, item.nameKey)}</option>)}
         <option value="group">{translate(locale, "conditions.group")}</option>
       </select>
       {!canAdd && !disabled && <span className="field-hint">{translate(locale, "conditions.limit")}</span>}
@@ -141,7 +143,7 @@ export function ConditionEditor(props: ConditionEditorProps) {
             onChange={enabled => onChange({ ...rules, [side]: { ...node, enabled } })} />}
         </header>
         {node ? <ConditionNodeEditor {...props} node={node} side={side} depth={1} disabled={false} remaining={remaining}
-          root={true} onChange={changed => onChange({ ...rules, [side]: changed })} />
+          usedKinds={new Set(conditionLeaves(node).map(item => item.kind))} root={true} onChange={changed => onChange({ ...rules, [side]: changed })} />
           : <p className="condition-empty">{translate(locale, custom ? "conditions.empty" : "conditions.buyOnly")}</p>}
       </section>;
     })}

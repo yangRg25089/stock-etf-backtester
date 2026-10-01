@@ -1,7 +1,6 @@
 import type {
   Catalog,
   DraftValidationResponse,
-  EndMode,
   RunResponse,
   RunScope,
   StrategyPresetId,
@@ -14,7 +13,7 @@ import { createDefaultSharedDraft, type SharedDraft } from "../config/defaults";
 export interface StrategyDraft {
   id: string;
   presetId: StrategyPresetId;
-  enabled: boolean;
+  instanceNumber?: number;
   params: Record<string, unknown>;
   rules?: StrategyRules | null;
 }
@@ -29,24 +28,24 @@ export interface WorkspaceState {
   activeStrategyId: string | null;
   runScope: RunScope;
   runResponse: RunResponse | null;
-  runRequestedEndMode: EndMode | null;
   focusedResultId: string | null;
   selectedResultIds: string[];
   showChart: boolean;
   visibleSeriesIds: string[];
+  nextCustomNumber: number;
 }
 
 export type WorkspaceAction =
   | { type: "strategy.select"; id: string }
   | { type: "strategy.add"; id: string; presetId: StrategyPresetId }
   | { type: "strategy.remove"; id: string }
-  | { type: "strategy.enabled"; id: string; value: boolean }
+  | { type: "strategy.commit"; value: StrategyDraft }
   | { type: "strategy.param"; id: string; key: string; value: unknown }
   | { type: "strategy.rules"; id: string; value: StrategyRules }
   | { type: "shared.change"; value: SharedDraft }
   | { type: "run.scope"; value: RunScope }
   | { type: "run.reset" }
-  | { type: "run.update"; value: RunResponse; requestedEndMode?: EndMode }
+  | { type: "run.update"; value: RunResponse }
   | { type: "run.progress"; value: RunProgressEvent }
   | { type: "result.focus"; id: string | null }
   | { type: "result.toggleSelection"; id: string }
@@ -104,7 +103,7 @@ export function createStrategyDraft(
       params[key] = cloneValue(definition.default);
     }
   }
-  return { id, presetId, enabled: true, params, rules: structuredClone(preset.defaultRules) };
+  return { id, presetId, params, rules: structuredClone(preset.defaultRules) };
 }
 
 export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
@@ -118,12 +117,18 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
     activeStrategyId: initialStrategy.id,
     runScope: "all_enabled",
     runResponse: null,
-    runRequestedEndMode: null,
     focusedResultId: null,
     selectedResultIds: [],
     showChart: uiBooleanDefault(catalog, "display.showChart", true),
     visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
+    nextCustomNumber: 1,
   };
+}
+
+export function strategyInstanceLimit(catalog: Catalog, presetId: StrategyPresetId): number | undefined {
+  return presetId === "composite_dca"
+    ? catalog.strategyLimits?.maxCustomInstances
+    : catalog.strategyLimits?.maxFixedInstances;
 }
 
 export function workspaceReducer(
@@ -137,17 +142,15 @@ export function workspaceReducer(
         ? { ...state, activeStrategyId: action.id }
         : state;
     case "strategy.add": {
-      if (!catalog || state.draft.strategies.some((strategy) =>
-        strategy.id === action.id || strategy.presetId === action.presetId,
-      )) {
-        return state;
-      }
+      if (!catalog) return state;
+      const count = state.draft.strategies.filter(item => item.presetId === action.presetId).length;
+      const custom = action.presetId === "composite_dca";
+      const maximum = strategyInstanceLimit(catalog, action.presetId);
+      if (maximum === undefined || count >= maximum || state.draft.strategies.some(item => item.id === action.id)) return state;
       const strategy = createStrategyDraft(catalog, action.presetId, action.id);
-      return {
-        ...state,
-        draft: { ...state.draft, strategies: [...state.draft.strategies, strategy] },
-        activeStrategyId: strategy.id,
-      };
+      if (custom) strategy.instanceNumber = state.nextCustomNumber;
+      return { ...state, draft: { ...state.draft, strategies: [...state.draft.strategies, strategy] },
+        activeStrategyId: strategy.id, nextCustomNumber: state.nextCustomNumber + (custom ? 1 : 0) };
     }
     case "strategy.remove": {
       const strategies = state.draft.strategies.filter((strategy) => strategy.id !== action.id);
@@ -157,16 +160,9 @@ export function workspaceReducer(
       if (strategies.length === state.draft.strategies.length) return state;
       return { ...state, draft: { ...state.draft, strategies }, activeStrategyId };
     }
-    case "strategy.enabled":
-      return {
-        ...state,
-        draft: {
-          ...state.draft,
-          strategies: state.draft.strategies.map((strategy) =>
-            strategy.id === action.id ? { ...strategy, enabled: action.value } : strategy,
-          ),
-        },
-      };
+    case "strategy.commit":
+      return { ...state, draft: { ...state.draft, strategies: state.draft.strategies.map(item =>
+        item.id === action.value.id ? action.value : item) } };
     case "strategy.param":
       return {
         ...state,
@@ -205,7 +201,6 @@ export function workspaceReducer(
         runResponse: null,
         focusedResultId: null,
         selectedResultIds: [],
-        runRequestedEndMode: null,
       };
     case "run.update": {
       const savedResults = action.value.result?.strategyRuns ?? [];
@@ -222,7 +217,6 @@ export function workspaceReducer(
       return {
         ...state,
         runResponse: action.value,
-        runRequestedEndMode: action.requestedEndMode ?? state.runRequestedEndMode,
         focusedResultId,
         selectedResultIds: nextSelectedResultIds,
       };
@@ -233,6 +227,7 @@ export function workspaceReducer(
       const strategyRuns = current.result?.strategyRuns?.map((strategyRun) => ({
         ...strategyRun,
         status: action.value.strategyStatuses[strategyRun.id] ?? strategyRun.status,
+        ...(action.value.strategySummaries?.[strategyRun.id] ?? {}),
       }));
       return {
         ...state,
@@ -289,16 +284,15 @@ export function getRunAvailability(
   }
 
   if (state.runScope === "all_enabled") {
-    const enabledCount = state.draft.strategies.filter((strategy) => strategy.enabled).length;
-    return enabledCount > 0
+    const strategyCount = state.draft.strategies.length;
+    return strategyCount > 0
       ? { disabled: false, reasonKey: null }
-      : { disabled: true, reasonKey: "run.noEnabledStrategies" };
+      : { disabled: true, reasonKey: "run.noStrategies" };
   }
 
   if (!state.activeStrategyId) return { disabled: true, reasonKey: "run.noActiveStrategy" };
   const active = state.draft.strategies.find((strategy) => strategy.id === state.activeStrategyId);
   if (!active) return { disabled: true, reasonKey: "run.noActiveStrategy" };
-  if (!active.enabled) return { disabled: true, reasonKey: "run.activeDisabled" };
 
   const activeValidation = (validation.strategies ?? []).find(
     (strategy) => strategy.strategyId === active.id,
@@ -316,7 +310,7 @@ export function serializeDraftForApi(draft: BacktestDraft): Record<string, unkno
     shared: {
       run: {
         ...run,
-        endDate: run.endMode === "latest" ? run.startDate : run.endDate,
+        endDate: run.endDate,
       },
       contribution: { ...draft.shared.contribution },
       data: { ...draft.shared.data },
@@ -330,12 +324,13 @@ export function serializeDraftForApi(draft: BacktestDraft): Record<string, unkno
 }
 
 const SUCCESS_STATUSES = new Set<StrategyStatus>(["completed", "completed_with_warning"]);
-const FAILURE_STATUSES = new Set<StrategyStatus>(["unavailable", "failed"]);
+const FAILURE_STATUSES = new Set<StrategyStatus>(["unavailable", "failed", "cancelled"]);
 const TERMINAL_STATUSES = new Set<StrategyStatus>([
   "completed",
   "completed_with_warning",
   "unavailable",
   "failed",
+  "cancelled",
 ]);
 
 export function isPartialSuccess(run: RunResponse | null): boolean {

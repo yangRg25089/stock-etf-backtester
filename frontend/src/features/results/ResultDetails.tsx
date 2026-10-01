@@ -19,6 +19,10 @@ interface ResultDetailsProps {
   state: WorkspaceState;
   dispatch(action: WorkspaceAction): void;
   error: RunApiError | null;
+  candidateResult?: StrategyRun | null;
+  candidatePending?: boolean;
+  candidateErrorKey?: string | null;
+  onSelectCandidate?(id: string): void;
 }
 
 const TAB_KEYS: Record<ResultTab, string> = {
@@ -38,7 +42,12 @@ export function ResultDetails({
   state,
   dispatch,
   error,
+  candidateResult = null,
+  candidatePending = false,
+  candidateErrorKey = null,
+  onSelectCandidate,
 }: ResultDetailsProps) {
+  const displayedResult = candidateResult ?? focusedResult;
   const strategyRuns = run?.result?.strategyRuns ?? [];
   const seenDiagnostics = new Set<string>();
   const diagnostics = [
@@ -102,7 +111,7 @@ export function ResultDetails({
   );
   const headerActions = (
     <div className="result-context-actions">
-      <ExportControls locale={locale} runId={run?.runId ?? null} result={focusedResult} />
+      <ExportControls locale={locale} runId={run?.runId ?? null} result={displayedResult} searchResult={focusedResult} />
     </div>
   );
 
@@ -189,14 +198,15 @@ export function ResultDetails({
                   </h4>
                   <TradeTable
                     locale={locale}
-                    status={focusedResult?.status}
-                    trades={focusedResult?.trades ?? []}
+                    status={displayedResult?.status}
+                    trades={displayedResult?.trades ?? []}
                   />
                 </section>
               )}
 
               {tab === "search" && searchAvailable && focusedResult?.searchResult && (
-                <SearchResults locale={locale} searchResult={focusedResult.searchResult} />
+                <SearchResults locale={locale} searchResult={focusedResult.searchResult} selectedCandidateId={candidateResult?.id}
+                  onSelectCandidate={onSelectCandidate} pending={candidatePending} errorKey={candidateErrorKey} />
               )}
             </div>
           ))}

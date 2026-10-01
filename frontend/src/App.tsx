@@ -9,6 +9,7 @@ import {
   RunApiError,
   submitRun,
   validateDraft,
+  stopRun,
 } from "./api/runs";
 import type { RunProgressEvent } from "./api/runs";
 import { sharedSummaryEndDate } from "./features/config/summary";
@@ -57,7 +58,7 @@ function asRunApiError(error: unknown): RunApiError {
 
 function isTerminal(status: StrategyStatus): boolean {
   return status === "completed" || status === "completed_with_warning" ||
-    status === "unavailable" || status === "failed";
+    status === "unavailable" || status === "failed" || status === "cancelled";
 }
 
 function validationDiagnostics(
@@ -77,6 +78,9 @@ function App() {
   const [validationState, setValidationState] = useState<ValidationState | null>(null);
   const [runError, setRunError] = useState<RunApiError | null>(null);
   const [runBusy, setRunBusy] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const stopRequested = useRef(false);
+  const activeRunId = useRef<string | null>(null);
   const [configCollapsed, setConfigCollapsed] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches,
   );
@@ -91,7 +95,6 @@ function App() {
   const submittedRunRef = useRef(false);
 
   const catalog = catalogState.status === "ready" ? catalogState.value : null;
-  const draftForValidation = workspace?.draft ?? null;
   const dispatch = useCallback((action: WorkspaceAction) => {
     if (!catalog) return;
     setWorkspace((current) => current
@@ -170,6 +173,7 @@ function App() {
         restore(response);
         if (isTerminal(response.status)) return;
 
+        activeRunId.current = response.runId;
         setRunBusy(true);
         await subscribeToRunEvents(response.runId, restoreProgress, controller.signal);
         if (submittedRunRef.current) return;
@@ -183,6 +187,8 @@ function App() {
         if (activeRunController.current === controller) {
           activeRunController.current = null;
           setRunBusy(false);
+          activeRunId.current = null;
+          setStopping(false);
         }
       }
     };
@@ -194,20 +200,6 @@ function App() {
     };
   }, [catalog]);
 
-  useEffect(() => {
-    if (!catalog || !draftForValidation) return;
-    const draft = draftForValidation;
-    const controller = new AbortController();
-    setValidationState({ draft, response: null, error: null });
-    validateDraft(serializeDraftForApi(draft), controller.signal)
-      .then((response) => setValidationState({ draft, response, error: null }))
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setValidationState({ draft, response: null, error: asRunApiError(error) });
-      });
-    return () => controller.abort();
-  }, [catalog, draftForValidation]);
-
   useEffect(() => () => {
     activeRunController.current?.abort();
   }, []);
@@ -215,13 +207,7 @@ function App() {
   const currentValidation = workspace && validationState?.draft === workspace.draft
     ? validationState.response
     : null;
-  let availability = workspace ? getRunAvailability(workspace, currentValidation) : {
-    disabled: true,
-    reasonKey: "run.validationPending",
-  };
-  if (workspace && validationState?.draft === workspace.draft && validationState.error) {
-    availability = { disabled: true, reasonKey: "run.validationFailed" };
-  }
+  const availability = { disabled: !catalog || !workspace, reasonKey: null };
 
   const handleAdd = (presetId: StrategyPresetId) => {
     const id = `strategy-${presetId}-${strategySequence.current}`;
@@ -235,13 +221,14 @@ function App() {
     const submittedDraft = workspace.draft;
     const submittedScope = workspace.runScope;
     const submittedActiveId = workspace.activeStrategyId;
-    const submittedEndMode = submittedDraft.shared.run.endMode;
     const apiDraft = serializeDraftForApi(submittedDraft);
     const controller = new AbortController();
     activeRunController.current?.abort();
     activeRunController.current = controller;
     runSubmissionLocked.current = true;
     setRunBusy(true);
+    stopRequested.current = false;
+    setStopping(false);
     setRunError(null);
 
     try {
@@ -259,16 +246,15 @@ function App() {
           ? validation.strategies?.find((item) => item.strategyId === submittedActiveId)?.diagnostics ?? []
           : [];
         const diagnostics = [...(validation.diagnostics ?? []), ...activeDiagnostics];
-        if (diagnostics.length > 0) {
-          setRunError(new RunApiError(
-            "invalid_parameter",
-            "api.errors.invalid_configuration",
-            diagnostics,
-          ));
-        }
+        setRunError(new RunApiError(
+          "invalid_parameter",
+          diagnostics.length > 0 ? "api.errors.invalid_configuration" : allowed.reasonKey ?? "api.errors.invalid_configuration",
+          diagnostics,
+        ));
         return;
       }
 
+      if (stopRequested.current) return;
       const accepted = await submitRun(
         apiDraft,
         submittedScope,
@@ -276,11 +262,12 @@ function App() {
         createIdempotencyKey(),
         controller.signal,
       );
+      activeRunId.current = accepted.runId;
+      if (stopRequested.current) await stopRun(accepted.runId, controller.signal);
       rememberDismissedRun(null);
       dispatch({
         type: "run.update",
         value: accepted,
-        requestedEndMode: submittedEndMode,
       });
       await subscribeToRunEvents(
         accepted.runId,
@@ -296,6 +283,23 @@ function App() {
       if (activeRunController.current === controller) activeRunController.current = null;
       runSubmissionLocked.current = false;
       setRunBusy(false);
+      activeRunId.current = null;
+      setStopping(false);
+    }
+  };
+
+  const handleStop = async () => {
+    if (!runBusy || stopRequested.current) return;
+    stopRequested.current = true;
+    setStopping(true);
+    if (!activeRunId.current) return;
+    try {
+      const response = await stopRun(activeRunId.current);
+      dispatch({ type: "run.update", value: response });
+    } catch (error) {
+      stopRequested.current = false;
+      setStopping(false);
+      setRunError(asRunApiError(error));
     }
   };
 
@@ -367,9 +371,6 @@ function App() {
     };
   }, [catalog, locale, workspace]);
 
-  const savedCurrency = workspace?.runResponse?.snapshot.config.shared.run.symbol.toUpperCase() === workspace?.draft.shared.run.symbol.trim().toUpperCase()
-    ? workspace?.runResponse?.result?.strategyRuns?.find((result) => result.metrics?.currency)?.metrics?.currency ?? undefined
-    : undefined;
 
   return (
     <div className="app-frame" lang={locale === "ja" ? "ja" : "zh-Hans"}>
@@ -387,6 +388,8 @@ function App() {
             locale={locale}
             availability={availability}
             busy={runBusy}
+                stopping={stopping}
+                onStop={() => void handleStop()}
             run={workspace.runResponse}
             canReset={Boolean(workspace.runResponse || runError)}
             onReset={handleReset}
@@ -443,65 +446,63 @@ function App() {
 
         {catalog && workspace && (
           <div className={`workbench-layout${configCollapsed ? " is-config-collapsed" : ""}`} data-mobile-panel={mobilePanel}>
-            {(!configCollapsed || mobilePanel === "config") && (
-              <aside id="workbench-config-panel" className="workbench-config" aria-label={translate(locale, "workbench.configPanel")}>
-                <div className="workbench-config-fixed">
-                  <div className="shared-settings-block">
-                    <button
-                      ref={sharedSettingsTriggerRef}
-                      className="button shared-settings-summary shared-settings-open-button"
-                      type="button"
-                      aria-label={translate(locale, "workbench.editSharedSettings")}
-                      title={translate(locale, "workbench.editSharedSettings")}
-                      aria-haspopup="dialog"
-                      aria-describedby="shared-settings-summary-detail"
-                      onClick={() => setSharedSettingsDialogOpen(true)}
-                    >
-                      <span className="shared-settings-summary-copy">
-                        <strong>{translate(locale, "section.sharedSettings")}</strong>
-                        <span className="shared-settings-summary-text" id="shared-settings-summary-detail">
-                          <span className="shared-settings-summary-symbol">
-                            <span className="summary-emoji" aria-hidden="true">📈</span>{" "}{workspace.draft.shared.run.symbol}
-                          </span>
-                          <span className="shared-settings-summary-period">
-                            <span className="summary-emoji" aria-hidden="true">🗓️</span>{" "}{workspace.draft.shared.run.startDate} → {sharedSummaryEndDate(workspace.draft.shared, workspace.runResponse) ?? "—"}
-                          </span>
-                          <span className="shared-settings-summary-funding">
-                            <span className="summary-emoji" aria-hidden="true">💰</span>{" "}{interpolate(translate(locale, "workbench.funding"), {
-                              amount: `${workspace.draft.shared.contribution.amount ?? "—"} ${savedCurrency ?? translate(locale, "unit.currency")}`,
-                              day: String(workspace.draft.shared.contribution.day ?? "—"),
-                            })}
-                          </span>
+            <aside id="workbench-config-panel" className="workbench-config" hidden={configCollapsed && mobilePanel !== "config"} aria-label={translate(locale, "workbench.configPanel")}>
+              <div className="workbench-config-fixed">
+                <div className="shared-settings-block">
+                  <button
+                    ref={sharedSettingsTriggerRef}
+                    className="button shared-settings-summary shared-settings-open-button"
+                    type="button"
+                    aria-label={translate(locale, "workbench.editSharedSettings")}
+                    title={translate(locale, "workbench.editSharedSettings")}
+                    aria-haspopup="dialog"
+                    aria-describedby="shared-settings-summary-detail"
+                    onClick={() => setSharedSettingsDialogOpen(true)}
+                  >
+                    <span className="shared-settings-summary-copy">
+                      <strong>{translate(locale, "section.sharedSettings")}</strong>
+                      <span className="shared-settings-summary-text" id="shared-settings-summary-detail">
+                        <span className="shared-settings-summary-symbol">
+                          <span className="summary-emoji" aria-hidden="true">📈</span>{" "}{workspace.draft.shared.run.symbol}
+                        </span>
+                        <span className="shared-settings-summary-period">
+                          <span className="summary-emoji" aria-hidden="true">🗓️</span>{" "}{workspace.draft.shared.run.startDate} → {sharedSummaryEndDate(workspace.draft.shared) ?? "—"}
+                        </span>
+                        <span className="shared-settings-summary-funding">
+                          <span className="summary-emoji" aria-hidden="true">💰</span>{" "}{interpolate(translate(locale, "workbench.funding"), {
+                            amount: `${workspace.draft.shared.contribution.amount ?? "—"} ${workspace.draft.shared.currency ?? translate(locale, "unit.currency")}`,
+                            day: String(workspace.draft.shared.contribution.day ?? "—"),
+                          })}
                         </span>
                       </span>
-                    </button>
-                    {currentValidation && validationDiagnostics(currentValidation).length > 0 && (
-                      <details className="validation-diagnostics config-diagnostics">
-                        <summary>{translate(locale, "diagnostics.title")}</summary>
-                        <DiagnosticList
-                          locale={locale}
-                          diagnostics={validationDiagnostics(currentValidation)}
-                          fieldAction={fieldActionForDiagnostic}
-                        />
-                      </details>
-                    )}
-                    {validationState?.draft === workspace.draft && validationState.error && (
-                      <p className="field-error" role="alert">{translate(locale, "run.validationFailed")}</p>
-                    )}
-                  </div>
-                  <StrategyNavigator
-                    catalog={catalog}
-                    locale={locale}
-                    state={workspace}
-                    validation={currentValidation}
-                    dispatch={dispatch}
-                    onAdd={handleAdd}
-                    fieldNavigation={strategyFieldNavigation}
-                    onFieldNavigationHandled={handleStrategyFieldNavigationHandled}
-                  />
+                    </span>
+                  </button>
+                  {currentValidation && validationDiagnostics(currentValidation).length > 0 && (
+                    <details className="validation-diagnostics config-diagnostics">
+                      <summary>{translate(locale, "diagnostics.title")}</summary>
+                      <DiagnosticList
+                        locale={locale}
+                        diagnostics={validationDiagnostics(currentValidation)}
+                        fieldAction={fieldActionForDiagnostic}
+                      />
+                    </details>
+                  )}
+                  {validationState?.draft === workspace.draft && validationState.error && (
+                    <p className="field-error" role="alert">{translate(locale, "run.validationFailed")}</p>
+                  )}
                 </div>
-              </aside>
-            )}
+                <StrategyNavigator
+                  catalog={catalog}
+                  locale={locale}
+                  state={workspace}
+                  validation={currentValidation}
+                  dispatch={dispatch}
+                  onAdd={handleAdd}
+                  fieldNavigation={strategyFieldNavigation}
+                  onFieldNavigationHandled={handleStrategyFieldNavigationHandled}
+                />
+              </div>
+            </aside>
             <WorkbenchDivider
               collapsed={configCollapsed}
               label={translate(locale, configCollapsed ? "workbench.showConfig" : "workbench.hideConfig")}
@@ -524,17 +525,10 @@ function App() {
         <SharedSettingsDialog
           catalog={catalog}
           value={workspace.draft.shared}
-          currency={savedCurrency}
+          data={workspace.draft.shared.data}
           locale={locale}
-          errors={currentValidation?.diagnostics ?? []}
           focusFieldKey={sharedSettingsFocusKey}
           onFieldFocusHandled={handleSharedFieldFocusHandled}
-          resolvedLatestEndDate={
-            workspace.runRequestedEndMode === "latest" &&
-            workspace.runResponse?.snapshot.config.shared.run.endMode === "fixed"
-              ? workspace.runResponse.snapshot.config.shared.run.endDate
-              : null
-          }
           onChange={(value) => dispatch({ type: "shared.change", value })}
           onClose={handleSharedSettingsClosed}
           returnFocusRef={sharedSettingsTriggerRef}

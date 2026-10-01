@@ -6,13 +6,15 @@ interface RunActionsProps {
   locale: Locale;
   availability: RunAvailability;
   busy: boolean;
+  stopping: boolean;
+  onStop(): void;
   run?: RunResponse | null;
   canReset: boolean;
   onReset(): void;
   onRun(): void;
 }
 
-export function RunActions({ locale, availability, busy, run, canReset, onReset, onRun }: RunActionsProps) {
+export function RunActions({ locale, availability, busy, stopping, onStop, run, canReset, onReset, onRun }: RunActionsProps) {
   const progress = busy && run && ["queued", "loading", "running"].includes(run.status)
     ? run.progress
     : null;
@@ -33,7 +35,7 @@ export function RunActions({ locale, availability, busy, run, canReset, onReset,
         aria-describedby={reason ? "run-disabled-reason" : undefined}
         aria-busy={busy}
         disabled={busy || availability.disabled}
-        onClick={onRun}
+        onClick={(event) => { if (event.detail < 2) onRun(); }}
       >
         {busy ? <span className="run-button-spinner" aria-hidden="true" /> : (
           <svg className="run-play-icon" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
@@ -41,6 +43,11 @@ export function RunActions({ locale, availability, busy, run, canReset, onReset,
           </svg>
         )}
       </button>
+      <span className="run-stop-slot">{busy && <button type="button" className="button icon-only-button run-stop-button" disabled={stopping}
+        onClick={onStop} aria-label={translate(locale, stopping ? "run.stopping" : "run.stop")}
+        title={translate(locale, stopping ? "run.stopping" : "run.stop")}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>
+      </button>}</span>
       <button
         className="button icon-only-button run-reset-button"
         type="button"

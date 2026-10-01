@@ -1,17 +1,18 @@
-import { useEffect, useRef, type RefObject } from "react";
-import type { Catalog, Diagnostic } from "../../api/generated";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import type { Catalog } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import type { SharedDraft } from "./defaults";
 import { SharedSettingsForm } from "./SharedSettingsForm";
+import { fetchInstrument, validateDraft } from "../../api/runs";
+import { DiagnosticList } from "../runs/DiagnosticList";
+import { useDialogValidation } from "../../shared/ui/useDialogValidation";
 import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 
 interface SharedSettingsDialogProps {
   catalog: Catalog;
   value: SharedDraft;
   locale: Locale;
-  errors?: Diagnostic[];
-  resolvedLatestEndDate?: string | null;
-  currency?: string;
+  data: Record<string, unknown>;
   focusFieldKey?: string | null;
   onChange(value: SharedDraft): void;
   onClose(): void;
@@ -23,9 +24,7 @@ export function SharedSettingsDialog({
   catalog,
   value,
   locale,
-  errors = [],
-  resolvedLatestEndDate = null,
-  currency,
+  data,
   focusFieldKey = null,
   onChange,
   onClose,
@@ -34,12 +33,36 @@ export function SharedSettingsDialog({
 }: SharedSettingsDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const closeDialog = () => {
-    const dialog = dialogRef.current;
-    if (dialog?.open) dialog.close();
+  const [buffer, setBuffer] = useState(() => structuredClone(value));
+  const validation = useDialogValidation();
+  const confirmedCurrency = useRef<string | undefined>(buffer.currency);
+  const closeDialog = () => void validation.attemptClose(dialogRef.current, async signal => {
+    const response = await validateDraft({ shared: { run: buffer.run, contribution: buffer.contribution, data }, strategies: [] }, signal);
+    const errors = [...(response.diagnostics ?? [])];
+    if (errors.some(item => item.severity === "error")) return errors;
+    const metadata = await fetchInstrument(buffer.run.symbol, signal);
+    if (!metadata.currency) return [...errors, ...(metadata.diagnostics ?? []), {
+      code: "required_data_unavailable" as const, severity: "error" as const, messageKey: "data.currency_missing", fieldPath: "run.symbol",
+    }];
+    confirmedCurrency.current = metadata.currency;
+    return errors;
+  }, () => {
+    onChange({ ...buffer, currency: confirmedCurrency.current ?? buffer.currency });
+    if (dialogRef.current?.open) dialogRef.current.close();
     returnFocusRef.current?.focus();
     onClose();
-  };
+  });
+
+  useEffect(() => {
+    if (buffer.currency || !buffer.run.symbol) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void fetchInstrument(buffer.run.symbol, controller.signal).then(metadata => {
+        if (!controller.signal.aborted && metadata.currency) setBuffer(current => ({ ...current, currency: metadata.currency ?? undefined }));
+      }).catch(() => undefined);
+    }, 350);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [buffer.run.symbol, buffer.currency]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -89,19 +112,19 @@ export function SharedSettingsDialog({
             <span aria-hidden="true">×</span>
           </button>
         </header>
-        <div className="shared-settings-dialog-content">
+        <fieldset className="shared-settings-dialog-content dialog-fields" disabled={validation.pending}>
           <SharedSettingsForm
             catalog={catalog}
-            value={value}
+            value={buffer}
             locale={locale}
-            errors={errors}
-            resolvedLatestEndDate={resolvedLatestEndDate}
-            currency={currency}
-            onChange={onChange}
+            errors={validation.errors}
+            currency={buffer.currency}
+            onChange={next => { validation.clearErrors(); setBuffer(next); }}
           />
-        </div>
+        </fieldset>
         <footer className="shared-settings-dialog-footer">
-          <button className="button button-primary dialog-done" type="button" onClick={closeDialog}>
+          <DiagnosticList diagnostics={validation.errors.filter(item => !catalog.parameters?.some(parameter => item.fieldPath === parameter.key || item.fieldPath?.endsWith(`.${parameter.key}`)))} locale={locale} />
+          <button className="button button-primary dialog-done" type="button" disabled={validation.pending} onClick={closeDialog}>
             {translate(locale, "workbench.settingsDone")}
           </button>
         </footer>

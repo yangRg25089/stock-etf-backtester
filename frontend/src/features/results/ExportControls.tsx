@@ -11,19 +11,21 @@ interface ExportControlsProps {
   locale: Locale;
   runId: string | null;
   result: StrategyRun | null;
+  searchResult?: StrategyRun | null;
 }
 
-export function ExportControls({ locale, runId, result }: ExportControlsProps) {
+export function ExportControls({ locale, runId, result, searchResult }: ExportControlsProps) {
   const [pendingKind, setPendingKind] = useState<ExportKind | null>(null);
   const [error, setError] = useState<ExportApiError | null>(null);
-  const resultId = result?.id ?? null;
+  const targetFor = (kind: ExportKind) => kind === "search-results" ? searchResult ?? result : result;
 
   const handleExport = async (kind: ExportKind) => {
-    if (!runId || !resultId || !isExportAvailable(result, kind) || pendingKind) return;
+    const target = targetFor(kind);
+    if (!runId || !target || !isExportAvailable(target, kind) || pendingKind) return;
     setPendingKind(kind);
     setError(null);
     try {
-      await performCsvExport(runId, resultId, kind);
+      await performCsvExport(runId, target.id, kind);
     } catch (caught) {
       if (caught instanceof ExportApiError) {
         setError(caught);
@@ -42,7 +44,8 @@ export function ExportControls({ locale, runId, result }: ExportControlsProps) {
   return (
     <div className="export-controls" role="group" aria-label={translate(locale, "export.csvLabel")}>
       {EXPORT_KINDS.map((kind) => {
-        const disabled = !runId || !resultId || !isExportAvailable(result, kind) || pendingKind !== null;
+        const target = targetFor(kind);
+        const disabled = !runId || !target || !isExportAvailable(target, kind) || pendingKind !== null;
         const label = `${translate(locale, "export.csvLabel")}: ${translate(locale, `export.kind.${kind}`)}`;
         return (
           <button

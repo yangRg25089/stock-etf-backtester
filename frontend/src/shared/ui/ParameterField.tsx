@@ -17,6 +17,7 @@ interface ParameterFieldProps {
   errors?: Diagnostic[];
   disabled?: boolean;
   required?: boolean;
+  placeholder?: string;
   id?: string;
   labelAccessory?: ReactNode;
   helperText?: string;
@@ -60,6 +61,7 @@ export function ParameterField({
   errors = [],
   disabled = false,
   required,
+  placeholder,
   id,
   labelAccessory,
   helperText,
@@ -255,6 +257,7 @@ export function ParameterField({
           type={isDate ? "date" : isSymbol ? "text" : "number"}
           value={inputValue(value)}
           required={required ?? (definition.nullable !== true)}
+          placeholder={placeholder}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const raw = event.target.value;
             onChange(raw === "" ? null : isDate || isSymbol ? raw : Number(raw));

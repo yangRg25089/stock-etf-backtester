@@ -40,7 +40,6 @@ export function ResultComparison({
             <th scope="col">{translate(locale, "results.capitalMultiple")}</th>
             <th scope="col">{translate(locale, "results.xirr")}</th>
             <th scope="col">{translate(locale, "results.maximumDrawdown")}</th>
-            <th scope="col">{translate(locale, "results.relativeToDca")}</th>
           </tr>
         </thead>
         <tbody>
@@ -51,30 +50,25 @@ export function ResultComparison({
             const isSelected = selectedResultIds.includes(result.id);
             return (
               <tr
-                className={`${focusedResultId === result.id ? "is-focused " : ""}${isSelected ? "is-selected" : ""}`}
+                className={`${result.status === "running" || result.status === "loading" ? "is-running " : ""}${focusedResultId === result.id ? "is-focused " : ""}${isSelected ? "is-selected" : ""}`}
                 style={{ "--result-color": color } as CSSProperties}
                 key={`${result.role}-${result.id}`}
-                onClick={() => onFocus(result.id)}
+                onClick={() => { onFocus(result.id); onToggleSelection(result.id); }}
               >
                 <th scope="row">
                   <div className="result-name-cell">
-                    <label className="result-compare-control" onClick={(event) => event.stopPropagation()}>
-                      <input
-                        className="result-compare-toggle"
-                        type="checkbox"
-                        checked={isSelected}
-                        aria-label={`${displayName} · ${translate(locale, "results.compareToggle")}`}
-                        onChange={() => onToggleSelection(result.id)}
-                      />
-                    </label>
+                    {["running", "loading"].includes(result.status ?? "queued") && <span className="run-button-spinner" role="status" aria-label={translate(locale, `status.${result.status}`)} />}
+                    {result.status === "queued" && <span className="result-waiting" role="status" aria-label={translate(locale, "status.queued")}>◷</span>}
+                    {result.status === "cancelled" && <span className="result-stopped" role="status" aria-label={translate(locale, "status.cancelled")}>■</span>}
                     <span className="result-color-swatch" aria-hidden="true" />
                     <button
                       className="result-select"
                       type="button"
-                      aria-pressed={focusedResultId === result.id}
+                      aria-pressed={isSelected}
                       onClick={(event) => {
                         event.stopPropagation();
                         onFocus(result.id);
+                        onToggleSelection(result.id);
                       }}
                     >
                       <span>{displayName}</span>
@@ -89,7 +83,6 @@ export function ResultComparison({
                 <td>{formatMultiple(metrics?.capitalMultiple, locale)}</td>
                 <td>{formatPercent(metrics?.xirr, locale)}</td>
                 <td>{formatPercent(metrics?.maximumDrawdown, locale)}</td>
-                <td>{formatCurrency(metrics?.relativeToDca, metrics?.currency, locale)}</td>
               </tr>
             );
           })}

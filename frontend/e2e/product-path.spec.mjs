@@ -5,7 +5,7 @@ const VIEWPORTS = [320, 375, 767, 768, 1024, 1280, 1440, 1920];
 
 async function openSharedSettings(page) {
   await expect(page.locator(".workbench-layout")).toBeVisible();
-  if (await page.locator(".workbench-config").count() === 0) {
+  if (!(await page.locator(".workbench-config").isVisible())) {
     const mobileConfig = page.locator(".workbench-mobile-view").first();
     if (await mobileConfig.isVisible()) await mobileConfig.click();
     else await page.locator(".workbench-config-toggle").click();
@@ -18,12 +18,13 @@ async function closeSharedSettings(page) {
   const dialog = page.locator(".shared-settings-dialog");
   if (await dialog.isVisible()) {
     await dialog.locator(".dialog-done").click();
+    await expect(dialog).toBeHidden();
   }
 }
 
 async function closeStrategyDialog(page) {
   const dialog = page.locator(".strategy-dialog");
-  if (await dialog.isVisible()) await dialog.locator(".dialog-done").click();
+  if (await dialog.isVisible()) { await dialog.locator(".dialog-done").click(); await expect(dialog).toBeHidden(); }
 }
 
 async function addStrategy(page, presetId) {
@@ -52,7 +53,7 @@ test.describe("responsive product shell", () => {
           await expect(page.locator(".workbench-mobile-views")).toBeHidden();
         }
         if (width >= 768 && width <= 1279) {
-          await expect(page.locator(".workbench-config")).toHaveCount(0);
+          await expect(page.locator(".workbench-config")).toBeHidden();
           await expect(page.locator(".workbench-results")).toBeVisible();
         }
         if (locale === "zh") await page.getByRole("button", { name: "中文" }).click();
@@ -127,7 +128,7 @@ test("shared settings dialog edits the draft, restores focus, and the sidebar to
   const initialPosition = await sidebarToggle.boundingBox();
   await sidebarToggle.click();
   await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
-  await expect(page.locator(".workbench-config")).toHaveCount(0);
+  await expect(page.locator(".workbench-config")).toBeHidden();
   await expect(sidebarToggle).toBeVisible();
   await sidebarToggle.click();
   await expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
@@ -282,7 +283,7 @@ test("legacy execution panels never mount during restored progress, failure, or 
   await page.goto("/");
   await openSharedSettings(page);
   await page.getByLabel("開始日").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const completedResponse = page.waitForResponse(async response => {
@@ -421,7 +422,7 @@ test("mobile views switch between configuration and results while keeping the pa
   await expect(views).toBeVisible();
   await expect(resultsView).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".workbench-results")).toBeVisible();
-  await expect(page.locator(".workbench-config")).toHaveCount(0);
+  await expect(page.locator(".workbench-config")).toBeHidden();
 
   await configView.click();
   await expect(configView).toHaveAttribute("aria-pressed", "true");
@@ -437,7 +438,7 @@ test("mobile views switch between configuration and results while keeping the pa
   await resultsView.click();
   await expect(resultsView).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".workbench-results")).toBeVisible();
-  await expect(page.locator(".workbench-config")).toHaveCount(0);
+  await expect(page.locator(".workbench-config")).toBeHidden();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
@@ -467,13 +468,13 @@ test("Japanese and Chinese first screens pass axe and expose a semantic Chromium
   }
 });
 
-test("catalog lists all presets, enabled state toggles, and locale changes", async ({ page }) => {
+test("catalog lists all presets, independent condition toggles, and locale changes", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".strategy-add-option")).toHaveCount(10);
   await expect(page.locator(".strategy-add-menu")).toBeHidden();
   await expect(page.locator(".strategy-parameter-group")).toHaveCount(0);
   await page.locator(".strategy-card-open").first().click();
-  await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("VIX シグナル積立");
+  await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("ボラティリティ積立");
   await expect(page.locator(".strategy-dialog #field-strategy-vix_dca-1-vix-symbol-hint")).toContainText("シグナル判定");
   const japaneseDialogA11y = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -492,14 +493,7 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
   }
   await closeSharedSettings(page);
 
-  const enabled = page.getByRole("switch").first();
-  await expect(enabled).toHaveAttribute("aria-checked", "true");
-  await page.locator(".strategy-card").first().hover();
-  await enabled.click();
-  await expect(enabled).toHaveAttribute("aria-checked", "false");
-  await page.locator(".strategy-card").first().hover();
-  await enabled.click();
-  await expect(enabled).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".strategy-nav-card [role='switch']")).toHaveCount(0);
 
   for (const presetId of [
     "composite_dca",
@@ -522,7 +516,7 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
       await expect.poll(() => content.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
       await expect(page.locator(".strategy-parameter-nav")).toHaveCount(0);
       await content.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-      await expect(page.locator(".strategy-parameter-group").last()).toBeInViewport();
+      await expect(buy.locator(".condition-card").last()).toBeInViewport();
     }
     await closeStrategyDialog(page);
     await expect(page.locator(".strategy-card-open").nth(index)).toBeFocused();
@@ -573,11 +567,13 @@ test("shared summary follows the single form and strategy editing preserves inde
   await openSharedSettings(page);
   await page.locator("#field-run-symbol").fill("SPY");
   await page.locator("#field-run-startDate").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await page.locator("#field-contribution-amount").fill("250");
   await page.locator("#field-contribution-day").fill("15");
   const sharedSummary = page.locator(".shared-settings-summary-text");
+  await expect(sharedSummary).toContainText("QQQ");
+  await closeSharedSettings(page);
   await expect(sharedSummary).toContainText("SPY");
   await expect(sharedSummary).toContainText("2024-01-31");
   await expect(sharedSummary).toContainText("2024-02-02");
@@ -605,8 +601,8 @@ test("shared summary follows the single form and strategy editing preserves inde
   await chartToggle.click();
   await expect(chartToggle).toHaveAttribute("aria-expanded", "false");
 
-  await page.locator(".strategy-card-open").filter({ hasText: "VIX シグナル積立" }).click();
-  await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("VIX シグナル積立");
+  await page.locator(".strategy-card-open").filter({ hasText: "ボラティリティ積立" }).click();
+  await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("ボラティリティ積立");
   await expect(page.getByRole("switch").first()).toHaveAttribute("aria-checked", "true");
   await expect(page.locator(".strategy-run-target")).toHaveCount(0);
   await expect(page.locator("#run-scope-select")).toHaveCount(0);
@@ -617,7 +613,7 @@ test("shared summary follows the single form and strategy editing preserves inde
   await closeStrategyDialog(page);
   await page.locator(".strategy-card-open").filter({ hasText: "移動平均トレンド（買付のみ）" }).click();
   await closeStrategyDialog(page);
-  await page.locator(".strategy-card-open").filter({ hasText: "VIX シグナル積立" }).click();
+  await page.locator(".strategy-card-open").filter({ hasText: "ボラティリティ積立" }).click();
   await expect(page.locator("#field-strategy-vix_dca-1-vix-buyThreshold")).toHaveValue("26");
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
   await expect(benchmark).toHaveAttribute("aria-pressed", "true");
@@ -629,7 +625,7 @@ test("editing a strategy leaves the active run target and run scope unchanged", 
   await page.goto("/");
   await addStrategy(page, "ma_buy_only");
 
-  const vixCard = page.locator(".strategy-card").filter({ hasText: "VIX シグナル積立" });
+  const vixCard = page.locator(".strategy-card").filter({ hasText: "ボラティリティ積立" });
   const monthlyCard = page.locator(".strategy-card").filter({ hasText: "移動平均トレンド（買付のみ）" });
   await expect(page.locator(".strategy-run-target")).toHaveCount(0);
   await expect(page.locator(".strategy-run-target")).toHaveCount(0);
@@ -664,12 +660,10 @@ test("editing a strategy leaves the active run target and run scope unchanged", 
 test("strategy card actions stay separate and deletion returns focus to a useful control", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const vixCard = page.locator(".strategy-card").filter({ hasText: "VIX シグナル積立" });
+  const vixCard = page.locator(".strategy-card").filter({ hasText: "ボラティリティ積立" });
   await vixCard.hover();
-  await vixCard.getByRole("switch").click();
+  await expect(vixCard.getByRole("switch")).toHaveCount(0);
   await expect(page.locator(".strategy-dialog")).toHaveCount(0);
-  await vixCard.hover();
-  await vixCard.getByRole("switch").click();
 
   for (const presetId of ["composite_dca", "ma_buy_only"]) {
     await addStrategy(page, presetId);
@@ -697,37 +691,46 @@ test("strategy card actions stay separate and deletion returns focus to a useful
   await expect(page.locator(".add-strategy-button")).toBeFocused();
 });
 
-test("validation diagnostics open the matching settings dialog and focus its field", async ({ page }) => {
+test("invalid dialogs block every exit and focus errors without touching the run button", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-
-  await page.locator(".shared-settings-open-button").click();
-  const contributionDay = page.locator("#field-contribution-day");
-  await contributionDay.fill("32");
-  await page.locator(".shared-settings-dialog .dialog-done").click();
-  const diagnostics = page.locator(".validation-diagnostics");
-  await diagnostics.locator("summary").click();
-  const sharedFieldAction = diagnostics.locator(".diagnostic-field-link");
-  await expect(sharedFieldAction).toBeVisible();
-  await sharedFieldAction.click();
-  const sharedDialog = page.locator(".shared-settings-dialog");
-  await expect(sharedDialog).toBeVisible();
-  await expect(sharedDialog.locator("#field-contribution-day")).toBeFocused();
-  await contributionDay.fill("1");
-  await page.locator(".shared-settings-dialog .dialog-done").click();
-  await expect(diagnostics).toHaveCount(0);
-
+  const run = page.locator(".run-submit-button");
+  const before = await run.evaluate(node => node.outerHTML);
+  let submissions = 0;
+  page.on("request", request => { if (request.method() === "POST" && request.url().endsWith("/api/v1/runs")) submissions++; });
+  await openSharedSettings(page);
+  const dialog = page.locator(".shared-settings-dialog");
+  const day = dialog.locator("#field-contribution-day");
+  await day.fill("32");
+  for (const exit of ["done", "escape", "close", "backdrop"]) {
+    if (exit === "done") await dialog.locator(".dialog-done").click();
+    if (exit === "escape") await page.keyboard.press("Escape");
+    if (exit === "close") await dialog.locator(".shared-settings-dialog-close").click();
+    if (exit === "backdrop") await page.mouse.click(5, 5);
+    await expect(dialog).toBeVisible();
+    await expect(day).toHaveAttribute("aria-invalid", "true");
+    await expect(day).toBeFocused();
+    expect(await run.evaluate(node => node.outerHTML)).toBe(before);
+  }
+  await day.fill("1");
+  await closeSharedSettings(page);
   await page.locator(".strategy-card-open").first().click();
-  const strategyThreshold = page.locator('.strategy-dialog input[id$="-vix-buyThreshold"]');
-  await strategyThreshold.fill("-1");
-  await page.locator(".strategy-dialog .dialog-done").click();
-  await page.locator(".validation-diagnostics summary").click();
-  const strategyFieldAction = page.locator(".validation-diagnostics .diagnostic-field-link");
-  await expect(strategyFieldAction).toBeVisible();
-  await strategyFieldAction.click();
   const strategyDialog = page.locator(".strategy-dialog");
-  await expect(strategyDialog).toBeVisible();
-  await expect(strategyDialog.locator('input[id$="-vix-buyThreshold"]')).toBeFocused();
+  const threshold = strategyDialog.locator('input[id$="-vix-buyThreshold"]');
+  await threshold.fill("-1");
+  for (const exit of ["done", "escape", "close", "backdrop"]) {
+    if (exit === "done") await strategyDialog.locator(".dialog-done").click();
+    if (exit === "escape") await page.keyboard.press("Escape");
+    if (exit === "close") await strategyDialog.locator(".strategy-dialog-close").click();
+    if (exit === "backdrop") await page.mouse.click(5, 5);
+    await expect(strategyDialog).toBeVisible();
+    await expect(threshold).toHaveAttribute("aria-invalid", "true");
+    expect(await run.evaluate(node => node.outerHTML)).toBe(before);
+  }
+  await threshold.fill("25");
+  await closeStrategyDialog(page);
+  expect(submissions).toBe(0);
+  expect(await run.evaluate(node => node.outerHTML)).toBe(before);
 });
 
 test("default VIX can run to a focused saved result, display toggles, and matching CSV", async ({ page }) => {
@@ -759,10 +762,10 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.locator(".strategy-card-name").first()).toHaveText("VIX シグナル積立");
+  await expect(page.locator(".strategy-card-name").first()).toHaveText("ボラティリティ積立");
   await openSharedSettings(page);
   await page.getByLabel("開始日").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
 
@@ -794,15 +797,17 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".run-status-panel")).toHaveCount(0);
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
-  await expect(page.locator(".comparison-table thead th")).toHaveCount(10);
+  await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
   await expect(page.locator(".comparison-table")).toContainText("実際の買付額");
   await expect(page.locator("#result-details")).toBeVisible();
   await expect(page.locator(".result-run-id, #result-focus-select, .metric-card")).toHaveCount(0);
   const resultRows = page.locator(".comparison-table tbody tr");
   await resultRows.filter({ hasText: "毎月定額積立" }).locator(".result-select").click();
   await expect(resultRows.filter({ hasText: "毎月定額積立" }).locator(".result-select")).toHaveAttribute("aria-pressed", "true");
-  await resultRows.filter({ hasText: "VIX シグナル積立" }).locator(".result-select").click();
-  await expect(resultRows.filter({ hasText: "VIX シグナル積立" }).locator(".result-select")).toHaveAttribute("aria-pressed", "true");
+  await resultRows.filter({ hasText: "ボラティリティ積立" }).locator(".result-select").click();
+  await expect(resultRows.filter({ hasText: "ボラティリティ積立" }).locator(".result-select")).toHaveAttribute("aria-pressed", "false");
+  await resultRows.filter({ hasText: "ボラティリティ積立" }).locator(".result-select").click();
+  await expect(resultRows.filter({ hasText: "ボラティリティ積立" }).locator(".result-select")).toHaveAttribute("aria-pressed", "true");
   const chartVisibilityButton = page.getByRole("button", { name: "資産推移" });
   await expect(chartVisibilityButton).toHaveAttribute("aria-expanded", "true");
   await expect(chartVisibilityButton.locator("svg")).toHaveCount(1);
@@ -986,9 +991,12 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const benchmarkRow = page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" });
   const benchmarkButton = benchmarkRow.locator("button.result-select");
   await benchmarkButton.click();
+  await expect(benchmarkButton).toHaveAttribute("aria-pressed", "false");
+  await benchmarkButton.click();
   await expect(benchmarkButton).toHaveAttribute("aria-pressed", "true");
-  await benchmarkRow.locator("input").check();
-  await page.locator(".comparison-table tbody tr").filter({ hasText: "VIX シグナル積立" }).locator("input").uncheck();
+  await page.locator(".comparison-table tbody tr").filter({ hasText: "ボラティリティ積立" }).locator("button").click();
+  await benchmarkButton.click();
+  await benchmarkButton.click();
 
   const chartToggle = page.getByRole("button", { name: "資産推移" });
   await expect(chartToggle).toHaveAttribute("aria-expanded", "true");
@@ -1018,11 +1026,10 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator("svg[role=img]").first()).toBeVisible();
   await expect(coreChart).toHaveAttribute("data-window-start", chartWindowBeforeCollapse.start);
   await expect(coreChart).toHaveAttribute("data-window-end", chartWindowBeforeCollapse.end);
-  const strategyRow = page.locator(".comparison-table tbody tr").filter({ hasText: "VIX シグナル積立" });
+  const strategyRow = page.locator(".comparison-table tbody tr").filter({ hasText: "ボラティリティ積立" });
   const strategyButton = strategyRow.locator("button.result-select");
+  await benchmarkButton.click();
   await strategyButton.click();
-  await strategyRow.locator("input").check();
-  await benchmarkRow.locator("input").uncheck();
   await expect(page.locator(".chart-panel.chart-vix")).toContainText("25");
   await expect(page.locator(".chart-panel.chart-vix .chart-threshold-line")).toHaveCount(1);
   const readChartWindows = () => page.locator(".chart-panel").evaluateAll((panels) =>
@@ -1202,7 +1209,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(chartAccessibility.violations, JSON.stringify(chartAccessibility.violations, null, 2)).toEqual([]);
   await page.screenshot({ path: test.info().outputPath("financial-charts.png"), fullPage: true });
   await page.setViewportSize({ width: 320, height: 900 });
-  await expect(page.locator(".workbench-config")).toHaveCount(0);
+  await expect(page.locator(".workbench-config")).toBeHidden();
   const chartLayout = await page.evaluate(() => ({
     viewport: window.innerWidth,
     document: document.documentElement.scrollWidth,
@@ -1263,7 +1270,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
 
   await page.getByRole("button", { name: "設定", exact: true }).click();
   await expect(page.locator(".workbench-config")).toBeVisible();
-  await page.locator(".strategy-card-open").filter({ hasText: "VIX シグナル積立" }).click();
+  await page.locator(".strategy-card-open").filter({ hasText: "ボラティリティ積立" }).click();
   await expect(page.locator(".strategy-dialog")).toBeVisible();
   await page.locator(".strategy-dialog #field-strategy-vix_dca-1-vix-buyThreshold").fill("28");
   await closeStrategyDialog(page);
@@ -1372,7 +1379,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const persistentSettingsToggle = page.locator(".workbench-divider .workbench-config-toggle");
   await persistentSettingsToggle.click();
   await expect(persistentSettingsToggle).toHaveAttribute("aria-expanded", "false");
-  await expect(page.locator(".workbench-config")).toHaveCount(0);
+  await expect(page.locator(".workbench-config")).toBeHidden();
   await expect(persistentSettingsToggle).toBeVisible();
   const scrollState = await page.locator(".workbench-results").evaluate((element) => {
     element.scrollTop = element.scrollHeight;
@@ -1391,7 +1398,7 @@ test("adding a strategy keeps the default run scope on every enabled strategy", 
   await page.goto("/");
   await openSharedSettings(page);
   await page.getByLabel("開始日").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
 
@@ -1405,12 +1412,12 @@ test("adding a strategy keeps the default run scope on every enabled strategy", 
   const request = await runSubmission;
   const payload = request.postDataJSON();
   expect(payload.scope).toBe("all_enabled");
-  expect(payload.draft.strategies.filter((strategy) => strategy.enabled).map((strategy) => strategy.id))
+  expect(payload.draft.strategies.map((strategy) => strategy.id))
     .toEqual(["strategy-vix_dca-1", "strategy-ma_buy_only-2"]);
 
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(4);
   await expect(page.locator(".comparison-table tbody tr")
-    .filter({ hasText: "VIX シグナル積立" })).toHaveCount(1);
+    .filter({ hasText: "ボラティリティ積立" })).toHaveCount(1);
   await expect(page.locator(".comparison-table tbody tr")
     .filter({ hasText: "移動平均トレンド（買付のみ）" })).toHaveCount(1);
 });
@@ -1470,7 +1477,7 @@ test("desktop workbench keeps the header, strategy list, and results in independ
   const toggle = page.locator(".workbench-config-toggle");
   const railPosition = await toggle.boundingBox();
   await page.getByRole("button", { name: "設定を閉じる" }).click();
-  await expect(page.locator(".workbench-config")).toHaveCount(0);
+  await expect(page.locator(".workbench-config")).toBeHidden();
   await expect(page.locator(".workbench-results")).toBeVisible();
   const hiddenPosition = await toggle.boundingBox();
   expect(hiddenPosition.y).toBe(railPosition.y);
@@ -1485,7 +1492,7 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const resultResponse = page.waitForResponse((response) => response.ok() &&
@@ -1497,6 +1504,7 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   const original = await results.innerHTML();
   await openSharedSettings(page);
   await page.locator("#field-contribution-amount").fill("-1");
+  await page.locator(".shared-settings-dialog .dialog-done").click();
   await expect(page.locator(".shared-settings-dialog .field-error")).toBeVisible();
   expect(await results.innerHTML()).toBe(original);
   await page.locator("#field-contribution-amount").fill("100");
@@ -1505,8 +1513,10 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   expect(await results.innerHTML()).toBe(original);
   await page.locator(".strategy-card-open").first().click();
   await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("-1");
+  await page.locator(".strategy-dialog .dialog-done").click();
   await expect(page.locator(".strategy-dialog .field-error")).toBeVisible();
   expect(await results.innerHTML()).toBe(original);
+  await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("25");
   await closeStrategyDialog(page);
   expect(await results.innerHTML()).toBe(original);
   await page.locator(".run-reset-button").click();
@@ -1526,7 +1536,7 @@ test("draft dialogs never mutate saved result content and reset survives refresh
 });
 
 
-test("strategy add menu opens to the right, supports arrows, dismisses outside and restores focus", async ({ page }) => {
+test("strategy heading menu opens below its plus, supports arrows, dismisses outside and restores focus", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   const add = page.locator(".add-strategy-button");
@@ -1548,7 +1558,8 @@ test("strategy add menu opens to the right, supports arrows, dismisses outside a
   await expect(menu).toBeHidden();
   await add.click();
   const boxes = [await add.boundingBox(), await menu.boundingBox()];
-  expect(boxes[1].x).toBeGreaterThan(boxes[0].x + boxes[0].width);
+  expect(boxes[1].y).toBeGreaterThanOrEqual(boxes[0].y + boxes[0].height);
+  expect(boxes[1].x + boxes[1].width).toBeLessThanOrEqual(boxes[0].x + boxes[0].width + 1);
   await menu.locator('[data-preset-id="rsi_dca"]').click();
   await expect(page.locator(".strategy-card")).toHaveCount(2);
   await expect(menu).toBeHidden();
@@ -1569,20 +1580,12 @@ test("optional strategy cards reveal actions on hover, reject duplicates and run
   await expect(actions).toHaveCSS("opacity", "0");
   await card.hover();
   await expect(actions).toHaveCSS("opacity", "1");
-  const enabled = card.getByRole("switch");
-  await page.locator(".strategy-card").first().hover();
-  await enabled.click();
-  await expect(enabled).toHaveAttribute("aria-checked", "false");
-  await expect(card).toHaveClass(/is-disabled/);
-  await expect(page.locator(".strategy-dialog")).toHaveCount(0);
-  await expect(page.locator('.strategy-add-option[data-preset-id="vix_dca"]')).toBeDisabled();
-  await page.locator(".strategy-card").first().hover();
-  await enabled.click();
+  await expect(card.getByRole("switch")).toHaveCount(0);
   await page.mouse.move(1400, 850);
+  await expect(actions).toHaveCSS("opacity", "0");
   await card.locator(".strategy-card-open").focus();
   await page.keyboard.press("Tab");
-  await expect(actions).toHaveCSS("opacity", "1");
-  await expect(enabled).toBeFocused();
+  await expect(card.locator(".strategy-remove")).toBeFocused();
   await addStrategy(page, "ma_buy_only");
   await expect(page.locator('.strategy-add-option[data-preset-id="ma_buy_only"]')).toBeDisabled();
   await expect(page.locator(".strategy-card")).toHaveCount(2);
@@ -1593,7 +1596,7 @@ test("optional strategy cards reveal actions on hover, reject duplicates and run
   await page.locator(".run-submit-button").click();
   const payload = (await submitted).postDataJSON();
   expect(payload.scope).toBe("all_enabled");
-  expect(payload.draft.strategies.filter((strategy) => strategy.enabled)).toHaveLength(2);
+  expect(payload.draft.strategies).toHaveLength(2);
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(4);
   const addedCard = page.locator(".strategy-card").nth(1);
   await addedCard.hover();
@@ -1623,7 +1626,7 @@ test("borderless chevron stays on the sidebar boundary and repeatedly reopens", 
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(toggle.locator("path")).toHaveAttribute("d", "m7 5 5 5-5 5");
-    await expect(page.locator(".workbench-config")).toHaveCount(0);
+    await expect(page.locator(".workbench-config")).toBeHidden();
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
   }
@@ -1634,7 +1637,7 @@ test("multi-selected curves match row colors while focus, CSV and the shared win
   await page.goto("/");
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-03-01");
   await closeSharedSettings(page);
   const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
@@ -1644,23 +1647,23 @@ test("multi-selected curves match row colors while focus, CSV and the shared win
   const rows = page.locator(".comparison-table tbody tr");
   const monthly = rows.filter({ hasText: "毎月定額積立" });
   const lump = rows.filter({ hasText: "一括投資" });
-  const vix = rows.filter({ hasText: "VIX シグナル積立" });
-  await monthly.locator("input").check();
-  await lump.locator("input").check();
+  const vix = rows.filter({ hasText: "ボラティリティ積立" });
+  await monthly.locator("button").click();
+  await lump.locator("button").click();
   await expect(vix.locator("button")).toHaveAttribute("aria-pressed", "true");
-  await expect(monthly.locator("input")).toBeChecked();
-  await expect(lump.locator("input")).toBeChecked();
+  await expect(monthly.locator("button")).toHaveAttribute("aria-pressed", "true");
+  await expect(lump.locator("button")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".comparison-overlay-series"), JSON.stringify(saved.result.strategyRuns.map(result => ({ id: result.id, status: result.status, assetCount: result.dailyAssets.length, principal: result.dailyAssets.at(-1)?.totalContributed })))).toHaveCount(2);
   for (const [row, preset] of [[monthly, "monthly_dca"], [lump, "lump_sum"]]) {
     const result = saved.result.strategyRuns.find(item => item.presetId === preset);
     const color = await row.evaluate(el => el.style.getPropertyValue("--result-color"));
-    await expect(page.locator(`[data-result-id="${result.id}"] polyline`)).toHaveAttribute("stroke", color);
+    await expect((preset === "lump_sum" ? page.locator(".chart-overlay polyline.overlay-totalAsset") : page.locator(`.chart-overlay [data-result-id="${result.id}"] polyline`))).toHaveAttribute("stroke", color);
   }
   const chart = page.locator(".chart-overlay");
   await page.getByRole("button", { name: "期間を拡大", exact: true }).click();
   const windowBefore = [await chart.getAttribute("data-window-start"), await chart.getAttribute("data-window-end")];
   await monthly.locator("button").click();
-  await expect(monthly.locator("button")).toHaveAttribute("aria-pressed", "true");
+  await expect(monthly.locator("button")).toHaveAttribute("aria-pressed", "false");
   await expect(chart).toHaveAttribute("data-window-start", windowBefore[0]);
   await expect(chart).toHaveAttribute("data-window-end", windowBefore[1]);
   const downloadEvent = page.waitForEvent("download");
@@ -1670,14 +1673,13 @@ test("multi-selected curves match row colors while focus, CSV and the shared win
   const csv = await readFile(await download.path(), "utf8");
   expect(csv).toContain("benchmark:monthly-dca");
   expect(csv).toContain("actualInvested,totalContributed");
-  await lump.locator("input").uncheck();
-  await vix.locator("input").uncheck();
-  await monthly.locator("input").uncheck();
+  await lump.locator("button").click();
+  await vix.locator("button").click();
   await expect(page.locator(".comparison-overlay-series, g.overlay-totalAsset")).toHaveCount(0);
   await expect(page.locator("g.overlay-price")).toHaveCount(1);
-  await expect(monthly.locator("button")).toHaveAttribute("aria-pressed", "true");
-  await vix.locator("input").check();
-  const legend = chart.locator('.overlay-legend-item[data-series="strategy-vix_dca-1"]');
+  await expect(monthly.locator("button")).toHaveAttribute("aria-pressed", "false");
+  await vix.locator("button").click();
+  const legend = chart.locator('.overlay-legend-item[data-series="totalAsset"]');
   await legend.click();
   await page.mouse.move(1400, 850);
   await expect(legend).toHaveAttribute("aria-pressed", "true");
@@ -1710,19 +1712,19 @@ test("strategy menu, condition connectors and comparison selections retain full 
     await closeStrategyDialog(page);
     await openSharedSettings(page);
     await page.locator("#field-run-startDate").fill("2024-01-31");
-    await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
     await page.locator("#field-run-endDate").fill("2024-03-01");
     await closeSharedSettings(page);
     await page.locator(".run-submit-button").tap();
     await page.locator(".workbench-mobile-view").last().tap();
     await expect(page.locator(".comparison-table")).toBeVisible();
-    targets.push(...await page.locator(".result-compare-toggle").evaluateAll(nodes =>
+    targets.push(...await page.locator(".result-select").evaluateAll(nodes =>
       nodes.map(node => ({ control: "comparison", height: (node.closest("label") ?? node).getBoundingClientRect().height })),
     ));
     expect(targets.length).toBeGreaterThan(10);
     for (const target of targets) expect(target.height, JSON.stringify(targets)).toBeGreaterThanOrEqual(44);
-    await page.locator(".result-compare-toggle").first().tap();
-    await expect(page.locator(".result-compare-toggle").first()).not.toBeChecked();
+    await page.locator(".result-select").first().tap();
+    await expect(page.locator(".result-select").first()).toHaveAttribute("aria-pressed", "false");
     const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     expect(accessibility.violations).toEqual([]);
   } finally {
@@ -1735,7 +1737,7 @@ test("many selected historical strategies keep permanent readings inside their r
   await page.goto("/");
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-03-01");
   await closeSharedSettings(page);
   const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
@@ -1750,9 +1752,9 @@ test("many selected historical strategies keep permanent readings inside their r
   }
   await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: extended }));
   await page.reload();
-  const toggles = page.locator(".result-compare-toggle");
+  const toggles = page.locator(".result-select");
   await expect(toggles).toHaveCount(12);
-  for (const toggle of await toggles.all()) await toggle.check();
+  for (const toggle of await toggles.all()) if (await toggle.getAttribute("aria-pressed") !== "true") await toggle.click();
   const row = page.locator(".chart-core-readout-row");
   await row.scrollIntoViewIfNeeded();
   const geometry = await row.evaluate(node => ({ height: node.clientHeight, contentHeight: node.scrollHeight, overflow: getComputedStyle(node).overflowY }));
@@ -1798,7 +1800,7 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   await page.reload();
   await expect(page.locator("#result-tab-comparison")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#result-focus-select, #result-tab-overview, #result-tab-metrics, .metric-card")).toHaveCount(0);
-  await expect(page.locator(".comparison-table thead th")).toHaveCount(10);
+  await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
   const benchmark = saved.result.strategyRuns.find((result) => result.presetId === "monthly_dca" && result.role === "benchmark");
   const row = page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" });
   await row.locator("td").last().click();
@@ -1836,7 +1838,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
@@ -1948,6 +1950,7 @@ test("context is concise and strategy dialogs show one combination label", async
   await page.goto("/");
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
+  await page.locator("#field-run-endDate").fill("2024-03-01");
   await closeSharedSettings(page);
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await page.locator(".run-submit-button").click();
@@ -2069,9 +2072,9 @@ test("fixed and custom dialogs reuse condition cards, nest independent groups an
   await root.locator('.condition-add-select').first().selectOption("rsi");
   await root.locator('.condition-add-select').first().selectOption("group");
   const group = root.locator('.condition-group:not(.is-root)');
-  await group.locator('.condition-add-select').selectOption("vix");
+  await group.locator('.condition-add-select').selectOption("ma_deviation");
   await group.locator('.condition-add-select').selectOption("ma_trend");
-  await group.locator('[data-condition-kind="vix"] input[type="number"]').fill("35");
+  await group.locator('[data-condition-kind="ma_deviation"] input[id$="-ma-buyDeviationPct"]').fill("35");
   await group.locator('[data-condition-kind="ma_trend"] input[type="number"]').fill("5");
   const rootConnectors = root.locator(':scope > .condition-child > .condition-logic-connector');
   await expect(rootConnectors).toHaveCount(2);
@@ -2088,7 +2091,7 @@ test("fixed and custom dialogs reuse condition cards, nest independent groups an
   for (const y of geometry.y) expect(y).toBeCloseTo(geometry.controlY, 0);
   await closeStrategyDialog(page);
   await trigger.click();
-  await expect(group.locator('[data-condition-kind="vix"] input[type="number"]')).toHaveValue("35");
+  await expect(group.locator('[data-condition-kind="ma_deviation"] input[id$="-ma-buyDeviationPct"]')).toHaveValue("35");
   const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(accessibility.violations).toEqual([]);
   await page.screenshot({ path: test.info().outputPath("custom-condition-dialog.png") });
@@ -2102,14 +2105,14 @@ test("fixed and custom dialogs reuse condition cards, nest independent groups an
   expect(tree.operator).toBe("OR");
   expect(tree.children[0].params["vix.buyThreshold"]).toBe(25);
   expect(tree.children[2].operator).toBe("AND");
-  expect(tree.children[2].children[0].params["vix.buyThreshold"]).toBe(35);
+  expect(tree.children[2].children[0].params["ma.buyDeviationPct"]).toBe(35);
   const saved = await (await completed).json();
   const snapshotTree = saved.snapshot.config.strategies.find(strategy => strategy.presetId === "composite_dca").rules.buy;
   expect(snapshotTree.children[2].operator).toBe("AND");
-  expect(Number(snapshotTree.children[2].children[0].params["vix.buyThreshold"])).toBe(35);
+  expect(Number(snapshotTree.children[2].children[0].params["ma.buyDeviationPct"])).toBe(35);
   const comparisonBefore = await page.locator(".comparison-table").innerHTML();
   await trigger.click();
-  await group.locator('[data-condition-kind="vix"] input[type="number"]').fill("45");
+  await group.locator('[data-condition-kind="ma_deviation"] input[id$="-ma-buyDeviationPct"]').fill("45");
   await expect(page.locator(".comparison-table")).toHaveJSProperty("innerHTML", comparisonBefore);
   await closeStrategyDialog(page);
 });
@@ -2146,7 +2149,14 @@ test("strategy AND OR segments and buy sell switches remain independent and keyb
   await closeStrategyDialog(page);
   await page.getByRole("button", { name: "中文", exact: true }).click();
   await page.locator(".strategy-card-open").last().click();
+  const cashLimit = dialog.locator('input[id$="-accumulation-cashSafetyLimit"]');
+  await cashLimit.fill("1250");
   await page.setViewportSize({ width: 320, height: 700 });
+  await expect(dialog).toBeVisible();
+  await expect(cashLimit).toHaveValue("1250");
+  await expect(buy).toHaveAttribute("aria-checked", "false");
+  await expect(dialog.locator(".dialog-done")).toBeInViewport();
+  await expect(dialog.locator(".strategy-dialog-heading")).toBeInViewport();
   const phone = await dialog.evaluate(el => ({ left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right, width: innerWidth }));
   expect(phone.left).toBeGreaterThanOrEqual(0);
   expect(phone.right).toBeLessThanOrEqual(phone.width);
@@ -2179,7 +2189,7 @@ test("pointer dialog close releases card actions while keyboard return retains a
   await expect(open).toBeFocused();
   await expect(actions).toHaveCSS("opacity", "1");
   await page.keyboard.press("Tab");
-  await expect(card.getByRole("switch")).toBeFocused();
+  await expect(card.locator(".strategy-remove")).toBeFocused();
 });
 
 
@@ -2188,6 +2198,7 @@ test("common settings summary separates ticker, dates and funding into readable 
   await page.goto("/");
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
+  await page.locator("#field-run-endDate").fill("2024-03-01");
   await closeSharedSettings(page);
   await page.locator(".run-submit-button").click();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
@@ -2219,7 +2230,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await page.goto("/");
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
@@ -2260,7 +2271,7 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await page.goto("/");
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
-  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
@@ -2361,11 +2372,15 @@ test("saved settings info fits a narrow touch viewport and remains a full touch 
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
   await closeSharedSettings(page);
+  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
+  await completed;
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await page.locator(".workbench-mobile-view").last().click();
   const info = page.locator(".result-snapshot-info summary");
   await info.click();
+  await expect(page.locator(".result-snapshot-info-content")).toBeVisible();
   const bounds = await page.locator(".result-snapshot-info-content").boundingBox();
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);

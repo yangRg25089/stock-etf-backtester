@@ -38,9 +38,6 @@ const mockCatalog = {
     parameter("run.symbol", "symbol", "QQQ"),
     parameter("run.startDate", "date", "2020-01-01", { unit: "date" }),
     parameter("run.endDate", "date", null, { unit: "date", nullable: true }),
-    parameter("run.endMode", "enum", "latest", {
-      allowedValues: ["fixed", "latest"],
-    }),
     parameter("contribution.amount", "decimal", "100", { unit: "currency" }),
     parameter("contribution.day", "integer", 1, { unit: "day_of_month" }),
   ],
@@ -54,7 +51,6 @@ const mockCatalog = {
         "run.symbol",
         "run.startDate",
         "run.endDate",
-        "run.endMode",
         "contribution.amount",
         "contribution.day",
       ],
