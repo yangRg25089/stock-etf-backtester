@@ -36,6 +36,20 @@ const trades = [
   },
 ];
 
+test("unselected focused assets never return and selected comparison curves remain when price is hidden", () => {
+  const render = (comparisonSeries, visibleSeriesIds) => renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh", dailyAssets, trades, signals: [], showFocusedAsset: false, comparisonSeries,
+    visibleSeriesIds, onSeriesChange() {},
+  }));
+  const comparisons = [{ id: "dca", label: "定投", color: "#c47a1f", dailyAssets }];
+  const assetOnly = render(comparisons, ["totalAsset"]);
+  assert.match(assetOnly, /data-result-id="dca"/);
+  assert.doesNotMatch(assetOnly, /class="overlay-series overlay-totalAsset"|class="overlay-series overlay-price"|chart-trade-marker/);
+  const none = render([], ["totalAsset"]);
+  assert.match(none, /class="overlay-series overlay-price"/);
+  assert.doesNotMatch(none, /chart-trade-marker|comparison-overlay-series|class="overlay-series overlay-totalAsset"/);
+});
+
 test("shared chart details are visible before interaction and use the last saved day", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja", dailyAssets, trades: [], visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
@@ -305,8 +319,9 @@ test("VIX chart uses saved observed signal values and frozen threshold", () => {
   }));
   assert.match(html, /VIX 指数/);
   assert.match(html, /25/);
-  assert.match(html, /27\.4/);
+  assert.match(html, /20\.1/);
   assert.match(html, /chart-threshold-line/);
+  assert.doesNotMatch(html, /vix-observation|chart-single-point/);
 });
 
 test("custom VIX nodes use saved source metadata without mixing other indexes", () => {

@@ -52,6 +52,24 @@ test("initial workspace comes from the VIX preset and shared catalog defaults", 
   assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown", "vix"]);
 });
 
+test("condition drafts clone catalog templates and submitting freezes nested values", () => {
+  let state = createInitialWorkspaceState(catalog);
+  const id = state.activeStrategyId;
+  assert.notEqual(state.draft.strategies[0].rules, catalog.presets[0].defaultRules);
+  const rules = structuredClone(state.draft.strategies[0].rules);
+  rules.buy.params["vix.buyThreshold"] = 37;
+  rules.sell.enabled = true;
+  state = workspaceReducer({ ...state, runResponse: { runId: "saved" } }, { type: "strategy.rules", id, value: rules });
+  assert.equal(state.draft.strategies[0].rules.buy.params["vix.buyThreshold"], 37);
+  assert.equal(String(state.draft.strategies[0].rules.sell.params["exit.vix.low1"]), "12");
+  assert.equal(state.runResponse.runId, "saved");
+  const submitted = serializeDraftForApi(state.draft);
+  assert.notEqual(submitted.strategies[0].rules, state.draft.strategies[0].rules);
+  state.draft.strategies[0].rules.buy.params["vix.buyThreshold"] = 80;
+  assert.equal(submitted.strategies[0].rules.buy.params["vix.buyThreshold"], 37);
+  assert.equal(String(catalog.presets[0].defaultRules.buy.params["vix.buyThreshold"]), "25");
+});
+
 test("reset clears the displayed run and focus while preserving draft and display preferences", () => {
   const initial = createInitialWorkspaceState(catalog);
   const state = {

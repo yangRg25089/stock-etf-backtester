@@ -66,7 +66,7 @@ test('native browser zoom at 100, 125 and 150 percent keeps the saved workbench 
       expect(geometry.scale).toBe(1);
       expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.width);
       expect(geometry.documentHeight).toBeLessThanOrEqual(geometry.height + 1);
-      expect(geometry.visiblePlot).toBeGreaterThan(factor === 1 ? 280 : 120);
+      expect(geometry.visiblePlot, JSON.stringify(measurements, null, 2)).toBeGreaterThan(factor === 1 ? 280 : 120);
       const toggle = page.locator('.workbench-config-toggle');
       await toggle.click();
       await expect(toggle).toHaveAttribute('aria-expanded', 'false');

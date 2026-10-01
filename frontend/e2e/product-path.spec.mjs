@@ -26,6 +26,13 @@ async function closeStrategyDialog(page) {
   if (await dialog.isVisible()) await dialog.locator(".dialog-done").click();
 }
 
+async function addStrategy(page, presetId) {
+  const menu = page.locator(".strategy-add-menu");
+  const trigger = page.locator(".add-strategy-button");
+  if (!(await menu.isVisible())) await trigger.click();
+  await menu.locator(`.strategy-add-option[data-preset-id="${presetId}"]`).click();
+}
+
 async function controlWheel(page, deltaY) {
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, deltaY);
@@ -253,7 +260,7 @@ test("one fixed topbar owns run and reset without a scope selector", async ({ pa
     request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
   );
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -279,7 +286,7 @@ test("legacy execution panels never mount during restored progress, failure, or 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const completedResponse = page.waitForResponse(async response => {
-    if (!/\/api\/v1\/runs\/[^/]+$/.test(response.url()) || response.url().endsWith("/runs/latest") || !response.ok()) return false;
+    if (!/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()) || response.url().endsWith("/runs/latest") || !response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"].includes((await response.json()).status);
   });
   await page.locator(".run-submit-button").click();
@@ -462,8 +469,8 @@ test("Japanese and Chinese first screens pass axe and expose a semantic Chromium
 
 test("catalog lists all presets, enabled state toggles, and locale changes", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("#preset-to-add option")).toHaveCount(6);
-  await expect(page.locator("#preset-to-add")).toHaveValue("");
+  await expect(page.locator(".strategy-add-option")).toHaveCount(10);
+  await expect(page.locator(".strategy-add-menu")).toBeHidden();
   await expect(page.locator(".strategy-parameter-group")).toHaveCount(0);
   await page.locator(".strategy-card-open").first().click();
   await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("VIX シグナル積立");
@@ -481,7 +488,7 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
     "ma_buy_only",
     "grid_search",
   ]) {
-    await expect(page.locator(`#preset-to-add option[value="${presetId}"]`)).toHaveCount(1);
+    await expect(page.locator(`.strategy-add-option[data-preset-id="${presetId}"]`)).toHaveCount(1);
   }
   await closeSharedSettings(page);
 
@@ -500,16 +507,17 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
     "ma_buy_only",
     "grid_search",
   ]) {
-    await page.locator("#preset-to-add").selectOption(presetId);
-    await page.locator(".add-strategy-button").click();
+    await addStrategy(page, presetId);
   }
   await expect(page.locator(".strategy-card")).toHaveCount(5);
 
   for (let index = 0; index < 5; index += 1) {
     await page.locator(".strategy-card-open").nth(index).click();
-    const parameterGroupCount = await page.locator(".strategy-dialog .strategy-parameter-group").count();
-    expect(parameterGroupCount, `preset card ${index} opens catalog parameters`).toBeGreaterThan(0);
+    const parameterCount = await page.locator(".strategy-dialog .field").count();
+    expect(parameterCount, `preset card ${index} opens catalog parameters`).toBeGreaterThan(0);
     if (index === 1) {
+      const buy = page.locator('[data-rule-side="buy"]');
+      for (const kind of ["rsi", "ma_deviation", "bollinger", "rate"]) await buy.locator(".condition-add-select").first().selectOption(kind);
       const content = page.locator(".strategy-dialog-content");
       await expect.poll(() => content.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
       await expect(page.locator(".strategy-parameter-nav")).toHaveCount(0);
@@ -524,7 +532,7 @@ test("catalog lists all presets, enabled state toggles, and locale changes", asy
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("历史回测");
   await page.locator(".strategy-card-open").first().click();
-  await expect(page.locator(".strategy-dialog .strategy-parameter-group h3").filter({ hasText: "VIX 信号" }).first()).toBeVisible();
+  await expect(page.locator(".strategy-dialog .condition-heading h3").first()).toHaveText("买入VIX");
   const chineseDialogA11y = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
@@ -577,10 +585,9 @@ test("shared summary follows the single form and strategy editing preserves inde
   await expect(sharedSummary).toContainText("15");
   await closeSharedSettings(page);
 
-  await page.locator("#preset-to-add").selectOption("ma_buy_only");
-  await page.locator(".add-strategy-button").click();
+  await addStrategy(page, "ma_buy_only");
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -591,7 +598,6 @@ test("shared summary follows the single form and strategy editing preserves inde
   await page.getByRole("tab", { name: "戦略比較" }).click();
   const benchmark = page.locator(".comparison-table tbody tr")
     .filter({ hasText: "毎月定額積立" })
-    .filter({ hasText: "ベンチマーク" })
     .locator("button.result-select");
   await benchmark.click();
   await expect(benchmark).toHaveAttribute("aria-pressed", "true");
@@ -621,8 +627,7 @@ test("shared summary follows the single form and strategy editing preserves inde
 test("editing a strategy leaves the active run target and run scope unchanged", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await page.locator("#preset-to-add").selectOption("ma_buy_only");
-  await page.locator(".add-strategy-button").click();
+  await addStrategy(page, "ma_buy_only");
 
   const vixCard = page.locator(".strategy-card").filter({ hasText: "VIX シグナル積立" });
   const monthlyCard = page.locator(".strategy-card").filter({ hasText: "移動平均トレンド（買付のみ）" });
@@ -643,7 +648,7 @@ test("editing a strategy leaves the active run target and run scope unchanged", 
     request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
   );
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -667,12 +672,11 @@ test("strategy card actions stay separate and deletion returns focus to a useful
   await vixCard.getByRole("switch").click();
 
   for (const presetId of ["composite_dca", "ma_buy_only"]) {
-    await page.locator("#preset-to-add").selectOption(presetId);
-    await page.locator(".add-strategy-button").click();
+    await addStrategy(page, presetId);
     await expect(page.locator(".strategy-dialog")).toHaveCount(0);
   }
 
-  const compositeCard = page.locator(".strategy-card").filter({ hasText: "複合シグナル積立" });
+  const compositeCard = page.locator(".strategy-card").filter({ hasText: "カスタム戦略" });
   const monthlyCard = page.locator(".strategy-card").filter({ hasText: "移動平均トレンド（買付のみ）" });
   await compositeCard.locator(".strategy-card-open").click();
   await expect(page.locator(".strategy-dialog")).toBeVisible();
@@ -690,7 +694,7 @@ test("strategy card actions stay separate and deletion returns focus to a useful
   await monthlyCard.hover();
   await monthlyCard.locator(".strategy-remove").click();
   await expect(page.locator(".strategy-card")).toHaveCount(0);
-  await expect(page.locator("#preset-to-add")).toBeFocused();
+  await expect(page.locator(".add-strategy-button")).toBeFocused();
 });
 
 test("validation diagnostics open the matching settings dialog and focus its field", async ({ page }) => {
@@ -747,7 +751,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     if (
       request.method() === "GET" &&
       !request.url().endsWith("/api/v1/runs/latest") &&
-      /\/api\/v1\/runs\/[^/]+$/.test(request.url())
+      /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(request.url())
     ) {
       runStatusRequests.push(request.url());
     }
@@ -763,7 +767,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await closeSharedSettings(page);
 
   const completedResponse = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) {
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) {
       return false;
     }
     if (!response.ok()) return false;
@@ -790,8 +794,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".run-status-panel")).toHaveCount(0);
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
-  await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
-  await expect(page.locator(".comparison-table")).toContainText("実際の投入額");
+  await expect(page.locator(".comparison-table thead th")).toHaveCount(10);
+  await expect(page.locator(".comparison-table")).toContainText("実際の買付額");
   await expect(page.locator("#result-details")).toBeVisible();
   await expect(page.locator(".result-run-id, #result-focus-select, .metric-card")).toHaveCount(0);
   const resultRows = page.locator(".comparison-table tbody tr");
@@ -979,12 +983,12 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await page.getByRole("tab", { name: "戦略比較" }).click();
   await page.locator(".workbench-results").evaluate((element) => element.scrollTo(0, 0));
 
-  const benchmarkButton = page.locator(".comparison-table tbody tr")
-    .filter({ hasText: "毎月定額積立" })
-    .filter({ hasText: "ベンチマーク" })
-    .locator("button.result-select");
+  const benchmarkRow = page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" });
+  const benchmarkButton = benchmarkRow.locator("button.result-select");
   await benchmarkButton.click();
   await expect(benchmarkButton).toHaveAttribute("aria-pressed", "true");
+  await benchmarkRow.locator("input").check();
+  await page.locator(".comparison-table tbody tr").filter({ hasText: "VIX シグナル積立" }).locator("input").uncheck();
 
   const chartToggle = page.getByRole("button", { name: "資産推移" });
   await expect(chartToggle).toHaveAttribute("aria-expanded", "true");
@@ -1014,11 +1018,11 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator("svg[role=img]").first()).toBeVisible();
   await expect(coreChart).toHaveAttribute("data-window-start", chartWindowBeforeCollapse.start);
   await expect(coreChart).toHaveAttribute("data-window-end", chartWindowBeforeCollapse.end);
-  const strategyButton = page.locator(".comparison-table tbody tr")
-    .filter({ hasText: "VIX シグナル積立" })
-    .filter({ hasText: "ユーザー戦略" })
-    .locator("button.result-select");
+  const strategyRow = page.locator(".comparison-table tbody tr").filter({ hasText: "VIX シグナル積立" });
+  const strategyButton = strategyRow.locator("button.result-select");
   await strategyButton.click();
+  await strategyRow.locator("input").check();
+  await benchmarkRow.locator("input").uncheck();
   await expect(page.locator(".chart-panel.chart-vix")).toContainText("25");
   await expect(page.locator(".chart-panel.chart-vix .chart-threshold-line")).toHaveCount(1);
   const readChartWindows = () => page.locator(".chart-panel").evaluateAll((panels) =>
@@ -1305,7 +1309,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(restoredExport.endingEquity).toBe(String(restoredStrategy.metrics.endingEquity));
 
   const nextSavedResponse = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url()) || !response.ok()) {
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()) || !response.ok()) {
       return false;
     }
     return ["completed", "completed_with_warning", "unavailable", "failed"]
@@ -1391,8 +1395,7 @@ test("adding a strategy keeps the default run scope on every enabled strategy", 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
 
-  await page.locator("#preset-to-add").selectOption("ma_buy_only");
-  await page.locator(".add-strategy-button").click();
+  await addStrategy(page, "ma_buy_only");
   await expect(page.locator(".strategy-card")).toHaveCount(2);
 
   const runSubmission = page.waitForRequest((request) =>
@@ -1407,11 +1410,9 @@ test("adding a strategy keeps the default run scope on every enabled strategy", 
 
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(4);
   await expect(page.locator(".comparison-table tbody tr")
-    .filter({ hasText: "VIX シグナル積立" })
-    .filter({ hasText: "ユーザー戦略" })).toHaveCount(1);
+    .filter({ hasText: "VIX シグナル積立" })).toHaveCount(1);
   await expect(page.locator(".comparison-table tbody tr")
-    .filter({ hasText: "移動平均トレンド（買付のみ）" })
-    .filter({ hasText: "ユーザー戦略" })).toHaveCount(1);
+    .filter({ hasText: "移動平均トレンド（買付のみ）" })).toHaveCount(1);
 });
 
 test("desktop workbench keeps the header, strategy list, and results in independent scroll regions", async ({ page }) => {
@@ -1424,7 +1425,7 @@ test("desktop workbench keeps the header, strategy list, and results in independ
 
   const finalRun = page.waitForResponse(async (response) => {
     if (response.request().method() !== "GET" || response.url().endsWith("/latest") ||
-        !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
+        !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -1433,8 +1434,7 @@ test("desktop workbench keeps the header, strategy list, and results in independ
   await finalRun;
 
   for (const presetId of ["composite_dca", "ma_buy_only", "ma_trend", "grid_search"]) {
-    await page.locator("#preset-to-add").selectOption(presetId);
-    await page.locator(".add-strategy-button").click();
+    await addStrategy(page, presetId);
   }
   // Five unique cards still require a genuinely short desktop viewport to overflow.
   await page.setViewportSize({ width: 1440, height: 400 });
@@ -1489,7 +1489,7 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const resultResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await resultResponse).json();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
@@ -1517,7 +1517,7 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   await expect(page.locator(".empty-results")).toBeVisible();
   await expect(page.locator(".comparison-table")).toHaveCount(0);
   const nextResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const next = await (await nextResponse).json();
   expect(next.runId).not.toBe(saved.runId);
@@ -1526,12 +1526,41 @@ test("draft dialogs never mutate saved result content and reset survives refresh
 });
 
 
+test("strategy add menu opens to the right, supports arrows, dismisses outside and restores focus", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const add = page.locator(".add-strategy-button");
+  const menu = page.locator(".strategy-add-menu");
+  await add.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu).toBeVisible();
+  const first = menu.locator('button:not(:disabled)').first();
+  await expect(first).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.locator('button:not(:disabled)').nth(1)).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(first).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(add).toBeFocused();
+  await add.click();
+  await page.locator(".topbar-brand").click();
+  await expect(menu).toBeHidden();
+  await add.click();
+  const boxes = [await add.boundingBox(), await menu.boundingBox()];
+  expect(boxes[1].x).toBeGreaterThan(boxes[0].x + boxes[0].width);
+  await menu.locator('[data-preset-id="rsi_dca"]').click();
+  await expect(page.locator(".strategy-card")).toHaveCount(2);
+  await expect(menu).toBeHidden();
+  await expect(add).toBeFocused();
+});
+
 test("optional strategy cards reveal actions on hover, reject duplicates and run all enabled", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.locator("#preset-to-add option")).toHaveCount(6);
-  await expect(page.locator('#preset-to-add option[value="monthly_dca"], #preset-to-add option[value="lump_sum"]')).toHaveCount(0);
-  await expect(page.locator('#preset-to-add option[value="vix_dca"]')).toBeDisabled();
+  await expect(page.locator(".strategy-add-option")).toHaveCount(10);
+  await expect(page.locator('.strategy-add-option[data-preset-id="monthly_dca"], .strategy-add-option[data-preset-id="lump_sum"]')).toHaveCount(0);
+  await expect(page.locator('.strategy-add-option[data-preset-id="vix_dca"]')).toBeDisabled();
   await expect(page.locator(".strategy-run-target, .workbench-divider-grip, .local-tag, #run-scope-select")).toHaveCount(0);
   await expect(page.locator(".add-strategy-button svg")).toBeVisible();
   const card = page.locator(".strategy-card").first();
@@ -1546,7 +1575,7 @@ test("optional strategy cards reveal actions on hover, reject duplicates and run
   await expect(enabled).toHaveAttribute("aria-checked", "false");
   await expect(card).toHaveClass(/is-disabled/);
   await expect(page.locator(".strategy-dialog")).toHaveCount(0);
-  await expect(page.locator('#preset-to-add option[value="vix_dca"]')).toBeDisabled();
+  await expect(page.locator('.strategy-add-option[data-preset-id="vix_dca"]')).toBeDisabled();
   await page.locator(".strategy-card").first().hover();
   await enabled.click();
   await page.mouse.move(1400, 850);
@@ -1554,9 +1583,8 @@ test("optional strategy cards reveal actions on hover, reject duplicates and run
   await page.keyboard.press("Tab");
   await expect(actions).toHaveCSS("opacity", "1");
   await expect(enabled).toBeFocused();
-  await page.locator("#preset-to-add").selectOption("ma_buy_only");
-  await page.locator(".add-strategy-button").click();
-  await expect(page.locator('#preset-to-add option[value="ma_buy_only"]')).toBeDisabled();
+  await addStrategy(page, "ma_buy_only");
+  await expect(page.locator('.strategy-add-option[data-preset-id="ma_buy_only"]')).toBeDisabled();
   await expect(page.locator(".strategy-card")).toHaveCount(2);
   await card.locator(".strategy-card-open").click();
   await closeStrategyDialog(page);
@@ -1570,7 +1598,7 @@ test("optional strategy cards reveal actions on hover, reject duplicates and run
   const addedCard = page.locator(".strategy-card").nth(1);
   await addedCard.hover();
   await addedCard.locator(".strategy-remove").click();
-  await expect(page.locator('#preset-to-add option[value="ma_buy_only"]')).toBeEnabled();
+  await expect(page.locator('.strategy-add-option[data-preset-id="ma_buy_only"]')).toBeEnabled();
 });
 
 test("borderless chevron stays on the sidebar boundary and repeatedly reopens", async ({ page }) => {
@@ -1601,12 +1629,165 @@ test("borderless chevron stays on the sidebar boundary and repeatedly reopens", 
   }
 });
 
+test("multi-selected curves match row colors while focus, CSV and the shared window stay independent", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await openSharedSettings(page);
+  await page.locator("#field-run-startDate").fill("2024-01-31");
+  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+  await page.locator("#field-run-endDate").fill("2024-03-01");
+  await closeSharedSettings(page);
+  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
+  await page.locator(".run-submit-button").click();
+  const saved = await (await response).json();
+  const rows = page.locator(".comparison-table tbody tr");
+  const monthly = rows.filter({ hasText: "毎月定額積立" });
+  const lump = rows.filter({ hasText: "一括投資" });
+  const vix = rows.filter({ hasText: "VIX シグナル積立" });
+  await monthly.locator("input").check();
+  await lump.locator("input").check();
+  await expect(vix.locator("button")).toHaveAttribute("aria-pressed", "true");
+  await expect(monthly.locator("input")).toBeChecked();
+  await expect(lump.locator("input")).toBeChecked();
+  await expect(page.locator(".comparison-overlay-series"), JSON.stringify(saved.result.strategyRuns.map(result => ({ id: result.id, status: result.status, assetCount: result.dailyAssets.length, principal: result.dailyAssets.at(-1)?.totalContributed })))).toHaveCount(2);
+  for (const [row, preset] of [[monthly, "monthly_dca"], [lump, "lump_sum"]]) {
+    const result = saved.result.strategyRuns.find(item => item.presetId === preset);
+    const color = await row.evaluate(el => el.style.getPropertyValue("--result-color"));
+    await expect(page.locator(`[data-result-id="${result.id}"] polyline`)).toHaveAttribute("stroke", color);
+  }
+  const chart = page.locator(".chart-overlay");
+  await page.getByRole("button", { name: "期間を拡大", exact: true }).click();
+  const windowBefore = [await chart.getAttribute("data-window-start"), await chart.getAttribute("data-window-end")];
+  await monthly.locator("button").click();
+  await expect(monthly.locator("button")).toHaveAttribute("aria-pressed", "true");
+  await expect(chart).toHaveAttribute("data-window-start", windowBefore[0]);
+  await expect(chart).toHaveAttribute("data-window-end", windowBefore[1]);
+  const downloadEvent = page.waitForEvent("download");
+  await page.locator('[data-export-kind="summary"]').click();
+  const download = await downloadEvent;
+  const { readFile } = await import("node:fs/promises");
+  const csv = await readFile(await download.path(), "utf8");
+  expect(csv).toContain("benchmark:monthly-dca");
+  expect(csv).toContain("actualInvested,totalContributed");
+  await lump.locator("input").uncheck();
+  await vix.locator("input").uncheck();
+  await monthly.locator("input").uncheck();
+  await expect(page.locator(".comparison-overlay-series, g.overlay-totalAsset")).toHaveCount(0);
+  await expect(page.locator("g.overlay-price")).toHaveCount(1);
+  await expect(monthly.locator("button")).toHaveAttribute("aria-pressed", "true");
+  await vix.locator("input").check();
+  const legend = chart.locator('.overlay-legend-item[data-series="strategy-vix_dca-1"]');
+  await legend.click();
+  await page.mouse.move(1400, 850);
+  await expect(legend).toHaveAttribute("aria-pressed", "true");
+  await expect(chart.locator(".chart-highlight-area")).toHaveCount(1);
+  await legend.click();
+  await page.mouse.move(1400, 850);
+  await legend.blur();
+  await expect(legend).toHaveAttribute("aria-pressed", "false");
+  await expect(chart.locator(".chart-highlight-area")).toHaveCount(0);
+});
+
+test("strategy menu, condition connectors and comparison selections retain full touch targets", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ viewport: { width: 320, height: 700 }, hasTouch: true });
+  try {
+    const page = await context.newPage();
+    await page.goto(baseURL);
+    await openSharedSettings(page);
+    await closeSharedSettings(page);
+    await page.locator(".add-strategy-button").tap();
+    const targets = await page.locator(".strategy-add-option:not(:disabled)").evaluateAll(nodes =>
+      nodes.map(node => ({ control: "menu", height: node.getBoundingClientRect().height })),
+    );
+    await page.locator('.strategy-add-option[data-preset-id="composite_dca"]').tap();
+    await page.locator(".strategy-card-open").last().tap();
+    const buy = page.locator('[data-rule-side="buy"]');
+    await buy.locator(".condition-add-select").selectOption("rsi");
+    targets.push(...await buy.locator(".field-segment").evaluateAll(nodes =>
+      nodes.map(node => ({ control: "AND/OR", height: node.getBoundingClientRect().height })),
+    ));
+    await closeStrategyDialog(page);
+    await openSharedSettings(page);
+    await page.locator("#field-run-startDate").fill("2024-01-31");
+    await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+    await page.locator("#field-run-endDate").fill("2024-03-01");
+    await closeSharedSettings(page);
+    await page.locator(".run-submit-button").tap();
+    await page.locator(".workbench-mobile-view").last().tap();
+    await expect(page.locator(".comparison-table")).toBeVisible();
+    targets.push(...await page.locator(".result-compare-toggle").evaluateAll(nodes =>
+      nodes.map(node => ({ control: "comparison", height: (node.closest("label") ?? node).getBoundingClientRect().height })),
+    ));
+    expect(targets.length).toBeGreaterThan(10);
+    for (const target of targets) expect(target.height, JSON.stringify(targets)).toBeGreaterThanOrEqual(44);
+    await page.locator(".result-compare-toggle").first().tap();
+    await expect(page.locator(".result-compare-toggle").first()).not.toBeChecked();
+    const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+    expect(accessibility.violations).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
+
+test("many selected historical strategies keep permanent readings inside their reserved space", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto("/");
+  await openSharedSettings(page);
+  await page.locator("#field-run-startDate").fill("2024-01-31");
+  await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
+  await page.locator("#field-run-endDate").fill("2024-03-01");
+  await closeSharedSettings(page);
+  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  await page.locator(".run-submit-button").click();
+  const saved = await (await response).json();
+  const extended = structuredClone(saved);
+  for (let index = 0; index < 9; index += 1) {
+    const id = `historical-custom-${index}`;
+    extended.result.strategyRuns.push({ ...structuredClone(saved.result.strategyRuns[0]), id, presetId: "composite_dca" });
+    extended.selectedStrategyIds.push(id);
+    extended.snapshot.config.strategies.push({ ...structuredClone(saved.snapshot.config.strategies[0]), id, presetId: "composite_dca" });
+  }
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: extended }));
+  await page.reload();
+  const toggles = page.locator(".result-compare-toggle");
+  await expect(toggles).toHaveCount(12);
+  for (const toggle of await toggles.all()) await toggle.check();
+  const row = page.locator(".chart-core-readout-row");
+  await row.scrollIntoViewIfNeeded();
+  const geometry = await row.evaluate(node => ({ height: node.clientHeight, contentHeight: node.scrollHeight, overflow: getComputedStyle(node).overflowY }));
+  expect(geometry.contentHeight).toBeGreaterThan(geometry.height);
+  expect(geometry.overflow).toBe("auto");
+  await row.evaluate(node => { node.scrollTop = node.scrollHeight; });
+  await expect(row.locator(".chart-cursor-reading").last()).toBeInViewport();
+  const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(accessibility.violations).toEqual([]);
+});
+
+test("add and condition removal icons keep visible strokes and legible dimensions", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const plus = await page.locator(".add-strategy-button svg").boundingBox();
+  await addStrategy(page, "composite_dca");
+  await page.locator(".strategy-card-open").last().click();
+  const remove = await page.locator(".condition-remove svg").first().evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    return { width: rect.width, height: rect.height, stroke: getComputedStyle(node).stroke };
+  });
+  expect(remove.stroke).not.toBe("none");
+  expect(remove.width).toBe(18);
+  expect(remove.height).toBe(18);
+  expect(plus.width).toBeGreaterThanOrEqual(18);
+  expect(plus.height).toBeGreaterThanOrEqual(18);
+  await page.screenshot({ path: test.info().outputPath("visible-condition-actions.png") });
+});
+
 test("comparison consolidates metrics, selects results by row and trades keep a sticky header", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   const resultResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await resultResponse).json();
   // Exercise long-list rendering independently of the fixture provider's short history.
@@ -1617,7 +1798,7 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   await page.reload();
   await expect(page.locator("#result-tab-comparison")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#result-focus-select, #result-tab-overview, #result-tab-metrics, .metric-card")).toHaveCount(0);
-  await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
+  await expect(page.locator(".comparison-table thead th")).toHaveCount(10);
   const benchmark = saved.result.strategyRuns.find((result) => result.presetId === "monthly_dca" && result.role === "benchmark");
   const row = page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" });
   await row.locator("td").last().click();
@@ -1658,7 +1839,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   await completed;
   for (const width of [1440, 1920, 1280]) {
@@ -1780,12 +1961,12 @@ test("context is concise and strategy dialogs show one combination label", async
   await expect(info.locator(".result-snapshot-info-content")).toContainText("QQQ");
   await info.locator("summary").click();
   await expect(page.locator(".chart-overlay figcaption, .overlay-legend").filter({ hasText: "QQQ" })).toHaveCount(0);
-  await page.locator("#preset-to-add").selectOption("composite_dca");
-  await page.locator(".add-strategy-button").click();
+  await addStrategy(page, "composite_dca");
   await page.locator(".strategy-card-open").last().click();
   const dialog = page.locator(".strategy-dialog");
   await expect(dialog.locator(".strategy-parameter-nav, .strategy-editor-summary")).toHaveCount(0);
-  await expect(dialog.getByRole("radiogroup", { name: "買付条件の組み合わせ" })).toHaveCount(1);
+  await dialog.locator('[data-rule-side="buy"] .condition-add-select').first().selectOption("rsi");
+  await expect(dialog.getByRole("radiogroup", { name: "隣接する条件カードの関係" })).toHaveCount(1);
   await expect(dialog.getByRole("radio", { name: "AND", exact: true })).toHaveCount(1);
   await expect(dialog.getByRole("radio", { name: "OR", exact: true })).toHaveCount(1);
   await closeStrategyDialog(page);
@@ -1795,7 +1976,7 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   await page.setViewportSize({ width: 1440, height: 700 });
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
-  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   await completed;
   await page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" }).locator("button").click();
@@ -1864,21 +2045,90 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
 });
 
 
+test("fixed and custom dialogs reuse condition cards, nest independent groups and freeze submitted rules", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.locator(".strategy-card-open").first().click();
+  let dialog = page.locator(".strategy-dialog");
+  await expect(dialog.locator(".strategy-rule-section")).toHaveCount(2);
+  await expect(dialog.locator(".condition-add-select, .condition-remove, .condition-logic-connector")).toHaveCount(0);
+  const headerGeometry = await dialog.locator('[data-rule-side="buy"] .condition-heading').evaluate(header => {
+    const title = header.querySelector("h3").getBoundingClientRect();
+    const toggle = header.querySelector('[role="switch"]').getBoundingClientRect();
+    return { titleY: title.y + title.height / 2, toggleY: toggle.y + toggle.height / 2, right: toggle.right, edge: header.getBoundingClientRect().right };
+  });
+  expect(Math.abs(headerGeometry.titleY - headerGeometry.toggleY)).toBeLessThan(2);
+  expect(headerGeometry.right).toBeCloseTo(headerGeometry.edge, 0);
+  await closeStrategyDialog(page);
+  await addStrategy(page, "composite_dca");
+  const trigger = page.locator(".strategy-card-open").last();
+  await trigger.click();
+  dialog = page.locator(".strategy-dialog");
+  const buy = dialog.locator('[data-rule-side="buy"]');
+  const root = buy.locator('.condition-group.is-root');
+  await root.locator('.condition-add-select').first().selectOption("rsi");
+  await root.locator('.condition-add-select').first().selectOption("group");
+  const group = root.locator('.condition-group:not(.is-root)');
+  await group.locator('.condition-add-select').selectOption("vix");
+  await group.locator('.condition-add-select').selectOption("ma_trend");
+  await group.locator('[data-condition-kind="vix"] input[type="number"]').fill("35");
+  await group.locator('[data-condition-kind="ma_trend"] input[type="number"]').fill("5");
+  const rootConnectors = root.locator(':scope > .condition-child > .condition-logic-connector');
+  await expect(rootConnectors).toHaveCount(2);
+  await rootConnectors.first().getByRole("radio", { name: "OR", exact: true }).check();
+  await expect(rootConnectors.last().getByRole("radio", { name: "OR", exact: true })).toBeChecked();
+  await expect(group.getByRole("radio", { name: "AND", exact: true })).toBeChecked();
+  const geometry = await rootConnectors.first().evaluate(connector => {
+    const lines = [...connector.querySelectorAll('.condition-logic-line')].map(line => line.getBoundingClientRect());
+    const control = connector.querySelector('[role="radiogroup"]').getBoundingClientRect();
+    return { y: lines.map(line => line.y + line.height / 2), controlY: control.y + control.height / 2, left: lines[0].width, right: lines[1].width };
+  });
+  expect(geometry.left).toBeGreaterThan(0);
+  expect(geometry.right).toBeCloseTo(geometry.left, 0);
+  for (const y of geometry.y) expect(y).toBeCloseTo(geometry.controlY, 0);
+  await closeStrategyDialog(page);
+  await trigger.click();
+  await expect(group.locator('[data-condition-kind="vix"] input[type="number"]')).toHaveValue("35");
+  const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(accessibility.violations).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath("custom-condition-dialog.png") });
+  await closeStrategyDialog(page);
+  const submitted = page.waitForRequest(request => request.method() === "POST" && request.url().endsWith("/api/v1/runs"));
+  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
+  await page.locator(".run-submit-button").click();
+  const payload = (await submitted).postDataJSON();
+  const tree = payload.draft.strategies.find(strategy => strategy.presetId === "composite_dca").rules.buy;
+  expect(tree.operator).toBe("OR");
+  expect(tree.children[0].params["vix.buyThreshold"]).toBe(25);
+  expect(tree.children[2].operator).toBe("AND");
+  expect(tree.children[2].children[0].params["vix.buyThreshold"]).toBe(35);
+  const saved = await (await completed).json();
+  const snapshotTree = saved.snapshot.config.strategies.find(strategy => strategy.presetId === "composite_dca").rules.buy;
+  expect(snapshotTree.children[2].operator).toBe("AND");
+  expect(Number(snapshotTree.children[2].children[0].params["vix.buyThreshold"])).toBe(35);
+  const comparisonBefore = await page.locator(".comparison-table").innerHTML();
+  await trigger.click();
+  await group.locator('[data-condition-kind="vix"] input[type="number"]').fill("45");
+  await expect(page.locator(".comparison-table")).toHaveJSProperty("innerHTML", comparisonBefore);
+  await closeStrategyDialog(page);
+});
+
 test("strategy AND OR segments and buy sell switches remain independent and keyboard accessible", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await page.locator("#preset-to-add").selectOption("composite_dca");
-  await page.locator(".add-strategy-button").click();
+  await addStrategy(page, "composite_dca");
   await page.locator(".strategy-card-open").last().click();
   const dialog = page.locator(".strategy-dialog");
+  await dialog.locator('[data-rule-side="buy"] .condition-add-select').first().selectOption("rsi");
   await dialog.getByRole("radio", { name: "AND", exact: true }).check();
-  await expect(dialog.locator(".condition-relationship")).toHaveAttribute("data-logic", "AND");
+  await expect(dialog.getByRole("radio", { name: "AND", exact: true })).toBeChecked();
   await dialog.getByRole("radio", { name: "AND", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
   await expect(dialog.getByRole("radio", { name: "OR", exact: true })).toBeChecked();
-  await expect(dialog.locator(".condition-relationship")).toHaveAttribute("data-logic", "OR");
-  const buy = dialog.getByRole("switch", { name: "VIX買付シグナル", exact: true });
-  const sell = dialog.getByRole("switch", { name: "売却シグナルを有効にする", exact: true });
+  await expect(dialog.getByRole("radio", { name: "OR", exact: true })).toBeChecked();
+  const buy = dialog.locator('[data-rule-side="buy"] > .condition-heading').getByRole("switch");
+  const sell = dialog.locator('[data-rule-side="sell"] > .condition-heading').getByRole("switch");
   const sellBefore = await sell.getAttribute("aria-checked");
   await buy.click();
   await expect(buy).toHaveAttribute("aria-checked", "false");
@@ -1972,7 +2222,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(r.url()));
+  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const price = page.locator(".chart-legend button").filter({ hasText: "価格" });
@@ -2013,7 +2263,7 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await page.getByRole("checkbox", { name: "最新の完了日まで" }).uncheck();
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(r.url()));
+  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const result = saved.result.strategyRuns.find((r) => r.presetId === "vix_dca");

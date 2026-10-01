@@ -16,12 +16,13 @@ interface StrategyNavigatorProps {
   onFieldNavigationHandled?(): void;
 }
 
-type PendingFocus = { strategyId: string } | { presetSelector: true };
+type PendingFocus = { strategyId: string } | { addButton: true };
 
 export interface StrategyFieldNavigation {
   strategyId: string;
   parameterKey: string;
   fieldIndex?: number;
+  conditionId?: string;
 }
 
 export function StrategyNavigator({
@@ -34,13 +35,17 @@ export function StrategyNavigator({
   fieldNavigation = null,
   onFieldNavigationHandled,
 }: StrategyNavigatorProps) {
-  const [selectedPresetId, setSelectedPresetId] = useState<StrategyPresetId | "">("");
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
   const [focusFieldKey, setFocusFieldKey] = useState<string | null>(null);
   const [focusFieldIndex, setFocusFieldIndex] = useState<number | undefined>();
+  const [focusConditionId, setFocusConditionId] = useState<string | undefined>();
   const cardButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const editTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const presetSelectRef = useRef<HTMLSelectElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const addContainerRef = useRef<HTMLDivElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+  const menuFocusRef = useRef<"first" | "last" | null>(null);
   const pendingFocusRef = useRef<PendingFocus | null>(null);
   const presets = catalog.presets ?? [];
   const addablePresets = presets.filter((preset) => preset.id !== "monthly_dca" && preset.id !== "lump_sum");
@@ -52,7 +57,27 @@ export function StrategyNavigator({
   const handleFieldFocusHandled = useCallback(() => {
     setFocusFieldKey(null);
     setFocusFieldIndex(undefined);
+    setFocusConditionId(undefined);
   }, []);
+
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    const items = addMenuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
+    if (menuFocusRef.current) {
+      const index = menuFocusRef.current === "first" ? 0 : (items?.length ?? 1) - 1;
+      items?.[index]?.focus();
+      menuFocusRef.current = null;
+    }
+    const dismissOutside = (event: Event) => {
+      if (event.target instanceof Node && !addContainerRef.current?.contains(event.target)) setAddMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("focusin", dismissOutside);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("focusin", dismissOutside);
+    };
+  }, [addMenuOpen]);
 
   useEffect(() => {
     const pendingFocus = pendingFocusRef.current;
@@ -61,7 +86,7 @@ export function StrategyNavigator({
     if ("strategyId" in pendingFocus) {
       cardButtonRefs.current.get(pendingFocus.strategyId)?.focus();
     } else {
-      presetSelectRef.current?.focus();
+      addButtonRef.current?.focus();
     }
   }, [state.draft.strategies]);
 
@@ -75,6 +100,7 @@ export function StrategyNavigator({
     editTriggerRef.current = cardButtonRefs.current.get(target.id) ?? null;
     setFocusFieldKey(fieldNavigation.parameterKey);
     setFocusFieldIndex(fieldNavigation.fieldIndex);
+    setFocusConditionId(fieldNavigation.conditionId);
     setEditingStrategyId(target.id);
     onFieldNavigationHandled?.();
   }, [fieldNavigation, onFieldNavigationHandled, state.draft.strategies]);
@@ -83,46 +109,83 @@ export function StrategyNavigator({
     const adjacentStrategy = state.draft.strategies[index + 1] ?? state.draft.strategies[index - 1];
     pendingFocusRef.current = adjacentStrategy
       ? { strategyId: adjacentStrategy.id }
-      : { presetSelector: true };
+      : { addButton: true };
     dispatch({ type: "strategy.remove", id });
   };
 
   return (
     <section className="strategy-navigator" aria-labelledby="strategy-list-heading">
-      <div className="strategy-add">
-        <label className="field-label" htmlFor="preset-to-add">{translate(locale, "strategy.addLabel")}</label>
-        <div className="strategy-add-select">
-          <select
-            ref={presetSelectRef}
-            className="input"
-            id="preset-to-add"
-            aria-describedby="strategy-add-help"
-            value={selectedPresetId}
-            onChange={(event) => setSelectedPresetId(event.target.value as StrategyPresetId | "")}
-          >
-            <option value="">{translate(locale, "strategy.choosePreset")}</option>
-            {addablePresets.map((item) => (
-              <option key={item.id} value={item.id} disabled={addedPresetIds.has(item.id)}>{translate(locale, item.nameKey)}</option>
-            ))}
-          </select>
-          <p className="field-hint sr-only" id="strategy-add-help">
-            {translate(locale, "strategy.addHelp")}
-          </p>
-        </div>
+      <div ref={addContainerRef} className={`strategy-add${addMenuOpen ? " is-open" : ""}`}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && addMenuOpen) {
+            event.preventDefault();
+            setAddMenuOpen(false);
+            addButtonRef.current?.focus();
+            return;
+          }
+          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+          event.preventDefault();
+          const last = event.key === "ArrowUp" || event.key === "End";
+          if (!addMenuOpen) {
+            menuFocusRef.current = last ? "last" : "first";
+            setAddMenuOpen(true);
+            return;
+          }
+          const items = [...(addMenuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])];
+          if (!items.length) return;
+          const currentIndex = items.findIndex(item => item === document.activeElement);
+          const index = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+            : (currentIndex + (last ? -1 : 1) + items.length) % items.length;
+          items[index]?.focus();
+        }}>
         <button
+          ref={addButtonRef}
           className="button button-primary icon-only-button add-strategy-button"
-          aria-label={translate(locale, "strategy.add")}
-          title={translate(locale, "strategy.add")}
+          aria-label={translate(locale, "strategy.addLabel")}
+          title={translate(locale, "strategy.addLabel")}
+          aria-expanded={addMenuOpen}
+          aria-haspopup="menu"
+          aria-controls="strategy-add-menu"
           type="button"
-          disabled={!selectedPresetId || addedPresetIds.has(selectedPresetId)}
           onClick={() => {
-            if (!selectedPresetId || addedPresetIds.has(selectedPresetId)) return;
-            onAdd(selectedPresetId);
-            setSelectedPresetId("");
+            menuFocusRef.current = addMenuOpen ? null : "first";
+            setAddMenuOpen((open) => !open);
           }}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 3v14M3 10h14" /></svg>
         </button>
+        <div
+          id="strategy-add-menu"
+          ref={addMenuRef}
+          className="strategy-add-menu"
+          role="menu"
+          aria-label={translate(locale, "strategy.choosePreset")}
+          hidden={!addMenuOpen}
+        >
+          <span className="strategy-add-menu-label">{translate(locale, "strategy.choosePreset")}</span>
+          {addablePresets.map((item) => {
+            const alreadyAdded = addedPresetIds.has(item.id);
+            return (
+              <button
+                key={item.id}
+                className="strategy-add-option"
+                type="button"
+                role="menuitem"
+                data-preset-id={item.id}
+                disabled={alreadyAdded}
+                onClick={() => {
+                  if (alreadyAdded) return;
+                  onAdd(item.id);
+                  setAddMenuOpen(false);
+                  addButtonRef.current?.focus();
+                }}
+              >
+                <span>{translate(locale, item.nameKey)}</span>
+                {alreadyAdded && <small>{translate(locale, "strategy.alreadyAdded")}</small>}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="section-heading strategy-navigator-heading">
@@ -172,12 +235,13 @@ export function StrategyNavigator({
                     editTriggerRef.current = event.currentTarget;
                     setFocusFieldKey(null);
                     setFocusFieldIndex(undefined);
+                    setFocusConditionId(undefined);
                     setEditingStrategyId(strategy.id);
                   }}
                 >
                   <span className="strategy-card-name">{name}</span>
                   <span className="strategy-card-summary" id={summaryId}>
-                    {formatStrategySummary(locale, strategy.presetId, strategy.params)}
+                    {formatStrategySummary(locale, strategy.presetId, strategy.params, strategy.rules)}
                   </span>
                 </button>
                 <div className="strategy-card-actions">
@@ -221,6 +285,7 @@ export function StrategyNavigator({
           errors={editingDiagnostics}
           focusFieldKey={focusFieldKey}
           focusFieldIndex={focusFieldIndex}
+          focusConditionId={focusConditionId}
           onFieldFocusHandled={handleFieldFocusHandled}
           returnFocusRef={editTriggerRef}
           onChange={(key, value) => dispatch({
@@ -229,10 +294,12 @@ export function StrategyNavigator({
             key,
             value,
           })}
+          onRulesChange={value => dispatch({ type: "strategy.rules", id: editingStrategy.id, value })}
           onClose={() => {
             setEditingStrategyId(null);
             setFocusFieldKey(null);
             setFocusFieldIndex(undefined);
+            setFocusConditionId(undefined);
           }}
         />
       )}

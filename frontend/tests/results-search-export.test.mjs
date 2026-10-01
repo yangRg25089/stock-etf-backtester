@@ -18,6 +18,7 @@ function candidate(candidateId, sequence, status = "completed") {
     parameterValues: { "vix.buyThreshold": sequence + 20 },
     reusedCalculation: false,
     metrics: status === "completed" ? {
+      actualInvested: "80.00",
       totalContributed: "100.00",
       endingEquity: String(120 + sequence),
       netProfit: "20.00",

@@ -9,6 +9,7 @@ const { ResultComparison } = require("../.test-output/features/results/ResultSum
 
 function metrics(endingEquity) {
   return {
+    actualInvested: "80.00",
     totalContributed: "100.00",
     endingEquity,
     netProfit: String(Number(endingEquity) - 100),
@@ -60,6 +61,20 @@ test("comparison table focuses saved identity without role or status columns", (
   assert.match(html, /资本倍数/);
 });
 
+test("comparison rows expose independent curve selection and stable row colors", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultComparison, {
+    locale: "zh",
+    strategyRuns: results,
+    focusedResultId: "vix-instance",
+    selectedResultIds: ["vix-instance"],
+    onFocus() {},
+    onToggleSelection() {},
+  }));
+  assert.match(html, /class="result-compare-toggle"[^>]*checked=""/);
+  assert.match(html, /data-result-color|--result-color/);
+  assert.match(html, /aria-label="每月定额定投 · 加入比较曲线"/);
+});
+
 test("metric cards label contribution return separately from capital multiple", () => {
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh",
@@ -91,7 +106,7 @@ test("unavailable optional metrics render as unavailable rather than zero", () =
     locale: "zh", strategyRuns: [...results, { ...results[0], id: "second-vix" }],
     focusedResultId: "second-vix", onFocus() {},
   }));
-  for (const label of ["实际投入金额", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤", "相对定投差额"]) assert.match(html, new RegExp(label));
+  for (const label of ["实际买入金额", "注入本金", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤", "相对定投差额"]) assert.match(html, new RegExp(label));
   assert.match(html, /VIX 信号定投 · 1/);
   assert.match(html, /VIX 信号定投 · 2/);
 });

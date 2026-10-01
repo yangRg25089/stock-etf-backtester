@@ -32,9 +32,9 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
   await page.locator(".shared-dialog .dialog-done").click();
   await page.locator(".strategy-card-open").first().click();
   const dialog = page.locator(".strategy-dialog");
-  await dialog.getByRole("radio", { name: "OR", exact: true }).check();
-  await expect(dialog.getByRole("radio", { name: "OR", exact: true })).toBeChecked();
-  const buy = dialog.getByRole("switch", { name: "VIX買付シグナル", exact: true });
+  await expect(dialog.getByRole("radiogroup")).toHaveCount(0);
+  await expect(dialog.locator(".condition-add-select")).toHaveCount(0);
+  const buy = dialog.getByRole("switch", { name: "買付", exact: true });
   await buy.click();
   await expect(buy).toHaveAttribute("aria-checked", "false");
   await page.keyboard.press("Escape");

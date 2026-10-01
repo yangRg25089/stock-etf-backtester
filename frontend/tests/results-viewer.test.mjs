@@ -16,6 +16,7 @@ const resultViewerSource = readFileSync(new URL("../src/features/results/ResultV
 
 function metrics(endingEquity) {
   return {
+    actualInvested: "80.00",
     totalContributed: "100.00",
     endingEquity,
     netProfit: String(Number(endingEquity) - 100),
@@ -180,11 +181,34 @@ test("result details leads with one complete comparison table and no duplicate K
   assert.match(html, /每月定额定投 · 基准/);
   assert.match(html, /data-export-kind="summary"/);
   assert.equal((html.match(/class="metric-card"/g) ?? []).length, 0);
-  assert.match(html, /实际投入金额/);
+  assert.match(html, /实际买入金额/);
+  assert.match(html, /注入本金/);
   assert.match(html, /期末资产/);
   assert.match(html, /投入回报率/);
   assert.match(html, /年化回报/);
   assert.match(html, /最大回撤/);
+});
+
+test("selected curves honor deselection, share row colors, and exclude failed saved values", () => {
+  const state = workspaceWithRun();
+  state.showChart = true;
+  const [primary, benchmark] = state.runResponse.result.strategyRuns;
+  benchmark.dailyAssets = primary.dailyAssets.map((asset, index) => ({ ...asset, totalAsset: String(110 + index * 15), totalContributed: "100" }));
+  primary.dailyAssets.forEach(asset => { asset.totalContributed = "100"; });
+  state.focusedResultId = primary.id;
+  state.selectedResultIds = [benchmark.id];
+  const render = () => renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
+  const selected = render();
+  assert.doesNotMatch(selected, /class="overlay-series overlay-totalAsset"/);
+  assert.match(selected, /data-result-id="benchmark-dca"/);
+  const color = selected.match(/class="comparison-overlay-series-line[^\"]*"[^>]*stroke="([^\"]+)"/)[1];
+  assert.ok(selected.includes(`--result-color:${color}`));
+  state.selectedResultIds = [];
+  assert.doesNotMatch(render(), /comparison-overlay-series|class="overlay-series overlay-totalAsset"/);
+  assert.match(render(), /class="overlay-series overlay-price"/);
+  benchmark.status = "failed";
+  state.selectedResultIds = [benchmark.id];
+  assert.doesNotMatch(render(), /comparison-overlay-series/);
 });
 
 test("saved warning diagnostics stay visible outside the collapsible details body", () => {
@@ -406,12 +430,12 @@ test("comparison withholds failed metrics without role or status columns", () =>
   const render = () => renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
   const partial = render();
   assert.doesNotMatch(partial, /status-tag/);
-  assert.equal((partial.match(/>—<\/td>/g) ?? []).length, 8);
+  assert.equal((partial.match(/>—<\/td>/g) ?? []).length, 9);
   assert.doesNotMatch(partial, /run-status-panel|run-strategy-statuses|部分策略已完成/);
   state.runResponse.status = "failed";
   state.runResponse.result.strategyRuns[1].status = "failed";
   const failed = render();
-  assert.equal((failed.match(/>—<\/td>/g) ?? []).length, 16);
+  assert.equal((failed.match(/>—<\/td>/g) ?? []).length, 18);
   assert.doesNotMatch(failed, /status-tag/);
 });
 
@@ -434,7 +458,7 @@ test("pending jobs withhold comparison metrics without a status column or progre
   const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
   assert.doesNotMatch(html, /pending-run-id|run-status-panel|progress-copy|run-strategy-details/);
   assert.doesNotMatch(html, /status-tag/);
-  assert.equal((html.match(/>—<\/td>/g) ?? []).length, 16);
+  assert.equal((html.match(/>—<\/td>/g) ?? []).length, 18);
 });
 
 test("result errors announce one localized reason when the API title duplicates its diagnostic", () => {

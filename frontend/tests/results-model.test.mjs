@@ -59,6 +59,32 @@ test("a new saved run initializes a missing result focus from its selected snaps
   assert.equal(state.activeStrategyId, "strategy-vix_dca-1");
 });
 
+test("result curve selection is independent from focused result details", () => {
+  let state = createInitialWorkspaceState(catalog);
+  const response = {
+    runId: "multi-select-run",
+    status: "completed",
+    selectedStrategyIds: ["strategy-selected"],
+    snapshot: { runId: "multi-select-run", config: { shared: {}, strategies: [] } },
+    result: { runId: "multi-select-run", strategyRuns: [
+      { id: "strategy-selected", status: "completed" },
+      { id: "benchmark-dca", status: "completed" },
+    ] },
+  };
+  state = workspaceReducer(state, { type: "run.update", value: response });
+  assert.deepEqual(state.selectedResultIds, ["strategy-selected"]);
+  state = workspaceReducer(state, { type: "result.toggleSelection", id: "benchmark-dca" });
+  state = workspaceReducer(state, { type: "result.focus", id: "benchmark-dca" });
+  assert.deepEqual(state.selectedResultIds, ["strategy-selected", "benchmark-dca"]);
+  assert.equal(state.focusedResultId, "benchmark-dca");
+  state = workspaceReducer(state, { type: "result.toggleSelection", id: "strategy-selected" });
+  assert.deepEqual(state.selectedResultIds, ["benchmark-dca"]);
+  state = workspaceReducer(state, { type: "result.toggleSelection", id: "benchmark-dca" });
+  state = workspaceReducer(state, { type: "run.update", value: response });
+  assert.deepEqual(state.selectedResultIds, [], "refreshing the same run must preserve an empty selection");
+  assert.equal(state.focusedResultId, "benchmark-dca");
+});
+
 test("run progress events update statuses without replacing saved result details", () => {
   let state = createInitialWorkspaceState(catalog);
   const queued = {

@@ -6,6 +6,7 @@ import type {
   RunScope,
   StrategyPresetId,
   StrategyStatus,
+  StrategyRules,
 } from "../../api/generated";
 import type { RunProgressEvent } from "../../api/runs";
 import { createDefaultSharedDraft, type SharedDraft } from "../config/defaults";
@@ -15,6 +16,7 @@ export interface StrategyDraft {
   presetId: StrategyPresetId;
   enabled: boolean;
   params: Record<string, unknown>;
+  rules?: StrategyRules | null;
 }
 
 export interface BacktestDraft {
@@ -29,6 +31,7 @@ export interface WorkspaceState {
   runResponse: RunResponse | null;
   runRequestedEndMode: EndMode | null;
   focusedResultId: string | null;
+  selectedResultIds: string[];
   showChart: boolean;
   visibleSeriesIds: string[];
 }
@@ -39,12 +42,14 @@ export type WorkspaceAction =
   | { type: "strategy.remove"; id: string }
   | { type: "strategy.enabled"; id: string; value: boolean }
   | { type: "strategy.param"; id: string; key: string; value: unknown }
+  | { type: "strategy.rules"; id: string; value: StrategyRules }
   | { type: "shared.change"; value: SharedDraft }
   | { type: "run.scope"; value: RunScope }
   | { type: "run.reset" }
   | { type: "run.update"; value: RunResponse; requestedEndMode?: EndMode }
   | { type: "run.progress"; value: RunProgressEvent }
   | { type: "result.focus"; id: string | null }
+  | { type: "result.toggleSelection"; id: string }
   | { type: "display.chart"; value: boolean }
   | { type: "chart.series"; id: string; visible: boolean };
 
@@ -99,7 +104,7 @@ export function createStrategyDraft(
       params[key] = cloneValue(definition.default);
     }
   }
-  return { id, presetId, enabled: true, params };
+  return { id, presetId, enabled: true, params, rules: structuredClone(preset.defaultRules) };
 }
 
 export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
@@ -115,6 +120,7 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
     runResponse: null,
     runRequestedEndMode: null,
     focusedResultId: null,
+    selectedResultIds: [],
     showChart: uiBooleanDefault(catalog, "display.showChart", true),
     visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
   };
@@ -173,6 +179,16 @@ export function workspaceReducer(
           ),
         },
       };
+    case "strategy.rules":
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          strategies: state.draft.strategies.map(strategy => strategy.id === action.id
+            ? { ...strategy, rules: structuredClone(action.value) }
+            : strategy),
+        },
+      };
     case "shared.change":
       return {
         ...state,
@@ -188,6 +204,7 @@ export function workspaceReducer(
         ...state,
         runResponse: null,
         focusedResultId: null,
+        selectedResultIds: [],
         runRequestedEndMode: null,
       };
     case "run.update": {
@@ -197,11 +214,17 @@ export function workspaceReducer(
       const focusedResultId = focusIsAvailable
         ? state.focusedResultId
         : action.value.selectedStrategyIds[0] ?? savedResults[0]?.id ?? null;
+      const availableIds = new Set(savedResults.map((result) => result.id));
+      const selectedResultIds = state.selectedResultIds.filter((id) => availableIds.has(id));
+      const nextSelectedResultIds = state.runResponse?.runId === action.value.runId || selectedResultIds.length > 0
+        ? selectedResultIds
+        : focusedResultId && availableIds.has(focusedResultId) ? [focusedResultId] : [];
       return {
         ...state,
         runResponse: action.value,
         runRequestedEndMode: action.requestedEndMode ?? state.runRequestedEndMode,
         focusedResultId,
+        selectedResultIds: nextSelectedResultIds,
       };
     }
     case "run.progress": {
@@ -229,6 +252,15 @@ export function workspaceReducer(
     }
     case "result.focus":
       return { ...state, focusedResultId: action.id };
+    case "result.toggleSelection": {
+      const selected = state.selectedResultIds.includes(action.id);
+      return {
+        ...state,
+        selectedResultIds: selected
+          ? state.selectedResultIds.filter((id) => id !== action.id)
+          : [...state.selectedResultIds, action.id],
+      };
+    }
     case "display.chart":
       return { ...state, showChart: action.value };
     case "chart.series":
@@ -292,6 +324,7 @@ export function serializeDraftForApi(draft: BacktestDraft): Record<string, unkno
     strategies: draft.strategies.map((strategy) => ({
       ...strategy,
       params: { ...strategy.params },
+      rules: structuredClone(strategy.rules),
     })),
   };
 }

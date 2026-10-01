@@ -23,6 +23,14 @@ interface ResultsChartsProps {
   dailyAssets: DailyAsset[];
   trades: Trade[];
   signals: SignalEvaluation[];
+  comparisonSeries?: Array<{
+    id: string;
+    label: string;
+    color: string;
+    dailyAssets: DailyAsset[];
+  }>;
+  totalAssetColor?: string;
+  showFocusedAsset?: boolean;
   vixSymbol?: string;
   vixThreshold?: string;
   visibleSeriesIds: string[];
@@ -288,10 +296,10 @@ function seriesLabel(locale: Locale, series: SeriesDefinition, currency?: string
 }
 
 function useSeriesHighlight() {
-  const [hoveredId, setHoveredId] = useState<ChartSeriesId | null>(null);
-  const [focusedId, setFocusedId] = useState<ChartSeriesId | null>(null);
-  const [selectedId, setSelectedId] = useState<ChartSeriesId | null>(null);
-  function toggleSelected(id: ChartSeriesId) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  function toggleSelected(id: string) {
     setHoveredId(null);
     setFocusedId(null);
     setSelectedId((previous) => previous === id ? null : id);
@@ -300,16 +308,15 @@ function useSeriesHighlight() {
 }
 
 function SeriesLegend({
-  locale, series, currency, highlight,
+  locale, entries, highlight,
 }: {
   locale: Locale;
-  series: SeriesDefinition[];
-  currency?: string;
+  entries: Array<{ id: string; label: string; color: string }>;
   highlight: ReturnType<typeof useSeriesHighlight>;
 }) {
   return (
     <div className="overlay-legend" role="group" aria-label={translate(locale, "chart.legend")}>
-      {series.map((definition) => (
+      {entries.map((definition) => (
         <button
           type="button"
           className={`overlay-legend-item${highlight.highlightedId === definition.id ? " is-highlighted" : ""}`}
@@ -323,7 +330,7 @@ function SeriesLegend({
           onClick={() => highlight.toggleSelected(definition.id)}
         >
           <i className="overlay-legend-swatch" style={{ backgroundColor: definition.color }} aria-hidden="true" />
-          {axisTitle(locale, definition.id, currency)}
+          {definition.label}
         </button>
       ))}
     </div>
@@ -463,16 +470,11 @@ function IndicatorChart({
               >
                 <title>{lineLabel}</title>
               </polyline>
-            ) : points.length === 1 ? (
-              <circle className="chart-single-point" cx={points[0]?.x} cy={points[0]?.y} r="3" tabIndex={0} aria-label={lineLabel}>
+            ) : points.length === 1 && series.id !== "vix" ? (
+              <circle className="chart-series-point" cx={points[0]?.x} cy={points[0]?.y} r="3" tabIndex={0} aria-label={lineLabel}>
                 <title>{lineLabel}</title>
               </circle>
             ) : null}
-            {series.id === "vix" && points.map((point) => (
-              <circle className="vix-observation" key={point.date} cx={point.x} cy={point.y} r="2">
-                <title>{`${point.date} ${formatAxisValue(point.value, locale, "vix")}`}</title>
-              </circle>
-            ))}
           </g>
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, assets.length, viewport)} y={cursorY}
             valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, series.id)} geometry={geometry}
@@ -491,6 +493,7 @@ function OverlayChart({
   indicatorSeries,
   samplesById,
   normalizedById,
+  comparisonSeries,
   currency,
   viewport,
   chartInteractionProps,
@@ -503,6 +506,7 @@ function OverlayChart({
   indicatorSeries: IndicatorSeriesDefinition[];
   samplesById: Map<ChartSeriesId, SeriesSample[]>;
   normalizedById: Map<ChartSeriesId, NormalizedSeries | null>;
+  comparisonSeries: Array<{ id: string; label: string; color: string; dailyAssets: DailyAsset[] }>;
   currency?: string;
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
@@ -515,7 +519,20 @@ function OverlayChart({
     const result = normalizedById.get(definition.id);
     return result ? [{ definition, result }] : [];
   });
-  if (normalized.length === 0) {
+  const focusedDateIndexes = new Map(assets.map((asset, index) => [asset.date, index]));
+  const comparisonNormalized = comparisonSeries.flatMap((comparison) => {
+    const result = normalizeSeriesToBase100(
+      "totalAsset",
+      samplesForSeries("totalAsset", comparison.dailyAssets, []),
+    );
+    if (!result) return [];
+    const points = result.points.flatMap((point) => {
+      const index = focusedDateIndexes.get(point.date);
+      return index === undefined ? [] : [{ ...point, index }];
+    });
+    return points.length > 0 ? [{ ...comparison, result: { ...result, points } }] : [];
+  });
+  if (normalized.length === 0 && comparisonNormalized.length === 0) {
     return (
       <p className="chart-empty">
         {translate(locale, "chart.noOverlaySeries")}
@@ -534,6 +551,7 @@ function OverlayChart({
   const values = [
     100,
     ...visibleNormalized.flatMap(({ chartPoints }) => chartPoints.map((point) => point.indexValue)),
+    ...comparisonNormalized.flatMap(({ result }) => samplesInViewport(result.points, viewport, dateCount).map((point) => point.indexValue)),
   ];
   const scale = chartScale(values, {}, geometry);
   const titleId = "chart-title-overlay";
@@ -554,6 +572,10 @@ function OverlayChart({
     const point = result.points.find((sample) => sample.index === cursor?.index);
     return point ? [{ y: scale.y(point.indexValue), color: definition.color }] : [];
   });
+  const comparisonCursorPoints = comparisonNormalized.flatMap(({ color, result }) => {
+    const point = result.points.find((sample) => sample.index === cursor?.index);
+    return point ? [{ y: scale.y(point.indexValue), color }] : [];
+  });
   const readings: CursorReading[] = normalized.map(({ definition, result }) => {
     const point = result.points.find((sample) => sample.index === readingIndex);
     const rawPoint = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
@@ -568,14 +590,25 @@ function OverlayChart({
     const point = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
     readings.push({ label: translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color });
   }
+  for (const comparison of comparisonNormalized) {
+    const point = comparison.result.points.find((sample) => sample.index === readingIndex);
+    readings.push({
+      label: comparison.label,
+      value: translate(locale, "chart.relativeIndexValue", { value: point?.indexValue.toFixed(1) ?? "—" }),
+      color: comparison.color,
+    });
+  }
   return (
     <figure className="chart-panel chart-overlay" data-window-start={viewport.start} data-window-end={viewport.end}>
       <figcaption className="core-chart-heading">
         <span>{translate(locale, "chart.overlayTitle")}</span>
-        <SeriesLegend locale={locale} series={normalized.map(({ definition }) => definition)} currency={currency} highlight={highlight} />
+        <SeriesLegend locale={locale} entries={[
+          ...normalized.map(({ definition }) => ({ ...definition, label: axisTitle(locale, definition.id, currency) })),
+          ...comparisonNormalized,
+        ]} highlight={highlight} />
       </figcaption>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
-      <div className="chart-core-readout-row">
+      <div className="chart-core-readout-row" tabIndex={0} role="group" aria-label={translate(locale, "chart.savedReadings")}>
         <ChartReadout date={readingDate} readings={readings} />
       </div>
       <div className="chart-canvas">
@@ -611,6 +644,11 @@ function OverlayChart({
                 color={definition.color}
                 gradientId={gradientId}
               />
+            ))}
+            {comparisonNormalized.filter(comparison => comparison.id === highlight.highlightedId).map(comparison => (
+              <HighlightArea key={comparison.id}
+                points={samplesInViewport(comparison.result.points, viewport, dateCount).map(point => ({ x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }))}
+                color={comparison.color} gradientId={gradientId} />
             ))}
             <line
               className="chart-baseline-line"
@@ -652,6 +690,32 @@ function OverlayChart({
               </g>
             );
             })}
+            {[...comparisonNormalized].sort((left, right) => Number(left.id === highlight.highlightedId) - Number(right.id === highlight.highlightedId)).map((comparison) => {
+              const chartPoints = samplesInViewport(comparison.result.points, viewport, dateCount);
+              const points = chartPoints.map((point) => ({
+                ...point,
+                x: xPosition(point.index, dateCount, viewport),
+                y: scale.y(point.indexValue),
+              }));
+              const lastPoint = points.at(-1);
+              return (
+                <g className="comparison-overlay-series" data-result-id={comparison.id} key={comparison.id}>
+                  {points.length > 1 && (
+                    <polyline
+                      className={`comparison-overlay-series-line${highlight.highlightedId === comparison.id ? " is-highlighted" : ""}`}
+                      points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+                      fill="none"
+                      stroke={comparison.color}
+                      strokeWidth={highlight.highlightedId === comparison.id ? 2.4 : 1.2}
+                      vectorEffect="non-scaling-stroke"
+                      aria-label={comparison.label}
+                    >
+                      <title>{lastPoint ? `${comparison.label} · ${lastPoint.date} · ${lastPoint.indexValue.toFixed(1)}` : comparison.label}</title>
+                    </polyline>
+                  )}
+                </g>
+              );
+            })}
             {trades.flatMap((trade, index) => {
               const point = markerByDate.get(trade.date);
               const rawPrice = numericValue(trade.price);
@@ -669,7 +733,7 @@ function OverlayChart({
             })}
           </g>
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, dateCount, viewport)} y={cursorY}
-            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={cursorPoints} />}
+            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={[...cursorPoints, ...comparisonCursorPoints]} />}
         </svg>
       </div>
     </figure>
@@ -681,6 +745,9 @@ export function ResultsCharts({
   dailyAssets,
   trades,
   signals = [],
+  comparisonSeries = [],
+  totalAssetColor,
+  showFocusedAsset = true,
   vixSymbol,
   vixThreshold,
   visibleSeriesIds,
@@ -697,18 +764,25 @@ export function ResultsCharts({
     ]),
   ), [samplesById]);
   const available = useMemo(
-    () => SERIES.filter((series) => series.id === "price" || series.id === "totalAsset"
-      ? normalizedById.get(series.id) !== null
+    () => SERIES.filter((series) => series.id === "totalAsset"
+      ? (showFocusedAsset && normalizedById.get(series.id) !== null) || comparisonSeries.some(comparison =>
+        normalizeSeriesToBase100("totalAsset", samplesForSeries("totalAsset", comparison.dailyAssets, [])) !== null)
+      : series.id === "price"
+        ? normalizedById.get(series.id) !== null
       : (samplesById.get(series.id)?.length ?? 0) > 0),
-    [samplesById, normalizedById],
+    [samplesById, normalizedById, showFocusedAsset, comparisonSeries],
   );
+  const hasVisibleCore = available.some(series =>
+    (series.id === "price" || series.id === "totalAsset") && visibleSeriesIds.includes(series.id));
   const selected = useMemo(
-    () => available.filter((series) => visibleSeriesIds.includes(series.id)),
-    [available, visibleSeriesIds],
+    () => available.filter((series) => visibleSeriesIds.includes(series.id) || (!hasVisibleCore && series.id === "price")),
+    [available, visibleSeriesIds, hasVisibleCore],
   );
   const coreSeries = selected.filter(
-    (series) => series.id === "price" || series.id === "totalAsset",
-  );
+    (series) => series.id === "price" || (series.id === "totalAsset" && showFocusedAsset),
+  ).map((series) => series.id === "totalAsset" && totalAssetColor
+    ? { ...series, color: totalAssetColor }
+    : series);
   const indicatorSeries = selected.filter(
     (series): series is IndicatorSeriesDefinition => series.id === "drawdown" || series.id === "vix",
   );
@@ -722,15 +796,17 @@ export function ResultsCharts({
   const visibleStartDate = dailyAssets[Math.round(range.start)]?.date ?? "—";
   const visibleEndDate = dailyAssets[Math.round(range.end)]?.date ?? "—";
   const viewportSpan = viewport.end - viewport.start;
+  const visibleComparisons = selected.some(series => series.id === "totalAsset") ? comparisonSeries : [];
   return (
-    <div className="charts-content" ref={chartContainerRef}>
+    <div className={`charts-content${wheelZoomEnabled ? " is-wheel-zoom-active" : ""}`} ref={chartContainerRef}>
       <div className="chart-toolbar">
         <div className="chart-controls">
           <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
             {SERIES.map((series) => {
               const isAvailable = available.includes(series);
-              const isVisible = visibleSeriesIds.includes(series.id) && isAvailable;
-              const isLastCore = isVisible && coreSeries.length === 1 && coreSeries[0]?.id === series.id;
+              const isVisible = selected.includes(series) && isAvailable;
+              const isLastCore = isVisible && (series.id === "price" || series.id === "totalAsset")
+                && selected.filter(item => item.id === "price" || item.id === "totalAsset").length === 1;
               return (
                 <button
                   className={`legend-toggle${isVisible ? " is-visible" : ""}`}
@@ -742,14 +818,19 @@ export function ResultsCharts({
                   onClick={() => onSeriesChange(series.id, !isVisible)}
                 >
                   <span className="legend-swatch" style={{ backgroundColor: series.color }} aria-hidden="true" />
+                  <span className="legend-check" aria-hidden="true">{isVisible ? "✓" : "−"}</span>
                   {seriesLabel(locale, series, currency)}
                 </button>
               );
             })}
           </div>
-
         </div>
         <div className="chart-range-controls" role="group" aria-label={translate(locale, "chart.rangeControls")}>
+          {wheelZoomEnabled && (
+            <span className="chart-wheel-zoom-status" role="status">
+              {translate(locale, "chart.wheelZoomActive")}
+            </span>
+          )}
           <span className="chart-range-label sr-only">
             {translate(locale, "chart.visibleRange", { start: visibleStartDate, end: visibleEndDate })}
           </span>
@@ -786,7 +867,7 @@ export function ResultsCharts({
         <p className="chart-empty">{translate(locale, "chart.noVisibleSeries")}</p>
       ) : (
         <div className="chart-linked-stack">
-          {coreSeries.length > 0 && (
+          {(coreSeries.length > 0 || visibleComparisons.length > 0) && (
             <OverlayChart
               locale={locale}
               assets={dailyAssets}
@@ -795,6 +876,7 @@ export function ResultsCharts({
               indicatorSeries={indicatorSeries}
               samplesById={samplesById}
               normalizedById={normalizedById}
+              comparisonSeries={visibleComparisons}
               currency={currency}
               viewport={viewport}
               chartInteractionProps={chartInteractionProps}

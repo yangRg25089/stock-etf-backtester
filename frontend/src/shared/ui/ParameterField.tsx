@@ -22,10 +22,9 @@ interface ParameterFieldProps {
   helperText?: string;
   helperLive?: boolean;
   currency?: string;
-  appearance?: "default" | "switch" | "segments";
-  hideLabel?: boolean;
-  optionHints?: Record<string, string>;
+  appearance?: "default" | "switch";
   labelText?: string;
+  respectDependencies?: boolean;
 }
 
 function inputValue(value: unknown): string {
@@ -67,16 +66,15 @@ export function ParameterField({
   helperLive = false,
   currency,
   appearance = "default",
-  hideLabel = false,
-  optionHints = {},
   labelText,
+  respectDependencies = true,
 }: ParameterFieldProps) {
   const fieldId = id ?? parameterFieldId(definition.key);
   const label = translate(locale, definition.translationKey);
   const unit = definition.unit === "currency"
     ? currency ?? translate(locale, "unit.currency")
     : unitLabel(locale, definition.unit);
-  const unmetDependencies = (definition.dependencies ?? []).filter(
+  const unmetDependencies = (respectDependencies ? definition.dependencies ?? [] : []).filter(
     (key) => !dependencyIsPresent(dependencyValues[key]),
   );
   const fieldDisabled = disabled || unmetDependencies.length > 0;
@@ -141,40 +139,6 @@ export function ParameterField({
         <span className="switch-track" aria-hidden="true"><span className="switch-thumb" /></span>
         <span className="switch-state">{translate(locale, value === true ? "field.enabled" : "field.disabled")}</span>
       </button>
-    );
-  } else if (definition.type === "enum" && appearance === "segments") {
-    control = (
-      <div
-        id={fieldId}
-        className="field-segments"
-        role="radiogroup"
-        aria-label={label}
-        aria-describedby={common["aria-describedby"]}
-        aria-invalid={common["aria-invalid"]}
-        tabIndex={-1}
-      >
-        {(definition.allowedValues ?? []).map((choice) => {
-          const serialized = String(choice);
-          const choiceId = `${fieldId}-${serialized}`;
-          return (
-            <label className="field-segment" key={serialized} htmlFor={choiceId} title={optionHints[serialized]}>
-              <input
-                className="segment-input"
-                id={choiceId}
-                name={fieldId}
-                type="radio"
-                value={serialized}
-                aria-label={serialized}
-                aria-describedby={common["aria-describedby"]}
-                checked={inputValue(value) === serialized}
-                disabled={fieldDisabled}
-                onChange={() => onChange(serialized)}
-              />
-              <span>{serialized}</span>
-            </label>
-          );
-        })}
-      </div>
     );
   } else if (definition.type === "boolean") {
     control = (
@@ -293,7 +257,7 @@ export function ParameterField({
           required={required ?? (definition.nullable !== true)}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const raw = event.target.value;
-            onChange(raw === "" ? null : raw);
+            onChange(raw === "" ? null : isDate || isSymbol ? raw : Number(raw));
           }}
         />
         {unit && hasVisibleUnit && <span className="unit-label" id={unitId ?? undefined}>{unit}</span>}
@@ -303,8 +267,8 @@ export function ParameterField({
 
   return (
     <div className={`field${appearance === "switch" ? " field-switch" : ""}${fieldErrors.length > 0 ? " field-invalid" : ""}`}>
-      <div className={`field-label-row${hideLabel ? " sr-only" : ""}`}>
-        <label className="field-label" htmlFor={appearance === "segments" ? `${fieldId}-${String(definition.allowedValues?.[0])}` : labelTargetId}>
+      <div className="field-label-row">
+        <label className="field-label" htmlFor={labelTargetId}>
           {labelText ?? label}
         </label>
         {labelAccessory}

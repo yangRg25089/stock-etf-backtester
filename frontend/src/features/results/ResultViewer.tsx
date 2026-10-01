@@ -1,12 +1,13 @@
-import type { RunResponse, StrategyRun, StrategyStatus } from "../../api/generated";
+import type { RunResponse, StrategyRun } from "../../api/generated";
 import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
 import { conditionLeaves, conditionParameters } from "../strategies/conditions";
-import { findFocusedResult } from "./model";
+import { findFocusedResult, isCompletedResult, resultDisplayName } from "./model";
 import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
+import { resultColor } from "./colors";
 
 interface ResultViewerProps {
   locale: Locale;
@@ -14,8 +15,6 @@ interface ResultViewerProps {
   dispatch(action: WorkspaceAction): void;
   error: RunApiError | null;
 }
-
-const SUCCESS_STATUSES = new Set<StrategyStatus>(["completed", "completed_with_warning"]);
 
 function savedParameters(run: RunResponse, result: StrategyRun): Record<string, unknown> {
   const strategy = run.snapshot.config.strategies?.find((item) => item.id === result.id);
@@ -38,8 +37,25 @@ function savedParameterText(params: Record<string, unknown>, key: string): strin
 export function ResultViewer({ locale, state, dispatch, error }: ResultViewerProps) {
   const run: RunResponse | null = state.runResponse;
   const focusedResult = findFocusedResult(run, state.focusedResultId);
-  const canShowSavedValues = focusedResult !== null && SUCCESS_STATUSES.has(focusedResult.status ?? "queued");
-  const params = run && focusedResult ? savedParameters(run, focusedResult) : {};
+  const strategyRuns = run?.result?.strategyRuns ?? [];
+  const selectedIds = state.selectedResultIds;
+  const chartResult = focusedResult && isCompletedResult(focusedResult) ? focusedResult
+    : strategyRuns.find((result) => isCompletedResult(result) && selectedIds.includes(result.id))
+      ?? strategyRuns.find(isCompletedResult);
+  const params = run && chartResult ? savedParameters(run, chartResult) : {};
+  const selectedComparisons = strategyRuns
+    .filter((result) => selectedIds.includes(result.id) && result.id !== chartResult?.id && isCompletedResult(result))
+    .flatMap((result) => {
+      if (!result.dailyAssets || result.dailyAssets.length === 0) return [];
+      const index = strategyRuns.findIndex((item) => item.id === result.id);
+      return [{
+        id: result.id,
+        label: resultDisplayName(locale, result, strategyRuns),
+        color: resultColor(index),
+        dailyAssets: result.dailyAssets,
+      }];
+    });
+  const focusedIndex = chartResult ? strategyRuns.findIndex((result) => result.id === chartResult.id) : -1;
 
   return (
     <div className="result-content">
@@ -61,13 +77,16 @@ export function ResultViewer({ locale, state, dispatch, error }: ResultViewerPro
           expanded={state.showChart}
           onExpandedChange={(value) => dispatch({ type: "display.chart", value })}
         >
-          {canShowSavedValues ? (
+          {chartResult ? (
             <ResultsCharts
-              key={focusedResult.id}
+              key={run.runId}
               locale={locale}
-              dailyAssets={focusedResult.dailyAssets ?? []}
-              trades={focusedResult.trades ?? []}
-              signals={focusedResult.signals ?? []}
+              dailyAssets={chartResult.dailyAssets ?? []}
+              trades={chartResult.trades ?? []}
+              signals={chartResult.signals ?? []}
+              showFocusedAsset={selectedIds.includes(chartResult.id)}
+              comparisonSeries={selectedComparisons}
+              totalAssetColor={focusedIndex >= 0 ? resultColor(focusedIndex) : undefined}
               vixSymbol={savedParameterText(params, "vix.symbol")}
               vixThreshold={savedParameterText(params, "vix.buyThreshold")}
               visibleSeriesIds={state.visibleSeriesIds}

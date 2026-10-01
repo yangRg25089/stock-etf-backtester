@@ -53,6 +53,27 @@ const catalog = {
   presets: [],
 };
 
+test("numeric edits submit numbers while dates and symbols retain text and empty fields retain null", () => {
+  for (const [key, raw, expected] of [
+    ["contribution.day", "15", 15],
+    ["contribution.amount", "123.45", 123.45],
+    ["run.startDate", "2024-02-01", "2024-02-01"],
+    ["run.symbol", "SPY", "SPY"],
+    ["contribution.amount", "", null],
+  ]) {
+    const values = [];
+    const element = ParameterField({
+      definition: fields.find(field => field.key === key),
+      value: null,
+      locale: "ja",
+      onChange(value) { values.push(value); },
+    });
+    const input = element.props.children[1].props.children[0];
+    input.props.onChange({ target: { value: raw } });
+    assert.deepEqual(values, [expected]);
+  }
+});
+
 test("shared settings render catalog defaults once and lock a resolved latest date", () => {
   const html = renderToStaticMarkup(
     React.createElement(SharedSettingsForm, {

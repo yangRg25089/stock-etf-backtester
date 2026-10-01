@@ -337,20 +337,30 @@ function App() {
       };
     }
 
+    const ruleMatch = /^strategies\[(\d+)\]\.rules\.(buy|sell)((?:\.children\[\d+\])*)\.params\.([A-Za-z][A-Za-z0-9_.-]*)$/.exec(fieldPath);
     const match = /^strategies\[(\d+)\]\.params\.([A-Za-z][A-Za-z0-9_.-]*?)(?:\[(\d+)\])?$/.exec(fieldPath);
-    if (!match) return null;
-    const strategy = workspace.draft.strategies[Number(match[1])];
-    const parameterKey = match[2];
-    const fieldIndex = match[3] === undefined ? undefined : Number(match[3]);
+    if (!match && !ruleMatch) return null;
+    const strategy = workspace.draft.strategies[Number(ruleMatch?.[1] ?? match?.[1])];
+    const parameterKey = ruleMatch?.[4] ?? match?.[2];
+    if (!parameterKey) return null;
+    const fieldIndex = !ruleMatch && match?.[3] !== undefined ? Number(match[3]) : undefined;
     if (!strategy) return null;
     const preset = catalog.presets?.find((item) => item.id === strategy.presetId);
     const definition = catalog.parameters?.find((item) => item.key === parameterKey);
-    if (!preset?.parameterKeys.includes(parameterKey) || !definition) return null;
+    if ((!ruleMatch && !preset?.parameterKeys.includes(parameterKey)) || !definition) return null;
+    let conditionId: string | undefined;
+    if (ruleMatch) {
+      let node = strategy.rules?.[ruleMatch[2] as "buy" | "sell"];
+      for (const child of ruleMatch[3].matchAll(/children\[(\d+)\]/g)) {
+        node = node && !("kind" in node) ? node.children?.[Number(child[1])] : undefined;
+      }
+      conditionId = node?.id;
+    }
 
     return {
       label: translate(locale, definition.translationKey),
       activate: () => {
-        setStrategyFieldNavigation({ strategyId: strategy.id, parameterKey, fieldIndex });
+        setStrategyFieldNavigation({ strategyId: strategy.id, parameterKey, fieldIndex, conditionId });
         setConfigCollapsed(false);
         if (window.matchMedia("(max-width: 767px)").matches) setMobilePanel("config");
       },

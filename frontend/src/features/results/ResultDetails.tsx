@@ -175,7 +175,9 @@ export function ResultDetails({
                     locale={locale}
                     strategyRuns={strategyRuns}
                     focusedResultId={state.focusedResultId}
+                    selectedResultIds={state.selectedResultIds ?? []}
                     onFocus={(id) => dispatch({ type: "result.focus", id })}
+                    onToggleSelection={(id) => dispatch({ type: "result.toggleSelection", id })}
                   />
                 </section>
               )}

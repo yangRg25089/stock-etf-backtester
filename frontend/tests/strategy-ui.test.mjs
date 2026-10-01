@@ -10,6 +10,7 @@ const { StrategyNavigator } = require("../.test-output/features/strategies/Strat
 const { StrategyEditorForm } = require("../.test-output/features/strategies/StrategyEditorDialog.js");
 const { RunActions } = require("../.test-output/features/runs/RunActions.js");
 const { createInitialWorkspaceState, workspaceReducer } = require("../.test-output/features/strategies/model.js");
+const { createCondition } = require("../.test-output/features/strategies/conditions.js");
 const catalog = JSON.parse(
   readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"),
 );
@@ -43,6 +44,7 @@ function renderEditor(strategy, locale = "ja") {
     locale,
     errors: [],
     onChange() {},
+    onRulesChange() {},
   }));
 }
 
@@ -61,6 +63,18 @@ test("execution offers only two icon buttons even while busy, disabled, or compl
   }
 });
 
+test("fixed strategy uses independent buy sell cards and header switches without composition", () => {
+  const state = createInitialWorkspaceState(catalog);
+  const html = renderEditor(state.draft.strategies[0]);
+  assert.match(html, /class="strategy-rule-section[^\"]*" data-rule-side="buy"/);
+  assert.match(html, /class="strategy-rule-section[^\"]*" data-rule-side="sell"/);
+  assert.match(html, /class="condition-card[^\"]*" data-condition-kind="vix"/);
+  assert.match(html, /class="condition-heading"[\s\S]*role="switch"/);
+  assert.doesNotMatch(html, /condition-relationship|strategy-condition-row|condition-add|condition-logic-connector|field-switch/);
+  const sharedField = readFileSync(new URL("../src/shared/ui/ParameterField.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(sharedField, /appearance === "segments"|hideLabel|optionHints/);
+});
+
 test("strategy editor keeps one label per field and no repeated parameter summary", () => {
   const state = createInitialWorkspaceState(catalog);
   const html = renderEditor(state.draft.strategies[0]);
@@ -69,7 +83,7 @@ test("strategy editor keeps one label per field and no repeated parameter summar
   assert.match(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
   assert.match(html, /VXN — Nasdaq 100 ボラティリティ指数/);
   assert.match(html, /VXD — Dow Jones ボラティリティ指数/);
-  assert.match(html, /<h3 id="strategy-parameter-heading-strategy-vix_dca-1-vix">VIX シグナル<\/h3>/);
+  assert.match(html, /<h3 id="strategy-parameter-heading-strategy-vix_dca-1-vix">買付<span class="condition-kind-name">VIX<\/span><\/h3>/);
   assert.match(html, /シグナル判定に使う指数。/);
   assert.equal(createInitialWorkspaceState(catalog).runScope, "all_enabled");
 });
@@ -82,64 +96,69 @@ test("strategy parameters follow catalog groups and select controls explain thei
     presetId: "composite_dca",
   }, catalog);
   const strategy = composite.draft.strategies.find((item) => item.id === "strategy-composite-groups");
+  strategy.rules.buy.children.push(...["rsi", "bollinger", "rate"].map(kind => createCondition(catalog, kind, "buy", `buy-${kind}`)));
+  strategy.rules.sell.enabled = true;
+  strategy.rules.sell.children = [createCondition(catalog, "bollinger", "sell", "sell-bollinger")];
   const ja = renderEditor(strategy, "ja");
   const zh = renderEditor(strategy, "zh");
 
-  assert.ok((ja.match(/class="strategy-parameter-group"/g) ?? []).length >= 7);
-  assert.match(ja, /ボリンジャーシグナル/);
-  assert.match(ja, /売却条件/);
-  assert.match(ja, /role="radiogroup" aria-label="買付条件の組み合わせ"/);
-  assert.match(ja, /title="有効な買付条件すべてを満たす"/);
+  assert.ok((ja.match(/class="strategy-parameter-group"/g) ?? []).length >= 2);
+  assert.match(ja, /ボリンジャー/);
+  assert.match(ja, /data-rule-side="sell"/);
+  assert.match(ja, /role="radiogroup" aria-label="隣接する条件カードの関係"/);
+  assert.match(ja, /title="このグループの全条件を満たす"/);
   assert.doesNotMatch(ja, /有効な買付条件すべて：AND = 全条件、OR = いずれか。/);
   assert.doesNotMatch(ja, /strategy-parameter-nav|strategy-editor-summary/);
   assert.match(ja, /百分率の数値（例：5 = 5%）/);
-  assert.match(zh, /布林带信号/);
-  assert.match(zh, /卖出条件/);
+  assert.match(zh, /布林带/);
+  assert.match(zh, /data-rule-side="sell"/);
   assert.match(zh, /百分数、小数或基点；自动识别失败时手动指定/);
 });
 
 test("turning off VIX shows the required disabled copy and preserves the preset id", () => {
   const initial = createInitialWorkspaceState(catalog);
   const state = workspaceReducer(initial, {
-    type: "strategy.param",
+    type: "strategy.rules",
     id: initial.activeStrategyId,
-    key: "vix.buyEnabled",
-    value: false,
+    value: { ...initial.draft.strategies[0].rules, buy: { ...initial.draft.strategies[0].rules.buy, enabled: false } },
   });
   const html = render(state);
   const editor = renderEditor(state.draft.strategies[0]);
   assert.equal(state.draft.strategies[0].presetId, "vix_dca");
   assert.match(html, /VIX シグナル無効/);
   assert.doesNotMatch(html, /VIX: \^VIX ≥ 25、月間最大 1 回/);
-  assert.match(editor, /id="field-strategy-vix_dca-1-vix-buyEnabled"[^>]*role="switch"[^>]*aria-checked="false"/);
+  assert.match(editor, /role="switch"[^>]*aria-label="買付"[^>]*aria-checked="false"/);
 });
 
 test("AND OR uses catalog choices and visually connects the enabled buy signal cards", () => {
   let state = createInitialWorkspaceState(catalog);
   state = workspaceReducer(state, { type: "strategy.add", id: "combined", presetId: "composite_dca" }, catalog);
-  state = workspaceReducer(state, { type: "strategy.param", id: "combined", key: "rsi.buyEnabled", value: true });
-  state = workspaceReducer(state, { type: "strategy.param", id: "combined", key: "accumulation.conditionLogic", value: "AND" });
+  const rules = structuredClone(state.draft.strategies[1].rules);
+  rules.buy.children.push(createCondition(catalog, "rsi", "buy", "buy-rsi"));
+  rules.buy.operator = "AND";
+  state = workspaceReducer(state, { type: "strategy.rules", id: "combined", value: rules });
   const html = renderEditor(state.draft.strategies.find(({ id }) => id === "combined"));
-  assert.match(html, /class="strategy-condition-row"/);
+  assert.match(html, /class="condition-logic-connector" data-group-id="buy-root"/);
   assert.match(html, /role="radiogroup"/);
   assert.match(html, /type="radio"(?=[^>]*value="AND")(?=[^>]*checked="")/);
   assert.match(html, /type="radio"[^>]*value="OR"/);
-  assert.match(html, /class="condition-relationship"[^>]*data-logic="AND"/);
-  assert.match(html, /condition-card[^>]*>VIX シグナル/);
-  assert.match(html, /condition-card[^>]*>RSI シグナル/);
+  assert.match(html, /class="condition-logic-line"/);
+  assert.match(html, /data-condition-kind="vix"/);
+  assert.match(html, /data-condition-kind="rsi"/);
+  assert.doesNotMatch(html, /condition-relationship|strategy-condition-row/);
   assert.doesNotMatch(html, /<select[^>]*id="field-combined-accumulation-conditionLogic"/);
 });
 
 test("catalog selector offers five optional strategies and preserves required benchmarks", () => {
   const html = render(createInitialWorkspaceState(catalog), "zh");
   for (const preset of catalog.presets) {
-    if (["monthly_dca", "lump_sum"].includes(preset.id)) assert.doesNotMatch(html, new RegExp(`value="${preset.id}"`));
-    else assert.match(html, new RegExp(`value="${preset.id}"`));
+    if (["monthly_dca", "lump_sum"].includes(preset.id)) assert.doesNotMatch(html, new RegExp(`data-preset-id="${preset.id}"`));
+    else assert.match(html, new RegExp(`data-preset-id="${preset.id}"`));
   }
   assert.match(html, /role="switch"[^>]*aria-checked="true"/);
   assert.doesNotMatch(html, /strategy-run-target/);
-  assert.match(html, /id="preset-to-add" aria-describedby="strategy-add-help"/);
-  assert.match(html, /<p class="field-hint sr-only" id="strategy-add-help">/);
+  assert.match(html, /class="strategy-add-option"[^>]*data-preset-id="composite_dca"/);
+  assert.match(html, /id="strategy-add-menu"[^>]*role="menu"/);
   assert.match(html, /aria-label="启用VIX 信号定投"/);
   assert.match(html, /aria-label="删除VIX 信号定投"/);
   assert.match(html, /<article class="strategy-card strategy-nav-card is-active">/);
@@ -157,7 +176,7 @@ test("catalog selector offers five optional strategies and preserves required be
   assert.doesNotMatch(controls, /run-scope-select|run-scope-help|<select/);
   assert.match(controls, /run-submit-button/);
   assert.match(controls, /run-reset-button/);
-  assert.match(html, /<option value="vix_dca" disabled=""/);
+  assert.match(html, /data-preset-id="vix_dca"[^>]*disabled=""/);
 });
 
 test("strategy picker precedes summary cards and editing stays separate from the run target", () => {
@@ -182,6 +201,6 @@ test("strategy navigation lists every instance while the editor only expands the
   assert.equal((html.match(/class="strategy-card strategy-nav-card(?: is-active)?"/g) ?? []).length, 2);
   assert.match(html, /class="strategy-card strategy-nav-card is-active"/);
   assert.match(html, /aria-label="编辑VIX 信号定投"/);
-  assert.match(html, /aria-label="编辑复合信号定投"/);
+  assert.match(html, /aria-label="编辑自定义策略"/);
   assert.doesNotMatch(html, /id="field-strategy-(?:vix_dca-1-vix-symbol|composite-1-accumulation-fixedDcaRatio)"/);
 });

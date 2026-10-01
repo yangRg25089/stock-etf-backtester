@@ -1,8 +1,10 @@
 import { useEffect, useRef, type RefObject } from "react";
-import type { Catalog, Diagnostic, PresetDefinition } from "../../api/generated";
+import type { Catalog, Diagnostic, PresetDefinition, StrategyRules } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
 import { parameterFieldId } from "../../shared/ui/parameterFieldId";
+import { ConditionEditor } from "./ConditionEditor";
+import { conditionFieldOwner, conditionLeaves } from "./conditions";
 import type { StrategyDraft } from "./model";
 
 interface StrategyEditorDialogProps {
@@ -12,7 +14,9 @@ interface StrategyEditorDialogProps {
   errors?: Diagnostic[];
   focusFieldKey?: string | null;
   focusFieldIndex?: number;
+  focusConditionId?: string | null;
   onChange(key: string, value: unknown): void;
+  onRulesChange(value: StrategyRules): void;
   onClose(): void;
   onFieldFocusHandled?(): void;
   returnFocusRef: RefObject<HTMLButtonElement>;
@@ -25,102 +29,48 @@ interface StrategyEditorFormProps {
   locale: Locale;
   errors: Diagnostic[];
   onChange(key: string, value: unknown): void;
+  onRulesChange(value: StrategyRules): void;
 }
 
 function groupedFields(catalog: Catalog, preset: PresetDefinition) {
-  const groups = new Map<string, {
-    translationKey: string;
-    fields: NonNullable<Catalog["parameters"]>;
-  }>();
+  const groups = new Map<string, { translationKey: string; fields: NonNullable<Catalog["parameters"]> }>();
   for (const key of preset.parameterKeys) {
-    const definition = catalog.parameters?.find((item) => item.key === key);
+    if (!((key.startsWith("accumulation.") && key !== "accumulation.conditionLogic") || key.startsWith("search.") || key.startsWith("scheduled."))) continue;
+    const definition = catalog.parameters?.find(item => item.key === key);
     if (!definition) continue;
     const groupId = definition.groupId ?? "general";
-    const group = catalog.parameterGroups?.find((item) => item.id === groupId);
-    const current = groups.get(groupId) ?? {
-      translationKey: group?.translationKey ?? "parameterGroups.general",
-      fields: [],
-    };
+    const group = catalog.parameterGroups?.find(item => item.id === groupId);
+    const current = groups.get(groupId) ?? { translationKey: group?.translationKey ?? "parameterGroups.general", fields: [] };
     current.fields.push(definition);
     groups.set(groupId, current);
   }
   return [...groups.entries()];
 }
 
-export function StrategyEditorForm({
-  catalog,
-  strategy,
-  preset,
-  locale,
-  errors,
-  onChange,
-}: StrategyEditorFormProps) {
-  const name = translate(locale, preset.nameKey);
-  const groups = groupedFields(catalog, preset);
-  const dependencyValues = Object.fromEntries(
-    (catalog.parameters ?? []).map((definition) => [
-      definition.key,
-      Object.hasOwn(strategy.params, definition.key) ? strategy.params[definition.key] : definition.default,
-    ]),
-  );
-  const logic = String(dependencyValues["accumulation.conditionLogic"]);
-  const enabledBuyGroups = groups.filter(([, group]) => group.fields.some((definition) =>
-    definition.key.endsWith(".buyEnabled") && dependencyValues[definition.key] === true,
-  ));
-
-  return (
-    <section className="strategy-editor" aria-label={name}>
-      <fieldset className="strategy-parameters">
-        <legend className="sr-only">{translate(locale, "strategy.parameters")}</legend>
-        <div className="strategy-parameter-groups">
-          {groups.map(([groupId, group]) => (
-            <section
-              className={groupId === "signal_combination" ? "strategy-condition-row" : "strategy-parameter-group"}
-              id={`strategy-parameters-${strategy.id}-${groupId}`}
-              key={groupId}
-              aria-labelledby={`strategy-parameter-heading-${strategy.id}-${groupId}`}
-            >
-              <h3 className={groupId === "signal_combination" ? "sr-only" : undefined} id={`strategy-parameter-heading-${strategy.id}-${groupId}`}>
-                {translate(locale, group.translationKey)}
-              </h3>
-              <div className="strategy-parameter-grid">
-                {group.fields.map((definition) => (
-                  <ParameterField
-                    key={definition.key}
-                    id={parameterFieldId(definition.key, strategy.id)}
-                    definition={definition}
-                    value={strategy.params[definition.key]}
-                    locale={locale}
-                    dependencyValues={dependencyValues}
-                    errors={errors}
-                    appearance={definition.key === "accumulation.conditionLogic" ? "segments" : definition.type === "boolean" ? "switch" : "default"}
-                    hideLabel={definition.key === "accumulation.conditionLogic"}
-                    labelText={definition.key.endsWith(".buyEnabled") ? translate(locale, "strategy.buy") : definition.key === "exit.enabled" ? translate(locale, "strategy.sell") : undefined}
-                    optionHints={{ AND: translate(locale, "strategy.logicAnd"), OR: translate(locale, "strategy.logicOr") }}
-                    helperText={definition.key === "accumulation.conditionLogic"
-                      ? ""
-                      : undefined}
-                    onChange={(value) => onChange(definition.key, value)}
-                  />
-                ))}
-              </div>
-              {groupId === "signal_combination" && (
-                <div className="condition-relationship" data-logic={logic} aria-label={translate(locale, logic === "AND" ? "strategy.logicAnd" : "strategy.logicOr")}>
-                  {enabledBuyGroups.map(([id, buyGroup], index) => (
-                    <span className="condition-relationship-item" key={id}>
-                      {index > 0 && <span className="condition-connector" aria-hidden="true">{logic}</span>}
-                      <span className="condition-card">{translate(locale, buyGroup.translationKey)}</span>
-                    </span>
-                  ))}
-                  {enabledBuyGroups.length === 0 && <span>—</span>}
-                </div>
-              )}
-            </section>
-          ))}
-        </div>
-      </fieldset>
-    </section>
-  );
+export function StrategyEditorForm({ catalog, strategy, preset, locale, errors, onChange, onRulesChange }: StrategyEditorFormProps) {
+  const dependencyValues = Object.fromEntries((catalog.parameters ?? []).map(definition => [definition.key,
+    Object.hasOwn(strategy.params, definition.key) ? strategy.params[definition.key] : definition.default,
+  ]));
+  return <section className="strategy-editor" aria-label={translate(locale, preset.nameKey)}>
+    {strategy.rules && <ConditionEditor catalog={catalog} strategyId={strategy.id} locale={locale} rules={strategy.rules}
+      custom={preset.editorMode === "custom" || preset.editorMode === "search"} fixedTrend={preset.id === "ma_trend"}
+      errors={errors} onChange={onRulesChange} />}
+    <fieldset className="strategy-parameters">
+      <legend className="sr-only">{translate(locale, "strategy.parameters")}</legend>
+      <div className="strategy-parameter-groups">
+        {groupedFields(catalog, preset).map(([groupId, group]) => <section className="strategy-parameter-group" key={groupId}
+          aria-labelledby={`strategy-parameter-heading-${strategy.id}-${groupId}`}>
+          <h3 id={`strategy-parameter-heading-${strategy.id}-${groupId}`}>{translate(locale, group.translationKey)}</h3>
+          <div className="strategy-parameter-grid">
+            {group.fields.map(definition => <ParameterField key={definition.key} id={parameterFieldId(definition.key, strategy.id)}
+              definition={definition} value={strategy.params[definition.key]} locale={locale} dependencyValues={dependencyValues}
+              errors={errors.filter(error => !error.fieldPath?.includes(".rules."))}
+              appearance={definition.type === "boolean" ? "switch" : "default"} onChange={value => onChange(definition.key, value)} />)}
+          </div>
+        </section>)}
+      </div>
+    </fieldset>
+  </section>;
 }
 
 export function StrategyEditorDialog({
@@ -130,7 +80,9 @@ export function StrategyEditorDialog({
   errors = [],
   focusFieldKey = null,
   focusFieldIndex,
+  focusConditionId,
   onChange,
+  onRulesChange,
   onClose,
   onFieldFocusHandled,
   returnFocusRef,
@@ -157,7 +109,8 @@ export function StrategyEditorDialog({
   useEffect(() => {
     if (!focusFieldKey) return;
     const frame = window.requestAnimationFrame(() => {
-      const fieldId = parameterFieldId(focusFieldKey, strategy.id);
+      const condition = [...conditionLeaves(strategy.rules?.buy), ...conditionLeaves(strategy.rules?.sell)].find(node => node.id === focusConditionId);
+      const fieldId = parameterFieldId(focusFieldKey, condition ? conditionFieldOwner(strategy.id, condition) : strategy.id);
       const targetId = focusFieldIndex === undefined ? fieldId : `${fieldId}-${focusFieldIndex}`;
       const target = document.getElementById(targetId) ??
         document.getElementById(fieldId) ??
@@ -167,7 +120,7 @@ export function StrategyEditorDialog({
       onFieldFocusHandled?.();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [focusFieldIndex, focusFieldKey, onFieldFocusHandled, strategy.id]);
+  }, [focusConditionId, focusFieldIndex, focusFieldKey, onFieldFocusHandled, strategy.id, strategy.rules]);
 
   if (!preset) return null;
 
@@ -220,6 +173,7 @@ export function StrategyEditorDialog({
             locale={locale}
             errors={errors}
             onChange={onChange}
+            onRulesChange={onRulesChange}
           />
         </div>
         <footer className="strategy-dialog-footer">
