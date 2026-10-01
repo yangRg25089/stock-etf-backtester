@@ -81,7 +81,8 @@ export function SearchResults({ locale, searchResult, selectedCandidateId, onSel
       </h3>
       {pending && <p role="status">{translate(locale, "search.loadingCurve")}</p>}
       {errorKey && <p className="field-error" role="alert">{translate(locale, errorKey)}</p>}
-      <div className="data-table-scroll">
+      <div className="data-table-scroll search-table-scroll" tabIndex={0} role="region"
+        aria-label={translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}>
         <table className="data-table search-table">
           <caption className="sr-only">{translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}</caption>
           <thead>

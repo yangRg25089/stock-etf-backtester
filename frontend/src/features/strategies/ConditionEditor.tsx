@@ -73,7 +73,7 @@ function ConditionNodeEditor(props: NodeProps) {
           {onRemove && <DeleteCondition locale={locale} onRemove={onRemove} disabled={props.disabled} />}
         </div>
       </header>}
-      <div className="strategy-parameter-grid">
+      <div className="strategy-parameter-grid" hidden={disabled}>
         {(keys ?? []).filter(key => !(fixedTrend && side === "sell" && key === "exit.ratio")).map(key => {
           const definition = catalog.parameters?.find(item => item.key === key);
           if (!definition) return null;
@@ -99,31 +99,33 @@ function ConditionNodeEditor(props: NodeProps) {
         {onRemove && <DeleteCondition locale={locale} onRemove={onRemove} disabled={props.disabled} />}
       </div>
     </header>}
-    {children.map((child, index) => <div className="condition-child" key={child.id}>
-      {index > 0 && <LogicConnector node={node} index={index} locale={locale} disabled={disabled} onChange={onChange} />}
-      <ConditionNodeEditor {...props} node={child} depth={depth + 1} root={false} disabled={disabled}
-        onChange={changed => onChange({ ...node, children: children.map(item => item.id === child.id ? changed : item) })}
-        onRemove={custom ? () => onChange({ ...node, children: children.filter(item => item.id !== child.id) }) : undefined} />
-    </div>)}
-    {children.length === 0 && <p className="condition-empty">{translate(locale, "conditions.empty")}</p>}
-    {custom && <div className="condition-add">
-      <label className="sr-only" htmlFor={`condition-add-${node.id}`}>{translate(locale, "conditions.add")}</label>
-      <select id={`condition-add-${node.id}`} className="input condition-add-select" value="" disabled={!canAdd}
-        onChange={event => {
-          const value = event.target.value;
-          if (!value || (value !== "group" && props.usedKinds.has(value as ConditionKind))) return;
-          const id = `${side}-${value}-${crypto.randomUUID()}`;
-          const child: ConditionNode = value === "group"
-            ? { type: "group", id, enabled: true, operator: "AND", children: [] }
-            : createCondition(catalog, value as ConditionKind, side, id);
-          onChange({ ...node, children: [...children, child] });
-        }}>
-        <option value="">＋ {translate(locale, "conditions.add")}</option>
-        {(catalog.conditions ?? []).map(item => <option key={item.kind} value={item.kind} disabled={props.usedKinds.has(item.kind)}>{translate(locale, item.nameKey)}</option>)}
-        <option value="group">{translate(locale, "conditions.group")}</option>
-      </select>
-      {!canAdd && !disabled && <span className="field-hint">{translate(locale, "conditions.limit")}</span>}
-    </div>}
+    <div className="condition-group-content" hidden={disabled}>
+      {children.map((child, index) => <div className="condition-child" key={child.id}>
+        {index > 0 && <LogicConnector node={node} index={index} locale={locale} disabled={disabled} onChange={onChange} />}
+        <ConditionNodeEditor {...props} node={child} depth={depth + 1} root={false} disabled={disabled}
+          onChange={changed => onChange({ ...node, children: children.map(item => item.id === child.id ? changed : item) })}
+          onRemove={custom ? () => onChange({ ...node, children: children.filter(item => item.id !== child.id) }) : undefined} />
+      </div>)}
+      {children.length === 0 && <p className="condition-empty">{translate(locale, "conditions.empty")}</p>}
+      {custom && <div className="condition-add">
+        <label className="sr-only" htmlFor={`condition-add-${node.id}`}>{translate(locale, "conditions.add")}</label>
+        <select id={`condition-add-${node.id}`} className="input condition-add-select" value="" disabled={!canAdd}
+          onChange={event => {
+            const value = event.target.value;
+            if (!value || (value !== "group" && props.usedKinds.has(value as ConditionKind))) return;
+            const id = `${side}-${value}-${crypto.randomUUID()}`;
+            const child: ConditionNode = value === "group"
+              ? { type: "group", id, enabled: true, operator: "AND", children: [] }
+              : createCondition(catalog, value as ConditionKind, side, id);
+            onChange({ ...node, children: [...children, child] });
+          }}>
+          <option value="">＋ {translate(locale, "conditions.add")}</option>
+          {(catalog.conditions ?? []).map(item => <option key={item.kind} value={item.kind} disabled={props.usedKinds.has(item.kind)}>{translate(locale, item.nameKey)}</option>)}
+          <option value="group">{translate(locale, "conditions.group")}</option>
+        </select>
+        {!canAdd && !disabled && <span className="field-hint">{translate(locale, "conditions.limit")}</span>}
+      </div>}
+    </div>
   </section>;
 }
 
@@ -142,9 +144,11 @@ export function ConditionEditor(props: ConditionEditorProps) {
           {node && <ToggleSwitch label={translate(locale, `strategy.${side}`)} checked={node.enabled !== false}
             onChange={enabled => onChange({ ...rules, [side]: { ...node, enabled } })} />}
         </header>
-        {node ? <ConditionNodeEditor {...props} node={node} side={side} depth={1} disabled={false} remaining={remaining}
-          usedKinds={new Set(conditionLeaves(node).map(item => item.kind))} root={true} onChange={changed => onChange({ ...rules, [side]: changed })} />
-          : <p className="condition-empty">{translate(locale, custom ? "conditions.empty" : "conditions.buyOnly")}</p>}
+        <div className="strategy-rule-content" hidden={node?.enabled === false}>
+          {node ? <ConditionNodeEditor {...props} node={node} side={side} depth={1} disabled={false} remaining={remaining}
+            usedKinds={new Set(conditionLeaves(node).map(item => item.kind))} root={true} onChange={changed => onChange({ ...rules, [side]: changed })} />
+            : <p className="condition-empty">{translate(locale, custom ? "conditions.empty" : "conditions.buyOnly")}</p>}
+        </div>
       </section>;
     })}
   </div>;

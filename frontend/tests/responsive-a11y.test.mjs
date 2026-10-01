@@ -237,7 +237,8 @@ test("shared settings use a modal and the sidebar toggle has one fixed location"
   assert.doesNotMatch(app, /className="results-heading"/);
   assert.doesNotMatch(app, /<details className="shared-settings-disclosure"/);
   const tablet = mediaBlock("@media (min-width: 768px) and (max-width: 1279px)");
-  assert.match(tablet, /--app-topbar-height:\s*105px/);
+  assert.doesNotMatch(tablet, /--app-topbar-height\s*:|grid-template-areas/);
+  assert.match(blockFor(":root"), /--app-topbar-height:\s*55px/);
   assert.match(tablet, /\.main-content\.workbench-main\s*\{[^}]*height:\s*calc\(100dvh - var\(--app-topbar-height\)\)/s);
   assert.match(tablet, /\.workbench-layout\s*\{[^}]*min-height:\s*0/s);
 });

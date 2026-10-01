@@ -88,7 +88,10 @@
     #backtest-ui-preview .strategy-add-menu button:hover { background: var(--accent-soft); }
     #backtest-ui-preview .strategy-card-list { display: grid; align-content: start; gap: 6px; min-height: 0; overflow: auto; overscroll-behavior: contain; }
     #backtest-ui-preview .strategy-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 6px; padding: 7px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
-    #backtest-ui-preview .strategy-card.is-active { background: var(--accent-soft); border-color: #83b3a5; }
+    #backtest-ui-preview .strategy-card-list { padding: 4px; }
+    #backtest-ui-preview .strategy-card { margin-inline-start: 8px; transform-origin: right center; transition: margin-inline-start 160ms ease-out, transform 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out; }
+    #backtest-ui-preview .strategy-card.is-active { z-index: 1; margin-inline-start: 0; transform: scale(1.015); background: #e0eee8; border-color: #83b3a5; box-shadow: inset 3px 0 0 var(--accent), 0 2px 8px #1923211f; }
+    #backtest-ui-preview .strategy-card:has(.strategy-card-open:hover) { background: #e0eee8; }
     #backtest-ui-preview .strategy-card-open { display: grid; min-width: 0; padding: 0; text-align: left; background: transparent; border: 0; }
     #backtest-ui-preview .strategy-card.is-active .strategy-card-open,
     #backtest-ui-preview .strategy-card-open:hover { background: #e0eee8; }
@@ -152,6 +155,8 @@
     #backtest-ui-preview .base-line { stroke: #81918b; stroke-width: 1; stroke-dasharray: 4 4; }
     #backtest-ui-preview .legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin: 0; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .comparison-table-wrap { overflow-x: auto; }
+    #backtest-ui-preview [data-panel="comparison"].comparison-table-wrap { max-height: min(300px, 30dvh); overflow: auto; overscroll-behavior: contain; }
+    #backtest-ui-preview .comparison-table thead { position: sticky; z-index: 2; top: 0; }
     #backtest-ui-preview [data-panel="trades"] .comparison-table-wrap { max-height: 420px; overflow: auto; }
     #backtest-ui-preview [data-panel="trades"] thead th { position: sticky; top: 0; }
     #backtest-ui-preview .signal-switch { width: 36px; height: 22px; min-height: 22px; background: var(--accent); border-radius: 12px; border: 0; padding: 3px; }
@@ -234,6 +239,7 @@
       #backtest-ui-preview .workbench-layout { grid-template-columns: 320px 44px minmax(0, 1fr); }
       #backtest-ui-preview .config-collapsed { grid-template-columns: 0 44px minmax(0, 1fr); }
     }
+    @media (prefers-reduced-motion: reduce) { #backtest-ui-preview .strategy-card { transition: none; } }
     #backtest-ui-preview [hidden] { display: none !important; }
     #backtest-ui-preview .signal-switch-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 12px; padding: 6px 10px; border-radius: 6px; background: var(--bg); }
     #backtest-ui-preview .signal-switch-row button { width: auto; padding-inline: 8px; display: flex; gap: 8px; align-items: center; color: var(--muted); background: transparent; border: 0; }
@@ -372,7 +378,7 @@
           <div class="condition-card"><div class="fields"><div class="field"><label for="prototype-vix-symbol">ボラティリティ指数</label><select id="prototype-vix-symbol"><option>^VIX — S&amp;P 500</option><option>^VXN — Nasdaq 100</option><option>^VXD — Dow Jones</option></select><small>判定に使う指数。</small></div><div class="field"><label for="prototype-vix-threshold">買付しきい値</label><div class="unit-field"><input id="prototype-vix-threshold" type="number" value="25"/><span class="unit">pt</span></div><small>終値 ≥ しきい値。</small></div></div></div>
         </section>
         <section class="strategy-rule-block"><header class="signal-switch-row"><h3>売却 · VIX</h3><button type="button" role="switch" aria-label="売却" aria-checked="false"><i class="signal-switch" aria-hidden="true"><span></span></i></button></header>
-          <div class="condition-card"><div class="fields"><div class="field"><label for="prototype-exit-low">売却しきい値</label><input id="prototype-exit-low" type="number" value="15" disabled/></div><div class="field"><label for="prototype-exit-ratio">売却割合</label><input id="prototype-exit-ratio" type="number" value="0.5" disabled/></div></div></div>
+          <div class="condition-card" hidden><div class="fields"><div class="field"><label for="prototype-exit-low">売却しきい値</label><input id="prototype-exit-low" type="number" value="15" disabled/></div><div class="field"><label for="prototype-exit-ratio">売却割合</label><input id="prototype-exit-ratio" type="number" value="0.5" disabled/></div></div></div>
         </section>
 
       </div>
@@ -389,7 +395,11 @@
       const strategyDialog = root.querySelector(".strategy-dialog");
       let trigger = null;
       const setOpen = (dialog, opener) => { trigger = opener; dialog.showModal(); };
-      const closeDialog = (dialog) => { dialog.close(); trigger?.focus(); trigger = null; };
+      const closeDialog = (dialog) => {
+        const invalid = dialog.querySelector("input:invalid, select:invalid");
+        if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
+        dialog.close(); trigger?.focus(); trigger = null;
+      };
       toggle.addEventListener("click", () => {
         const open = toggle.getAttribute("aria-expanded") === "true";
         toggle.setAttribute("aria-expanded", String(!open));
@@ -401,7 +411,13 @@
       root.querySelector("#prototype-open-settings").addEventListener("click", (event) => setOpen(sharedDialog, event.currentTarget));
       root.querySelectorAll(".dialog-close, .dialog-done").forEach((button) => button.addEventListener("click", () => closeDialog(sharedDialog)));
       sharedDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeDialog(sharedDialog); });
-      root.querySelectorAll(".strategy-card-open").forEach((button) => button.addEventListener("click", (event) => setOpen(strategyDialog, event.currentTarget)));
+      root.querySelectorAll(".strategy-card-open").forEach((button) => button.addEventListener("click", (event) => {
+        root.querySelectorAll(".strategy-card").forEach(card => {
+          card.classList.toggle("is-active", card.contains(button));
+          card.querySelector(".strategy-card-open").setAttribute("aria-current", String(card.contains(button)));
+        });
+        setOpen(strategyDialog, event.currentTarget);
+      }));
       root.querySelectorAll(".strategy-dialog-close, .strategy-dialog-done").forEach((button) => button.addEventListener("click", () => closeDialog(strategyDialog)));
       strategyDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeDialog(strategyDialog); });
       root.querySelectorAll(".mobile-views button").forEach((button) => button.addEventListener("click", () => {
@@ -464,6 +480,7 @@
       root.querySelectorAll(".signal-switch-row button").forEach((button) => button.addEventListener("click", () => {
         const enabled = button.getAttribute("aria-checked") !== "true";
         button.setAttribute("aria-checked", String(enabled));
+        button.closest(".strategy-rule-block").querySelector(".condition-card").hidden = !enabled;
         button.closest(".strategy-rule-block").querySelectorAll("input, select").forEach(field => { field.disabled = !enabled; });
       }));
       const add = root.querySelector(".add-button");

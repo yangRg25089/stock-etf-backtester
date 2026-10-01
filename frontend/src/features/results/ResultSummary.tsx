@@ -56,7 +56,8 @@ export function ResultComparison({
     return <p className="metric-empty">{translate(locale, "results.noComparisons")}</p>;
   }
   return (
-    <div className="comparison-table-scroll">
+    <div className="comparison-table-scroll" tabIndex={0} role="region"
+      aria-label={translate(locale, "results.comparisonTitle")}>
       <table className="comparison-table">
         <caption className="sr-only">{translate(locale, "results.comparisonTitle")}</caption>
         <thead>

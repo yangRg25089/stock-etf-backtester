@@ -2078,7 +2078,7 @@ test("fixed and custom dialogs reuse condition cards, nest independent groups an
   await group.locator('.condition-add-select').selectOption("ma_trend");
   await group.locator('[data-condition-kind="ma_deviation"] input[id$="-ma-buyDeviationPct"]').fill("35");
   await group.locator('[data-condition-kind="ma_trend"] input[type="number"]').fill("5");
-  const rootConnectors = root.locator(':scope > .condition-child > .condition-logic-connector');
+  const rootConnectors = root.locator(':scope > .condition-group-content > .condition-child > .condition-logic-connector');
   await expect(rootConnectors).toHaveCount(2);
   await rootConnectors.first().getByRole("radio", { name: "OR", exact: true }).check();
   await expect(rootConnectors.last().getByRole("radio", { name: "OR", exact: true })).toBeChecked();
@@ -2146,7 +2146,8 @@ test("strategy AND OR segments and buy sell switches remain independent and keyb
   expect(report.violations).toEqual([]);
   await closeStrategyDialog(page);
   await page.locator(".strategy-card-open").last().click();
-  await expect(dialog.getByRole("radio", { name: "OR", exact: true })).toBeChecked();
+  await expect(dialog.locator('[data-rule-side="buy"] .strategy-rule-content')).toBeHidden();
+  await expect(dialog.getByRole("radio", { name: "OR", exact: true, includeHidden: true })).toBeChecked();
   await expect(buy).toHaveAttribute("aria-checked", "false");
   await closeStrategyDialog(page);
   await page.getByRole("button", { name: "中文", exact: true }).click();

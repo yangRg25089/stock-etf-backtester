@@ -113,6 +113,7 @@ export function ParameterField({
     .join(" ");
   const common = {
     id: fieldId,
+    "data-parameter-key": definition.key,
     disabled: fieldDisabled,
     "aria-invalid": fieldErrors.length > 0 ? true : undefined,
     "aria-describedby": descriptionIds || undefined,

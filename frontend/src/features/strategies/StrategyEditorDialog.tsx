@@ -96,6 +96,7 @@ export function StrategyEditorDialog({
   const [strategy, setStrategy] = useState(() => structuredClone(originalStrategy));
   const validation = useDialogValidation();
   const errors = validation.errors;
+  const footerErrors = errors.filter(item => !catalog.parameters?.some(parameter => item.fieldPath?.endsWith(`.${parameter.key}`)));
   const dialogRef = useRef<HTMLDialogElement>(null);
   const preset = catalog.presets?.find((item) => item.id === strategy.presetId);
   const closeDialog = () => void validation.attemptClose(dialogRef.current, async signal => {
@@ -169,6 +170,7 @@ export function StrategyEditorDialog({
               aria-label={translate(locale, "strategy.closeDialog")}
               title={translate(locale, "strategy.closeDialog")}
               onClick={closeDialog}
+              disabled={validation.pending}
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -187,8 +189,9 @@ export function StrategyEditorDialog({
           />
         </fieldset>
         <footer className="strategy-dialog-footer">
-          <DiagnosticList diagnostics={errors.filter(item => !catalog.parameters?.some(parameter => item.fieldPath?.endsWith(`.${parameter.key}`)))} locale={locale} />
-          <button className="button button-primary dialog-done" type="button" disabled={validation.pending} onClick={closeDialog}>
+          {footerErrors.length > 0 && <div className="dialog-diagnostics" role="alert" tabIndex={0}><DiagnosticList diagnostics={footerErrors} locale={locale} /></div>}
+          <button className="button button-primary dialog-done" type="button" disabled={validation.pending} aria-busy={validation.pending} onClick={closeDialog}>
+            {validation.pending && <span className="run-button-spinner" aria-hidden="true" />}
             {translate(locale, "workbench.settingsDone")}
           </button>
         </footer>

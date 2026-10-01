@@ -35,6 +35,7 @@ export function SharedSettingsDialog({
 
   const [buffer, setBuffer] = useState(() => structuredClone(value));
   const validation = useDialogValidation();
+  const footerErrors = validation.errors.filter(item => !catalog.parameters?.some(parameter => item.fieldPath === parameter.key || item.fieldPath?.endsWith(`.${parameter.key}`)));
   const confirmedCurrency = useRef<string | undefined>(buffer.currency);
   const closeDialog = () => void validation.attemptClose(dialogRef.current, async signal => {
     const response = await validateDraft({ shared: { run: buffer.run, contribution: buffer.contribution, data }, strategies: [] }, signal);
@@ -108,6 +109,7 @@ export function SharedSettingsDialog({
             aria-label={translate(locale, "workbench.closeSettingsDialog")}
             title={translate(locale, "workbench.closeSettingsDialog")}
             onClick={closeDialog}
+            disabled={validation.pending}
           >
             <span aria-hidden="true">×</span>
           </button>
@@ -123,8 +125,9 @@ export function SharedSettingsDialog({
           />
         </fieldset>
         <footer className="shared-settings-dialog-footer">
-          <DiagnosticList diagnostics={validation.errors.filter(item => !catalog.parameters?.some(parameter => item.fieldPath === parameter.key || item.fieldPath?.endsWith(`.${parameter.key}`)))} locale={locale} />
-          <button className="button button-primary dialog-done" type="button" disabled={validation.pending} onClick={closeDialog}>
+          {footerErrors.length > 0 && <div className="dialog-diagnostics" role="alert" tabIndex={0}><DiagnosticList diagnostics={footerErrors} locale={locale} /></div>}
+          <button className="button button-primary dialog-done" type="button" disabled={validation.pending} aria-busy={validation.pending} onClick={closeDialog}>
+            {validation.pending && <span className="run-button-spinner" aria-hidden="true" />}
             {translate(locale, "workbench.settingsDone")}
           </button>
         </footer>
