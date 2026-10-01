@@ -31,6 +31,113 @@ class _InlineExecutor(Executor):
         return future
 
 
+def test_live_repeated_trend_trades_save_first_use_principal_and_csv(tmp_path) -> None:
+    previous_service = app.state.run_service
+    path = tmp_path / "principal.sqlite3"
+    store = SQLiteRunStore(path)
+    restored_store = None
+    app.state.run_service = RunManager(
+        store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
+    )
+
+    async def run_and_export():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://principal-live"
+        ) as client:
+            response = await client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "principal-round-trip"},
+                json={
+                    "draft": {
+                        "shared": {
+                            "run": {
+                                "symbol": "QQQ",
+                                "startDate": "2024-01-01",
+                                "endDate": "2024-03-01",
+                            },
+                            "contribution": {"day": 1, "amount": 100},
+                        },
+                        "strategies": [
+                            {
+                                "id": "round-trip",
+                                "presetId": "ma_trend",
+                                "params": {"ma.period": 2},
+                            }
+                        ],
+                    },
+                    "scope": "all_enabled",
+                },
+            )
+            assert response.status_code == 202, response.text
+            accepted = response.json()
+            return (await client.get(f"/api/v1/runs/{accepted['runId']}")).json()
+
+    try:
+        saved = asyncio.run(run_and_export())
+        result = next(
+            row for row in saved["result"]["strategyRuns"] if row["id"] == "round-trip"
+        )
+        assert result["status"] == "completed", result["diagnostics"]
+        buys = [trade for trade in result["trades"] if trade["side"] == "buy"]
+        sells = [trade for trade in result["trades"] if trade["side"] == "sell"]
+        assert len(buys) > 2 and len(sells) > 1
+        metrics = result["metrics"]
+        assert sum(Decimal(trade["cashAmount"]) for trade in buys) > Decimal(
+            metrics["totalContributed"]
+        )
+        assert (
+            0
+            < Decimal(metrics["actualInvested"])
+            <= Decimal(metrics["totalContributed"])
+        )
+        assert metrics["investmentBasis"] == "original_principal"
+        for asset in result["dailyAssets"]:
+            assert Decimal(asset["actualInvested"]) <= Decimal(
+                asset["totalContributed"]
+            )
+            assert Decimal(asset["totalAsset"]) == Decimal(asset["cash"]) + (
+                Decimal(asset["timingQuantity"]) + Decimal(asset["fixedQuantity"])
+            ) * Decimal(asset["simulationPrice"])
+        assert Decimal(metrics["netProfit"]) == Decimal(
+            metrics["endingEquity"]
+        ) - Decimal(metrics["totalContributed"])
+        store.close()
+        restored_store = SQLiteRunStore(path)
+        app.state.run_service = RunManager(
+            store=restored_store, executor=_InlineExecutor()
+        )
+
+        async def read_saved():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://principal-restored",
+            ) as client:
+                response = await client.get(f"/api/v1/runs/{saved['runId']}")
+                assert response.json() == saved
+                exports = {}
+                for kind in ("summary", "daily-assets"):
+                    csv_response = await client.get(
+                        f"/api/v1/runs/{saved['runId']}/export/{kind}",
+                        params={"focusedResultId": "round-trip"},
+                    )
+                    assert csv_response.status_code == 200
+                    exports[kind] = list(csv.DictReader(io.StringIO(csv_response.text)))
+                return exports
+
+        exports = asyncio.run(read_saved())
+        assert (
+            Decimal(exports["daily-assets"][-1]["actualInvested"])
+            == Decimal(exports["summary"][0]["actualInvested"])
+            == Decimal(metrics["actualInvested"])
+        )
+        assert exports["summary"][0]["investmentBasis"] == "original_principal"
+    finally:
+        app.state.run_service = previous_service
+        store.close()
+        if restored_store is not None:
+            restored_store.close()
+
+
 def test_live_fixed_custom_and_indicator_rules_share_results_and_restore(
     tmp_path,
 ) -> None:

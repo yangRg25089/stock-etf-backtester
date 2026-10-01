@@ -12,6 +12,7 @@ from app.domain.contracts import (
     MarketSnapshot,
     SignalEvaluation,
     TradeReason,
+    TradeSide,
 )
 from app.domain.status import (
     Diagnostic,
@@ -172,12 +173,12 @@ def _run(
         ("cash", "0"),
         ("signal", "100"),
         ("safety", "200"),
-        ("reinvest", "300"),
+        ("reinvest", "100"),
         ("monthly_dca", "200"),
         ("lump_sum", "200"),
     ],
 )
-def test_actual_buy_amount_tracks_fills_and_reinvestment_without_changing_principal(
+def test_invested_principal_tracks_first_use_without_counting_reinvestment(
     mode: str,
     expected: str,
 ) -> None:
@@ -231,6 +232,11 @@ def test_actual_buy_amount_tracks_fills_and_reinvestment_without_changing_princi
     ).summary
     assert summary.actual_invested == Decimal(expected)
     assert summary.total_contributed == Decimal("200")
+    assert summary.investment_basis == "original_principal"
+    if mode == "reinvest":
+        assert sum(
+            trade.cash_amount for trade in ledger.trades if trade.side is TradeSide.BUY
+        ) == Decimal("300")
     if mode == "cash":
         assert ledger.trades == ()
         assert ledger.daily_assets[-1].cash == Decimal("200")
@@ -240,6 +246,45 @@ def test_actual_buy_amount_tracks_fills_and_reinvestment_without_changing_princi
             Decimal("200"),
             Decimal("200"),
         ]
+
+
+def test_trend_monthly_buy_cap_uses_the_shared_signal_trade_counter() -> None:
+    dates = tuple(
+        date.fromisoformat(day)
+        for day in (
+            "2024-01-02",
+            "2024-01-03",
+            "2024-01-04",
+            "2024-01-31",
+            "2024-02-01",
+            "2024-02-02",
+        )
+    )
+    config = _config(
+        start=date(2024, 1, 1),
+        end=dates[-1],
+        preset="ma_trend",
+        params={"ma.period": 1, "accumulation.maxSignalBuysPerMonth": 1},
+    )
+    signals = _signals(
+        config,
+        dates,
+        {
+            dates[0]: {"ma.trend": True},
+            dates[1]: {"ma.trend.sell": True},
+            dates[2]: {"ma.trend": True},
+            dates[3]: {"ma.trend": True},
+            dates[4]: {"ma.trend": True},
+        },
+    )
+    result = _run(config, dates, ("10",) * len(dates), signals=signals)
+    assert [trade.date for trade in result.trades if trade.side is TradeSide.BUY] == [
+        dates[1],
+        dates[4],
+    ]
+    assert [trade.date for trade in result.trades if trade.side is TradeSide.SELL] == [
+        dates[2]
+    ]
 
 
 def test_ledger_preserves_normalized_ohlc_in_daily_result_snapshots() -> None:

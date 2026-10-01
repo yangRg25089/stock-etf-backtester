@@ -263,6 +263,50 @@ def test_completed_zero_trade_strategy_and_partial_result_are_representable() ->
     assert result.status is StrategyStatus.COMPLETED_WITH_WARNING
 
 
+def test_original_principal_contract_rejects_overfunding_and_missing_amount() -> None:
+    summary = {
+        "totalContributed": "100",
+        "endingEquity": "110",
+        "netProfit": "10",
+        "investmentBasis": "original_principal",
+    }
+    for amount in ("0", "100"):
+        metrics = MetricSummary.model_validate({**summary, "actualInvested": amount})
+        assert metrics.actual_invested == Decimal(amount)
+    for amount in (None, "100.01"):
+        with pytest.raises(ValidationError, match="original invested principal"):
+            MetricSummary.model_validate({**summary, "actualInvested": amount})
+
+    with pytest.raises(ValidationError, match="invested principal"):
+        DailyAsset(
+            date=date(2024, 1, 2),
+            cash="100",
+            timingQuantity="0",
+            fixedQuantity="0",
+            totalAsset="100",
+            totalContributed="100",
+            actualInvested="100.01",
+            simulationPrice="10",
+            currency="USD",
+        )
+
+
+def test_legacy_buy_turnover_is_identified_without_recomputing_saved_money() -> None:
+    metrics = MetricSummary(
+        totalContributed="100",
+        actualInvested="300",
+        endingEquity="110",
+        netProfit="10",
+    )
+    assert metrics.investment_basis == "buy_turnover"
+    assert metrics.actual_invested == Decimal("300")
+    assert (
+        metrics.model_dump(mode="json", by_alias=True)["investmentBasis"]
+        == "buy_turnover"
+    )
+    assert MetricSummary.model_validate_json(metrics.model_dump_json()) == metrics
+
+
 def test_grid_search_result_is_frozen_inside_its_strategy_run() -> None:
     summary = MetricSummary(
         totalContributed=Decimal("100"),

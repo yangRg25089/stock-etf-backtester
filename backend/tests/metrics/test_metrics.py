@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from app.calendar import ScheduledContribution, ScheduleResult
 from app.config.validation import validate_draft
 from app.domain.contracts import DailyAsset, Trade, TradeReason, TradeSide
@@ -118,7 +120,7 @@ def test_return_on_contributions_is_distinct_from_capital_multiple() -> None:
 
 
 def test_metrics_method_version_is_stable() -> None:
-    assert METRIC_METHOD_VERSION == "metrics-v4"
+    assert METRIC_METHOD_VERSION == "metrics-v5"
 
 
 def test_xirr_uses_each_contribution_date_with_actual_365_day_count() -> None:
@@ -207,13 +209,14 @@ def test_zero_trade_success_still_gets_complete_metrics() -> None:
     assert source.ledger.trades == ()
     assert result.summary.xirr is not None
     assert abs(result.summary.xirr) < Decimal("1e-55")
+    assert result.summary.xirr == 0
     assert result.summary.return_on_contributions == 0
     assert result.summary.actual_invested == 0
     assert result.summary.maximum_drawdown == 0
     assert result.summary.diagnostics == ()
 
 
-def test_actual_invested_counts_buy_turnover_separately_from_contributions() -> None:
+def test_partial_first_buys_count_only_spent_original_contributions() -> None:
     dates = (date(2021, 1, 1), date(2021, 1, 2), date(2021, 1, 3))
     source = _input(
         _strategy("monthly_dca", dates[0], dates[-1]),
@@ -241,8 +244,8 @@ def test_actual_invested_counts_buy_turnover_separately_from_contributions() -> 
                         side=TradeSide.BUY,
                         reason=TradeReason.SIGNAL_BUY,
                         quantity=Decimal("5"),
-                        price=Decimal("11"),
-                        cashAmount=Decimal("55"),
+                        price=Decimal("9"),
+                        cashAmount=Decimal("45"),
                         currency="USD",
                     ),
                     Trade(
@@ -263,7 +266,114 @@ def test_actual_invested_counts_buy_turnover_separately_from_contributions() -> 
     result = calculate_metrics(source)
 
     assert result.summary.total_contributed == Decimal("200")
-    assert result.summary.actual_invested == Decimal("105")
+    assert result.summary.actual_invested == Decimal("95")
+
+
+@pytest.mark.parametrize("proceeds", ["60", "100", "140"])
+def test_recycled_cash_never_counts_as_new_invested_principal(proceeds: str) -> None:
+    dates = (date(2021, 1, 1), date(2021, 1, 2), date(2021, 1, 3))
+    source = _input(
+        _strategy("composite_dca", dates[0], dates[-1]),
+        dates,
+        ((dates[0], "100"),),
+        ("100", proceeds, proceeds),
+    )
+    trades = tuple(
+        Trade(
+            date=day,
+            side=side,
+            reason=reason,
+            quantity=Decimal("1"),
+            price=Decimal(amount),
+            cashAmount=Decimal(amount),
+            currency="USD",
+        )
+        for day, side, reason, amount in (
+            (dates[0], TradeSide.BUY, TradeReason.SIGNAL_BUY, "100"),
+            (dates[1], TradeSide.SELL, TradeReason.SIGNAL_SELL, proceeds),
+            (dates[2], TradeSide.BUY, TradeReason.SIGNAL_BUY, proceeds),
+        )
+    )
+    source = MetricsInput(
+        strategy=source.strategy,
+        schedule=source.schedule,
+        ledger=source.ledger.model_copy(update={"trades": trades}),
+        data_fingerprint=source.data_fingerprint,
+    )
+    result = calculate_metrics(source)
+    assert result.summary.actual_invested == Decimal("100")
+    assert result.summary.investment_basis == "original_principal"
+    assert [asset.actual_invested for asset in result.daily_assets] == [
+        Decimal("100")
+    ] * 3
+    assert result.summary.net_profit == Decimal(proceeds) - 100
+    assert result.summary.return_on_contributions == Decimal(proceeds) / 100 - 1
+
+
+def test_recycled_cash_is_used_before_unspent_new_contributions() -> None:
+    dates = (date(2021, 1, 1), date(2021, 1, 2), date(2021, 2, 1), date(2021, 2, 2))
+    source = _input(
+        _strategy("composite_dca", dates[0], dates[-1]),
+        dates,
+        ((dates[0], "100"), (dates[2], "100")),
+        ("100", "150", "250", "250"),
+    )
+    trades = tuple(
+        Trade(
+            date=day,
+            side=side,
+            reason=reason,
+            quantity=Decimal("1"),
+            price=Decimal(amount),
+            cashAmount=Decimal(amount),
+            currency="USD",
+        )
+        for day, side, reason, amount in (
+            (dates[0], TradeSide.BUY, TradeReason.SIGNAL_BUY, "100"),
+            (dates[1], TradeSide.SELL, TradeReason.SIGNAL_SELL, "150"),
+            (dates[2], TradeSide.BUY, TradeReason.SIGNAL_BUY, "120"),
+            (dates[3], TradeSide.BUY, TradeReason.SIGNAL_BUY, "50"),
+        )
+    )
+    source = MetricsInput(
+        strategy=source.strategy,
+        schedule=source.schedule,
+        ledger=source.ledger.model_copy(update={"trades": trades}),
+        data_fingerprint=source.data_fingerprint,
+    )
+    result = calculate_metrics(source)
+    assert [asset.actual_invested for asset in result.daily_assets] == [
+        Decimal("100"),
+        Decimal("100"),
+        Decimal("100"),
+        Decimal("120"),
+    ]
+    assert result.summary.actual_invested == 120
+    assert result.summary.total_contributed == 200
+
+
+def test_inconsistent_buy_funding_is_rejected_instead_of_clipped() -> None:
+    dates = (date(2021, 1, 1), date(2021, 1, 2))
+    source = _input(
+        _strategy("composite_dca", *dates), dates, ((dates[0], "100"),), ("100", "100")
+    )
+    trade = Trade(
+        date=dates[0],
+        side=TradeSide.BUY,
+        reason=TradeReason.SIGNAL_BUY,
+        quantity=Decimal("1"),
+        price=Decimal("105"),
+        cashAmount=Decimal("105"),
+        currency="USD",
+    )
+    source = MetricsInput(
+        strategy=source.strategy,
+        schedule=source.schedule,
+        ledger=source.ledger.model_copy(update={"trades": (trade,)}),
+        data_fingerprint=source.data_fingerprint,
+    )
+    with pytest.raises(ValueError, match="exceeds available"):
+        calculate_metrics(source)
 
 
 def test_no_valid_xirr_is_reported_without_hiding_other_metrics() -> None:

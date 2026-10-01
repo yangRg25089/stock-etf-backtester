@@ -79,6 +79,7 @@ export type DailyAsset = {
   simulationPrice: string;
   totalAsset: string;
   totalContributed?: string | null;
+  actualInvested?: string | null;
   currency: string;
   unitNav?: string | null;
   drawdown?: string | null;
@@ -170,6 +171,7 @@ export type InstrumentMetadata = {
 export type MetricSummary = {
   totalContributed: string;
   actualInvested?: string | null;
+  investmentBasis?: "original_principal" | "buy_turnover" | null;
   endingEquity: string;
   netProfit: string;
   returnOnContributions?: string | null;

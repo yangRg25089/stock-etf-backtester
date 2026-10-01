@@ -544,7 +544,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         ParameterType.INTEGER,
         1,
         group_id="buy_limits",
-        presets=_ACCUMULATION_PRESETS,
+        presets=(*_ACCUMULATION_PRESETS, *_TREND_PRESETS),
         unit="count",
         minimum=1,
         step=1,
@@ -733,7 +733,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         unit="multiple",
         minimum="0.000001",
         maximum=1000,
-        step="0.01",
+        step="0.000001",
     ),
     _d(
         "pe.etfMinCoverage",

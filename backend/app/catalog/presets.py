@@ -173,7 +173,11 @@ _COMPOSITE_KEYS: Final[tuple[str, ...]] = (
     "exit.bollinger.vixCeiling",
     "exit.ratio",
 )
-_TREND_KEYS: Final[tuple[str, ...]] = ("ma.period", "trend.sellBelowOrEqualMa")
+_TREND_KEYS: Final[tuple[str, ...]] = (
+    "accumulation.maxSignalBuysPerMonth",
+    "ma.period",
+    "trend.sellBelowOrEqualMa",
+)
 _SCHEDULED_KEYS: Final[tuple[str, ...]] = ("scheduled.fundingMode",)
 _GRID_KEYS: Final[tuple[str, ...]] = (
     *_COMPOSITE_KEYS,
@@ -316,13 +320,25 @@ PRESET_DEFINITIONS: Final[Mapping[StrategyPresetId, PresetDefinition]] = (
                 StrategyPresetId.MA_TREND,
                 ExecutionModule.TREND,
                 _TREND_KEYS,
-                _defaults_for(_TREND_KEYS, {"trend.sellBelowOrEqualMa": True}),
+                _defaults_for(
+                    _TREND_KEYS,
+                    {
+                        "trend.sellBelowOrEqualMa": True,
+                        "accumulation.maxSignalBuysPerMonth": None,
+                    },
+                ),
             ),
             StrategyPresetId.MA_BUY_ONLY: _preset(
                 StrategyPresetId.MA_BUY_ONLY,
                 ExecutionModule.TREND,
                 _TREND_KEYS,
-                _defaults_for(_TREND_KEYS, {"trend.sellBelowOrEqualMa": False}),
+                _defaults_for(
+                    _TREND_KEYS,
+                    {
+                        "trend.sellBelowOrEqualMa": False,
+                        "accumulation.maxSignalBuysPerMonth": None,
+                    },
+                ),
             ),
             StrategyPresetId.MONTHLY_DCA: _preset(
                 StrategyPresetId.MONTHLY_DCA,

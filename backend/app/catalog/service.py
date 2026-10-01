@@ -30,7 +30,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v7"
+CATALOG_VERSION: Final[str] = "catalog-v8"
 
 
 class SymbolSuggestion(DomainModel):

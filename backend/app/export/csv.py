@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import StrEnum
 from io import StringIO
 
-from app.domain.contracts import MetricSummary, SearchResult, StrategyRun, TradeSide
+from app.domain.contracts import MetricSummary, SearchResult, StrategyRun
 from app.domain.status import Diagnostic, StrategyStatus
 from app.runs.types import RunResponse
 
@@ -54,6 +54,7 @@ _SUMMARY_FIELDS = (
     "dataSources",
     "calendarAsOf",
     "marketDataThrough",
+    "investmentBasis",
 )
 _DAILY_ASSET_FIELDS = (
     "runId",
@@ -72,6 +73,7 @@ _DAILY_ASSET_FIELDS = (
     "marketDataThrough",
     "totalContributed",
     "actualInvested",
+    "investmentBasis",
 )
 _TRADE_FIELDS = (
     "runId",
@@ -110,6 +112,7 @@ _METRIC_FIELDS = (
     "xirr",
     "maximumDrawdown",
     "currency",
+    "investmentBasis",
 )
 
 
@@ -186,17 +189,8 @@ def _summary_csv(run: RunResponse, focused: StrategyRun) -> str:
 
 
 def _daily_assets_csv(run: RunResponse, focused: StrategyRun) -> str:
-    buy_turnover_by_date: dict[date, Decimal] = {}
-    for trade in focused.trades:
-        if trade.side is TradeSide.BUY:
-            buy_turnover_by_date[trade.date] = (
-                buy_turnover_by_date.get(trade.date, Decimal("0")) + trade.cash_amount
-            )
-
-    cumulative_actual_invested = Decimal("0")
     rows: list[dict[str, object]] = []
     for asset in focused.daily_assets:
-        cumulative_actual_invested += buy_turnover_by_date.get(asset.date, Decimal("0"))
         rows.append(
             {
                 "runId": run.run_id,
@@ -208,7 +202,10 @@ def _daily_assets_csv(run: RunResponse, focused: StrategyRun) -> str:
                 "simulationPrice": asset.simulation_price,
                 "totalAsset": asset.total_asset,
                 "totalContributed": asset.total_contributed,
-                "actualInvested": cumulative_actual_invested,
+                "actualInvested": asset.actual_invested,
+                "investmentBasis": focused.metrics.investment_basis
+                if focused.metrics
+                else None,
                 "currency": asset.currency,
                 "unitNav": asset.unit_nav,
                 "drawdown": asset.drawdown,
@@ -307,6 +304,7 @@ def _metric_values(metrics: MetricSummary | None) -> dict[str, object]:
     return {
         "totalContributed": metrics.total_contributed,
         "actualInvested": metrics.actual_invested,
+        "investmentBasis": metrics.investment_basis,
         "endingEquity": metrics.ending_equity,
         "netProfit": metrics.net_profit,
         "returnOnContributions": metrics.return_on_contributions,

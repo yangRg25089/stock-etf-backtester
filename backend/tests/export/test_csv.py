@@ -211,7 +211,7 @@ def test_summary_export_is_bound_to_run_and_focused_result() -> None:
         "runId,resultId,role,presetId,status,symbol,startDate,endDate,"
         "actualInvested,totalContributed,endingEquity,netProfit,returnOnContributions,"
         "capitalMultiple,xirr,maximumDrawdown,currency,diagnostics,"
-        "dataSources,calendarAsOf,marketDataThrough"
+        "dataSources,calendarAsOf,marketDataThrough,investmentBasis"
     )
     assert rows == [
         {
@@ -224,6 +224,7 @@ def test_summary_export_is_bound_to_run_and_focused_result() -> None:
             "startDate": "2024-01-02",
             "endDate": "2024-01-04",
             "actualInvested": "100.00",
+            "investmentBasis": "buy_turnover",
             "totalContributed": "100.00",
             "endingEquity": "109.123456789",
             "netProfit": "9.123456789",
@@ -263,14 +264,14 @@ def test_daily_assets_export_preserves_iso_dates_precision_and_currency() -> Non
     assert content == (
         "runId,resultId,date,cash,timingQuantity,fixedQuantity,simulationPrice,"
         "totalAsset,currency,unitNav,drawdown,dataSources,calendarAsOf,"
-        "marketDataThrough,totalContributed,actualInvested\n"
+        "marketDataThrough,totalContributed,actualInvested,investmentBasis\n"
         "run-123,ordinary,2024-01-02,10.00,1.5,2,3.123456789,20.1851851835,"
         'USD,1.2345,-0.01,"[""sec:companyfacts"",""yahoo""]",2024-01-04,'
-        "2024-01-04,19.87654321,0\n"
+        "2024-01-04,19.87654321,,buy_turnover\n"
     )
 
 
-def test_daily_assets_export_carries_cumulative_buy_turnover() -> None:
+def test_legacy_daily_assets_export_does_not_recalculate_missing_principal() -> None:
     trade = Trade(
         date=date(2024, 1, 2),
         side=TradeSide.BUY,
@@ -289,7 +290,41 @@ def test_daily_assets_export_carries_cumulative_buy_turnover() -> None:
 
     row = _rows(content)[0]
     assert row["totalContributed"] == "19.87654321"
-    assert row["actualInvested"] == "10"
+    assert row["actualInvested"] == ""
+    assert row["investmentBasis"] == "buy_turnover"
+
+
+def test_daily_assets_export_reads_saved_principal_without_recounting_trades() -> None:
+    run = _response()
+    result = run.result.strategy_runs[0]
+    assert result.metrics is not None
+    result = result.model_copy(
+        update={
+            "metrics": result.metrics.model_copy(
+                update={
+                    "investment_basis": "original_principal",
+                    "actual_invested": Decimal("12.34"),
+                }
+            ),
+            "daily_assets": tuple(
+                asset.model_copy(update={"actual_invested": Decimal("12.34")})
+                for asset in result.daily_assets
+            ),
+        }
+    )
+    run = run.model_copy(
+        update={"result": run.result.model_copy(update={"strategy_runs": (result,)})}
+    )
+    daily = _rows(
+        export_csv(run, kind=ExportKind.DAILY_ASSETS, focused_result_id=result.id)
+    )[0]
+    summary = _rows(
+        export_csv(run, kind=ExportKind.SUMMARY, focused_result_id=result.id)
+    )[0]
+    assert daily["actualInvested"] == summary["actualInvested"] == "12.34"
+    assert (
+        daily["investmentBasis"] == summary["investmentBasis"] == "original_principal"
+    )
 
 
 def test_successful_zero_trade_export_still_contains_a_header() -> None:
@@ -341,7 +376,7 @@ def test_search_export_includes_all_candidates_and_stable_parameter_keys() -> No
         "calculationFingerprint,reusedCalculation,vix.buyThreshold,"
         "accumulation.cashSafetyLimit,"
         "actualInvested,totalContributed,endingEquity,netProfit,returnOnContributions,"
-        "capitalMultiple,xirr,maximumDrawdown,currency,diagnostics"
+        "capitalMultiple,xirr,maximumDrawdown,currency,investmentBasis,diagnostics"
         ",dataSources,calendarAsOf,marketDataThrough"
     )
     assert [row["candidateId"] for row in rows] == [

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from datetime import date as Date
 from decimal import Decimal
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import (
     BaseModel,
@@ -456,12 +457,19 @@ class DailyAsset(DomainModel):
     total_contributed: Decimal | None = Field(
         default=None, alias="totalContributed", ge=0
     )
+    actual_invested: Decimal | None = Field(default=None, alias="actualInvested", ge=0)
     currency: str = Field(min_length=1)
     unit_nav: Decimal | None = Field(default=None, alias="unitNav", ge=0)
     drawdown: Decimal | None = Field(default=None, ge=-1, le=0)
 
     @model_validator(mode="after")
     def validate_simulation_ohlc(self) -> "DailyAsset":
+        if (
+            self.actual_invested is not None
+            and self.total_contributed is not None
+            and self.actual_invested > self.total_contributed
+        ):
+            raise ValueError("invested principal cannot exceed contributed principal")
         values = (self.simulation_open, self.simulation_high, self.simulation_low)
         if any(value is not None for value in values) and not all(
             value is not None for value in values
@@ -486,6 +494,9 @@ class DailyAsset(DomainModel):
 class MetricSummary(DomainModel):
     total_contributed: Decimal = Field(alias="totalContributed", ge=0)
     actual_invested: Decimal | None = Field(default=None, alias="actualInvested", ge=0)
+    investment_basis: Literal["original_principal", "buy_turnover"] | None = Field(
+        default=None, alias="investmentBasis"
+    )
     ending_equity: Decimal = Field(alias="endingEquity", ge=0)
     net_profit: Decimal = Field(alias="netProfit")
     return_on_contributions: Decimal | None = Field(
@@ -505,7 +516,24 @@ class MetricSummary(DomainModel):
         fields = dict(value)
         fields.pop("relativeToDca", None)
         fields.pop("relative_to_dca", None)
+        if (
+            fields.get("investmentBasis", fields.get("investment_basis")) is None
+            and fields.get("actualInvested", fields.get("actual_invested")) is not None
+        ):
+            fields["investmentBasis"] = "buy_turnover"
         return fields
+
+    @model_validator(mode="after")
+    def validate_invested_principal(self) -> "MetricSummary":
+        if self.investment_basis == "original_principal" and (
+            self.actual_invested is None
+            or self.actual_invested > self.total_contributed
+        ):
+            raise ValueError(
+                "original invested principal must be present "
+                "and cannot exceed contributions"
+            )
+        return self
 
 
 class SearchResultDimension(DomainModel):

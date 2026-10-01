@@ -48,6 +48,19 @@ EXPECTED_PRESETS = (
     StrategyPresetId.PE_DCA,
 )
 
+
+@pytest.mark.parametrize(
+    "preset_id", [StrategyPresetId.MA_TREND, StrategyPresetId.MA_BUY_ONLY]
+)
+def test_trend_templates_expose_shared_monthly_buy_limit_without_cash_valve(
+    preset_id: StrategyPresetId,
+) -> None:
+    keys = parameter_keys_for_preset(preset_id)
+    assert "accumulation.maxSignalBuysPerMonth" in keys
+    assert "accumulation.cashSafetyLimit" not in keys
+    assert preset_defaults(preset_id)["accumulation.maxSignalBuysPerMonth"] is None
+
+
 EXPECTED_PARAMETER_KEYS = {
     "run.symbol",
     "run.startDate",
@@ -101,7 +114,29 @@ EXPECTED_PARAMETER_KEYS = {
 
 
 def test_catalog_version_advances_for_shared_condition_templates() -> None:
-    assert CATALOG_VERSION == "catalog-v7"
+    assert CATALOG_VERSION == "catalog-v8"
+
+
+def test_numeric_defaults_align_with_browser_minimum_and_step() -> None:
+    for definition in PARAMETER_DEFINITIONS.values():
+        if definition.step is None or definition.default is None:
+            continue
+        if definition.type not in {
+            ParameterType.INTEGER,
+            ParameterType.DECIMAL,
+            ParameterType.RATIO,
+            ParameterType.PERCENT_POINT,
+            ParameterType.NUMBER_LIST,
+        }:
+            continue
+        values = (
+            definition.default
+            if isinstance(definition.default, (list, tuple))
+            else (definition.default,)
+        )
+        for value in values:
+            offset = Decimal(str(value)) - (definition.minimum or Decimal("0"))
+            assert offset % definition.step == 0, definition.key
 
 
 def test_removed_trade_visibility_is_not_a_catalog_parameter() -> None:
