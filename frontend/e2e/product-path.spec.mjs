@@ -1870,6 +1870,8 @@ test("linked figures share widths, halve indicator height, and highlight legends
     }
   }
   const core = page.locator(".chart-overlay");
+  await expect(core.locator(".chart-trade-marker")).toHaveCount(0);
+  await core.locator('.overlay-legend-item[data-series="totalAsset"]').hover();
   const tradeAnchors = await core.evaluate(figure => {
     const curve = figure.querySelector("polyline.overlay-totalAsset");
     const points = [...curve.points];
@@ -1883,6 +1885,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
       };
     });
   });
+  expect(tradeAnchors.length).toBeGreaterThan(0);
   expect(tradeAnchors.length).toBeGreaterThan(0);
   for (const marker of tradeAnchors) {
     expect(marker.anchor).toBe("totalAsset");
@@ -1930,6 +1933,8 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await expect(assetLegend).toHaveAttribute("aria-pressed", "true");
   await assetLegend.click();
   await expect(assetLegend).toHaveAttribute("aria-pressed", "false");
+  await page.mouse.move(0, 0);
+  await page.locator(".chart-range-controls button").first().focus();
   await expect(core.locator(".chart-highlight-area")).toHaveCount(0);
   await priceLegend.focus();
   await page.keyboard.press("Space");
@@ -1938,6 +1943,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await priceLegend.focus();
   await page.keyboard.press("Enter");
   await expect(priceLegend).toHaveAttribute("aria-pressed", "false");
+  await page.locator(".chart-range-controls button").first().focus();
   await expect(core.locator(".chart-highlight-area")).toHaveCount(0);
   await page.locator(".workbench-results").evaluate((element) => { element.scrollTop = 0; });
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -2254,6 +2260,8 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await expect(page.locator(".chart-overlay .overlay-price")).toHaveCount(0);
   await expect(page.locator(".chart-overlay svg.result-chart")).toBeVisible();
   await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveCount(1);
+  await expect(page.locator(".chart-overlay .chart-trade-marker")).toHaveCount(0);
+  await page.locator('.overlay-legend-item[data-series="totalAsset"]').hover();
   await expect(page.locator(".chart-overlay .chart-trade-marker").first()).toHaveAttribute("data-anchor-series", "totalAsset");
   await expect(asset).toBeEnabled();
   await asset.click();

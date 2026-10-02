@@ -3,6 +3,7 @@ import type { DailyAsset, SignalEvaluation, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { ChartCrosshair, ChartReadout, type ChartCursor, type CursorReading } from "./ChartCrosshair";
 import { useChartInteraction, type ChartInteractionProps } from "./useChartInteraction";
+import { tradeMarkerPoints } from "./chartTradeMarkers";
 import { isVolatilityObservation, type SavedVolatilitySeries } from "./model";
 import {
   normalizeSeriesToBase100,
@@ -307,12 +308,12 @@ function useSeriesHighlight() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  function toggleSelected(id: string) {
-    setHoveredId(null);
-    setFocusedId(null);
+  function toggleSelected(id: string, pointer: boolean) {
+    if (pointer) setFocusedId(null);
     setSelectedId((previous) => previous === id ? null : id);
   }
-  return { highlightedId: hoveredId ?? focusedId ?? selectedId, selectedId, toggleSelected, setHoveredId, setFocusedId };
+  return { highlightedId: hoveredId ?? focusedId ?? selectedId, inspectedId: hoveredId ?? focusedId,
+    selectedId, toggleSelected, setHoveredId, setFocusedId };
 }
 
 function SeriesLegend({
@@ -336,7 +337,7 @@ function SeriesLegend({
           onMouseLeave={() => highlight.setHoveredId(null)}
           onFocus={() => highlight.setFocusedId(definition.id)}
           onBlur={() => highlight.setFocusedId(null)}
-          onClick={() => highlight.toggleSelected(definition.id)}
+          onClick={event => highlight.toggleSelected(definition.id, event.detail > 0)}
         >
           <i className="overlay-legend-swatch" style={{ backgroundColor: definition.color }} aria-hidden="true" />
           {definition.label}
@@ -747,21 +748,14 @@ function OverlayChart({
                 </g>
               );
             })}
-            {tradeSeries.flatMap(strategy => {
-              const markerByDate = new Map(strategy.result.points.map(point => [point.date, point]));
-              return strategy.trades.flatMap((trade, index) => {
-                const point = markerByDate.get(trade.date);
-                const rawPrice = numericValue(trade.price);
-                if (!point || rawPrice === null) return [];
-                const x = xPosition(point.index, dateCount, viewport);
-                const y = scale.y(point.indexValue);
-                const direction = trade.side === "buy" ? 1 : -1;
-                const markerPoints = `${x},${y + direction * 5} ${x - 5},${y - direction * 4} ${x + 5},${y - direction * 4}`;
+            {tradeSeries.filter(strategy => strategy.id === highlight.inspectedId).flatMap(strategy => {
+              const points = strategy.result.points.map(point => ({ date: point.date,
+                x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }));
+              return tradeMarkerPoints(strategy.trades, points).map(({ trade, index, price, coordinates }) => {
                 return (
                   <polygon className={`chart-trade-marker chart-trade-marker-${trade.side}`} data-anchor-series="totalAsset" data-result-id={strategy.id}
-                    color={strategy.color} opacity={highlightedId && highlightedId !== strategy.id ? 0.2 : 1}
-                    points={markerPoints} key={`${strategy.id}-${trade.date}-${trade.side}-${index}`}>
-                    <title>{`${strategy.label} · ${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(rawPrice, locale, "price", trade.currency ?? currency)}`}</title>
+                    color={strategy.color} points={coordinates} key={`${strategy.id}-${trade.date}-${trade.side}-${index}`}>
+                    <title>{`${strategy.label} · ${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(price, locale, "price", trade.currency ?? currency)}`}</title>
                   </polygon>
                 );
               });

@@ -72,14 +72,17 @@ test("trades anchor to the contributed-capital asset curve even when price is vi
   }));
   const html = render(["price", "totalAsset"]);
   const assetPoints = html.match(/<polyline class="overlay-series-line overlay-totalAsset[^\"]*" points="([^\"]+)"/)[1].split(" ").map(point => point.split(",").map(Number));
-  const markers = [...html.matchAll(/<polygon class="chart-trade-marker[^\"]*"[^>]*points="([^\"]+)"/g)].map(match => match[1].split(" ")[0].split(",").map(Number));
+  assert.doesNotMatch(html, /chart-trade-marker/);
+  const { tradeMarkerPoints } = require("../.test-output/features/results/chartTradeMarkers.js");
+  const markers = tradeMarkerPoints(trades, assets.map((asset, index) => ({ date: asset.date, x: assetPoints[index][0], y: assetPoints[index][1] })))
+    .map(marker => marker.coordinates.split(" ")[0].split(",").map(Number));
   assert.equal(markers.length, trades.length);
   for (const [index, [x, y]] of markers.entries()) {
     const curve = assetPoints[index + 1];
     assert.equal(x, curve[0]);
     assert.ok(Math.abs(y - curve[1] - (trades[index].side === "buy" ? 5 : -5)) < 1e-8);
   }
-  assert.equal((html.match(/data-anchor-series="totalAsset"/g) ?? []).length, trades.length);
+  assert.doesNotMatch(html, /data-anchor-series="totalAsset"/);
   assert.doesNotMatch(render(["price"]), /chart-trade-marker/);
 });
 
@@ -96,18 +99,18 @@ test("each selected comparison anchors its own saved trades and identity to its 
   for (const [index, comparison] of comparisons.entries()) {
     const curveGroup = html.match(new RegExp(`<g class="comparison-overlay-series" data-result-id="${comparison.id}"[\\s\\S]*?<\\/g>`))[0];
     const curvePoints = curveGroup.match(/points="([^\"]+)"/)[1].split(" ").map(point => point.split(",").map(Number));
-    const marker = html.match(new RegExp(`<polygon(?=[^>]*data-result-id="${comparison.id}")[^>]*>`));
-    assert.ok(marker, `missing ${comparison.id} trade marker`);
-    const [x, y] = marker[0].match(/points="([^\"]+)"/)[1].split(" ")[0].split(",").map(Number);
+    const { tradeMarkerPoints } = require("../.test-output/features/results/chartTradeMarkers.js");
+    const [marker] = tradeMarkerPoints(comparison.trades, comparison.dailyAssets.map((asset, index) => ({ date: asset.date, x: curvePoints[index][0], y: curvePoints[index][1] })));
+    const [x, y] = marker.coordinates.split(" ")[0].split(",").map(Number);
     assert.equal(x, curvePoints[index + 1][0]);
     assert.ok(Math.abs(y - curvePoints[index + 1][1] - (comparison.trades[0].side === "buy" ? 5 : -5)) < 1e-8);
-    assert.match(marker[0], /data-anchor-series="totalAsset"/);
-    assert.ok(marker[0].includes(`color="${comparison.color}"`));
+    assert.match(curveGroup, new RegExp(`stroke="${comparison.color}"`));
+
   }
   const onlyA = render(comparisons.slice(0, 1), ["totalAsset"]);
   assert.match(onlyA, /data-result-id="strategy-a"/);
   assert.doesNotMatch(onlyA, /data-result-id="strategy-b"/);
-  assert.equal((onlyA.match(/class="chart-trade-marker /g) ?? []).length, 1);
+  assert.doesNotMatch(onlyA, /chart-trade-marker/);
   assert.doesNotMatch(render(comparisons, ["price"]), /chart-trade-marker/);
 });
 
@@ -159,15 +162,16 @@ test("half-height indicators retain accessible natural units without captions or
   }
 });
 
-test("asset-only comparison preserves saved trades on the visible asset curve", () => {
+test("asset-only comparison keeps its curve and hides idle trade markers", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja", dailyAssets, trades, signals: [], visibleSeriesIds: ["totalAsset"], onSeriesChange() {},
   }));
-  assert.equal((html.match(/data-anchor-series="totalAsset"/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /data-anchor-series="totalAsset"/);
+  assert.match(html, /class="overlay-series overlay-totalAsset"/);
   assert.doesNotMatch(html, /class="overlay-series overlay-price"/);
 });
 
-test("all financial charts use readable lines and saved results mark trades", () => {
+test("all financial charts use readable lines and idle charts hide saved trade markers", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja",
     dailyAssets,
@@ -179,7 +183,7 @@ test("all financial charts use readable lines and saved results mark trades", ()
 
   assert.equal((html.match(/class="result-chart"/g) ?? []).length, 2);
   assert.equal((html.match(/<polyline /g) ?? []).length, 3);
-  assert.equal((html.match(/class="chart-trade-marker /g) ?? []).length, 2);
+  assert.doesNotMatch(html, /chart-trade-marker/);
   assert.equal((html.match(/class="candlestick candlestick-/g) ?? []).length, 0);
   assert.match(html, /class="overlay-series overlay-price"/);
   assert.match(html, /class="overlay-series overlay-totalAsset"/);
@@ -452,4 +456,14 @@ test("hiding price preserves the asset chart and old snapshots cannot hide their
   assert.match(legacy, /重新运行/);
   assert.match(legacy, /<button(?=[^>]*aria-pressed="true")(?=[^>]*disabled="")[^>]*>[\s\S]*?价格/);
   assert.doesNotMatch(legacy, /overlay-series overlay-totalAsset/);
+});
+
+test("trade marker coordinates keep buy and sell directions and omit unsaved or invalid points", () => {
+  const { tradeMarkerPoints } = require("../.test-output/features/results/chartTradeMarkers.js");
+  const points = dailyAssets.map((asset, index) => ({ date: asset.date, x: index * 10, y: 100 - index * 5 }));
+  const result = tradeMarkerPoints([...trades, { ...trades[0], date: "2023-12-31" }, { ...trades[0], price: "invalid" }], points);
+  assert.equal(result.length, 2);
+  assert.equal(result[0].coordinates, "10,100 5,91 15,91");
+  assert.equal(result[1].coordinates, "20,85 15,94 25,94");
+  assert.deepEqual(result.map(item => item.trade.side), ["buy", "sell"]);
 });

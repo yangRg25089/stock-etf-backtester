@@ -174,7 +174,8 @@
     #backtest-ui-preview .chart-area { display: none; }
     #backtest-ui-preview .chart-figure.highlight-price .area-price,
     #backtest-ui-preview .chart-figure.highlight-asset .area-asset { display: block; }
-    #backtest-ui-preview .chart-figure.highlight-price .trade-marker { opacity: .2; }
+    #backtest-ui-preview .trade-marker { display: none; }
+    #backtest-ui-preview .chart-figure.inspecting-asset .trade-marker { display: block; }
 
     #backtest-ui-preview .comparison-sort { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; font: inherit; font-weight: inherit; }
     #backtest-ui-preview .comparison-sort span { color: var(--accent); }
@@ -548,10 +549,10 @@
           figure.classList.remove("highlight-price", "highlight-asset");
           if (id) figure.classList.add("highlight-" + id);
         };
-        item.addEventListener("mouseenter", () => show(item.dataset.highlight));
-        item.addEventListener("mouseleave", () => show(pinnedSeries));
-        item.addEventListener("focus", () => show(item.dataset.highlight));
-        item.addEventListener("blur", () => show(pinnedSeries));
+        item.addEventListener("mouseenter", () => { show(item.dataset.highlight); figure.classList.toggle("inspecting-asset", item.dataset.highlight === "asset"); });
+        item.addEventListener("mouseleave", () => { show(pinnedSeries); figure.classList.remove("inspecting-asset"); });
+        item.addEventListener("focus", () => { show(item.dataset.highlight); figure.classList.toggle("inspecting-asset", item.dataset.highlight === "asset"); });
+        item.addEventListener("blur", () => { show(pinnedSeries); figure.classList.remove("inspecting-asset"); });
         item.addEventListener("click", () => {
           pinnedSeries = pinnedSeries === item.dataset.highlight ? null : item.dataset.highlight;
           root.querySelectorAll("[data-highlight]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.highlight === pinnedSeries)));

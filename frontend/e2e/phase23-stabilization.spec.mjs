@@ -862,7 +862,7 @@ test("selected strategies retain their own trade markers and core curves always 
   const second = structuredClone(first);
   second.id = "strategy-ma_trend-e2e";
   second.presetId = "ma_trend";
-  second.trades = [buy(sampleDates[1], "110")];
+  second.trades = [{ ...buy(sampleDates[1], "110"), side: "sell", reason: "signal_sell" }];
   second.dailyAssets = second.dailyAssets.map((asset, index) => ({ ...asset, totalAsset: String(110 + index * 2) }));
   saved.result.strategyRuns = [first, second, ...saved.result.strategyRuns.filter(item => item.id !== first.id)];
   saved.selectedStrategyIds = [first.id];
@@ -872,24 +872,37 @@ test("selected strategies retain their own trade markers and core curves always 
 
   const secondSelection = page.locator("#result-panel-comparison").getByRole("button", { name: /移動平均トレンド（売買）/ });
   await secondSelection.click();
+  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  const firstLegend = page.locator(`.overlay-legend-item[data-result-id="${first.id}"]`);
+  const secondLegend = page.locator(`.overlay-legend-item[data-result-id="${second.id}"]`);
+  await firstLegend.hover();
   await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
-  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveCount(1);
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveCount(0);
   const firstMarkerDate = await page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"] title`).textContent();
   expect(firstMarkerDate).toContain(sampleDates[0]);
-  const firstLegend = page.locator(`.overlay-legend-item[data-result-id="${first.id}"]`);
+  await secondLegend.hover();
+  await expect(page.locator(`polygon.chart-trade-marker-sell[data-result-id="${second.id}"]`)).toHaveCount(1);
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"] title`)).toContainText(sampleDates[1]);
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(0);
   await firstLegend.hover();
-  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveAttribute("opacity", "1");
-  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveAttribute("opacity", "0.2");
+  await page.screenshot({ path: test.info().outputPath("multi-strategy-markers.png") });
   await firstLegend.click();
   await expect(firstLegend).toHaveAttribute("aria-pressed", "true");
-  await page.locator(".result-chart").first().hover();
-  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveAttribute("opacity", "0.2");
-  await page.screenshot({ path: test.info().outputPath("multi-strategy-markers.png") });
+  await page.mouse.move(0, 0);
+  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  await expect(firstLegend).toHaveClass(/is-highlighted/);
 
   await secondSelection.click();
+  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  await firstLegend.hover();
   await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
   await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveCount(0);
   await expect(firstLegend).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.move(0, 0);
+  await firstLegend.focus();
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
 
   const assetToggle = page.locator('.legend-toggle[data-series="totalAsset"]');
   const priceToggle = page.locator('.legend-toggle[data-series="price"]');
