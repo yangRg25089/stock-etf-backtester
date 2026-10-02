@@ -34,6 +34,14 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
   const dialog = page.locator(".strategy-dialog");
   await expect(dialog.getByRole("radiogroup")).toHaveCount(0);
   await expect(dialog.locator(".condition-add-select")).toHaveCount(0);
+  const sell = dialog.getByRole("switch", { name: "売却", exact: true });
+  await sell.click();
+  await expect(dialog.locator("#prototype-exit-ratio")).toHaveValue("20");
+  await expect(dialog.locator("#prototype-exit-ratio2")).toHaveValue("30");
+  await expect(dialog.locator("#prototype-exit-ratio")).toHaveAttribute("max", "100");
+  await expect(dialog.locator("#prototype-exit-ratio")).toHaveAttribute("step", "1");
+  expect((await dialog.locator("#prototype-exit-low").boundingBox()).y).toBeCloseTo((await dialog.locator("#prototype-exit-ratio").boundingBox()).y, 0);
+  await sell.click();
   const buy = dialog.getByRole("switch", { name: "買付", exact: true });
   await buy.click();
   await expect(buy).toHaveAttribute("aria-checked", "false");

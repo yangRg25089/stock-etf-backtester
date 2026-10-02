@@ -85,6 +85,15 @@ test("all permitted results fit a bounded comparison with a sticky header and re
     await scroller.locator("thead th").first().locator("button").click();
     await expect(scroller.locator("thead th").first()).toHaveAttribute("aria-sort", "ascending");
     await expect(scroller).toHaveAttribute("tabindex", "0");
+    await expect.poll(() => scroller.locator("tbody tr").evaluateAll(rows => rows.some(row =>
+      row.getAnimations().some(animation => animation.playState === "running")))).toBe(false);
+    const settledRows = await scroller.locator("tbody tr").evaluateAll(rows => rows.map(row => {
+      const bounds = row.getBoundingClientRect();
+      return { top: bounds.top, bottom: bounds.bottom };
+    }));
+    for (let index = 1; index < settledRows.length; index++) {
+      expect(settledRows[index].top).toBeGreaterThanOrEqual(settledRows[index - 1].bottom - 2);
+    }
     await page.screenshot({ path: test.info().outputPath(`many-results-${width}.png`) });
   }
 });
@@ -376,6 +385,146 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
   await expect(sell.getByLabel("指数上限", { exact: true })).toBeVisible();
   await expect(sell).toContainText("此条件使用的指数。");
   await dialog.locator(".dialog-done").click();
+});
+
+test("sell ratios display percent values, align with thresholds and submit unchanged ratios", async ({ page }) => {
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  const submitted = [];
+  await page.route("**/api/v1/config/validate", async route => {
+    submitted.push(route.request().postDataJSON().draft);
+    await route.continue();
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const runBefore = await page.locator(".run-submit-button").evaluate(node => node.outerHTML);
+  await page.locator(".strategy-card-open").click();
+  const dialog = page.locator(".strategy-dialog");
+  const sell = dialog.locator('[data-rule-side="sell"]');
+  await sell.locator(".condition-heading").getByRole("switch").click();
+  const ratio = sell.locator('input[data-parameter-key="exit.vix.ratio1"]');
+  const ratio2 = sell.locator('input[data-parameter-key="exit.vix.ratio2"]');
+  for (const tier of [1, 2]) {
+    const threshold = sell.locator(`input[data-parameter-key="exit.vix.low${tier}"]`);
+    const proportion = sell.locator(`input[data-parameter-key="exit.vix.ratio${tier}"]`);
+    expect((await threshold.boundingBox()).y).toBeCloseTo((await proportion.boundingBox()).y, 0);
+  }
+  await expect(ratio).toHaveValue("20");
+  await expect(ratio2).toHaveValue("30");
+  await expect(ratio).toHaveAttribute("min", "0");
+  await expect(ratio).toHaveAttribute("max", "100");
+  await expect(ratio).toHaveAttribute("step", "1");
+  await expect(sell.locator('.field:has(input[data-parameter-key="exit.vix.ratio1"]) .unit-label')).toHaveText("%");
+  await ratio.fill("29.005");
+  expect(await ratio.evaluate(node => node.validity.stepMismatch)).toBe(true);
+  await dialog.locator(".dialog-done").click();
+  await expect(ratio).toHaveAttribute("aria-invalid", "true");
+  await expect(ratio).toBeFocused();
+  await sell.locator(".condition-heading").getByRole("switch").click();
+  await dialog.locator(".dialog-done").click();
+  await expect(sell.locator(".condition-collapsed-errors")).toBeVisible();
+  await sell.locator(".condition-heading").getByRole("switch").click();
+  await expect(ratio).toHaveValue("29.005");
+  await ratio.fill("29");
+  expect(await ratio.evaluate(node => node.validity.valid)).toBe(true);
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
+  expect(submitted.at(-1).strategies[0].rules.sell.params["exit.vix.ratio1"]).toBe(0.29);
+  expect(submitted.at(-1).strategies[0].rules.sell.params["exit.vix.ratio2"]).toBe(0.3);
+  expect(await page.locator(".run-submit-button").evaluate(node => node.outerHTML)).toBe(runBefore);
+  await page.getByRole("button", { name: "中文" }).click();
+  await page.locator(".strategy-card-open").click();
+  await expect(ratio).toHaveValue("29");
+  await expect(ratio).toHaveAccessibleName("卖出比例 1");
+  await page.setViewportSize({ width: 320, height: 760 });
+  await ratio.scrollIntoViewIfNeeded();
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(report.violations).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath("percentage-sell-settings.png") });
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
+});
+
+test("shared percentage editors preserve independent buy coverage and sell ratios", async ({ page }) => {
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  let submitted;
+  await page.route("**/api/v1/config/validate", async route => {
+    submitted = route.request().postDataJSON().draft;
+    await route.continue();
+  });
+  await page.goto("/");
+  await page.locator(".add-strategy-button").click();
+  await page.locator('[data-preset-id="pe_dca"]').click();
+  await page.locator(".strategy-card-open").last().click();
+  const dialog = page.locator(".strategy-dialog");
+  const buy = dialog.locator('[data-rule-side="buy"]');
+  const sell = dialog.locator('[data-rule-side="sell"]');
+  const buyCoverage = buy.locator('input[data-parameter-key="pe.etfMinCoverage"]');
+  await expect(buyCoverage).toHaveValue("80");
+  await buyCoverage.fill("85");
+  await sell.locator(".condition-heading").getByRole("switch").click();
+  const sellCoverage = sell.locator('input[data-parameter-key="pe.etfMinCoverage"]');
+  const sellRatio = sell.locator('input[data-parameter-key="exit.ratio"]');
+  await expect(sellCoverage).toHaveValue("80");
+  await expect(sellRatio).toHaveValue("25");
+  await sellCoverage.fill("75");
+  await sellRatio.fill("50");
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
+  const strategy = submitted.strategies.find(item => item.presetId === "pe_dca");
+  expect(strategy.rules.buy.params["pe.etfMinCoverage"]).toBe(0.85);
+  expect(strategy.rules.sell.params["pe.etfMinCoverage"]).toBe(0.75);
+  expect(strategy.rules.sell.params["exit.ratio"]).toBe(0.5);
+  await page.locator(".strategy-card-open").last().click();
+  await expect(buyCoverage).toHaveValue("85");
+  await expect(sellCoverage).toHaveValue("75");
+  await expect(sellRatio).toHaveValue("50");
+  await dialog.locator(".dialog-done").click();
+});
+
+test("exhausted condition kinds disable unusable group creation and restore after removal", async ({ page }) => {
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.goto("/");
+  const catalog = await (await page.request.get("/api/v1/catalog")).json();
+  await page.locator(".add-strategy-button").click();
+  await page.locator('[data-preset-id="composite_dca"]').click();
+  await page.locator(".strategy-card-open").last().click();
+  const dialog = page.locator(".strategy-dialog");
+  const buy = dialog.locator('[data-rule-side="buy"]');
+  const rootSelect = buy.locator(".condition-group.is-root > .condition-group-content > .condition-add > .condition-add-select");
+  for (const condition of catalog.conditions.filter(item => item.kind !== "vix")) {
+    await rootSelect.selectOption(condition.kind);
+  }
+  await expect(buy.locator(".condition-card")).toHaveCount(catalog.conditions.length);
+  await expect(rootSelect.locator('option[value="group"]')).toBeDisabled();
+  await expect(rootSelect).toBeDisabled();
+  await expect(buy).toContainText("すべて追加済み");
+  await buy.locator('.condition-card[data-condition-kind="rsi"] .condition-remove').click();
+  await expect(rootSelect).toBeEnabled();
+  await expect(rootSelect.locator('option[value="group"]')).toBeEnabled();
+  await rootSelect.selectOption("group");
+  const group = buy.locator(".condition-group:not(.is-root)");
+  await group.locator(".condition-add-select").selectOption("rsi");
+  await expect(rootSelect).toBeDisabled();
+  await expect(group.locator(".condition-add-select")).toBeDisabled();
+  const sell = dialog.locator('[data-rule-side="sell"]');
+  await sell.locator(".condition-heading").getByRole("switch").click();
+  await expect(sell.locator(".condition-add-select")).toBeEnabled();
+  await expect(sell.locator('.condition-add-select option[value="rsi"]')).toBeEnabled();
+  await sell.locator(".condition-heading").getByRole("switch").click();
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole("button", { name: "中文" }).click();
+  await page.locator(".strategy-card-open").last().click();
+  await expect(buy).toContainText("全部条件已添加");
+  await page.setViewportSize({ width: 320, height: 760 });
+  await rootSelect.scrollIntoViewIfNeeded();
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(report.violations).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath("exhausted-condition-choices.png") });
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
 });
 
 test("custom group choices reserve space for a usable child at catalog limits", async ({ page }) => {

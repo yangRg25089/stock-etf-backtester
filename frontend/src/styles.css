@@ -2820,6 +2820,7 @@ h2 {
 .search-combination-count { font-weight: 650; color: var(--app-accent); }
 @media (pointer: coarse) { .search-dimension-toggle, .search-value-card .number-list-control > .text-button { min-height: 44px; } }
 .strategy-parameter-grid[hidden], .strategy-rule-content[hidden], .condition-group-content[hidden] { display: none; }
+.strategy-rule-section[data-rule-side="sell"] .condition-card[data-condition-kind="vix"] .field:has(select[data-parameter-key="vix.symbol"]) { grid-column: 1 / -1; }
 .condition-group { min-width: 0; padding: 8px 0 8px 8px; border-left: 2px solid #b5c9bf; }
 .condition-group.is-root { padding: 0; border: 0; }
 .condition-logic-connector { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 10px 0; }

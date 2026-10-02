@@ -32,6 +32,16 @@ function inputValue(value: unknown): string {
   return value === null || value === undefined ? "" : String(value);
 }
 
+function shiftDecimal(value: unknown, places: number): string {
+  const raw = inputValue(value);
+  if (raw.trim() === "") return raw;
+  const number = Number(raw);
+  if (!Number.isFinite(number)) return raw;
+  // Shift the exponent to avoid artifacts from multiplication, such as 0.29 * 100.
+  const [coefficient, exponent = "0"] = String(number).split("e");
+  return String(Number(`${coefficient}e${Number(exponent) + places}`));
+}
+
 function inputMode(
   type: ParameterDefinition["type"],
 ): "numeric" | "decimal" | undefined {
@@ -73,7 +83,8 @@ export function ParameterField({
 }: ParameterFieldProps) {
   const fieldId = id ?? parameterFieldId(definition.key);
   const label = translate(locale, definition.translationKey);
-  const unit = definition.unit === "currency"
+  const isRatio = definition.type === "ratio";
+  const unit = isRatio ? unitLabel(locale, "percent_point") : definition.unit === "currency"
     ? currency ?? translate(locale, "unit.currency")
     : unitLabel(locale, definition.unit);
   const unmetDependencies = (respectDependencies ? definition.dependencies ?? [] : []).filter(
@@ -120,10 +131,12 @@ export function ParameterField({
   };
   const labelTargetId = definition.type === "number_list" ? `${fieldId}-0` : fieldId;
 
+  const numericBound = (bound: ParameterDefinition["minimum"]) =>
+    bound === null || bound === undefined ? undefined : isRatio ? shiftDecimal(bound, 2) : bound;
   const numericProps = {
-    min: definition.minimum ?? undefined,
-    max: definition.maximum ?? undefined,
-    step: definition.step ?? undefined,
+    min: numericBound(definition.minimum),
+    max: numericBound(definition.maximum),
+    step: numericBound(definition.step),
     inputMode: inputMode(definition.type),
   };
 
@@ -257,12 +270,12 @@ export function ParameterField({
           {...(isInteger || (!isDate && !isSymbol) ? numericProps : {})}
           className={`input${unit ? " input-with-unit" : ""}`}
           type={isDate ? "date" : isSymbol ? "text" : "number"}
-          value={inputValue(value)}
+          value={isRatio ? shiftDecimal(value, 2) : inputValue(value)}
           required={required ?? (definition.nullable !== true)}
           placeholder={placeholder}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const raw = event.target.value;
-            onChange(raw === "" ? null : isDate || isSymbol ? raw : Number(raw));
+            onChange(raw === "" ? null : isDate || isSymbol ? raw : Number(isRatio ? shiftDecimal(raw, -2) : raw));
           }}
         />
         {unit && hasVisibleUnit && <span className="unit-label" id={unitId ?? undefined}>{unit}</span>}

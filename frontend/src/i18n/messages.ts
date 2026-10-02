@@ -73,7 +73,7 @@ const parameterMessages: Record<string, Record<string, string>> = {
     "parameterGroups.display": "表示設定",
     "parameterDescriptions.accumulation.conditionLogic": "有効な買付シグナルをすべて満たすか、いずれかを満たすかを選びます。",
     "parameterDescriptions.vix.symbol": "この条件で使う指数。",
-    "parameterDescriptions.rate.sourceUnit": "提供元の数値を百分率、小数、基点のどの形式として読むか指定します。自動判定できない場合は単位を明示してください。",
+    "parameterDescriptions.rate.sourceUnit": "通常は自動判定。判定できない場合は提供元の単位を選択。",
     "parameterDescriptions.scheduled.fundingMode": "毎月の計画入金か、計画総額を初日に投資する方式かを選びます。",
     "parameterDescriptions.search.dimensions": "比較する数値パラメーターを選びます。候補値はグリッド検索の設定で指定します。",
     "presets.vix_dca.name": "ボラティリティ積立",
@@ -114,6 +114,7 @@ const parameterMessages: Record<string, Record<string, string>> = {
     "conditions.empty": "条件なし",
     "conditions.sellThreshold": "売却閾値（≥）",
     "conditions.limit": "条件数・階層の上限です。",
+    "conditions.allAdded": "すべて追加済み",
   },
   zh: {
     "parameters.run.symbol": "标的代码",
@@ -187,7 +188,7 @@ const parameterMessages: Record<string, Record<string, string>> = {
     "parameterGroups.display": "显示设置",
     "parameterDescriptions.accumulation.conditionLogic": "选择启用的买入信号需要全部满足，还是满足任意一个即可。",
     "parameterDescriptions.vix.symbol": "此条件使用的指数。",
-    "parameterDescriptions.rate.sourceUnit": "百分数、小数或基点；自动识别失败时手动指定：百分数、小数或基点。无法自动判断时请明确选择单位。",
+    "parameterDescriptions.rate.sourceUnit": "通常自动识别；无法判断时选择来源单位。",
     "parameterDescriptions.scheduled.fundingMode": "选择按月投入，或在首日投入计划总额。",
     "parameterDescriptions.search.dimensions": "选择要比较的数值参数；各候选值在网格搜索设置中配置。",
     "presets.vix_dca.name": "波动率信号定投",
@@ -228,6 +229,7 @@ const parameterMessages: Record<string, Record<string, string>> = {
     "conditions.empty": "尚无条件",
     "conditions.sellThreshold": "卖出阈值（≥）",
     "conditions.limit": "已达到条件数量或层级上限。",
+    "conditions.allAdded": "全部条件已添加",
   },
 };
 

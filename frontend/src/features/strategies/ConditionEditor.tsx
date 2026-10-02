@@ -114,8 +114,9 @@ function ConditionNodeEditor(props: NodeProps) {
 
   const children = node.children ?? [];
   const maxDepth = catalog.conditionLimits?.maxDepth ?? Infinity;
+  const hasAvailableKind = (catalog.conditions ?? []).some(item => !props.usedKinds.has(item.kind));
   const canAdd = remaining > 0 && depth < maxDepth && !disabled;
-  const canAddGroup = canAdd && remaining > 1 && depth + 1 < maxDepth;
+  const canAddGroup = canAdd && hasAvailableKind && remaining > 1 && depth + 1 < maxDepth;
   return <section className={`condition-group${root ? " is-root" : ""}${disabled ? " is-disabled" : ""}`} data-condition-id={node.id}>
     {!root && <header className="condition-card-heading">
       <h4>{translate(locale, "conditions.group")}</h4>
@@ -136,10 +137,11 @@ function ConditionNodeEditor(props: NodeProps) {
       {children.length === 0 && <p className="condition-empty">{translate(locale, "conditions.empty")}</p>}
       {custom && <div className="condition-add">
         <label className="sr-only" htmlFor={`condition-add-${node.id}`}>{translate(locale, "conditions.add")}</label>
-        <select id={`condition-add-${node.id}`} className="input condition-add-select" value="" disabled={!canAdd}
+        <select id={`condition-add-${node.id}`} className="input condition-add-select" value="" disabled={!canAdd || !hasAvailableKind}
+          title={!hasAvailableKind ? translate(locale, "conditions.allAdded") : undefined}
           onChange={event => {
             const value = event.target.value;
-            if (!canAdd || !value || (value === "group" ? !canAddGroup : props.usedKinds.has(value as ConditionKind))) return;
+            if (!canAdd || !hasAvailableKind || !value || (value === "group" ? !canAddGroup : props.usedKinds.has(value as ConditionKind))) return;
             const id = `${side}-${value}-${crypto.randomUUID()}`;
             const child: ConditionNode = value === "group"
               ? { type: "group", id, enabled: true, operator: "AND", children: [] }
@@ -151,6 +153,7 @@ function ConditionNodeEditor(props: NodeProps) {
           <option value="group" disabled={!canAddGroup}>{translate(locale, "conditions.group")}</option>
         </select>
         {!canAdd && !disabled && <span className="field-hint">{translate(locale, "conditions.limit")}</span>}
+        {canAdd && !hasAvailableKind && root && <span className="field-hint">{translate(locale, "conditions.allAdded")}</span>}
       </div>}
     </div>
   </section>;

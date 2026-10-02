@@ -133,7 +133,7 @@ test("strategy parameters follow catalog groups and select controls explain thei
   assert.match(ja, /百分率の数値（例：5 = 5%）/);
   assert.match(zh, /布林带/);
   assert.match(zh, /data-rule-side="sell"/);
-  assert.match(zh, /百分数、小数或基点；自动识别失败时手动指定/);
+  assert.match(zh, /通常自动识别；无法判断时选择来源单位。/);
 });
 
 test("turning off VIX shows the required disabled copy and preserves the preset id", () => {
