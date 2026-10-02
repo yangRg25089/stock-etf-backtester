@@ -746,3 +746,38 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 追加 Chromium 触屏输入的弹窗顶部/底部拖动检查，背景位置与 overscroll 锁定通过，关闭恢复；初次用例未从移动结果页切换到设置页导致找不到入口，校正操作后 1 passed（1.4 秒），未改变产品行为。
 - 最终完整 Playwright 96 passed（2.5 分钟，`/tmp/backtester-phase27-browser-final.log`）；179 项前端单测、typecheck、零警告 lint、build、diff check 通过。后端 404 项（含真实 Yahoo QQQ/VIX 和技术指标）及 Ruff/mypy 通过，后端代码和账本口径未改。桌面联动图、完整边界买卖点、双语 320px MA/自定义/搜索弹窗逐张复看，最终发现扫查没有新的已确认中高问题。
 - 简化删除 info 专用函数/插槽/词典/样式和焦点背景传参；上限按 catalog groupId 归类，三块结构共用既有条件组件；标记只加可见区间过滤，不新增算法、依赖或全局状态。规范、原型和开发说明同步；Task 109–113 本地功能/验收完成，Task 102/检查点 W 仍仅保留此前自动审批拒绝的指定远端目标核实，未绕过拒绝或重试。用户 RV 原稿未修改/未暂存。
+
+## 阶段 28：自主审计与生命周期稳定化
+
+- [x] Task 114：完成现有功能基线和连续操作审计，记录可复现缺陷。
+- [x] Task 115：按根因逐项完成失败回归、最小修复、复审与简化。
+- [x] Task 116：全画面/策略弹窗再审与集成验收。
+
+### 基线（2026-10-02）
+
+- 前端 `npm test`：179 passed；typecheck、零警告 lint、build 通过（`/tmp/backtester-phase28-unit-baseline.log`）。
+- 完整 `npm run test:e2e`：96 passed，2.5 分钟（`/tmp/backtester-phase28-browser-baseline.log`）。
+- 后端独立临时 SQLite 全量 pytest：404 passed，23.80 秒；包含真实 QQQ/VIX/技术指标门禁，15 条既有 yfinance 弃用提示（`/tmp/backtester-phase28-backend-baseline.log`）。
+- 审计工作树仅有用户原稿 `docs/design/2026102_rv.md` 未跟踪，保持不修改/不暂存。当前会话持续审计；定期运行偏好待用户可选回复，不创建隐含日程。
+
+### 发现记录
+
+| ID | 区域 / 严重性 / 状态 | 复现、根因与回归 |
+| --- | --- | --- |
+| P28-01 | 运行生命周期 / 高 / 已关闭 | 将旧任务 stop 的 HTTP 响应延后，让 SSE 终态和完整 GET 先完成；随后重跑并选中曲线、开始新任务或清空结果，再释放旧成功/错误响应。三项浏览器检查先失败：新结果变成两条 cancelled、旧错误出现在新任务、清空后旧表重新出现（`/tmp/backtester-phase28-stop-red.log`）。`handleStop` 未传取消信号、未检查请求所属 runId/控制器；最小修复绑定当前请求身份，晚到成功/错误不得改变新结果、选择、错误或运行锁。 |
+| P28-02 | 进度接口 / 中 / 已关闭 | 以 CRLF、CR、混合合法行尾发送两条进度/终态事件，逐字节拆包，三项 API 测试都报 connection_failed，而 LF 对照成功（`/tmp/backtester-phase28-events-red.log`）。分帧只搜索 LF 空行，归一化放在分帧之后，识别不到终态。分帧前归一化，覆盖合法行尾、CR/LF 跨包、浏览器终态及完整结果只 GET 一次。 |
+| P28-03 | 订阅释放 / 低 / 已关闭 | 发送终态但保持响应体未关闭，订阅返回却未调用 cancel；单测 `false !== true`。旧 finally 只取消非终态 reader；统一释放响应体与 reader，终态/异常/取消行为通过。 |
+| P28-04 | 停止重试 / 中 / 已关闭 | 同一任务停止首次返回 503，页面保留错误并允许再停止；第二次停止成功、SSE 和完整终态到达后，旧连接错误仍显示。浏览器断言 0 个 alert 实际 1 个（`/tmp/backtester-phase28-stop-retry-red.log`）。成功分支没有释放旧请求错误；仅在仍属于当前任务的停止成功响应后清除，业务诊断仍读取保存结果。失败可见、重新停止、终态清理及旧响应隔离专项通过。 |
+
+- P28-01 最小修复后，三项新增专项及旧停止保留结果专项共 4 passed（7.1 秒，`/tmp/backtester-phase28-stop-green.log`）。绑定现有 runId/AbortController，不增加状态 store；等待阶段的停止请求继续在取得 runId 后提交。
+- P28-02 的 CRLF 浏览器回归先失败：完整结果读取 0 次、显示连接失败（`/tmp/backtester-phase28-events-browser-red.log`）。换行修复后 API 测试 183 passed、仅 P28-03 仍失败；释放响应体后 186 passed，类型/lint/build 通过。停止/候选/导出及 CRLF 浏览器专项共 9 passed（15.6 秒，`/tmp/backtester-phase28-lifecycle-green.log`）；验证提交、订阅、终态 GET 各一次。
+- 最后加入停止失败的正向验证，防止过期响应保护吞掉当前错误：五项生命周期专项全部通过（`/tmp/backtester-phase28-lifecycle-verified.log`）。复审确认没有新增 store、业务算法或请求轮询；简化移除分帧后的重复换行替换，沿用现有取消控制器和状态；用户指定删除项的活动源码无残留。任务级门禁与最后发现扫查继续执行。
+
+### 阶段 28 最终验收
+
+- 前端 `npm test` 186 passed，typecheck、零警告 lint、build、`git diff --check` 通过（`/tmp/backtester-phase28-unit-final.log`）。七项新增 API 回归和五项新增浏览器回归，无跳过、弱化断言或 suppression。
+- 完整 `npm run test:e2e` 101 passed，2.7 分钟（`/tmp/backtester-phase28-browser-final.log`）。覆盖空态、计算/等待、成功/警告、数据不可用、失败、停止、重跑/重置、草稿隔离、浏览器恢复、搜索候选/CSV、曲线多选/买卖点/技术指标、联动缩放/十字线及图例显隐。
+- 双语、320/768/1024/1920px、键盘/触屏、100/125/150% 原生缩放、axe 及既有控制台检查保持。逐张复看紧凑自定义弹窗、中文仅买入均线、日文搜索/长候选、1024px 长比较表、多策略技术指标和晚到停止后的新结果截图；最后发现扫查无新增已确认中等及以上缺陷。
+- 后端独立临时 SQLite 全量 pytest 404 passed，26.83 秒，包含真实 Yahoo QQQ/VIX/VXN/VXD 和技术指标；15 条既有 yfinance 弃用提示。Ruff check、95 文件格式、mypy 59 文件通过（`/tmp/backtester-phase28-backend-final.log`）。后端、交易算法、参数目录和公开 API 结构未改。
+- 复审覆盖取消/终态/重置身份、当前失败仍可见、重试清理、LF/CRLF/CR 和 UTF-8 跨包、异常 EOF、终态响应体释放及单次完整 GET；改动保持运行编排与 API 传输的既有边界。简化删除重复换行替换，不新增 store/依赖/轮询；规范与开发说明同步，视觉原型无行为改变无需修改。
+- 本轮 Task 114–116 本地完成，保留可回滚 feature 提交。用户 RV 原稿保持未跟踪且不暂存，个人服务/运行库未改。待办剩余仍仅为 Task 102/检查点 W 的远端核实：此前自动审批拒绝未确认的指定 GitHub 目标，未重试或绕过；本轮不创建隐含日程。

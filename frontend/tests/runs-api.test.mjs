@@ -175,6 +175,82 @@ test("run event subscription is cancelled with its AbortSignal", async () => {
   }
 });
 
+for (const [name, endings] of [
+  ["LF", ["\n"]],
+  ["CRLF", ["\r\n"]],
+  ["CR", ["\r"]],
+  ["mixed", ["\r\n", "\r", "\n"]],
+]) {
+  test(`run events accept ${name} line endings across byte boundaries`, async () => {
+    const originalFetch = globalThis.fetch;
+    const events = [
+      { runId: "line-endings", status: "running", progress: null, strategyStatuses: { "策略😀": "running" } },
+      { runId: "line-endings", status: "completed", progress: null, strategyStatuses: { "策略😀": "completed" } },
+    ];
+    let line = 0;
+    const nextEnding = () => endings[line++ % endings.length];
+    const body = events.map((event, index) =>
+      `: keep-alive${nextEnding()}event: ${index ? "terminal" : "progress"}${nextEnding()}data: ${JSON.stringify(event)}${nextEnding()}${nextEnding()}`).join("");
+    globalThis.fetch = async () => new Response(new ReadableStream({
+      start(controller) {
+        for (const byte of new TextEncoder().encode(body)) controller.enqueue(Uint8Array.of(byte));
+        controller.close();
+      },
+    }), { headers: { "Content-Type": "text/event-stream" } });
+    try {
+      const received = [];
+      await subscribeToRunEvents("line-endings", event => received.push(event));
+      assert.deepEqual(received, events);
+    } finally { globalThis.fetch = originalFetch; }
+  });
+}
+
+test("a terminal event closes its subscription even if the server keeps the body open", async () => {
+  const originalFetch = globalThis.fetch;
+  const event = { runId: "open-terminal", status: "completed", progress: null, strategyStatuses: {} };
+  let cancelled = false;
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(`event: terminal\ndata: ${JSON.stringify(event)}\n\n`));
+    },
+    cancel() { cancelled = true; },
+  }), { headers: { "Content-Type": "text/event-stream" } });
+  try {
+    const received = [];
+    await subscribeToRunEvents(event.runId, value => received.push(value));
+    assert.deepEqual(received, [event]);
+    assert.equal(cancelled, true);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("an interrupted stream retains delivered progress and reports a connection failure", async () => {
+  const originalFetch = globalThis.fetch;
+  const event = { runId: "interrupted", status: "running", progress: null, strategyStatuses: {} };
+  globalThis.fetch = async () => new Response(`event: progress\ndata: ${JSON.stringify(event)}\n\n`, {
+    headers: { "Content-Type": "text/event-stream" },
+  });
+  try {
+    const received = [];
+    await assert.rejects(subscribeToRunEvents(event.runId, value => received.push(value)),
+      error => error instanceof RunApiError && error.messageKey === "api.errors.connection_failed");
+    assert.deepEqual(received, [event]);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("an incomplete terminal frame cannot fabricate a completed run", async () => {
+  const originalFetch = globalThis.fetch;
+  const event = { runId: "incomplete", status: "completed", progress: null, strategyStatuses: {} };
+  globalThis.fetch = async () => new Response(`event: terminal\r\ndata: ${JSON.stringify(event)}\r\n`, {
+    headers: { "Content-Type": "text/event-stream" },
+  });
+  try {
+    const received = [];
+    await assert.rejects(subscribeToRunEvents(event.runId, value => received.push(value)),
+      error => error instanceof RunApiError && error.messageKey === "api.errors.connection_failed");
+    assert.deepEqual(received, []);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test("invalid progress summaries are rejected before reaching result state", async () => {
   const original = globalThis.fetch;
   const delivered = [];

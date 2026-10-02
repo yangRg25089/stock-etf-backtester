@@ -202,16 +202,23 @@ export async function subscribeToRunEvents(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let previousChunkEndedWithCR = false;
   let terminalReceived = false;
   let streamEnded = false;
   try {
     while (!streamEnded) {
       const chunk = await reader.read();
       streamEnded = chunk.done;
-      buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+      const text = decoder.decode(chunk.value, { stream: !chunk.done });
+      if (text) {
+        // CR is a complete line ending; consume a following LF only once, including across chunks.
+        const continuation = previousChunkEndedWithCR && text.startsWith("\n") ? text.slice(1) : text;
+        buffer += continuation.replace(/\r\n?/g, "\n");
+        previousChunkEndedWithCR = text.endsWith("\r");
+      }
       let separator = buffer.indexOf("\n\n");
       while (separator >= 0) {
-        const frame = buffer.slice(0, separator).replaceAll("\r\n", "\n");
+        const frame = buffer.slice(0, separator);
         buffer = buffer.slice(separator + 2);
         const lines = frame.split("\n");
         const eventName = lines.find((line) => line.startsWith("event:"))
@@ -244,7 +251,7 @@ export async function subscribeToRunEvents(
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     throw error instanceof RunApiError ? error : fallbackError(null);
   } finally {
-    if (!terminalReceived) await reader.cancel().catch(() => undefined);
+    await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 

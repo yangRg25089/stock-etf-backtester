@@ -87,6 +87,8 @@ npm run test:e2e
 
 E2E 包含隔离 Chromium 临时 profile 的原生 `tabs.setZoom/getZoom` 100%/125%/150% 检查，不读取或修改个人 Chrome。E2E 会自行启动本机 fixture API 和 Vite 临时进程，结束后应释放端口；fixture API 和 OpenAPI 类型生成子进程在导入应用前将默认 RunStore 指向 `:memory:`，避免触碰个人运行库或被其他服务的 SQLite 锁阻断。不要把 E2E 临时服务当作平时启动的 API。
 
+运行生命周期专项：`npm run test:e2e -- e2e/phase28-lifecycle.spec.mjs`。它用已计算的 fixture 结果及可控响应顺序，验证旧停止响应/错误不会覆盖重跑或重置、当前停止失败可以重试、合法 CRLF 进度流只读取一次完整终态结果。API 单测另覆盖逐字节 UTF-8/换行、响应体释放和异常 EOF；这些时序检查不替代后端真实行情门禁。
+
 后端全量 `pytest` 包含 `tests/runs/test_yahoo_data_live.py`，需要外网访问 Yahoo 和 Yahoo Finance 的交易所元数据。该回归检查真实 QQQ 和所选波动率指数的日期、来源、信号可用状态及完整 API 运行结果，不断言实时行情数值；网络或 Yahoo 服务不可用时全量 pytest 会失败。纯账本、信号边界和 fixture API 测试仍保持确定性。
 
 ## 显式 live smoke

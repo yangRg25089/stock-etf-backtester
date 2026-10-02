@@ -201,11 +201,18 @@ export function useRunController(
     if (!runBusy || stopRequested.current) return;
     stopRequested.current = true;
     setStopping(true);
-    if (!activeRunId.current) return;
+    const runId = activeRunId.current;
+    const controller = activeRunController.current;
+    if (!runId || !controller) return;
+    const isCurrentRun = () => activeRunId.current === runId
+      && activeRunController.current === controller && !controller.signal.aborted;
     try {
-      const response = await stopRun(activeRunId.current);
+      const response = await stopRun(runId, controller.signal);
+      if (!isCurrentRun()) return;
+      setRunError(null);
       dispatch({ type: "run.update", value: response });
     } catch (error) {
+      if (!isCurrentRun()) return;
       stopRequested.current = false;
       setStopping(false);
       setRunError(asRunApiError(error));
