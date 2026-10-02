@@ -527,6 +527,45 @@ test("exhausted condition kinds disable unusable group creation and restore afte
   await expect(dialog).toBeHidden();
 });
 
+test("keyboard condition deletion restores focus within its surviving group", async ({ page }) => {
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.goto("/");
+  await page.locator(".add-strategy-button").click();
+  await page.locator('[data-preset-id="composite_dca"]').click();
+  await page.locator(".strategy-card-open").last().click();
+  const dialog = page.locator(".strategy-dialog");
+  const buy = dialog.locator('[data-rule-side="buy"]');
+  const rootSelect = buy.locator(".condition-group.is-root > .condition-group-content > .condition-add > .condition-add-select");
+  await rootSelect.selectOption("rsi");
+  await buy.locator('[data-condition-kind="rsi"] .condition-remove').focus();
+  await page.keyboard.press("Enter");
+  await expect(buy.locator('[data-condition-kind="rsi"]')).toHaveCount(0);
+  await expect(rootSelect).toBeFocused();
+  await rootSelect.selectOption("group");
+  const group = buy.locator(".condition-group:not(.is-root)");
+  const groupSelect = group.locator(".condition-add-select");
+  await groupSelect.selectOption("rsi");
+  await group.locator('[data-condition-kind="rsi"] .condition-remove').focus();
+  await page.keyboard.press("Enter");
+  await expect(groupSelect).toBeFocused();
+  await group.locator(":scope > .condition-card-heading .condition-remove").focus();
+  await page.keyboard.press("Enter");
+  await expect(group).toHaveCount(0);
+  await expect(rootSelect).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 760 });
+  await rootSelect.selectOption("rsi");
+  await buy.locator('[data-condition-kind="rsi"] .condition-remove').focus();
+  await page.keyboard.press("Enter");
+  await expect(rootSelect).toBeFocused();
+  await expect(rootSelect).toBeInViewport();
+  await rootSelect.selectOption("rsi");
+  await buy.locator('[data-condition-kind="rsi"] .condition-remove').click();
+  await expect(buy.locator('[data-condition-kind="rsi"]')).toHaveCount(0);
+  await expect(rootSelect).not.toBeFocused();
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
+});
+
 test("custom group choices reserve space for a usable child at catalog limits", async ({ page }) => {
   let maxNodes;
   const countNodes = node => !node ? 0 : 1 + (node.children ?? []).reduce((sum, child) => sum + countNodes(child), 0);

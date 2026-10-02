@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { Catalog, ConditionGroup, ConditionKind, Diagnostic, StrategyRules } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
@@ -28,7 +29,7 @@ interface NodeProps extends Omit<ConditionEditorProps, "rules" | "onChange"> {
   usedKinds: ReadonlySet<ConditionKind>;
   root?: boolean;
   onChange(node: ConditionNode): void;
-  onRemove?(): void;
+  onRemove?(restoreFocus: boolean): void;
 }
 
 function subtreeIds(node: ConditionNode): string[] {
@@ -53,9 +54,9 @@ function CollapsedConditionErrors({ node, errors, catalog, locale }: {
   </div>;
 }
 
-function DeleteCondition({ locale, onRemove, disabled }: { locale: Locale; onRemove(): void; disabled: boolean }) {
+function DeleteCondition({ locale, onRemove, disabled }: { locale: Locale; onRemove(restoreFocus: boolean): void; disabled: boolean }) {
   return <button type="button" className="icon-button condition-remove" disabled={disabled}
-    aria-label={translate(locale, "conditions.remove")} title={translate(locale, "conditions.remove")} onClick={onRemove}>
+    aria-label={translate(locale, "conditions.remove")} title={translate(locale, "conditions.remove")} onClick={event => onRemove(event.detail === 0)}>
     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" /></svg>
   </button>;
 }
@@ -77,6 +78,13 @@ function LogicConnector({ node, index, locale, disabled, onChange }: { node: Con
 
 function ConditionNodeEditor(props: NodeProps) {
   const { node, side, depth, root, catalog, strategyId, locale, custom, fixedTrend, errors, remaining, onChange, onRemove } = props;
+  const addSelectRef = useRef<HTMLSelectElement>(null);
+  const restoreAddFocusRef = useRef(false);
+  useEffect(() => {
+    if (!restoreAddFocusRef.current) return;
+    restoreAddFocusRef.current = false;
+    if (addSelectRef.current && !addSelectRef.current.disabled) addSelectRef.current.focus();
+  }, [node]);
   const disabled = props.disabled || node.enabled === false;
   const nodeErrors = errors.filter(error => {
     const details = error.details as Record<string, unknown> | undefined;
@@ -132,12 +140,15 @@ function ConditionNodeEditor(props: NodeProps) {
         {index > 0 && <LogicConnector node={node} index={index} locale={locale} disabled={disabled} onChange={onChange} />}
         <ConditionNodeEditor {...props} node={child} depth={depth + 1} root={false} disabled={disabled}
           onChange={changed => onChange({ ...node, children: children.map(item => item.id === child.id ? changed : item) })}
-          onRemove={custom ? () => onChange({ ...node, children: children.filter(item => item.id !== child.id) }) : undefined} />
+          onRemove={custom ? restoreFocus => {
+            restoreAddFocusRef.current = restoreFocus;
+            onChange({ ...node, children: children.filter(item => item.id !== child.id) });
+          } : undefined} />
       </div>)}
       {children.length === 0 && <p className="condition-empty">{translate(locale, "conditions.empty")}</p>}
       {custom && <div className="condition-add">
         <label className="sr-only" htmlFor={`condition-add-${node.id}`}>{translate(locale, "conditions.add")}</label>
-        <select id={`condition-add-${node.id}`} className="input condition-add-select" value="" disabled={!canAdd || !hasAvailableKind}
+        <select ref={addSelectRef} id={`condition-add-${node.id}`} className="input condition-add-select" value="" disabled={!canAdd || !hasAvailableKind}
           title={!hasAvailableKind ? translate(locale, "conditions.allAdded") : undefined}
           onChange={event => {
             const value = event.target.value;
