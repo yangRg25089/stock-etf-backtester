@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CatalogApiError, fetchCatalog } from "./api/catalog";
-import type { Catalog, Diagnostic, StrategyPresetId, StrategyStatus } from "./api/generated";
+import type { Catalog, Diagnostic, RunResponse, StrategyPresetId } from "./api/generated";
 import {
   createIdempotencyKey,
   fetchRun,
@@ -17,6 +17,7 @@ import { SharedSettingsDialog } from "./features/config/SharedSettingsDialog";
 import { SHARED_FIELD_KEYS } from "./features/config/SharedSettingsForm";
 import { RunActions } from "./features/runs/RunActions";
 import { readDismissedRunId, rememberDismissedRun } from "./features/runs/resultVisibility";
+import { isTerminalRunStatus, readCachedRun, saveCachedRun } from "./features/runs/runPersistence";
 import { DiagnosticList, type DiagnosticFieldAction } from "./features/runs/DiagnosticList";
 import { ResultViewer } from "./features/results/ResultViewer";
 import {
@@ -28,6 +29,7 @@ import {
   type WorkspaceAction,
   type WorkspaceState,
 } from "./features/strategies/model";
+import { restoreWorkspaceState, saveWorkspaceDraft } from "./features/strategies/workspacePersistence";
 import {
   StrategyNavigator,
   type StrategyFieldNavigation,
@@ -56,11 +58,6 @@ function asRunApiError(error: unknown): RunApiError {
   }]);
 }
 
-function isTerminal(status: StrategyStatus): boolean {
-  return status === "completed" || status === "completed_with_warning" ||
-    status === "unavailable" || status === "failed" || status === "cancelled";
-}
-
 function validationDiagnostics(
   response: Awaited<ReturnType<typeof validateDraft>>,
 ): Diagnostic[] {
@@ -78,6 +75,7 @@ function App() {
   const [validationState, setValidationState] = useState<ValidationState | null>(null);
   const [runError, setRunError] = useState<RunApiError | null>(null);
   const [runBusy, setRunBusy] = useState(false);
+  const [browserSaveFailed, setBrowserSaveFailed] = useState(false);
   const [stopping, setStopping] = useState(false);
   const stopRequested = useRef(false);
   const activeRunId = useRef<string | null>(null);
@@ -141,8 +139,24 @@ function App() {
 
   useEffect(() => {
     if (!catalog) return;
-    setWorkspace((current) => current ?? createInitialWorkspaceState(catalog));
+    const restored = restoreWorkspaceState(catalog);
+    strategySequence.current = restored.nextStrategySequence;
+    setWorkspace((current) => current ?? restored.state);
   }, [catalog]);
+
+  const draft = workspace?.draft;
+  const activeStrategyId = workspace?.activeStrategyId;
+  const nextCustomNumber = workspace?.nextCustomNumber;
+  useEffect(() => {
+    if (!draft || activeStrategyId === undefined || nextCustomNumber === undefined) return;
+    if (!saveWorkspaceDraft({ draft, activeStrategyId, nextCustomNumber }, strategySequence.current)) setBrowserSaveFailed(true);
+  }, [draft, activeStrategyId, nextCustomNumber]);
+
+  const persistRun = useCallback((response: RunResponse, signal: AbortSignal) => {
+    void saveCachedRun(response).then(saved => {
+      if (!signal.aborted && !saved) setBrowserSaveFailed(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (!catalog) return;
@@ -151,17 +165,19 @@ function App() {
 
     const restoreLatestRun = async () => {
       try {
-        let response = await fetchLatestRun(controller.signal);
-        if (!response || submittedRunRef.current || response.runId === readDismissedRunId()) return;
-
         const restore = (value: Awaited<ReturnType<typeof fetchLatestRun>>) => {
-          if (!value || submittedRunRef.current) return;
+          if (!value || controller.signal.aborted || submittedRunRef.current || value.runId === readDismissedRunId()) return;
           setWorkspace((current) => {
             if (submittedRunRef.current) return current;
             const base = current ?? createInitialWorkspaceState(catalog);
             return workspaceReducer(base, { type: "run.update", value }, catalog);
           });
         };
+
+        restore(await readCachedRun());
+        if (controller.signal.aborted || submittedRunRef.current) return;
+        let response = await fetchLatestRun(controller.signal);
+        if (!response || submittedRunRef.current || response.runId === readDismissedRunId()) return;
 
         const restoreProgress = (value: RunProgressEvent) => {
           if (submittedRunRef.current) return;
@@ -172,7 +188,7 @@ function App() {
         };
 
         restore(response);
-        if (isTerminal(response.status)) return;
+        if (isTerminalRunStatus(response.status)) { persistRun(response, controller.signal); return; }
 
         activeRunId.current = response.runId;
         runSubmissionLocked.current = true;
@@ -181,6 +197,7 @@ function App() {
         if (submittedRunRef.current) return;
         response = await fetchRun(response.runId, controller.signal);
         restore(response);
+        persistRun(response, controller.signal);
       } catch (error) {
         if (!controller.signal.aborted && !submittedRunRef.current) {
           setRunError(asRunApiError(error));
@@ -201,7 +218,7 @@ function App() {
       controller.abort();
       if (activeRunController.current === controller) activeRunController.current = null;
     };
-  }, [catalog]);
+  }, [catalog, persistRun]);
 
   useEffect(() => () => {
     activeRunController.current?.abort();
@@ -267,6 +284,7 @@ function App() {
       );
       const completed = await fetchRun(accepted.runId, controller.signal);
       dispatch({ type: "run.update", value: completed });
+      persistRun(completed, controller.signal);
     } catch (error) {
       if (controller.signal.aborted) return;
       setRunError(asRunApiError(error));
@@ -395,6 +413,7 @@ function App() {
 
       <main id="main-content" className="main-content workbench-main">
         <div className="workbench-context">
+          {browserSaveFailed && <p className="field-error" role="status">{translate(locale, "storage.saveFailed")}</p>}
           {catalogState.status === "loading" && (
             <div className="catalog-notice" role="status" aria-live="polite">
               <span className="loading-indicator" aria-hidden="true" />

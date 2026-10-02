@@ -58,6 +58,7 @@ export function ResultViewer({ locale, state, dispatch, error, busy = false }: R
         label: resultDisplayName(locale, result, strategyRuns),
         color: resultColor(index),
         dailyAssets: result.dailyAssets,
+        trades: result.trades ?? [],
       }];
     });
   const focusedIndex = chartResult ? strategyRuns.findIndex((result) => result.id === (candidateResult ? focusedResult?.id : chartResult.id)) : -1;
@@ -97,6 +98,7 @@ export function ResultViewer({ locale, state, dispatch, error, busy = false }: R
               signals={volatility[0]?.signals ?? []}
               volatilitySeries={volatility}
               totalAssetLabel={resultDisplayName(locale, candidateResult && focusedResult ? focusedResult : chartResult, strategyRuns)}
+              totalAssetResultId={chartResult.id}
               showFocusedAsset={Boolean(candidateResult) || selectedIds.includes(chartResult.id)}
               comparisonSeries={selectedComparisons}
               totalAssetColor={focusedIndex >= 0 ? resultColor(focusedIndex) : undefined}

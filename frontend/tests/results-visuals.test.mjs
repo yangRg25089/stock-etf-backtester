@@ -83,6 +83,34 @@ test("trades anchor to the contributed-capital asset curve even when price is vi
   assert.doesNotMatch(render(["price"]), /chart-trade-marker/);
 });
 
+test("each selected comparison anchors its own saved trades and identity to its own curve", () => {
+  const comparisons = [
+    { id: "strategy-a", label: "策略 A", color: "#9360bd", dailyAssets, trades: [trades[0]] },
+    { id: "strategy-b", label: "策略 B", color: "#9a541d", dailyAssets: dailyAssets.map(asset => ({ ...asset, totalAsset: String(Number(asset.totalAsset) * 1.2) })), trades: [trades[1]] },
+  ];
+  const render = (series, ids) => renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh", dailyAssets, trades, signals: [], comparisonSeries: series, showFocusedAsset: false,
+    visibleSeriesIds: ids, onSeriesChange() {},
+  }));
+  const html = render(comparisons, ["price", "totalAsset"]);
+  for (const [index, comparison] of comparisons.entries()) {
+    const curveGroup = html.match(new RegExp(`<g class="comparison-overlay-series" data-result-id="${comparison.id}"[\\s\\S]*?<\\/g>`))[0];
+    const curvePoints = curveGroup.match(/points="([^\"]+)"/)[1].split(" ").map(point => point.split(",").map(Number));
+    const marker = html.match(new RegExp(`<polygon(?=[^>]*data-result-id="${comparison.id}")[^>]*>`));
+    assert.ok(marker, `missing ${comparison.id} trade marker`);
+    const [x, y] = marker[0].match(/points="([^\"]+)"/)[1].split(" ")[0].split(",").map(Number);
+    assert.equal(x, curvePoints[index + 1][0]);
+    assert.ok(Math.abs(y - curvePoints[index + 1][1] - (comparison.trades[0].side === "buy" ? 5 : -5)) < 1e-8);
+    assert.match(marker[0], /data-anchor-series="totalAsset"/);
+    assert.ok(marker[0].includes(`color="${comparison.color}"`));
+  }
+  const onlyA = render(comparisons.slice(0, 1), ["totalAsset"]);
+  assert.match(onlyA, /data-result-id="strategy-a"/);
+  assert.doesNotMatch(onlyA, /data-result-id="strategy-b"/);
+  assert.equal((onlyA.match(/class="chart-trade-marker /g) ?? []).length, 1);
+  assert.doesNotMatch(render(comparisons, ["price"]), /chart-trade-marker/);
+});
+
 test("linked figures have one bottom date axis and no separate-layout controls", () => {
   for (const visibleSeriesIds of [["price"], ["price", "drawdown"], ["price", "vix"], ["price", "drawdown", "vix"]]) {
     const html = renderToStaticMarkup(React.createElement(ResultsCharts, {

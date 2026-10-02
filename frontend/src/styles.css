@@ -2133,14 +2133,8 @@ h2 {
   border-radius: 2px;
 }
 
-.chart-trade-marker-buy {
-  fill: #147d68;
-  stroke: #fff;
-  stroke-width: 1.5;
-}
-
-.chart-trade-marker-sell {
-  fill: #a7373a;
+.chart-trade-marker {
+  fill: currentColor;
   stroke: #fff;
   stroke-width: 1.5;
 }

@@ -19,20 +19,24 @@ import {
 
 type AxisSeriesId = ChartSeriesId | "index";
 
+interface StrategyChartSeries {
+  id: string;
+  label: string;
+  color: string;
+  dailyAssets: DailyAsset[];
+  trades?: Trade[];
+}
+
 interface ResultsChartsProps {
   busy?: boolean;
   locale: Locale;
   dailyAssets: DailyAsset[];
   trades: Trade[];
   signals: SignalEvaluation[];
-  comparisonSeries?: Array<{
-    id: string;
-    label: string;
-    color: string;
-    dailyAssets: DailyAsset[];
-  }>;
+  comparisonSeries?: StrategyChartSeries[];
   totalAssetColor?: string;
   totalAssetLabel?: string;
+  totalAssetResultId?: string;
   volatilitySeries?: SavedVolatilitySeries[];
   showFocusedAsset?: boolean;
   vixSymbol?: string;
@@ -46,6 +50,11 @@ interface SeriesDefinition {
   color: string;
   labelKey: string;
   label?: string;
+  resultId?: string;
+}
+
+function seriesIdentity(series: SeriesDefinition): string {
+  return series.resultId ?? series.id;
 }
 
 interface IndicatorComparison { label: string; color: string; samples: SeriesSample[] }
@@ -310,7 +319,7 @@ function SeriesLegend({
   locale, entries, highlight,
 }: {
   locale: Locale;
-  entries: Array<{ id: string; label: string; color: string }>;
+  entries: Array<{ id: string; label: string; color: string; seriesId?: string; resultId?: string }>;
   highlight: ReturnType<typeof useSeriesHighlight>;
 }) {
   return (
@@ -321,7 +330,8 @@ function SeriesLegend({
           className={`overlay-legend-item${highlight.highlightedId === definition.id ? " is-highlighted" : ""}`}
           aria-pressed={highlight.selectedId === definition.id}
           key={definition.id}
-          data-series={definition.id}
+          data-series={definition.seriesId ?? definition.id}
+          data-result-id={definition.resultId}
           onMouseEnter={() => highlight.setHoveredId(definition.id)}
           onMouseLeave={() => highlight.setHoveredId(null)}
           onFocus={() => highlight.setFocusedId(definition.id)}
@@ -515,7 +525,7 @@ function OverlayChart({
   indicatorSeries: IndicatorSeriesDefinition[];
   samplesById: Map<ChartSeriesId, SeriesSample[]>;
   normalizedById: Map<ChartSeriesId, NormalizedSeries | null>;
-  comparisonSeries: Array<{ id: string; label: string; color: string; dailyAssets: DailyAsset[] }>;
+  comparisonSeries: StrategyChartSeries[];
   currency?: string;
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
@@ -566,8 +576,14 @@ function OverlayChart({
   const scale = chartScale(values, {}, geometry);
   const titleId = "chart-title-overlay";
   const descriptionId = "chart-description-overlay";
-  const markerSeries = normalized.find(({ definition }) => definition.id === "totalAsset");
-  const markerByDate = new Map(markerSeries?.result.points.map((point) => [point.date, point]));
+  const primaryAsset = normalized.find(({ definition }) => definition.id === "totalAsset");
+  const tradeSeries = [
+    ...(primaryAsset ? [{ id: seriesIdentity(primaryAsset.definition), label: seriesLabel(locale, primaryAsset.definition, currency),
+      color: primaryAsset.definition.color, result: primaryAsset.result, trades }] : []),
+    ...comparisonNormalized.map(comparison => ({ ...comparison, trades: comparison.trades ?? [] })),
+  ];
+  const visibleIdentities = new Set([...normalized.map(({ definition }) => seriesIdentity(definition)), ...comparisonNormalized.map(comparison => comparison.id)]);
+  const highlightedId = highlight.highlightedId && visibleIdentities.has(highlight.highlightedId) ? highlight.highlightedId : null;
   const startDate = assets[Math.round(range.start)]?.date ?? "";
   const endDate = assets[Math.round(range.end)]?.date ?? "";
   const plotHeight = geometry.height - geometry.top - geometry.bottom;
@@ -617,8 +633,9 @@ function OverlayChart({
       <figcaption className="core-chart-heading">
         <span>{translate(locale, "chart.overlayTitle")}</span>
         <SeriesLegend locale={locale} entries={[
-          ...normalized.map(({ definition }) => ({ ...definition, label: definition.label ? seriesLabel(locale, definition, currency) : axisTitle(locale, definition.id, currency) })),
-          ...comparisonNormalized,
+          ...normalized.map(({ definition }) => ({ ...definition, id: seriesIdentity(definition), seriesId: definition.id,
+            label: definition.label ? seriesLabel(locale, definition, currency) : axisTitle(locale, definition.id, currency) })),
+          ...comparisonNormalized.map(comparison => ({ ...comparison, resultId: comparison.id })),
         ]} highlight={highlight} />
       </figcaption>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
@@ -651,7 +668,7 @@ function OverlayChart({
             </clipPath>
           </defs>
           <g clipPath={`url(#${plotClipId})`}>
-            {visibleNormalized.filter(({ definition }) => definition.id === highlight.highlightedId).map(({ definition, chartPoints }) => (
+            {visibleNormalized.filter(({ definition }) => seriesIdentity(definition) === highlightedId).map(({ definition, chartPoints }) => (
               <HighlightArea
                 key={definition.id}
                 points={chartPoints.map((point) => ({ x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }))}
@@ -659,7 +676,7 @@ function OverlayChart({
                 gradientId={gradientId}
               />
             ))}
-            {comparisonNormalized.filter(comparison => comparison.id === highlight.highlightedId).map(comparison => (
+            {comparisonNormalized.filter(comparison => comparison.id === highlightedId).map(comparison => (
               <HighlightArea key={comparison.id}
                 points={samplesInViewport(comparison.result.points, viewport, dateCount).map(point => ({ x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }))}
                 color={comparison.color} gradientId={gradientId} />
@@ -680,7 +697,7 @@ function OverlayChart({
             >
               {translate(locale, "chart.baseReference")}
             </text>
-            {[...visibleNormalized].sort((left, right) => Number(left.definition.id === highlight.highlightedId) - Number(right.definition.id === highlight.highlightedId)).map(({ definition, chartPoints, visiblePoints }) => {
+            {[...visibleNormalized].sort((left, right) => Number(seriesIdentity(left.definition) === highlightedId) - Number(seriesIdentity(right.definition) === highlightedId)).map(({ definition, chartPoints, visiblePoints }) => {
               const points = chartPoints.map((point) => ({
               ...point,
               x: xPosition(point.index, dateCount, viewport),
@@ -693,7 +710,7 @@ function OverlayChart({
             return (
               <g className={`overlay-series overlay-${definition.id}`} key={definition.id}>
                 {points.length > 1 ? (
-                  <polyline className={`overlay-series-line overlay-${definition.id}${highlight.highlightedId === definition.id ? " is-highlighted" : ""}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={definition.color} strokeWidth={highlight.highlightedId === definition.id ? 2.4 : 1.2} vectorEffect="non-scaling-stroke" tabIndex={0} aria-label={lastTitle}>
+                  <polyline className={`overlay-series-line overlay-${definition.id}${highlightedId === seriesIdentity(definition) ? " is-highlighted" : ""}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={definition.color} strokeWidth={highlightedId === seriesIdentity(definition) ? 2.4 : 1.2} vectorEffect="non-scaling-stroke" tabIndex={0} aria-label={lastTitle}>
                     <title>{lastTitle}</title>
                   </polyline>
                 ) : (
@@ -704,7 +721,7 @@ function OverlayChart({
               </g>
             );
             })}
-            {[...comparisonNormalized].sort((left, right) => Number(left.id === highlight.highlightedId) - Number(right.id === highlight.highlightedId)).map((comparison) => {
+            {[...comparisonNormalized].sort((left, right) => Number(left.id === highlightedId) - Number(right.id === highlightedId)).map((comparison) => {
               const chartPoints = samplesInViewport(comparison.result.points, viewport, dateCount);
               const points = chartPoints.map((point) => ({
                 ...point,
@@ -716,11 +733,11 @@ function OverlayChart({
                 <g className="comparison-overlay-series" data-result-id={comparison.id} key={comparison.id}>
                   {points.length > 1 && (
                     <polyline
-                      className={`comparison-overlay-series-line${highlight.highlightedId === comparison.id ? " is-highlighted" : ""}`}
+                      className={`comparison-overlay-series-line${highlightedId === comparison.id ? " is-highlighted" : ""}`}
                       points={points.map((point) => `${point.x},${point.y}`).join(" ")}
                       fill="none"
                       stroke={comparison.color}
-                      strokeWidth={highlight.highlightedId === comparison.id ? 2.4 : 1.2}
+                      strokeWidth={highlightedId === comparison.id ? 2.4 : 1.2}
                       vectorEffect="non-scaling-stroke"
                       aria-label={comparison.label}
                     >
@@ -730,20 +747,24 @@ function OverlayChart({
                 </g>
               );
             })}
-            {trades.flatMap((trade, index) => {
-              const point = markerByDate.get(trade.date);
-              const rawPrice = numericValue(trade.price);
-              if (!point || rawPrice === null) return [];
-              const value = point.indexValue;
-              const x = xPosition(point.index, dateCount, viewport);
-              const y = scale.y(value);
-              const direction = trade.side === "buy" ? 1 : -1;
-              const markerPoints = `${x},${y + direction * 5} ${x - 5},${y - direction * 4} ${x + 5},${y - direction * 4}`;
-              return (
-                <polygon className={`chart-trade-marker chart-trade-marker-${trade.side}`} data-anchor-series={markerSeries?.definition.id} points={markerPoints} key={`${trade.date}-${trade.side}-${index}`}>
-                  <title>{`${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(rawPrice, locale, "price", currency)}`}</title>
-                </polygon>
-              );
+            {tradeSeries.flatMap(strategy => {
+              const markerByDate = new Map(strategy.result.points.map(point => [point.date, point]));
+              return strategy.trades.flatMap((trade, index) => {
+                const point = markerByDate.get(trade.date);
+                const rawPrice = numericValue(trade.price);
+                if (!point || rawPrice === null) return [];
+                const x = xPosition(point.index, dateCount, viewport);
+                const y = scale.y(point.indexValue);
+                const direction = trade.side === "buy" ? 1 : -1;
+                const markerPoints = `${x},${y + direction * 5} ${x - 5},${y - direction * 4} ${x + 5},${y - direction * 4}`;
+                return (
+                  <polygon className={`chart-trade-marker chart-trade-marker-${trade.side}`} data-anchor-series="totalAsset" data-result-id={strategy.id}
+                    color={strategy.color} opacity={highlightedId && highlightedId !== strategy.id ? 0.2 : 1}
+                    points={markerPoints} key={`${strategy.id}-${trade.date}-${trade.side}-${index}`}>
+                    <title>{`${strategy.label} · ${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(rawPrice, locale, "price", trade.currency ?? currency)}`}</title>
+                  </polygon>
+                );
+              });
             })}
           </g>
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, dateCount, viewport)} y={cursorY}
@@ -763,6 +784,7 @@ export function ResultsCharts({
   comparisonSeries = [],
   totalAssetColor,
   totalAssetLabel,
+  totalAssetResultId,
   volatilitySeries = [],
   showFocusedAsset = true,
   vixSymbol,
@@ -807,7 +829,7 @@ export function ResultsCharts({
   const coreSeries = selected.filter(
     (series) => series.id === "price" || (series.id === "totalAsset" && showFocusedAsset),
   ).map((series) => series.id === "totalAsset"
-    ? { ...series, color: totalAssetColor ?? series.color, label: totalAssetLabel }
+    ? { ...series, color: totalAssetColor ?? series.color, label: totalAssetLabel, resultId: totalAssetResultId }
     : series);
   const indicatorSeries = selected.filter(
     (series): series is IndicatorSeriesDefinition => series.id === "drawdown" || series.id === "vix",
@@ -845,6 +867,8 @@ export function ResultsCharts({
               const isVisible = selected.includes(series) && isAvailable;
               const isLastCore = isVisible && (series.id === "price" || series.id === "totalAsset")
                 && selected.filter(item => item.id === "price" || item.id === "totalAsset").length === 1;
+              const alternativeCore = available.find(item => item.id !== series.id && (item.id === "price" || item.id === "totalAsset"));
+              const cannotHide = isLastCore && !alternativeCore;
               return (
                 <button
                   className={`legend-toggle${isVisible ? " is-visible" : ""}`}
@@ -852,9 +876,12 @@ export function ResultsCharts({
                   key={series.id}
                   data-series={series.id}
                   aria-pressed={isVisible}
-                  disabled={busy || !isAvailable || isLastCore}
-                  title={isLastCore ? translate(locale, "chart.keepCoreSeries") : undefined}
-                  onClick={() => onSeriesChange(series.id, !isVisible)}
+                  disabled={busy || !isAvailable || cannotHide}
+                  title={cannotHide ? translate(locale, "chart.keepCoreSeries") : undefined}
+                  onClick={() => {
+                    if (isLastCore && alternativeCore) onSeriesChange(alternativeCore.id, true);
+                    onSeriesChange(series.id, !isVisible);
+                  }}
                 >
                   <span className="legend-swatch" style={{ backgroundColor: series.color }} aria-hidden="true" />
                   <span className="legend-check" aria-hidden="true">{isVisible ? "✓" : "−"}</span>

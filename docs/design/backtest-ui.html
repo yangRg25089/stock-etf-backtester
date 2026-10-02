@@ -174,6 +174,7 @@
     #backtest-ui-preview .chart-area { display: none; }
     #backtest-ui-preview .chart-figure.highlight-price .area-price,
     #backtest-ui-preview .chart-figure.highlight-asset .area-asset { display: block; }
+    #backtest-ui-preview .chart-figure.highlight-price .trade-marker { opacity: .2; }
 
     #backtest-ui-preview .comparison-sort { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; font: inherit; font-weight: inherit; }
     #backtest-ui-preview .comparison-sort span { color: var(--accent); }
@@ -344,7 +345,7 @@
           <div id="prototype-chart-body" class="panel-body">
             <div class="chart-toolbar">
               <div class="chart-controls">
-                <div class="chart-legend" role="group" aria-label="表示する系列"><button type="button" aria-pressed="true"><i class="swatch"></i>価格 (USD)</button><button type="button" aria-pressed="true"><i class="swatch asset"></i>戦略資産 (USD)</button><button type="button" aria-pressed="true"><i class="swatch drawdown"></i>ドローダウン (%)</button><button type="button" aria-pressed="true"><i class="swatch vix"></i>ボラティリティ指数</button></div>
+                <div class="chart-legend" role="group" aria-label="表示する系列"><button type="button" data-series="price" aria-pressed="true"><i class="swatch"></i>価格 (USD)</button><button type="button" data-series="asset" aria-pressed="true"><i class="swatch asset"></i>戦略資産 (USD)</button><button type="button" data-series="drawdown" aria-pressed="true"><i class="swatch drawdown"></i>ドローダウン (%)</button><button type="button" data-series="vix" aria-pressed="true"><i class="swatch vix"></i>ボラティリティ指数</button></div>
               </div>
               <div class="chart-range-controls" role="group" aria-label="全図共通の期間操作"><span class="range-label sr-only">表示期間（全図共通）：2020-01-01 — 2026-09-29</span><button class="icon-button zoom-mode" type="button" aria-label="通常スクロールで拡大・縮小" title="通常スクロールで拡大・縮小" aria-pressed="false">⌕</button><button class="icon-button" type="button" aria-label="期間を縮小" title="期間を縮小">−</button><button class="icon-button" type="button" aria-label="期間を拡大" title="期間を拡大">＋</button><button class="icon-button" type="button" aria-label="全期間に戻す" title="全期間に戻す">↺</button></div>
             </div>
@@ -359,7 +360,7 @@
                 <defs><linearGradient id="prototype-price-gradient" x2="0" y2="1"><stop stop-color="#276d9b" stop-opacity=".3"/><stop offset="1" stop-color="#276d9b" stop-opacity="0"/></linearGradient><linearGradient id="prototype-asset-gradient" x2="0" y2="1"><stop stop-color="#147d68" stop-opacity=".3"/><stop offset="1" stop-color="#147d68" stop-opacity="0"/></linearGradient></defs>
                 <path class="chart-area area-price" d="M92 266L92 248.4L160 229.1L230 237.0L300 195.7L370 210.7L440 151.8L510 171.1L580 121.9L650 140.4L720 63.1L774 24.4L774 266Z" fill="url(#prototype-price-gradient)"/><path class="chart-area area-asset" d="M92 266L92 248.4L160 238.8L230 245.8L300 222.1L370 236.1L440 197.5L510 209.8L580 177.3L650 199.2L720 165.8L774 156.2L774 266Z" fill="url(#prototype-asset-gradient)"/>
                 <polyline class="price-line" points="92,248.4 160,229.1 230,237.0 300,195.7 370,210.7 440,151.8 510,171.1 580,121.9 650,140.4 720,63.1 774,24.4"/><polyline class="asset-line" points="92,248.4 160,238.8 230,245.8 300,222.1 370,236.1 440,197.5 510,209.8 580,177.3 650,199.2 720,165.8 774,156.2"/>
-                <polygon fill="#147d68" stroke="#fff" data-anchor-series="totalAsset" points="440,202.5 435,193.5 445,193.5"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="20" y2="266"/><line x1="92" x2="774" y1="197.5" y2="197.5"/><circle cx="440" cy="197.5" r="3.5" fill="#147d68"/></g><text class="axis-title" transform="translate(18 144) rotate(-90)" text-anchor="middle">指数（価格の開始値・元本 = 100）</text>
+                <polygon class="trade-marker" fill="#147d68" stroke="#fff" data-anchor-series="totalAsset" points="440,202.5 435,193.5 445,193.5"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="20" y2="266"/><line x1="92" x2="774" y1="197.5" y2="197.5"/><circle cx="440" cy="197.5" r="3.5" fill="#147d68"/></g><text class="axis-title" transform="translate(18 144) rotate(-90)" text-anchor="middle">指数（価格の開始値・元本 = 100）</text>
               </svg>
             </figure>
             <figure class="chart-figure compact-indicator"><svg viewBox="0 0 800 90" role="img" aria-label="ドローダウン (%)、主図と同期した期間"><path class="grid-line" fill="none" d="M92 8H774 M92 45.0H774 M92 82H774 M92.0 8V82 M205.7 8V82 M319.3 8V82 M433.0 8V82 M546.7 8V82 M660.3 8V82 M774.0 8V82"/><text class="tick" x="42" y="12">0</text><text class="tick" x="42" y="49.0">−15</text><text class="tick" x="42" y="86">−30</text><polyline fill="none" stroke="#a7373a" stroke-width="1.2" vector-effect="non-scaling-stroke" points="92,30.2 160,45.0 230,56.1 300,37.6 370,59.8 440,26.5 510,74.6 580,33.9 650,41.3 720,19.1 774,30.2"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="8" y2="82"/></g></svg></figure>
@@ -500,7 +501,17 @@
         root.querySelectorAll(".tab-panel").forEach((panel) => { panel.hidden = panel.dataset.panel !== button.dataset.tab; });
       }));
       root.querySelectorAll(".chart-legend button").forEach((button) => button.addEventListener("click", () => {
-        button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
+        const visible = button.getAttribute("aria-pressed") === "true";
+        const core = [...root.querySelectorAll('.chart-legend button[data-series="price"], .chart-legend button[data-series="asset"]')];
+        if (visible && core.includes(button) && core.filter(item => item.getAttribute("aria-pressed") === "true").length === 1) {
+          core.find(item => item !== button).setAttribute("aria-pressed", "true");
+        }
+        button.setAttribute("aria-pressed", String(!visible));
+        for (const item of core) {
+          const shown = item.getAttribute("aria-pressed") === "true";
+          root.querySelector(`.${item.dataset.series}-line`).style.display = shown ? "" : "none";
+          if (item.dataset.series === "asset") root.querySelector(".trade-marker").style.display = shown ? "" : "none";
+        }
       }));
       let sortedColumn = 5;
       let sortDirection = "descending";

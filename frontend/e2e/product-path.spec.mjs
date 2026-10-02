@@ -2255,7 +2255,14 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await expect(page.locator(".chart-overlay svg.result-chart")).toBeVisible();
   await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveCount(1);
   await expect(page.locator(".chart-overlay .chart-trade-marker").first()).toHaveAttribute("data-anchor-series", "totalAsset");
-  await expect(asset).toBeDisabled();
+  await expect(asset).toBeEnabled();
+  await asset.click();
+  await expect(price).toHaveAttribute("aria-pressed", "true");
+  await expect(asset).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".chart-overlay polyline.overlay-price")).toHaveCount(1);
+  await asset.click();
+  await price.click();
+  await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveCount(1);
   await expect(page.locator(".chart-range-controls")).toBeVisible();
   await page.getByRole("button", { name: "期間を拡大", exact: true }).click();
   await expect(page.locator(".chart-overlay")).not.toHaveAttribute("data-window-start", "0");

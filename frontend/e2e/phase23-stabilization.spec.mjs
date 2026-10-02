@@ -13,6 +13,24 @@ async function savedRun(page) {
   return saved;
 }
 
+async function browserRun(page) {
+  return page.evaluate(async () => {
+    const databases = await indexedDB.databases();
+    if (!databases.some(database => database.name === "backtester.runs.v1")) return null;
+    return new Promise((resolve, reject) => {
+    const opening = indexedDB.open("backtester.runs.v1", 1);
+    opening.onerror = () => reject(opening.error);
+    opening.onsuccess = () => {
+      const database = opening.result;
+      if (!database.objectStoreNames.contains("responses")) { database.close(); resolve(null); return; }
+      const request = database.transaction("responses").objectStore("responses").get("latest");
+      request.onsuccess = () => { database.close(); resolve(request.result ?? null); };
+      request.onerror = () => { database.close(); reject(request.error); };
+    };
+    });
+  });
+}
+
 test("selected strategy cards keep whole-card hover color and remove the unselected indent", async ({ page }) => {
   await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -720,4 +738,182 @@ test("grid value errors focus their input and inactive dimensions retain edits",
   await page.screenshot({ path: test.info().outputPath("grid-values-320.png") });
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toBeHidden();
+});
+
+test("browser reopening restores the workspace draft and cached run response", async ({ page }) => {
+  const saved = await savedRun(page);
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(saved.result.strategyRuns.length);
+
+  await page.locator(".shared-settings-open-button").click();
+  await page.locator("#field-run-symbol").fill("SPY");
+  await page.locator(".shared-settings-dialog .dialog-done").click();
+  await expect(page.locator(".shared-settings-dialog")).toBeHidden();
+
+  await page.locator(".strategy-card-open").first().click();
+  await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("31");
+  await page.locator(".strategy-dialog .dialog-done").click();
+  await expect(page.locator(".strategy-dialog")).toBeHidden();
+  await page.locator(".add-strategy-button").click();
+  await page.locator('[data-preset-id="ma_trend"]').click();
+  await expect(page.locator(".strategy-nav-card")).toHaveCount(2);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("backtester.workspace.v1"))).not.toBeNull();
+  await expect.poll(async () => (await browserRun(page))?.runId).toBe(saved.runId);
+
+  await page.unroute("**/api/v1/runs/latest");
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.reload();
+  await expect(page.locator(".strategy-nav-card")).toHaveCount(2);
+  await page.locator(".shared-settings-open-button").click();
+  await expect(page.locator("#field-run-symbol")).toHaveValue("SPY");
+  await page.locator(".shared-settings-dialog .dialog-done").click();
+  await page.locator(".strategy-nav-card").first().locator(".strategy-card-open").click();
+  await expect(page.locator("#field-strategy-vix_dca-1-vix-buyThreshold")).toHaveValue("31");
+  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(saved.result.strategyRuns.length);
+});
+
+test("a newer server result replaces the browser copy and reset stays cleared after reopening", async ({ page }) => {
+  const saved = await savedRun(page);
+  let latest = saved;
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: latest }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect.poll(async () => (await browserRun(page))?.runId).toBe(saved.runId);
+  const newer = structuredClone(saved);
+  newer.runId = "newer-terminal-response";
+  newer.snapshot.runId = newer.runId;
+  newer.result.runId = newer.runId;
+  latest = newer;
+  await page.reload();
+  await expect.poll(async () => (await browserRun(page))?.runId).toBe(newer.runId);
+  await page.locator(".run-reset-button").click();
+  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator(".shared-settings-open-button")).toBeVisible();
+  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(0);
+  expect((await browserRun(page)).runId).toBe(newer.runId);
+});
+
+test("malformed browser result storage does not crash the workspace", async ({ page }) => {
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(page.locator(".shared-settings-open-button")).toBeVisible();
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const opening = indexedDB.open("backtester.runs.v1", 1);
+    opening.onerror = () => reject(opening.error);
+    opening.onsuccess = () => {
+      const database = opening.result;
+      const transaction = database.transaction("responses", "readwrite");
+      transaction.oncomplete = () => { database.close(); resolve(); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+      transaction.objectStore("responses").put({ runId: "corrupted-cache", status: "completed",
+        selectedStrategyIds: [], snapshot: {}, result: { strategyRuns: [] } }, "latest");
+    };
+  }));
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.reload();
+  await expect(page.locator(".shared-settings-open-button")).toBeVisible();
+  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("terminal progress cannot replace the browser cache before the complete API result arrives", async ({ page }) => {
+  const saved = await savedRun(page);
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect.poll(async () => (await browserRun(page))?.runId).toBe(saved.runId);
+  await page.locator(".shared-settings-open-button").click();
+  await page.locator("#field-run-startDate").fill("2024-01-31");
+  await page.locator("#field-run-endDate").fill("2024-03-01");
+  await page.locator(".shared-settings-dialog .dialog-done").click();
+  let release;
+  const hold = new Promise(resolve => { release = resolve; });
+  let completeResponse;
+  await page.route("**/api/v1/runs/*", async route => {
+    if (route.request().method() !== "GET" || route.request().url().endsWith("/latest")) { await route.continue(); return; }
+    const response = await route.fetch();
+    completeResponse = await response.json();
+    await hold;
+    await route.fulfill({ response });
+  });
+  await page.locator(".run-submit-button").click();
+  await expect.poll(() => completeResponse?.status).toMatch(/^completed/);
+  expect((await browserRun(page)).runId).toBe(saved.runId);
+  await expect(page.locator(".run-submit-button")).toBeDisabled();
+  release();
+  await expect.poll(async () => (await browserRun(page))?.runId).toBe(completeResponse.runId);
+  const cached = await browserRun(page);
+  expect(cached).toEqual(completeResponse);
+  expect(cached.result.strategyRuns[0].dailyAssets.length).toBeGreaterThan(0);
+});
+
+test("selected strategies retain their own trade markers and core curves always switch", async ({ page }) => {
+  const saved = await savedRun(page);
+  const first = saved.result.strategyRuns.find(item => item.role === "strategy");
+  const sampleDates = first.dailyAssets.filter(asset => Number(asset.totalContributed) > 0).slice(0, 2).map(asset => asset.date);
+  expect(sampleDates).toHaveLength(2);
+  const buy = (date, price) => ({ date, side: "buy", reason: "signal_buy", quantity: "1", price, cashAmount: price, currency: "USD", signalId: "test.buy" });
+  first.trades = [buy(sampleDates[0], "100")];
+  const second = structuredClone(first);
+  second.id = "strategy-ma_trend-e2e";
+  second.presetId = "ma_trend";
+  second.trades = [buy(sampleDates[1], "110")];
+  second.dailyAssets = second.dailyAssets.map((asset, index) => ({ ...asset, totalAsset: String(110 + index * 2) }));
+  saved.result.strategyRuns = [first, second, ...saved.result.strategyRuns.filter(item => item.id !== first.id)];
+  saved.selectedStrategyIds = [first.id];
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const secondSelection = page.locator("#result-panel-comparison").getByRole("button", { name: /移動平均トレンド（売買）/ });
+  await secondSelection.click();
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveCount(1);
+  const firstMarkerDate = await page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"] title`).textContent();
+  expect(firstMarkerDate).toContain(sampleDates[0]);
+  const firstLegend = page.locator(`.overlay-legend-item[data-result-id="${first.id}"]`);
+  await firstLegend.hover();
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveAttribute("opacity", "1");
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveAttribute("opacity", "0.2");
+  await firstLegend.click();
+  await expect(firstLegend).toHaveAttribute("aria-pressed", "true");
+  await page.locator(".result-chart").first().hover();
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveAttribute("opacity", "0.2");
+  await page.screenshot({ path: test.info().outputPath("multi-strategy-markers.png") });
+
+  await secondSelection.click();
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveCount(0);
+  await expect(firstLegend).toHaveAttribute("aria-pressed", "true");
+
+  const assetToggle = page.locator('.legend-toggle[data-series="totalAsset"]');
+  const priceToggle = page.locator('.legend-toggle[data-series="price"]');
+  await assetToggle.click();
+  await expect(priceToggle).toBeEnabled();
+  await priceToggle.click();
+  await expect(priceToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(assetToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".comparison-overlay-series[data-result-id]")).toHaveCount(1);
+  await priceToggle.click();
+  await expect(priceToggle).toHaveAttribute("aria-pressed", "true");
+});
+
+test("hiding the only visible core curve switches to the available alternative", async ({ page }) => {
+  const saved = await savedRun(page);
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const assetToggle = page.locator('.legend-toggle[data-series="totalAsset"]');
+  const priceToggle = page.locator('.legend-toggle[data-series="price"]');
+  await assetToggle.click();
+  await expect(priceToggle).toBeEnabled();
+  await priceToggle.click();
+  await expect(priceToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(assetToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".overlay-series-line.overlay-totalAsset")).toBeVisible();
 });
