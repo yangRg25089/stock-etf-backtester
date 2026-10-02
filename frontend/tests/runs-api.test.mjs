@@ -19,7 +19,7 @@ function response(payload, status = 200) {
   });
 }
 
-test("run API sends selected scope, active identity, and idempotency key then reads saved statuses", async () => {
+test("run API sends all strategies without an editing identity and preserves idempotency and saved statuses", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
   const accepted = {
@@ -49,7 +49,7 @@ test("run API sends selected scope, active identity, and idempotency key then re
   };
   try {
     const draft = { shared: {}, strategies: [] };
-    await submitRun(draft, "all_enabled", null, "retry-key-17");
+    await submitRun(draft, "retry-key-17");
     const saved = await fetchRun("run-local-1");
 
     assert.equal(calls[0].url, "/api/v1/runs");
@@ -106,7 +106,7 @@ test("run API preserves stable server diagnostics from an error envelope", async
   }, 422);
   try {
     await assert.rejects(
-      submitRun({}, "active", "vix-1", "stable-key"),
+      submitRun({}, "stable-key"),
       (error) => {
         assert.ok(error instanceof RunApiError);
         assert.equal(error.code, "configuration_invalid");

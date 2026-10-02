@@ -938,14 +938,6 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
     # UI state is catalogued for a complete snapshot contract but is not a
     # strategy parameter and must not enter the calculation hash.
     _d(
-        "run.scope",
-        ParameterType.ENUM,
-        "active",
-        group_id="display",
-        allowed_values=("active", "all_enabled"),
-        level=ParameterLevel.UI,
-    ),
-    _d(
         "display.showChart",
         ParameterType.BOOLEAN,
         True,

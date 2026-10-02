@@ -82,7 +82,7 @@ test("reset clears the displayed run and focus while preserving draft and displa
   assert.equal(cleared.focusedResultId, null);
   assert.equal(cleared.draft, state.draft);
   assert.equal(cleared.activeStrategyId, state.activeStrategyId);
-  assert.equal(cleared.runScope, state.runScope);
+  assert.equal(Object.hasOwn(cleared, "runScope"), false);
   assert.equal(cleared.visibleSeriesIds, state.visibleSeriesIds);
 });
 
@@ -172,7 +172,7 @@ test("delete and re-add uses the selected catalog preset with a fresh instance i
   assert.equal(String(state.draft.strategies[0].params["vix.buyThreshold"]), "25");
 });
 
-test("run availability distinguishes active and all-enabled validation rules", () => {
+test("all-strategy availability is independent of the edited strategy and preserves partial failures", () => {
   let state = createInitialWorkspaceState(catalog);
   const enabled = state.draft.strategies[0];
   const other = {
@@ -194,26 +194,21 @@ test("run availability distinguishes active and all-enabled validation rules", (
   });
 
   assert.deepEqual(getRunAvailability(state, validation), { disabled: false, reasonKey: null });
-  state = workspaceReducer(state, { type: "run.scope", value: "all_enabled" });
-  assert.deepEqual(getRunAvailability(state, validation), { disabled: false, reasonKey: null });
-  state = workspaceReducer(state, { type: "run.scope", value: "active" });
   state = workspaceReducer(state, { type: "strategy.select", id: other.id });
-  assert.deepEqual(getRunAvailability(state, validation), {
-    disabled: true,
-    reasonKey: "run.activeInvalid",
-  });
+  assert.deepEqual(getRunAvailability(state, validation), { disabled: false, reasonKey: null });
+  assert.deepEqual(getRunAvailability({ ...state, activeStrategyId: null }, validation), { disabled: false, reasonKey: null });
+  assert.equal(Object.hasOwn(state, "runScope"), false);
 
   const sharedError = validationFor(state, {
     diagnostics: [{ code: "invalid_parameter", messageKey: "diagnostics.configuration.required" }],
   });
-  state = workspaceReducer(state, { type: "run.scope", value: "all_enabled" });
   assert.deepEqual(getRunAvailability(state, sharedError), {
     disabled: true,
     reasonKey: "run.sharedInvalid",
   });
 });
 
-test("scope and result focus remain independent from draft edits; dates use the explicitly selected day", () => {
+test("saved results and focus remain independent from draft edits; dates use the explicitly selected day", () => {
   let state = createInitialWorkspaceState(catalog);
   const snapshot = {
     runId: "run-1",
@@ -224,7 +219,6 @@ test("scope and result focus remain independent from draft edits; dates use the 
   };
   state = workspaceReducer(state, { type: "run.update", value: snapshot });
   state = workspaceReducer(state, { type: "result.focus", id: "benchmark-dca" });
-  state = workspaceReducer(state, { type: "run.scope", value: "all_enabled" });
   state = workspaceReducer(state, {
     type: "strategy.param",
     id: state.activeStrategyId,
@@ -232,7 +226,7 @@ test("scope and result focus remain independent from draft edits; dates use the 
     value: "30",
   });
 
-  assert.equal(state.runScope, "all_enabled");
+  assert.equal(Object.hasOwn(state, "runScope"), false);
   assert.equal(state.focusedResultId, "benchmark-dca");
   assert.equal(state.runResponse, snapshot);
   assert.equal(state.runResponse.snapshot.config.strategies.length, 0);

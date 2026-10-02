@@ -106,7 +106,7 @@ test("strategy editor keeps one label per field and no repeated parameter summar
   assert.match(html, /VXD — Dow Jones ボラティリティ指数/);
   assert.match(html, /<h3 id="strategy-parameter-heading-strategy-vix_dca-1-vix">買付<span class="condition-kind-name">ボラティリティ<\/span><\/h3>/);
   assert.match(html, /この条件で使う指数。/);
-  assert.equal(createInitialWorkspaceState(catalog).runScope, "all_enabled");
+  assert.equal(Object.hasOwn(createInitialWorkspaceState(catalog), "runScope"), false);
 });
 
 test("strategy parameters follow catalog groups and select controls explain their choices", () => {

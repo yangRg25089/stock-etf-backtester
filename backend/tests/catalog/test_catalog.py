@@ -111,13 +111,13 @@ EXPECTED_PARAMETER_KEYS = {
     "search.values.vix.buyThreshold",
     "search.values.rsi.buyThreshold",
     "search.values.accumulation.cashSafetyLimit",
-    "run.scope",
     "display.showChart",
 }
 
 
-def test_catalog_version_advances_for_registered_search_values() -> None:
-    assert CATALOG_VERSION == "catalog-v9"
+def test_catalog_version_advances_when_the_run_scope_ui_parameter_is_retired() -> None:
+    assert CATALOG_VERSION == "catalog-v10"
+    assert "run.scope" not in PARAMETER_DEFINITIONS
 
 
 def test_numeric_defaults_align_with_browser_minimum_and_step() -> None:

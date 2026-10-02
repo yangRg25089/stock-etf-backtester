@@ -89,6 +89,46 @@ test("all permitted results fit a bounded comparison with a sticky header and re
   }
 });
 
+test("selected comparison rows lift forward without shifting table columns or row layout", async ({ page }) => {
+  const saved = await savedRun(page);
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const rows = page.locator("#result-panel-comparison tbody tr");
+  const monthly = rows.filter({ hasText: "毎月定額積立" });
+  const initial = rows.filter({ hasText: "ボラティリティ積立" });
+  await expect(initial).toHaveCSS("translate", "0px -1px");
+  const selectedColor = await initial.evaluate(node => getComputedStyle(node).backgroundColor);
+  const before = await monthly.evaluate(node => ({ top: node.offsetTop, height: node.offsetHeight, color: getComputedStyle(node).backgroundColor }));
+  const columns = await monthly.locator("th, td").evaluateAll(cells => cells.map(cell => ({ left: cell.getBoundingClientRect().left, width: cell.getBoundingClientRect().width })));
+  await monthly.locator(".result-select").click();
+  await page.mouse.move(1400, 850);
+  await expect(monthly).toHaveCSS("translate", "0px -1px");
+  await expect(initial).toHaveCSS("translate", "0px -1px");
+  await expect(initial).toHaveCSS("background-color", selectedColor);
+  await initial.hover();
+  await expect(initial).toHaveCSS("background-color", selectedColor);
+  await page.mouse.move(1400, 850);
+  expect(await monthly.evaluate(node => getComputedStyle(node).boxShadow)).not.toBe("none");
+  const after = await monthly.evaluate(node => ({ top: node.offsetTop, height: node.offsetHeight, color: getComputedStyle(node).backgroundColor }));
+  expect(after.top).toBe(before.top);
+  expect(after.height).toBe(before.height);
+  expect(after.color).not.toBe(before.color);
+  expect(await monthly.locator("th, td").evaluateAll(cells => cells.map(cell => ({ left: cell.getBoundingClientRect().left, width: cell.getBoundingClientRect().width })))).toEqual(columns);
+  await monthly.locator(".result-select").click();
+  await expect(monthly).toHaveCSS("translate", "0px");
+  await expect(monthly).toHaveCSS("box-shadow", "none");
+  await monthly.locator(".result-select").focus();
+  await page.keyboard.press("Enter");
+  await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "true");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(monthly).toHaveCSS("transition-duration", "0s");
+  await page.getByRole("button", { name: "中文" }).click();
+  const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(report.violations).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath("selected-comparison-forward.png") });
+});
+
 test("tablet topbars keep brand, run actions and locale on one row without page overflow", async ({ browser }) => {
   for (const hasTouch of [false, true]) {
     const context = await browser.newContext({ hasTouch });

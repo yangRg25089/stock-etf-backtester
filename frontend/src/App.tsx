@@ -223,8 +223,6 @@ function App() {
     if (!catalog || !workspace || runBusy || runSubmissionLocked.current) return;
     submittedRunRef.current = true;
     const submittedDraft = workspace.draft;
-    const submittedScope = workspace.runScope;
-    const submittedActiveId = workspace.activeStrategyId;
     const apiDraft = serializeDraftForApi(submittedDraft);
     const controller = new AbortController();
     activeRunController.current?.abort();
@@ -238,18 +236,9 @@ function App() {
     try {
       const validation = await validateDraft(apiDraft, controller.signal);
       setValidationState({ draft: submittedDraft, response: validation, error: null });
-      const submittedState: WorkspaceState = {
-        ...workspace,
-        draft: submittedDraft,
-        runScope: submittedScope,
-        activeStrategyId: submittedActiveId,
-      };
-      const allowed = getRunAvailability(submittedState, validation);
+      const allowed = getRunAvailability({ draft: submittedDraft }, validation);
       if (allowed.disabled) {
-        const activeDiagnostics = submittedScope === "active"
-          ? validation.strategies?.find((item) => item.strategyId === submittedActiveId)?.diagnostics ?? []
-          : [];
-        const diagnostics = [...(validation.diagnostics ?? []), ...activeDiagnostics];
+        const diagnostics = validation.diagnostics ?? [];
         setRunError(new RunApiError(
           "invalid_parameter",
           diagnostics.length > 0 ? "api.errors.invalid_configuration" : allowed.reasonKey ?? "api.errors.invalid_configuration",
@@ -261,8 +250,6 @@ function App() {
       if (stopRequested.current) return;
       const accepted = await submitRun(
         apiDraft,
-        submittedScope,
-        submittedActiveId,
         createIdempotencyKey(),
         controller.signal,
       );

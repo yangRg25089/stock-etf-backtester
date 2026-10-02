@@ -14,7 +14,7 @@ const catalog = JSON.parse(
 
 test("chart display and legend preferences remain independent without a trade visibility state", () => {
   let state = createInitialWorkspaceState(catalog);
-  assert.equal(state.runScope, "all_enabled");
+  assert.equal(Object.hasOwn(state, "runScope"), false);
   assert.equal(state.showChart, true);
   assert.equal(Object.hasOwn(state, "showTrades"), false);
   assert.deepEqual(state.visibleSeriesIds, ["price", "totalAsset", "drawdown", "vix"]);

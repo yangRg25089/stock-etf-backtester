@@ -2,7 +2,6 @@ import type {
   Catalog,
   DraftValidationResponse,
   RunResponse,
-  RunScope,
   StrategyPresetId,
   StrategyStatus,
   StrategyRules,
@@ -26,7 +25,6 @@ export interface BacktestDraft {
 export interface WorkspaceState {
   draft: BacktestDraft;
   activeStrategyId: string | null;
-  runScope: RunScope;
   runResponse: RunResponse | null;
   focusedResultId: string | null;
   selectedResultIds: string[];
@@ -43,7 +41,6 @@ export type WorkspaceAction =
   | { type: "strategy.param"; id: string; key: string; value: unknown }
   | { type: "strategy.rules"; id: string; value: StrategyRules }
   | { type: "shared.change"; value: SharedDraft }
-  | { type: "run.scope"; value: RunScope }
   | { type: "run.reset" }
   | { type: "run.update"; value: RunResponse }
   | { type: "run.progress"; value: RunProgressEvent }
@@ -115,7 +112,6 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
       strategies: [initialStrategy],
     },
     activeStrategyId: initialStrategy.id,
-    runScope: "all_enabled",
     runResponse: null,
     focusedResultId: null,
     selectedResultIds: [],
@@ -193,8 +189,6 @@ export function workspaceReducer(
           shared: { ...action.value, data: state.draft.shared.data },
         },
       };
-    case "run.scope":
-      return { ...state, runScope: action.value };
     case "run.reset":
       return {
         ...state,
@@ -280,7 +274,7 @@ function hasBlockingDiagnostic(diagnostics: DraftValidationResponse["diagnostics
 }
 
 export function getRunAvailability(
-  state: WorkspaceState,
+  state: Pick<WorkspaceState, "draft">,
   validation: DraftValidationResponse | null,
 ): RunAvailability {
   if (!validation) return { disabled: true, reasonKey: "run.validationPending" };
@@ -288,25 +282,9 @@ export function getRunAvailability(
     return { disabled: true, reasonKey: "run.sharedInvalid" };
   }
 
-  if (state.runScope === "all_enabled") {
-    const strategyCount = state.draft.strategies.length;
-    return strategyCount > 0
-      ? { disabled: false, reasonKey: null }
-      : { disabled: true, reasonKey: "run.noStrategies" };
-  }
-
-  if (!state.activeStrategyId) return { disabled: true, reasonKey: "run.noActiveStrategy" };
-  const active = state.draft.strategies.find((strategy) => strategy.id === state.activeStrategyId);
-  if (!active) return { disabled: true, reasonKey: "run.noActiveStrategy" };
-
-  const activeValidation = (validation.strategies ?? []).find(
-    (strategy) => strategy.strategyId === active.id,
-  );
-  if (!activeValidation) return { disabled: true, reasonKey: "run.validationPending" };
-  if (hasBlockingDiagnostic(activeValidation.diagnostics)) {
-    return { disabled: true, reasonKey: "run.activeInvalid" };
-  }
-  return { disabled: false, reasonKey: null };
+  return state.draft.strategies.length > 0
+    ? { disabled: false, reasonKey: null }
+    : { disabled: true, reasonKey: "run.noStrategies" };
 }
 
 export function serializeDraftForApi(draft: BacktestDraft): Record<string, unknown> {

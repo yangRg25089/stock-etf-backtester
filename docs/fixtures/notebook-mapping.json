@@ -197,10 +197,7 @@
     {
       "sourceId": "compare_strategies",
       "sourceKey": "策略模式",
-      "targetKey": [
-        "run.scope",
-        "StrategyPresetId"
-      ],
+      "targetKey": "StrategyPresetId",
       "mappingKind": "derived"
     },
     {

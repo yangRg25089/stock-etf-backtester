@@ -15,9 +15,13 @@ kept so a future re-check can detect a changed source.
 The first and third source hashes are the concatenated code-cell source. The
 `compare_strategies` source hash is the SHA-256 of newline-joined cell source
 strings. The full manifest records every explicit CONFIG key and its current
-catalog mapping or retirement, including derived contracts (`run.scope`, preset identity,
+catalog mapping or retirement, including derived contracts (preset identity,
 search dimensions, `rate.sourceUnit`, `pe.etfMinCoverage`, and the explicit
 Bollinger VIX ceiling).
+
+The former strategy-mode input maps to preset identity only. The current UI
+always runs all added strategies; its scope parameter, selector, and state were
+removed. The backend retains historical request compatibility.
 
 ## Normative V1 differences
 

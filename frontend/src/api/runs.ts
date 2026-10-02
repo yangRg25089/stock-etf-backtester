@@ -5,7 +5,6 @@ import type {
   DraftValidationResponse,
   RunProgress,
   RunResponse,
-  RunScope,
   RunSubmissionRequest,
   StrategyStatus,
   InstrumentMetadata,
@@ -129,15 +128,12 @@ export function validateDraft(
 
 export function submitRun(
   draft: Record<string, unknown>,
-  scope: RunScope,
-  activeStrategyId: string | null,
   idempotencyKey: string,
   signal?: AbortSignal,
 ): Promise<RunResponse> {
   const body: RunSubmissionRequest = {
     draft,
-    scope,
-    ...(scope === "active" ? { activeStrategyId } : {}),
+    scope: "all_enabled",
   };
   return requestJson<RunResponse>(
     "/api/v1/runs",

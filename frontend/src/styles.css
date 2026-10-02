@@ -1711,7 +1711,7 @@ h2 {
 .comparison-sort:hover:enabled { color: #105e50; }
 .comparison-sort:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
 .result-rank { min-width: 1.2em; color: #64716c; font-variant-numeric: tabular-nums; }
-.comparison-table tbody tr:hover:not(.is-focused) { background: #f0f7f3; }
+.comparison-table tbody tr:hover:not(.is-focused):not(.is-selected) { background: #f0f7f3; }
 
 .export-download-icon {
   width: 15px;
@@ -1723,7 +1723,7 @@ h2 {
   stroke-linejoin: round;
 }
 
-.comparison-table tbody tr:nth-child(even):not(.is-focused),
+.comparison-table tbody tr:nth-child(even):not(.is-focused):not(.is-selected),
 .data-table tbody tr:nth-child(even) {
   background: #fbfcfb;
 }
@@ -1767,11 +1767,18 @@ h2 {
 }
 
 .comparison-table tbody tr {
+  position: relative;
   border-inline-start: 3px solid transparent;
+  translate: 0 0;
+  transition: translate 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out;
 }
 
 .comparison-table tbody tr.is-selected {
   border-inline-start-color: var(--result-color, var(--app-accent));
+  z-index: 1;
+  translate: 0 -1px;
+  background: color-mix(in srgb, var(--result-color, var(--app-accent)) 18%, var(--app-surface));
+  box-shadow: 0 3px 6px rgb(20 64 52 / 18%), inset 0 0 0 1px var(--result-color, var(--app-accent));
 }
 
 .result-name-cell {
@@ -2722,6 +2729,7 @@ h2 {
 
 @media (prefers-reduced-motion: reduce) {
   .strategy-navigator .strategy-nav-card { transition: none; }
+  .comparison-table tbody tr { transition: none; }
   *,
   *::before,
   *::after {

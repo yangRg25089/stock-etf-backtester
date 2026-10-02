@@ -39,6 +39,14 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
   await expect(buy).toHaveAttribute("aria-checked", "false");
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
+  const comparisonRows = page.locator('[data-panel="comparison"] tbody tr');
+  const monthly = comparisonRows.filter({ hasText: "毎月定額積立" });
+  await monthly.locator(".result-select").click();
+  await expect(monthly).toHaveCSS("translate", "0px -1px");
+  expect(await monthly.evaluate(node => getComputedStyle(node).boxShadow)).not.toBe("none");
+  await monthly.locator(".result-select").click();
+  await expect(monthly).toHaveCSS("translate", "0px");
+  await expect(monthly).toHaveCSS("box-shadow", "none");
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations).toEqual([]);
   expect(errors).toEqual([]);

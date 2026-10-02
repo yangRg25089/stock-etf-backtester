@@ -104,6 +104,14 @@ def test_notebook_trade_output_is_preserved_without_a_visibility_parameter() -> 
     assert all(item["mappingKind"] == "alwaysAvailableOutput" for item in mappings)
 
 
+def test_strategy_mode_mapping_does_not_reintroduce_a_run_scope_ui_parameter():
+    mappings = [
+        item for item in _manifest()["mappings"] if item["sourceKey"] == "策略模式"
+    ]
+    assert mappings
+    assert all(item["targetKey"] == "StrategyPresetId" for item in mappings)
+
+
 def test_retired_notebook_inputs_have_no_active_parameter_mapping() -> None:
     retired = {"启用固定比例定投", "固定定投比例", "网格固定比例列表"}
     mappings = [
