@@ -371,14 +371,14 @@ def test_yahoo_market_and_macro_results_compose_into_provider_neutral_snapshot()
 
     assert market_result.snapshot is not None
     assert macro_result.observations
-    snapshot = compose_data_snapshot(market_result.snapshot, (macro_result,))
+    snapshot = compose_data_snapshot(market_result, (macro_result,))
 
     assert snapshot.market.symbol == "QQQ"
     assert snapshot.macro[0].symbol == "^VIX"
     assert snapshot.macro[0].aligned_session_date == date(2024, 1, 31)
     assert (
         snapshot.fingerprint
-        == compose_data_snapshot(market_result.snapshot, (macro_result,)).fingerprint
+        == compose_data_snapshot(market_result, (macro_result,)).fingerprint
     )
 
 
@@ -407,7 +407,7 @@ def test_composition_rejects_conflicting_fixture_and_yahoo_macro_values() -> Non
     assert fixture_result.snapshot is not None
     assert yahoo_result.observations[0].aligned_session_date == date(2024, 1, 31)
     with pytest.raises(ValueError, match="conflicting macro observations"):
-        compose_data_snapshot(fixture_result.snapshot, (yahoo_result,))
+        compose_data_snapshot(fixture_result, (yahoo_result,))
 
 
 def test_fixture_adapter_reports_missing_sessions_without_filling_or_dropping() -> None:
@@ -1291,3 +1291,140 @@ def test_quote_currency_never_invents_a_currency_for_missing_or_conflicting_meta
         resolved, diagnostic = adapter.quote_currency("instrument")
         assert resolved is None
         assert diagnostic is not None
+
+
+def _composition_results():
+    calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31), date(2024, 2, 1))
+    request = _request(calendar, start=date(2024, 1, 31), end=date(2024, 1, 31))
+    ticker = _Ticker(
+        _Frame(
+            ["Close", "Adj Close"],
+            [
+                (datetime(2024, 1, 30, 20, tzinfo=UTC), {"Close": 25, "Adj Close": 24}),
+                (datetime(2024, 1, 31, 20, tzinfo=UTC), {"Close": 26, "Adj Close": 25}),
+            ],
+        )
+    )
+    adapter = _yahoo_adapter(ticker)
+    return adapter, request, adapter.load(request)
+
+
+@pytest.mark.parametrize("change", ["range", "calendar", "frequency", "normalization"])
+def test_composition_rejects_macro_from_another_request_context(change):
+    adapter, request, market = _composition_results()
+    macro_request = request.model_copy(update={"symbol": "^VIX"})
+    if change == "range":
+        macro_request = macro_request.model_copy(update={"end_date": date(2024, 2, 1)})
+    elif change == "calendar":
+        macro_request = macro_request.model_copy(
+            update={"exchange_calendar": _calendar(date(2024, 1, 30), date(2024, 2, 1))}
+        )
+    macro = adapter.load_macro(macro_request, series_type="index")
+    if change in {"frequency", "normalization"}:
+        field = "frequency" if change == "frequency" else "normalization_version"
+        macro = macro.model_copy(
+            update={
+                "cache_key": macro.cache_key.model_copy(update={field: "other-version"})
+            }
+        )
+    with pytest.raises(ValueError, match="context"):
+        compose_data_snapshot(market, (macro,))
+
+
+@pytest.mark.parametrize("aligned", [date(2024, 1, 30), date(2024, 2, 1)])
+def test_composition_rejects_macro_outside_target_market_sessions(aligned):
+    adapter, request, market = _composition_results()
+    macro = adapter.load_macro(
+        request.model_copy(update={"symbol": "^VIX"}), series_type="index"
+    )
+    assert macro.observations
+    macro = macro.model_copy(
+        update={
+            "observations": (
+                macro.observations[0].model_copy(
+                    update={"aligned_session_date": aligned}
+                ),
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="session"):
+        compose_data_snapshot(market, (macro,))
+
+
+def test_quote_cache_is_stable_when_calendar_grows_outside_the_requested_window():
+    adapter, request, _ = _composition_results()
+    extended = request.model_copy(
+        update={
+            "exchange_calendar": _calendar(
+                date(2024, 1, 29),
+                date(2024, 1, 30),
+                date(2024, 1, 31),
+                date(2024, 2, 1),
+                date(2024, 2, 2),
+            )
+        }
+    )
+    assert adapter.cache_identity(request) == adapter.cache_identity(extended)
+
+
+def test_macro_staleness_changes_macro_cache_but_does_not_invalidate_quotes():
+    adapter, request, _ = _composition_results()
+    changed = request.model_copy(update={"macro_staleness_sessions": 2})
+    assert adapter.cache_identity(request) == adapter.cache_identity(changed)
+    assert adapter.macro_cache_identity(
+        request, series_type="index", source_unit="index_points"
+    ) != (
+        adapter.macro_cache_identity(
+            changed, series_type="index", source_unit="index_points"
+        )
+    )
+
+
+@pytest.mark.parametrize("macro", [False, True])
+@pytest.mark.parametrize("stage", ["columns", "model"])
+def test_yahoo_local_normalization_errors_are_not_provider_failures(
+    monkeypatch, macro, stage
+):
+    adapter, request, _ = _composition_results()
+    function = (
+        "_resolve_column"
+        if stage == "columns"
+        else ("MacroObservation" if macro else "MarketBar")
+    )
+
+    def broken_normalizer(*_args, **_kwargs):
+        raise ValueError("local-normalization-bug")
+
+    monkeypatch.setattr(f"app.data.providers.yahoo.{function}", broken_normalizer)
+    with pytest.raises(ValueError, match="local-normalization-bug"):
+        if macro:
+            adapter.load_macro(request, series_type="index")
+        else:
+            adapter.load(request)
+
+
+@pytest.mark.parametrize("macro", [False, True])
+def test_yahoo_bad_history_response_is_data_unavailable_instead_of_network_failure(
+    macro,
+):
+    ticker = _Ticker(_Frame([], []))
+    ticker.frame = object()
+    adapter = _yahoo_adapter(ticker)
+    request = _request(_calendar(date(2024, 1, 30), date(2024, 1, 31)))
+    result = (
+        adapter.load_macro(request, series_type="index")
+        if macro
+        else adapter.load(request)
+    )
+    assert result.diagnostics[0].code is DiagnosticCode.REQUIRED_DATA_UNAVAILABLE
+    assert result.diagnostics[0].message_key == "data.invalid_history_response"
+
+
+def test_yahoo_macro_network_failure_uses_a_generic_data_message():
+    ticker = _Ticker(_Frame(["Close"], []), history_error=RuntimeError("token=private"))
+    request = _request(_calendar(date(2024, 1, 30), date(2024, 1, 31)))
+    result = _yahoo_adapter(ticker).load_macro(request, series_type="index")
+    diagnostic = result.diagnostics[0]
+    assert diagnostic.code is DiagnosticCode.PROVIDER_REQUEST_FAILED
+    assert diagnostic.message_key == "data.provider_request_failed"
+    assert "token=private" not in result.model_dump_json()

@@ -108,28 +108,31 @@ class YahooFinanceAdapter:
             data_version=self.data_version,
             price_basis=f"macro-{normalized_type}-{source_unit}",
             start_date=request.macro_source_start_date,
+            context_fingerprint=request.macro_context_fingerprint,
         )
 
     def quote_currency(self, symbol: str) -> tuple[str | None, Diagnostic | None]:
         """Use the same normalized currency lookup as market snapshots."""
         try:
-            return _quote_currency(self._ticker(symbol))
+            ticker = self._ticker(symbol)
         except Exception as error:
             return None, _provider_error(error, symbol)
+        return _quote_currency(ticker, symbol)
 
     def exchange_code(self, symbol: str) -> tuple[str | None, Diagnostic | None]:
         """Read Yahoo's exchange identifier without retaining vendor objects."""
 
         try:
             ticker = self._ticker(symbol)
-            for attribute in ("fast_info", "history_metadata"):
-                metadata = _safe_attribute(ticker, attribute)
-                for key in ("exchange", "exchangeName"):
-                    value = _metadata_value(metadata, key)
-                    if isinstance(value, str) and value.strip():
-                        return value.strip(), None
         except Exception as error:
             return None, _provider_error(error, symbol)
+        for attribute in ("fast_info", "history_metadata"):
+            for key in ("exchange", "exchangeName"):
+                value, diagnostic = _read_metadata(ticker, attribute, key, symbol)
+                if diagnostic is not None:
+                    return None, diagnostic
+                if isinstance(value, str) and value.strip():
+                    return value.strip(), None
         return None, Diagnostic(
             code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
             messageKey="market.exchange_metadata_unavailable",
@@ -142,11 +145,6 @@ class YahooFinanceAdapter:
         cache_key = self.cache_identity(request)
         try:
             ticker = self._ticker(request.symbol)
-            frame = _history_frame(
-                ticker,
-                request,
-                timeout_seconds=self._request_timeout_seconds,
-            )
         except Exception as error:
             return _required_market_unavailable(
                 cache_key=cache_key,
@@ -154,14 +152,17 @@ class YahooFinanceAdapter:
                 missing_sessions=request.data_sessions,
             )
 
-        try:
-            currency, currency_error = _quote_currency(ticker)
-        except Exception as error:
+        frame, history_error = _history_frame(
+            ticker, request, timeout_seconds=self._request_timeout_seconds
+        )
+        if history_error is not None:
             return _required_market_unavailable(
                 cache_key=cache_key,
-                diagnostic=_provider_error(error, request.symbol),
+                diagnostic=history_error,
                 missing_sessions=request.data_sessions,
             )
+        assert frame is not None
+        currency, currency_error = _quote_currency(ticker, request.symbol)
         if currency_error is not None:
             return _required_market_unavailable(
                 cache_key=cache_key,
@@ -170,19 +171,12 @@ class YahooFinanceAdapter:
             )
         assert currency is not None
 
-        try:
-            close_column = _resolve_column(frame, "Close", request.symbol)
-            adjusted_column = _resolve_column(frame, "Adj Close", request.symbol)
-            ohlc_columns = {
-                name: _resolve_column(frame, name, request.symbol)
-                for name in ("Open", "High", "Low")
-            }
-        except Exception as error:
-            return _required_market_unavailable(
-                cache_key=cache_key,
-                diagnostic=_provider_error(error, request.symbol),
-                missing_sessions=request.data_sessions,
-            )
+        close_column = _resolve_column(frame, "Close", request.symbol)
+        adjusted_column = _resolve_column(frame, "Adj Close", request.symbol)
+        ohlc_columns = {
+            name: _resolve_column(frame, name, request.symbol)
+            for name in ("Open", "High", "Low")
+        }
         if (
             close_column is None
             or adjusted_column is None
@@ -205,82 +199,73 @@ class YahooFinanceAdapter:
         bars_by_date: dict[Date, list[MarketBar]] = {}
         diagnostics: list[Diagnostic] = []
         expected_sessions = set(request.data_sessions)
-        try:
-            for index, row in frame.iterrows():
-                observed_at = _as_datetime(index)
-                if observed_at is None:
-                    diagnostics.append(
-                        Diagnostic(
-                            code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
-                            messageKey="market.observation_timestamp_unavailable",
-                            source=self.provider,
-                            details={"symbol": request.symbol},
-                        )
-                    )
-                    continue
-                session_date = observed_at.date()
-                if not request.data_start_date <= session_date <= request.end_date:
-                    continue
-                if session_date not in expected_sessions:
-                    diagnostics.append(
-                        _outside_calendar_diagnostic(
-                            session_date=session_date,
-                            symbol=request.symbol,
-                            source=self.provider,
-                        )
-                    )
-                    continue
-                simulation_price = _as_positive_decimal(
-                    _row_value(row, adjusted_column)
-                )
-                valuation_price = _as_positive_decimal(_row_value(row, close_column))
-                if simulation_price is None or valuation_price is None:
-                    diagnostics.append(
-                        Diagnostic(
-                            code=DiagnosticCode.PRICE_BASIS_UNAVAILABLE,
-                            messageKey="market.price_basis_unavailable",
-                            source=self.provider,
-                            asOf=session_date,
-                            details={
-                                "symbol": request.symbol,
-                                "date": session_date.isoformat(),
-                                "missingFields": [
-                                    field
-                                    for field, value in (
-                                        ("simulationPrice", simulation_price),
-                                        ("valuationPrice", valuation_price),
-                                    )
-                                    if value is None
-                                ],
-                            },
-                        )
-                    )
-                    continue
-                simulation_ohlc = _simulation_ohlc(
-                    row,
-                    ohlc_columns,
-                    simulation_price=simulation_price,
-                    valuation_price=valuation_price,
-                )
-                bars_by_date.setdefault(session_date, []).append(
-                    MarketBar(
-                        date=session_date,
-                        symbol=request.symbol,
-                        simulationOpen=simulation_ohlc[0],
-                        simulationHigh=simulation_ohlc[1],
-                        simulationLow=simulation_ohlc[2],
-                        simulationPrice=simulation_price,
-                        valuationPrice=valuation_price,
-                        currency=currency,
+        for index, row in frame.iterrows():
+            observed_at = _as_datetime(index)
+            if observed_at is None:
+                diagnostics.append(
+                    Diagnostic(
+                        code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+                        messageKey="market.observation_timestamp_unavailable",
                         source=self.provider,
-                        observedAt=observed_at,
+                        details={"symbol": request.symbol},
                     )
                 )
-        except Exception as error:
-            return _required_market_unavailable(
-                cache_key=cache_key,
-                diagnostic=_provider_error(error, request.symbol),
-                missing_sessions=request.data_sessions,
+                continue
+            session_date = observed_at.date()
+            if not request.data_start_date <= session_date <= request.end_date:
+                continue
+            if session_date not in expected_sessions:
+                diagnostics.append(
+                    _outside_calendar_diagnostic(
+                        session_date=session_date,
+                        symbol=request.symbol,
+                        source=self.provider,
+                    )
+                )
+                continue
+            simulation_price = _as_positive_decimal(_row_value(row, adjusted_column))
+            valuation_price = _as_positive_decimal(_row_value(row, close_column))
+            if simulation_price is None or valuation_price is None:
+                diagnostics.append(
+                    Diagnostic(
+                        code=DiagnosticCode.PRICE_BASIS_UNAVAILABLE,
+                        messageKey="market.price_basis_unavailable",
+                        source=self.provider,
+                        asOf=session_date,
+                        details={
+                            "symbol": request.symbol,
+                            "date": session_date.isoformat(),
+                            "missingFields": [
+                                field
+                                for field, value in (
+                                    ("simulationPrice", simulation_price),
+                                    ("valuationPrice", valuation_price),
+                                )
+                                if value is None
+                            ],
+                        },
+                    )
+                )
+                continue
+            simulation_ohlc = _simulation_ohlc(
+                row,
+                ohlc_columns,
+                simulation_price=simulation_price,
+                valuation_price=valuation_price,
+            )
+            bars_by_date.setdefault(session_date, []).append(
+                MarketBar(
+                    date=session_date,
+                    symbol=request.symbol,
+                    simulationOpen=simulation_ohlc[0],
+                    simulationHigh=simulation_ohlc[1],
+                    simulationLow=simulation_ohlc[2],
+                    simulationPrice=simulation_price,
+                    valuationPrice=valuation_price,
+                    currency=currency,
+                    source=self.provider,
+                    observedAt=observed_at,
+                )
             )
 
         bars: list[MarketBar] = []
@@ -334,6 +319,7 @@ class YahooFinanceAdapter:
             bars=tuple(bars),
             macro=(),
             cache_key=cache_key,
+            context=request.snapshot_context,
             missing_sessions=missing,
             diagnostics=tuple(diagnostics),
         )
@@ -371,12 +357,6 @@ class YahooFinanceAdapter:
 
         try:
             ticker = self._ticker(request.symbol)
-            frame = _history_frame(
-                ticker,
-                request,
-                start_date=request.macro_source_start_date,
-                timeout_seconds=self._request_timeout_seconds,
-            )
         except Exception as error:
             return _macro_result(
                 symbol=request.symbol,
@@ -389,9 +369,13 @@ class YahooFinanceAdapter:
                 diagnostics=(_provider_error(error, request.symbol),),
             )
 
-        try:
-            close_column = _resolve_column(frame, "Close", request.symbol)
-        except Exception as error:
+        frame, history_error = _history_frame(
+            ticker,
+            request,
+            start_date=request.macro_source_start_date,
+            timeout_seconds=self._request_timeout_seconds,
+        )
+        if history_error is not None:
             return _macro_result(
                 symbol=request.symbol,
                 request=request,
@@ -400,8 +384,10 @@ class YahooFinanceAdapter:
                 cache_source_unit=source_unit,
                 observations=(),
                 data_version=self.data_version,
-                diagnostics=(_provider_error(error, request.symbol),),
+                diagnostics=(history_error,),
             )
+        assert frame is not None
+        close_column = _resolve_column(frame, "Close", request.symbol)
         if close_column is None:
             return _macro_result(
                 symbol=request.symbol,
@@ -425,10 +411,10 @@ class YahooFinanceAdapter:
 
         effective_unit = source_unit
         if normalized_type is MacroSeriesType.RATE and source_unit == "auto":
-            try:
-                metadata = _safe_attribute(ticker, "history_metadata")
-                metadata_unit = _metadata_value(metadata, "unit")
-            except Exception as error:
+            metadata_unit, metadata_error = _read_metadata(
+                ticker, "history_metadata", "unit", request.symbol
+            )
+            if metadata_error is not None:
                 return _macro_result(
                     symbol=request.symbol,
                     request=request,
@@ -437,98 +423,86 @@ class YahooFinanceAdapter:
                     cache_source_unit=source_unit,
                     observations=(),
                     data_version=self.data_version,
-                    diagnostics=(_provider_error(error, request.symbol),),
+                    diagnostics=(metadata_error,),
                 )
             effective_unit = metadata_unit if isinstance(metadata_unit, str) else "auto"
 
         source_rows: list[MacroObservation] = []
         diagnostics: list[Diagnostic] = []
         trading_sessions = set(request.exchange_calendar.trading_dates)
-        try:
-            for index, row in frame.iterrows():
-                observed_at = _as_datetime(index)
-                if observed_at is None:
-                    diagnostics.append(
-                        Diagnostic(
-                            code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
-                            messageKey="macro.observation_timestamp_unavailable",
-                            source=self.provider,
-                            details={"symbol": request.symbol},
-                        )
-                    )
-                    continue
-                observation_date = observed_at.date()
-                if (
-                    not request.macro_source_start_date
-                    <= observation_date
-                    <= request.end_date
-                ):
-                    continue
-                if observation_date not in trading_sessions:
-                    # Yahoo can include non-trading calendar dates (for example
-                    # Labor Day) with an empty row. Only a missing observation
-                    # on an expected exchange session is a data-quality error.
-                    continue
-                raw_value = _as_decimal(_row_value(row, close_column))
-                if raw_value is None:
-                    diagnostics.append(
-                        Diagnostic(
-                            code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
-                            messageKey="macro.invalid_observation",
-                            asOf=observation_date,
-                            source=self.provider,
-                            details={"symbol": request.symbol},
-                        )
-                    )
-                    continue
-
-                if normalized_type is MacroSeriesType.RATE:
-                    converted = normalize_rate_value(raw_value, effective_unit)
-                    if converted is None:
-                        diagnostics.append(
-                            Diagnostic(
-                                code=DiagnosticCode.UNKNOWN_SOURCE_UNIT,
-                                messageKey="rate.unknown_source_unit",
-                                fieldPath="rate.sourceUnit",
-                                asOf=observation_date,
-                                source=self.provider,
-                                details={
-                                    "symbol": request.symbol,
-                                    "sourceUnit": effective_unit,
-                                },
-                            )
-                        )
-                        continue
-                    output_value = converted
-                    output_unit = "percent_point"
-                    row_source_unit = effective_unit
-                else:
-                    output_value = raw_value
-                    output_unit = "index_points"
-                    row_source_unit = "index_points"
-
-                source_rows.append(
-                    MacroObservation(
-                        date=observation_date,
-                        symbol=request.symbol,
-                        value=output_value,
-                        unit=output_unit,
+        for index, row in frame.iterrows():
+            observed_at = _as_datetime(index)
+            if observed_at is None:
+                diagnostics.append(
+                    Diagnostic(
+                        code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+                        messageKey="macro.observation_timestamp_unavailable",
                         source=self.provider,
-                        observedAt=observed_at,
-                        publishedAt=None,
-                        sourceUnit=row_source_unit,
+                        details={"symbol": request.symbol},
                     )
                 )
-        except Exception as error:
-            return _macro_result(
-                symbol=request.symbol,
-                request=request,
-                series_type=normalized_type.value,
-                source_unit=effective_unit,
-                cache_source_unit=source_unit,
-                observations=(),
-                data_version=self.data_version,
-                diagnostics=(_provider_error(error, request.symbol),),
+                continue
+            observation_date = observed_at.date()
+            if (
+                not request.macro_source_start_date
+                <= observation_date
+                <= request.end_date
+            ):
+                continue
+            if observation_date not in trading_sessions:
+                # Yahoo can include non-trading calendar dates (for example
+                # Labor Day) with an empty row. Only a missing observation
+                # on an expected exchange session is a data-quality error.
+                continue
+            raw_value = _as_decimal(_row_value(row, close_column))
+            if raw_value is None:
+                diagnostics.append(
+                    Diagnostic(
+                        code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+                        messageKey="macro.invalid_observation",
+                        asOf=observation_date,
+                        source=self.provider,
+                        details={"symbol": request.symbol},
+                    )
+                )
+                continue
+
+            if normalized_type is MacroSeriesType.RATE:
+                converted = normalize_rate_value(raw_value, effective_unit)
+                if converted is None:
+                    diagnostics.append(
+                        Diagnostic(
+                            code=DiagnosticCode.UNKNOWN_SOURCE_UNIT,
+                            messageKey="rate.unknown_source_unit",
+                            fieldPath="rate.sourceUnit",
+                            asOf=observation_date,
+                            source=self.provider,
+                            details={
+                                "symbol": request.symbol,
+                                "sourceUnit": effective_unit,
+                            },
+                        )
+                    )
+                    continue
+                output_value = converted
+                output_unit = "percent_point"
+                row_source_unit = effective_unit
+            else:
+                output_value = raw_value
+                output_unit = "index_points"
+                row_source_unit = "index_points"
+
+            source_rows.append(
+                MacroObservation(
+                    date=observation_date,
+                    symbol=request.symbol,
+                    value=output_value,
+                    unit=output_unit,
+                    source=self.provider,
+                    observedAt=observed_at,
+                    publishedAt=None,
+                    sourceUnit=row_source_unit,
+                )
             )
 
         if not source_rows and not diagnostics:
@@ -584,40 +558,67 @@ def _history_frame(
     *,
     start_date: Date | None = None,
     timeout_seconds: float,
-) -> _HistoryFrame:
+) -> tuple[_HistoryFrame | None, Diagnostic | None]:
     end_exclusive = request.end_date + timedelta(days=1)
     history = _safe_attribute(ticker, "history")
     if not callable(history):
-        raise ValueError("yfinance ticker has no history method")
+        return None, _invalid_history_response(request.symbol)
     # Upstream documents start as inclusive, end as exclusive, and auto_adjust=True
     # by default. We pass the next date and disable adjustment explicitly so the
     # original Adj Close and Close columns remain distinct.
     # Source: https://github.com/ranaroussi/yfinance/blob/1.7.0/yfinance/scrapers/history.py
-    frame = history(
-        start=(
-            request.data_start_date if start_date is None else start_date
-        ).isoformat(),
-        end=end_exclusive.isoformat(),
-        interval=request.frequency,
-        auto_adjust=False,
-        back_adjust=False,
-        actions=False,
-        keepna=True,
-        repair=False,
-        rounding=False,
-        raise_errors=True,
-        timeout=timeout_seconds,
+    start = (request.data_start_date if start_date is None else start_date).isoformat()
+    try:
+        frame = history(
+            start=start,
+            end=end_exclusive.isoformat(),
+            interval=request.frequency,
+            auto_adjust=False,
+            back_adjust=False,
+            actions=False,
+            keepna=True,
+            repair=False,
+            rounding=False,
+            raise_errors=True,
+            timeout=timeout_seconds,
+        )
+    except Exception as error:
+        return None, _provider_error(error, request.symbol)
+    if not isinstance(_safe_attribute(frame, "columns"), Iterable) or not callable(
+        _safe_attribute(frame, "iterrows")
+    ):
+        return None, _invalid_history_response(request.symbol)
+    return cast(_HistoryFrame, frame), None
+
+
+def _invalid_history_response(symbol: str) -> Diagnostic:
+    return Diagnostic(
+        code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+        messageKey="data.invalid_history_response",
+        source="yahoo",
+        details={"symbol": symbol},
     )
-    if not hasattr(frame, "columns") or not callable(getattr(frame, "iterrows", None)):
-        raise ValueError("yfinance history response is not a tabular history frame")
-    return cast(_HistoryFrame, frame)
 
 
-def _quote_currency(ticker: object) -> tuple[str | None, Diagnostic | None]:
+def _read_metadata(
+    ticker: object, attribute: str, key: str, symbol: str
+) -> tuple[object, Diagnostic | None]:
+    # yfinance properties and mapping getters can perform lazy vendor requests.
+    try:
+        value = _metadata_value(_safe_attribute(ticker, attribute), key)
+    except Exception as error:
+        return None, _provider_error(error, symbol)
+    return value, None
+
+
+def _quote_currency(
+    ticker: object, symbol: str
+) -> tuple[str | None, Diagnostic | None]:
     values: list[tuple[str, str]] = []
     for attribute in ("fast_info", "history_metadata"):
-        metadata = _safe_attribute(ticker, attribute)
-        value = _metadata_value(metadata, "currency")
+        value, diagnostic = _read_metadata(ticker, attribute, "currency", symbol)
+        if diagnostic is not None:
+            return None, diagnostic
         if isinstance(value, str) and value and value.strip() == value:
             values.append((attribute, value))
 
@@ -768,9 +769,9 @@ def _provider_error(error: Exception, symbol: str) -> Diagnostic:
     message_key = {
         "rate_limited": "market.provider_rate_limited",
         "timeout": "market.provider_timeout",
-    }.get(failure_kind, "market.provider_request_failed")
+    }.get(failure_kind, "data.provider_request_failed")
     _LOGGER.warning(
-        "Market data provider request failed",
+        "Data provider request failed",
         extra={
             "provider": "yahoo",
             "failure_kind": failure_kind,
@@ -833,6 +834,7 @@ def _macro_result(
         data_version=data_version,
         price_basis=f"macro-{series_type}-{cache_source_unit}",
         start_date=request.macro_source_start_date,
+        context_fingerprint=request.macro_context_fingerprint,
     )
     encoded = json.dumps(
         {
@@ -852,6 +854,7 @@ def _macro_result(
         observations=observations,
         fingerprint=hashlib.sha256(encoded).hexdigest(),
         cacheKey=cache_key,
+        context=request.snapshot_context,
         diagnostics=diagnostics,
     )
 

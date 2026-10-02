@@ -359,6 +359,7 @@ const commonMessages: Record<Locale, Record<string, string>> = {
     "diagnostics.data.required_unavailable": "この戦略に必要なデータがありません。",
     "data.provider_not_configured": "データ提供元が設定されていません。",
     "data.provider_request_failed": "データ提供元へのリクエストに失敗しました。",
+    "data.invalid_history_response": "データ提供元の応答から有効な時系列を読み取れません。",
     "market.exchange_metadata_unavailable": "Yahoo から銘柄の取引所情報を取得できませんでした。",
     // Older immutable run snapshots may still contain this warning key.
     "market.latest_quote_delayed": "最新の取引終了日の株価はまだ配信されていません。利用可能な最終日までで計算しました。",
@@ -661,6 +662,7 @@ const commonMessages: Record<Locale, Record<string, string>> = {
     "diagnostics.data.required_unavailable": "此策略所需的数据不可用。",
     "data.provider_not_configured": "尚未配置数据提供方。",
     "data.provider_request_failed": "向数据提供方请求失败。",
+    "data.invalid_history_response": "数据提供方的响应缺少有效的历史序列。",
     "market.exchange_metadata_unavailable": "无法从 Yahoo 获取标的的交易所信息。",
     // Older immutable run snapshots may still contain this warning key.
     "market.latest_quote_delayed": "最新交易日行情尚未发布，已按当前可用的最近行情日进行计算。",

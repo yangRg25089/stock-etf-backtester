@@ -103,7 +103,7 @@ class RunManager:
         with self._state_lock:
             self._cancellations[reservation.run_id] = Event()
         try:
-            data_loads = self._load_strategy_data(submission)
+            data_loads = self._load_strategy_data(submission, reservation.run_id)
             snapshot = self._make_snapshot(reservation.run_id, submission, data_loads)
             response = self._queued_response(snapshot, submission)
             self._store.publish(reservation, response)
@@ -221,7 +221,7 @@ class RunManager:
         return self._store.wait_for_change(run_id, after_version, timeout_seconds)
 
     def _load_strategy_data(
-        self, submission: RunSubmission
+        self, submission: RunSubmission, run_id: str
     ) -> dict[str, StrategyDataLoad]:
         validations = {
             validation.strategy_id: validation
@@ -260,7 +260,14 @@ class RunManager:
                 except Exception as error:
                     for strategy in eligible_strategies:
                         loaded[strategy.id] = StrategyDataLoad(
-                            diagnostics=(_provider_diagnostic(strategy.id, error),)
+                            diagnostics=(
+                                _calculation_diagnostic(
+                                    error,
+                                    run_id=run_id,
+                                    stage="data_loading",
+                                    strategy_id=strategy.id,
+                                ),
+                            )
                         )
                 else:
                     for strategy in eligible_strategies:
@@ -270,11 +277,13 @@ class RunManager:
                         else:
                             loaded[strategy.id] = StrategyDataLoad(
                                 diagnostics=(
-                                    _provider_diagnostic(
-                                        strategy.id,
+                                    _calculation_diagnostic(
                                         ValueError(
                                             "batch data provider omitted strategy data"
                                         ),
+                                        run_id=run_id,
+                                        stage="data_loading",
+                                        strategy_id=strategy.id,
                                     ),
                                 )
                             )
@@ -294,16 +303,15 @@ class RunManager:
                     requirements=requirements[strategy.id],
                 )
             except Exception as error:
-                _LOGGER.warning(
-                    "Strategy data load failed",
-                    extra={
-                        "event": "strategy_data_load_failed",
-                        "strategy_id": strategy.id,
-                        "exception_type": type(error).__name__,
-                    },
-                )
                 loaded[strategy.id] = StrategyDataLoad(
-                    diagnostics=(_provider_diagnostic(strategy.id, error),)
+                    diagnostics=(
+                        _calculation_diagnostic(
+                            error,
+                            run_id=run_id,
+                            stage="data_loading",
+                            strategy_id=strategy.id,
+                        ),
+                    )
                 )
 
         return self._mark_incompatible_contexts(loaded)
@@ -1037,16 +1045,6 @@ def _search_outcome(
         diagnostics=diagnostics,
         metrics=best.metrics,
         search_result=search_result,
-    )
-
-
-def _provider_diagnostic(strategy_id: str, error: Exception) -> Diagnostic:
-    return Diagnostic(
-        code=DiagnosticCode.PROVIDER_REQUEST_FAILED,
-        severity=DiagnosticSeverity.ERROR,
-        messageKey="data.provider_request_failed",
-        fieldPath="run.symbol",
-        details={"strategyId": strategy_id, "exceptionType": type(error).__name__},
     )
 
 

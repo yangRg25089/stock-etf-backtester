@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from bisect import bisect_left, bisect_right
 from collections.abc import Iterable
 from datetime import date as Date
@@ -19,6 +18,7 @@ from app.data.contracts import (
     MacroAlignmentResult,
     MacroDataResult,
     MarketDataResult,
+    SnapshotContext,
 )
 from app.data.fixtures import FixtureBundle, load_fixture
 from app.domain.contracts import (
@@ -33,12 +33,13 @@ from app.domain.status import (
     DiagnosticCode,
     DomainModel,
 )
+from app.domain.values import Symbol
 
 
 class MarketDataRequest(DomainModel):
     """Inclusive backtest range with an optional data-only prewarm interval."""
 
-    symbol: str = Field(min_length=1)
+    symbol: Symbol
     start_date: Date = Field(alias="startDate")
     end_date: Date = Field(alias="endDate")
     frequency: str = Field(default="1d", min_length=1)
@@ -55,13 +56,6 @@ class MarketDataRequest(DomainModel):
     def validate_daily_frequency(cls, value: str) -> str:
         if value != "1d":
             raise ValueError("only daily frequency is supported")
-        return value
-
-    @field_validator("symbol")
-    @classmethod
-    def validate_symbol(cls, value: str) -> str:
-        if re.fullmatch(r"[A-Za-z0-9.^=_-]{1,32}", value) is None:
-            raise ValueError("symbol contains unsupported characters")
         return value
 
     @model_validator(mode="after")
@@ -117,7 +111,7 @@ class MarketDataRequest(DomainModel):
 
     @property
     def context_fingerprint(self) -> str:
-        """Identify calendar and as-of policy inputs affecting normalized output."""
+        """Identify only the calendar inputs affecting normalized market bars."""
 
         payload = {
             "startDate": self.start_date.isoformat(),
@@ -126,12 +120,34 @@ class MarketDataRequest(DomainModel):
                 if self.prewarm_start_date is not None
                 else None
             ),
-            "exchangeSessions": [
-                session.isoformat() for session in self.exchange_calendar.trading_dates
+            "exchangeSessions": [session.isoformat() for session in self.data_sessions],
+        }
+        return _fingerprint(payload)
+
+    @property
+    def macro_context_fingerprint(self) -> str:
+        """Include macro availability lookback and staleness without later sessions."""
+
+        payload = {
+            "startDate": self.start_date.isoformat(),
+            "targetSessions": [session.isoformat() for session in self.target_sessions],
+            "sourceSessions": [
+                session.isoformat()
+                for session in self.exchange_calendar.trading_dates
+                if self.macro_source_start_date <= session <= self.end_date
             ],
             "macroStalenessSessions": self.macro_staleness_sessions,
         }
         return _fingerprint(payload)
+
+    @property
+    def snapshot_context(self) -> SnapshotContext:
+        return SnapshotContext(
+            startDate=self.start_date,
+            endDate=self.end_date,
+            frequency=self.frequency,
+            sessions=self.target_sessions,
+        )
 
 
 class MacroSeriesType(StrEnum):
@@ -158,6 +174,7 @@ def build_cache_key(
     data_version: str,
     price_basis: str,
     start_date: Date | None = None,
+    context_fingerprint: str | None = None,
 ) -> DataCacheKey:
     """Create an identity using the actual inclusive data interval."""
 
@@ -169,7 +186,11 @@ def build_cache_key(
         endDate=request.end_date,
         dataVersion=data_version,
         priceBasis=price_basis,
-        contextFingerprint=request.context_fingerprint,
+        contextFingerprint=(
+            request.context_fingerprint
+            if context_fingerprint is None
+            else context_fingerprint
+        ),
     )
 
 
@@ -382,7 +403,7 @@ def _unknown_rate_unit(symbol: str, source: str, source_unit: str) -> Diagnostic
 
 
 def compose_data_snapshot(
-    base_snapshot: DataSnapshot,
+    market_result: MarketDataResult,
     macro_results: Iterable[MacroDataResult],
 ) -> DataSnapshot:
     """Compose cached market and macro provider results into one domain snapshot.
@@ -393,15 +414,26 @@ def compose_data_snapshot(
     Diagnostics stay on their provider results and must be aggregated by the caller.
     """
 
+    base_snapshot = market_result.snapshot
+    context = market_result.context
+    if base_snapshot is None or context is None:
+        raise ValueError("composition requires available market data and context")
+    market_result.cache_key.validate_context(context)
+    available_sessions = {bar.date for bar in base_snapshot.market.bars}.intersection(
+        context.sessions
+    )
     macro_by_session: dict[tuple[str, Date], MacroObservation] = {}
     for observation in base_snapshot.macro:
-        _add_macro_observation(macro_by_session, observation)
+        _add_macro_observation(macro_by_session, observation, available_sessions)
 
     for result in macro_results:
+        if result.context != context:
+            raise ValueError("macro and market snapshot contexts must match")
+        result.cache_key.validate_context(context)
         for observation in result.observations:
             if observation.symbol != result.symbol:
                 raise ValueError("macro result observations must match its symbol")
-            _add_macro_observation(macro_by_session, observation)
+            _add_macro_observation(macro_by_session, observation, available_sessions)
 
     return _build_data_snapshot(
         market=base_snapshot.market,
@@ -413,10 +445,15 @@ def compose_data_snapshot(
 def _add_macro_observation(
     macro_by_session: dict[tuple[str, Date], MacroObservation],
     observation: MacroObservation,
+    available_sessions: set[Date],
 ) -> None:
     aligned_session_date = observation.aligned_session_date
     if aligned_session_date is None:
         raise ValueError("macro observations must be session-aligned")
+    if aligned_session_date not in available_sessions:
+        raise ValueError(
+            "macro observations must align to available target market sessions"
+        )
 
     key = (observation.symbol, aligned_session_date)
     existing = macro_by_session.get(key)
@@ -470,6 +507,7 @@ def _market_data_result(
     bars: tuple[MarketBar, ...],
     macro: tuple[MacroObservation, ...],
     cache_key: DataCacheKey,
+    context: SnapshotContext,
     missing_sessions: tuple[Date, ...],
     diagnostics: tuple[Diagnostic, ...],
 ) -> MarketDataResult:
@@ -505,6 +543,7 @@ def _market_data_result(
         snapshot=snapshot,
         fingerprint=normalized_fingerprint,
         cacheKey=cache_key,
+        context=context,
         missingMarketSessions=missing_sessions,
         diagnostics=diagnostics,
     )
@@ -578,6 +617,9 @@ class FixtureMarketDataAdapter:
             provider=self.provider,
             data_version=version,
             price_basis=self.price_basis,
+            context_fingerprint=_fingerprint(
+                (request.context_fingerprint, request.macro_context_fingerprint)
+            ),
         )
 
     def load(self, request: MarketDataRequest) -> MarketDataResult:
@@ -664,6 +706,7 @@ class FixtureMarketDataAdapter:
             bars=bars,
             macro=alignment.observations,
             cache_key=cache_key,
+            context=request.snapshot_context,
             missing_sessions=missing,
             diagnostics=tuple(diagnostics),
         )

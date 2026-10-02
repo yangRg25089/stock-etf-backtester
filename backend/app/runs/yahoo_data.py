@@ -20,7 +20,7 @@ from app.data.cache import (
     CachedMarketDataProvider,
     InMemoryDataCache,
 )
-from app.data.contracts import MacroDataResult
+from app.data.contracts import MacroDataResult, MarketDataResult
 from app.data.market_data import (
     MacroSeriesType,
     MarketDataRequest,
@@ -28,7 +28,6 @@ from app.data.market_data import (
 )
 from app.data.providers.yahoo import YahooFinanceAdapter
 from app.domain.contracts import (
-    DataSnapshot,
     FrozenStrategyInstance,
     InstrumentMetadata,
     SharedSettings,
@@ -339,7 +338,9 @@ class YahooRunDataProvider:
         return self._build_strategy_loads(
             strategies=strategies,
             strategy_requirements=strategy_requirements,
-            base_snapshot=base_snapshot,
+            market_result=market_result.model_copy(
+                update={"context": effective_request.snapshot_context}
+            ),
             calendar=final_calendar,
             market_diagnostics=effective_market_diagnostics,
             macro_results=macro_results,
@@ -398,7 +399,7 @@ class YahooRunDataProvider:
         *,
         strategies: Sequence[FrozenStrategyInstance],
         strategy_requirements: Mapping[str, tuple[DataRequirement, ...]],
-        base_snapshot: DataSnapshot,
+        market_result: MarketDataResult,
         calendar: ExchangeCalendar,
         market_diagnostics: tuple[Diagnostic, ...],
         macro_results: Mapping[MacroKey, MacroDataResult],
@@ -410,7 +411,7 @@ class YahooRunDataProvider:
             if result.observations
         )
         try:
-            shared_snapshot = compose_data_snapshot(base_snapshot, run_macros)
+            shared_snapshot = compose_data_snapshot(market_result, run_macros)
         except (TypeError, ValueError):
             # A conflicting unit/source for the same ticker must not block
             # unrelated strategies. In that rare case each strategy receives
@@ -453,7 +454,7 @@ class YahooRunDataProvider:
                 snapshot = (
                     shared_snapshot
                     if shared_snapshot is not None
-                    else compose_data_snapshot(base_snapshot, macros)
+                    else compose_data_snapshot(market_result, macros)
                 )
             except (TypeError, ValueError) as error:
                 _LOGGER.warning(

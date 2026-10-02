@@ -12,6 +12,30 @@ from app.domain.contracts import DataSnapshot, MacroObservation
 from app.domain.status import Diagnostic, DomainModel
 
 
+class SnapshotContext(DomainModel):
+    """The shared simulation window, independent of provider cache policies."""
+
+    start_date: Date = Field(alias="startDate")
+    end_date: Date = Field(alias="endDate")
+    frequency: str = "1d"
+    sessions: tuple[Date, ...]
+    normalization_version: str = Field(
+        default="normalized-data-v1", alias="normalizationVersion", min_length=1
+    )
+
+    @model_validator(mode="after")
+    def validate_sessions(self) -> SnapshotContext:
+        if self.start_date > self.end_date:
+            raise ValueError("snapshot context start must not follow its end")
+        if self.sessions != tuple(sorted(set(self.sessions))) or any(
+            not self.start_date <= day <= self.end_date for day in self.sessions
+        ):
+            raise ValueError(
+                "snapshot context sessions must be ordered within its range"
+            )
+        return self
+
+
 class DataCacheKey(DomainModel):
     """Identity for a normalized provider request with inclusive date bounds."""
 
@@ -33,6 +57,16 @@ class DataCacheKey(DomainModel):
             raise ValueError("cache startDate must not be after inclusive endDate")
         return self
 
+    def validate_context(self, context: SnapshotContext) -> None:
+        if (
+            self.frequency != context.frequency
+            or self.normalization_version != context.normalization_version
+            or any(
+                not self.start_date <= day <= self.end_date for day in context.sessions
+            )
+        ):
+            raise ValueError("cache identity does not cover the snapshot context")
+
     @property
     def fingerprint(self) -> str:
         """Return a stable digest over every cache-identity dimension."""
@@ -52,6 +86,7 @@ class MarketDataResult(DomainModel):
     snapshot: DataSnapshot | None = None
     fingerprint: str | None = None
     cache_key: DataCacheKey = Field(alias="cacheKey")
+    context: SnapshotContext | None = None
     missing_market_sessions: tuple[Date, ...] = Field(
         default=(), alias="missingMarketSessions"
     )
@@ -67,6 +102,13 @@ class MarketDataResult(DomainModel):
             sorted(set(self.missing_market_sessions))
         ):
             raise ValueError("missing market sessions must be sorted and unique")
+        if self.snapshot is not None:
+            if self.context is None:
+                raise ValueError("available market data must include its context")
+            if self.snapshot.market.symbol != self.cache_key.symbol:
+                raise ValueError("market result must match its cache symbol")
+        if self.context is not None:
+            self.cache_key.validate_context(self.context)
         return self
 
 
@@ -77,7 +119,20 @@ class MacroDataResult(DomainModel):
     observations: tuple[MacroObservation, ...] = ()
     fingerprint: str = Field(min_length=1)
     cache_key: DataCacheKey = Field(alias="cacheKey")
+    context: SnapshotContext | None = None
     diagnostics: tuple[Diagnostic, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_observation_context(self) -> MacroDataResult:
+        if self.cache_key.symbol != self.symbol or any(
+            observation.symbol != self.symbol for observation in self.observations
+        ):
+            raise ValueError("macro observations and cache must use its symbol")
+        if self.observations and self.context is None:
+            raise ValueError("available macro data must include its context")
+        if self.context is not None:
+            self.cache_key.validate_context(self.context)
+        return self
 
 
 class MacroAlignmentResult(DomainModel):

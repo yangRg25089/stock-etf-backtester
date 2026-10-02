@@ -41,3 +41,25 @@
 额外 UI 建议核对：策略编辑已使用 dialog 和独立条件卡片；播放/停止/重置位于固定顶栏；比较、曲线、交易和 CSV 各有清晰层级；零交易、失败、局部成功和搜索候选保持真实状态及保存结果。图例有名称、键盘焦点、可点击选择及曲线强调，辅助指标用不同图层和线型。用户明确删除的范围选择、实例启停、独立运行状态面板、大标题及重复指标不重新引入。布局和参数默认值继续由当前规范定义，此处不建立第二套 UI 规则。
 
 验证结果和后续买卖点/技术指标任务见 `tasks/todo.md` 阶段 25–26；原审查中的计划建议不代替当前任务顺序。
+
+## 2026-10-03 后端 RV 对当前实现的核对（Task 117–119）
+
+原稿 `docs/design/2026102_rv_backend.md` 针对旧 main 4176e35；按原表顺序逐项核对当前实现。交易/数据和状态规则归主设计稿，参数/上下文/缓存归复用规范，此表只记录对应关系。
+
+| # | 原指摘 | 当前对应与回归证据 |
+| --- | --- | --- |
+| 1 | 行情日期排序/唯一 | `MarketSnapshot` 拒绝逆序和重复，不自行排序或去重；domain 边界回归同时保留价格/来源 |
+| 2 | 行情/宏观时区 | 共用 `AwareTimestamp`，拒绝 naive，允许非 UTC 有效时区及未知 publishedAt；RunSnapshot 同用该约束 |
+| 3 | 跨请求组合 | 接收 `MarketDataResult` 并比较 SnapshotContext；范围/日历/频率/规范化版本及越界对齐分别失败回归；缺口清洗/真实运行继续覆盖 |
+| 4 | symbol 两套规则 | 共享 Symbol/SYMBOL_PATTERN，catalog 暴露 pattern；非法字符、过长、有效市场代码及 run/data 入口回归。VIX 已是 VIX/VXN/VXD 枚举，不改回任意输入 |
+| 5 | datetime 冒充 date | catalog 显式拒绝有/无时区的 datetime 子类，普通 date 不变 |
+| 6 | 搜索空/重复列表 | 当前 ENUM_LIST/NUMBER_LIST 已非空且唯一；新增四组回归通过，保留未选维度不参与校验/搜索的规则 |
+| 7 | latest/None 契约 | 已被用户“日历默认今天”决定取代；run.endDate 为非空今天，无 run.endMode 控件，冻结选定日期，当前目录契约回归通过 |
+| 8 | Yahoo 吞程序错误 | 宽捕获仅作用于 ticker/vendor history/延迟 metadata 调用；列解析、遍历、模型构造异常透出，在运行层归 calculation_failed。坏历史响应另报 required_data_unavailable，供应商超时/限流等诊断保留 |
+| 9 | Pydantic 传递依赖 | pyproject 显式声明 `pydantic>=2,<3`；现有 v2 环境运行所有领域/API/持久化回归 |
+| 10 | 全日历使行情缓存失效 | 行情只取 data_start..end 会话；窗口外前后扩展保持相同 key，窗口内变化仍影响 key |
+| 11 | 宏观政策影响行情缓存 | 分离 market/macro 指纹；修改陈旧度不影响行情 key、必改变 macro key；fixture 同时包含两类数据，保留两类依赖 |
+| 12 | 空集合任意状态 | RunResult 空集合仅 queued，七个非 queued 状态分别拒绝；已有子结果的自动聚合/部分成功保持 |
+| 13 | macro 的 market 消息键 | 普通请求失败统一 `data.provider_request_failed`；限流/超时保留已有可翻译稳定键，坏响应新增日中文案；诊断/日志不包含异常原文 |
+
+失败证据：领域/参数首轮 22 failed，上下文/缓存 8 failed，异常分类 9 failed；后续修复和完整验收记录见 todo 阶段 29。原 RV 原稿保留，不因旧 main 与当前实现不同而重写。

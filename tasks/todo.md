@@ -781,3 +781,27 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 后端独立临时 SQLite 全量 pytest 404 passed，26.83 秒，包含真实 Yahoo QQQ/VIX/VXN/VXD 和技术指标；15 条既有 yfinance 弃用提示。Ruff check、95 文件格式、mypy 59 文件通过（`/tmp/backtester-phase28-backend-final.log`）。后端、交易算法、参数目录和公开 API 结构未改。
 - 复审覆盖取消/终态/重置身份、当前失败仍可见、重试清理、LF/CRLF/CR 和 UTF-8 跨包、异常 EOF、终态响应体释放及单次完整 GET；改动保持运行编排与 API 传输的既有边界。简化删除重复换行替换，不新增 store/依赖/轮询；规范与开发说明同步，视觉原型无行为改变无需修改。
 - 本轮 Task 114–116 本地完成，保留可回滚 feature 提交。用户 RV 原稿保持未跟踪且不暂存，个人服务/运行库未改。待办剩余仍仅为 Task 102/检查点 W 的远端核实：此前自动审批拒绝未确认的指定 GitHub 目标，未重试或绕过；本轮不创建隐含日程。
+
+## 阶段 29：后端 RV 与 Git 整理
+
+- [x] Task 117：领域时间序列/时区、统一代码/日期/列表校验及直接依赖。
+- [x] Task 118：严格组合上下文与独立行情/宏观缓存身份。
+- [x] Task 119：Yahoo 异常归属、13 项 RV 复审与完整验收。
+- [ ] Task 120：取消 AI agent 文件跟踪、备份旧分支并收敛 main。
+
+### 初始核对
+
+- 用户原稿针对旧 `main` 4176e35，当前 feature 为 4c6561e；ENUM_LIST/NUMBER_LIST 已限制非空且唯一，结束日已经默认今天且无 latest 控件，以现有测试核验。
+- 日期递增/唯一、时间戳时区、非法 symbol、datetime 冒充 date、空结果状态仍存在边界缺口；数据组合缺少请求上下文，行情缓存仍混入完整日历及宏观陈旧政策。
+- 工作树初始仅有用户 RV 原稿未跟踪。旧 tmp worktree 均无未提交修改；两条 pi-agent 分支各有一个独有的早期日历提交，清理前保留可恢复备份。
+- 跟踪的 agent 文件包含 AGENTS.md、.agents/skills/stock-task-dispatcher/SKILL.md，以及 .pi/ 下的 prompt、remote 配置和 workflow；取消跟踪保留本地，设计/任务记录不删除。
+
+### 后端 RV 验收
+
+- 原有完整后端基线 404 passed（21.13 秒）；所有请求使用隔离临时 SQLite，未改用户运行库。原 RV 原稿仍未跟踪且未修改。
+- 领域/参数首轮 22 failed（其中 VIX 已是枚举，不应要求自由 symbol 的 pattern，已纠正测试前提）；真正缺口先建立失败回归，随后领域/catalog/config 111 passed。第一次 green 的测试日历覆盖范围不够，使用 fixture 实际末日修正；空白 symbol 的原诊断保持 empty_value。
+- 上下文/缓存 8 项先失败，修复后 data/Yahoo run 专项 127 passed。SnapshotContext 与缓存身份分离；清洗后重新绑定结果上下文，原缓存 key 保留。共享 context 校验收敛到 DataCacheKey.validate_context，未复制规则。
+- Yahoo 异常分类与运行层 9 项先失败（修正一次测试括号插入错误后确认）；本地列解析/模型错误不再映射 provider 错误，坏响应报数据不可用，真实网络失败保留提供方类别，单条/批量数据代码错误归 calculation_failed，异常文本不进入响应和日志。相关 data/manager/Yahoo run 154 passed。
+- 最终完整后端 454 passed（21.53 秒）；含真实 QQQ/VIX/VXN/VXD、技术指标、账本、API、停止/恢复和 CSV，15 条既有 yfinance 弃用提示。Ruff check、98 文件格式和 mypy 60 文件通过；格式检查发现的 pairwise/无用导入已修正，无 suppression 或跳过测试。
+- OpenAPI 生成 65 schemas，前端 186 passed、typecheck、零警告 lint、build 通过；完整 Playwright/axe 101 passed（2.7 分钟），所有用户结果/图表/弹窗路径保持。相关日志：`/tmp/backtester-phase29-backend-final.log`、`/tmp/backtester-phase29-static-final.log`、`/tmp/backtester-phase29-frontend-final.log`、`/tmp/backtester-phase29-browser-final.log`。
+- 复审覆盖预热/宏观回看窗口不同、共享缺口清洗、不同供应商版本、陈旧设置缓存隔离、时区/错误归属和旧快照。删除重复上下文校验及旧运行层 provider 错误包装；交易算法/曲线口径未变。13 项对应见 review-resolutions，主规范/复用规范/开发说明同步，diff check 通过。

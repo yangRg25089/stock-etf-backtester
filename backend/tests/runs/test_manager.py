@@ -446,6 +446,41 @@ def test_manager_distinguishes_all_provider_failures_from_unavailable_data() -> 
     )
 
 
+@pytest.mark.parametrize("batch", [False, True])
+def test_manager_labels_unexpected_data_code_errors_as_calculation_failures(
+    batch, caplog
+):
+    class BrokenDataProvider(_FixtureProvider):
+        def load_for_strategy(self, **_kwargs):
+            raise ValueError("private-token-local-programming-bug")
+
+    provider = BrokenDataProvider()
+    if batch:
+        provider.load_for_run = provider.load_for_strategy
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(),
+        data_provider=provider,
+        executor=executor,  # type: ignore[arg-type]
+    )
+    accepted = manager.submit_run(
+        _submission("broken-vix"), idempotency_key="broken-data-code"
+    )
+    executor.run_next()
+    completed = manager.get_run(accepted.run_id)
+    assert completed is not None and completed.result is not None
+    assert completed.status is StrategyStatus.FAILED
+    assert all(
+        item.diagnostics[0].code is DiagnosticCode.CALCULATION_FAILED
+        for item in completed.result.strategy_runs
+    )
+    assert "private-token" not in completed.model_dump_json()
+    assert "private-token" not in caplog.text
+    assert any(
+        getattr(record, "stage", None) == "data_loading" for record in caplog.records
+    )
+
+
 def test_manager_preserves_warning_status_for_a_usable_snapshot() -> None:
     executor = _ManualExecutor()
     manager = RunManager(
