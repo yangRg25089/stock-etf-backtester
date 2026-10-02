@@ -60,6 +60,8 @@ with sqlite3.connect(".local/runs.sqlite3") as source:
 
 ## 环境与常用命令
 
+当前本地只保留 main；个人 AI agent 配置保留在本机并由 .gitignore 排除，不随应用源码提交。旧分支完整备份位于 `.local/git-backups/phase29-before-main-20261003.bundle`；可用 `git bundle list-heads` 查看原引用，恢复时先从 bundle 提取到新的临时分支进行比较。产品设计、task 记录、实际应用代码和测试仍正常跟踪。远端写入状态见 todo 的阶段 29，不将本地分支清理误报为远端同步完成。
+
 后端直接依赖 Pydantic v2。规范化行情日期须严格递增、唯一，行情/宏观时间戳须带时区。供应商结果携带 SnapshotContext，组合时校验共同窗口、会话、频率和规范化版本；缺口清洗重新绑定上下文，原缓存身份保留。Yahoo 仅在 vendor 调用边界捕获宽异常，坏响应报数据不可用，本地解析/模型错误由运行层以 calculation_failed 和安全阶段信息记录。行情缓存不随宏观陈旧设置或窗口外日历增长而失效。
 
 Python 需为 3.11（3.11 以上、3.13 以下），Node.js 需为 22 以上，npm 需为 12 以上。

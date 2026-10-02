@@ -787,7 +787,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - [x] Task 117：领域时间序列/时区、统一代码/日期/列表校验及直接依赖。
 - [x] Task 118：严格组合上下文与独立行情/宏观缓存身份。
 - [x] Task 119：Yahoo 异常归属、13 项 RV 复审与完整验收。
-- [ ] Task 120：取消 AI agent 文件跟踪、备份旧分支并收敛 main。
+- [ ] Task 120：取消 AI agent 文件跟踪、备份旧分支并收敛 main（本地已完成；远端分支收敛待指定目标确认）。
 
 ### 初始核对
 
@@ -805,3 +805,12 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 最终完整后端 454 passed（21.53 秒）；含真实 QQQ/VIX/VXN/VXD、技术指标、账本、API、停止/恢复和 CSV，15 条既有 yfinance 弃用提示。Ruff check、98 文件格式和 mypy 60 文件通过；格式检查发现的 pairwise/无用导入已修正，无 suppression 或跳过测试。
 - OpenAPI 生成 65 schemas，前端 186 passed、typecheck、零警告 lint、build 通过；完整 Playwright/axe 101 passed（2.7 分钟），所有用户结果/图表/弹窗路径保持。相关日志：`/tmp/backtester-phase29-backend-final.log`、`/tmp/backtester-phase29-static-final.log`、`/tmp/backtester-phase29-frontend-final.log`、`/tmp/backtester-phase29-browser-final.log`。
 - 复审覆盖预热/宏观回看窗口不同、共享缺口清洗、不同供应商版本、陈旧设置缓存隔离、时区/错误归属和旧快照。删除重复上下文校验及旧运行层 provider 错误包装；交易算法/曲线口径未变。13 项对应见 review-resolutions，主规范/复用规范/开发说明同步，diff check 通过。
+
+### Git 本地整理验收
+
+- 修复分为 `5fce9c4`（领域/参数）、`cf83ec6`（数据/缓存/异常）两次提交；`ad9fc32` 取消跟踪五个 agent 配置，并忽略 AGENTS/CLAUDE/.agents/.pi/.codex/.claude/.cursor。
+- `.local/git-backups/phase29-before-main-20261003.bundle` 通过 git bundle verify，记录完整历史，包括旧分支独有 `99aa347`、`a533eba`。该文件由既有 .local 忽略规则保留在本机；产品任务/设计记录与用户 RV 原稿保持完整，不改写历史。
+- 已核实 main/origin/main 都是已验收实现的祖先，再快速前移 main 到完成提交并切换同一文件树。避免切回旧 main 时覆盖刚取消跟踪的本地配置；五个文件逐字节与取消跟踪前一致。
+- 四个旧 tmp worktree 均无未提交修改；解除 task6 分支占用后保留为 detached，不删除目录或忽略文件。六个旧本地分支已删除，git branch 验证只剩 main。
+- git ls-files 验证已无 agent 配置；git check-ignore 验证五个本地文件不会再次跟踪。工作树仅剩用户 RV 原稿未跟踪，未修改或暂存。
+- 已只读 fetch 核对远端：origin/main 仍为 4176e35，远端另外保留两个 feature 分支。Task 102/W 的此前自动审批拒绝仍要求确认指定 GitHub 目标；尚未推送 main 或删除远端分支，待确认后完成 Task 120 最后步骤。
