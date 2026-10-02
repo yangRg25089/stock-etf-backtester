@@ -45,13 +45,13 @@
 | `exit.rsi.enabled`, `exit.rsi.threshold`, `exit.rsi.ratio` | 启用RSI卖出 / 关；RSI卖出阈值 / `70`；比例 / `0.25` | 策略实例；即使 RSI 买入关，卖出开仍依赖 RSI 数据 |
 | `exit.bollinger.enabled`, `exit.bollinger.ratio`, `exit.bollinger.vixCeiling` | 启用布林卖出 / 关；卖出比例 / `0.25`；原硬编码 VIX 20 | 策略实例；VIX 上限新增为显式可调字段 |
 | `trend.sellBelowOrEqualMa` | 模式2买卖 / 开、模式3只买 / 关 | 预设差异；复用同一趋势模块和 `ma.period` |
-| `search.dimensions`, `search.maxCombinations` | 模式4；VIX `[25,28,30,35]`、RSI `[25,28,30]`、安全阀 `[400,600,800]`、固定比例 `[0.3,0.5,0.7,1]`；组合上限默认 `1000`、可调，系统硬上限 `10000` | 搜索作业；维度引用上述注册键，只接受适用的可搜索数字字段 |
+| `search.dimensions`, `search.maxCombinations`, `search.values.vix.buyThreshold`, `search.values.rsi.buyThreshold`, `search.values.accumulation.cashSafetyLimit` | 模式4；候选默认 VIX `[25,28,30,35]`、RSI `[25,28,30]`、安全阀 `[400,600,800]`；候选可编辑。组合上限默认 `1000`、可调，硬上限 `10000` | 搜索作业；候选列表从对应普通参数派生单位、范围与步长，仅适用于搜索 |
 | `run.scope` | 策略模式 0..6 的现代化替代 | UI 运行状态；`active | all_enabled`，不保存为策略参数 |
 | `display.showChart` | 绘图 / notebook1 开、notebook2 关 | 全局图表折叠偏好；首屏默认开，追加策略不改变；交易记录始终保存且交易页直接显示，不再注册显隐参数；不影响交易数据或导出 |
 
 注册表还要定义每项的具体上下界、步长和必要性；例如 `contribution.day` 为整数 1..31、比例 0..1、标准差倍数 >0、周期为正整数、金额不小于 0、搜索列表非空且去重。参数表的普通编辑器、搜索维度编辑器、服务端错误字段路径与导出配置快照都使用这些稳定键。`run.scope` 和语言选择是 UI 状态，不包含在算法哈希里。
 
-网格搜索实例中的基础参数用 `accumulation` 同一字段定义与默认值，只是在渲染时增加 `search.dimensions` 编辑器。未被列为维度的字段保留该实例的基础值；列为维度的键逐候选覆盖，不能维护第二套搜索专用阈值或交易规则。
+网格搜索实例中的基础参数用 `accumulation` 同一字段定义与默认值，在渲染时增加 `SearchDimensionEditor`：维度用可切换按钮，所选维度显示候选值卡片及总组合数。未被列为维度的字段保留该实例的基础值；列为维度的键逐候选覆盖，不能维护第二套搜索专用阈值或交易规则。候选列表的稳定键由 catalog `SearchDimension.valuesParameterKey` 绑定，默认值只维护在参数注册表。所选列表不得空、重复、非数字或越界；未选列表保留编辑内容，但不校验或参与枚举。提交时冻结列表，结果维度、候选曲线、CSV 与恢复均读取保存值；计算缓存指纹不含搜索包装配置。旧 catalog 的无绑定维度使用其已保存值。
 
 ## 草稿、作业与结果状态
 

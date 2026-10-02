@@ -293,6 +293,7 @@ export type SearchCandidate = {
 export type SearchDimension = {
   key: string;
   values: Array<unknown>;
+  valuesParameterKey?: string | null;
   translationKey?: string;
 };
 

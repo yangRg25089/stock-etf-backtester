@@ -197,6 +197,22 @@ def test_grid_search_covers_each_selected_value_and_keeps_base_parameters() -> N
     assert len(set(result.ranked_candidate_ids)) == 4
 
 
+def test_grid_search_enumerates_frozen_user_values_and_changes_the_trades() -> None:
+    values = [29, 31]
+    config = _config(overrides={"search.values.vix.buyThreshold": values}, maximum=2)
+    values.append(40)
+    result = run_grid_search(_input(config))
+    assert result.total_candidate_count == 2
+    assert result.dimensions[0].values == (29, 31)
+    assert [
+        candidate.parameter_values["vix.buyThreshold"]
+        for candidate in result.candidates
+    ] == [29, 31]
+    assert result.candidates[0].metrics.actual_invested == 100
+    assert result.candidates[1].metrics.actual_invested == 0
+    assert config.strategies[0].params["search.values.vix.buyThreshold"] == (29, 31)
+
+
 def test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark() -> None:
     grid_config = _config(
         dimensions=["vix.buyThreshold"],

@@ -378,17 +378,26 @@
     {
       "sourceId": "compare_strategies",
       "sourceKey": "网格 VIX 列表",
-      "targetKey": "search.dimensions[vix.buyThreshold]"
+      "targetKey": [
+        "search.dimensions",
+        "search.values.vix.buyThreshold"
+      ]
     },
     {
       "sourceId": "compare_strategies",
       "sourceKey": "网格 RSI 列表",
-      "targetKey": "search.dimensions[rsi.buyThreshold]"
+      "targetKey": [
+        "search.dimensions",
+        "search.values.rsi.buyThreshold"
+      ]
     },
     {
       "sourceId": "compare_strategies",
       "sourceKey": "网格安全阀列表",
-      "targetKey": "search.dimensions[accumulation.cashSafetyLimit]"
+      "targetKey": [
+        "search.dimensions",
+        "search.values.accumulation.cashSafetyLimit"
+      ]
     },
     {
       "sourceId": "compare_strategies",

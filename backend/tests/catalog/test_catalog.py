@@ -108,13 +108,16 @@ EXPECTED_PARAMETER_KEYS = {
     "scheduled.fundingMode",
     "search.dimensions",
     "search.maxCombinations",
+    "search.values.vix.buyThreshold",
+    "search.values.rsi.buyThreshold",
+    "search.values.accumulation.cashSafetyLimit",
     "run.scope",
     "display.showChart",
 }
 
 
-def test_catalog_version_advances_for_shared_condition_templates() -> None:
-    assert CATALOG_VERSION == "catalog-v8"
+def test_catalog_version_advances_for_registered_search_values() -> None:
+    assert CATALOG_VERSION == "catalog-v9"
 
 
 def test_numeric_defaults_align_with_browser_minimum_and_step() -> None:
@@ -178,10 +181,16 @@ def test_every_parameter_has_complete_stable_metadata() -> None:
             assert definition.minimum <= definition.maximum
         if definition.step is not None:
             assert definition.step > 0
-        if definition.default is not None and definition.minimum is not None:
-            assert definition.default >= definition.minimum
-        if definition.default is not None and definition.maximum is not None:
-            assert definition.default <= definition.maximum
+        defaults = (
+            definition.default
+            if definition.type is ParameterType.NUMBER_LIST
+            else (definition.default,)
+        )
+        for default in defaults:
+            if default is not None and definition.minimum is not None:
+                assert default >= definition.minimum
+            if default is not None and definition.maximum is not None:
+                assert default <= definition.maximum
 
 
 def test_parameter_groups_are_unique_and_every_catalog_field_uses_one() -> None:
@@ -379,6 +388,21 @@ def test_grid_search_references_registered_numeric_keys_and_default_ranges() -> 
         "rsi.buyThreshold",
         "accumulation.cashSafetyLimit",
     }
+
+
+def test_grid_values_are_registered_with_the_normal_parameter_bounds() -> None:
+    preset = get_preset_definition(StrategyPresetId.GRID_SEARCH)
+    for dimension in preset.search_dimensions:
+        ordinary = get_parameter_definition(dimension.key)
+        values = get_parameter_definition(dimension.values_parameter_key)
+        assert values.type is ParameterType.NUMBER_LIST
+        assert values.default == dimension.values
+        assert preset.default_params[values.key] == dimension.values
+        assert values.unit == ordinary.unit
+        assert values.minimum == ordinary.minimum
+        assert values.maximum == ordinary.maximum
+        assert values.step == ordinary.step
+        assert values.applicable_presets == (StrategyPresetId.GRID_SEARCH,)
 
 
 def test_catalog_service_returns_a_serializable_snapshot_and_isolation() -> None:

@@ -83,6 +83,9 @@ def test_manifest_contains_every_explicit_compare_input_mapping() -> None:
         "exit.bollinger.vixCeiling",
         "display.showChart",
         "search.dimensions",
+        "search.values.vix.buyThreshold",
+        "search.values.rsi.buyThreshold",
+        "search.values.accumulation.cashSafetyLimit",
         "search.maxCombinations",
     }
     assert expected <= target_keys

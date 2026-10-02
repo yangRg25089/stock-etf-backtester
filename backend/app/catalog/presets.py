@@ -23,7 +23,7 @@ from app.domain.immutability import FrozenMap, freeze_mapping, thaw_value
 from app.domain.status import DomainModel
 
 from .conditions import CONDITION_DEFINITIONS, condition_definition, default_condition
-from .definitions import PARAMETER_DEFINITIONS
+from .definitions import PARAMETER_DEFINITIONS, SEARCH_DIMENSION_KEYS
 
 
 class ExecutionModule(StrEnum):
@@ -38,6 +38,9 @@ class SearchDimension(DomainModel):
 
     key: str = Field(min_length=1)
     values: tuple[object, ...] = Field(min_length=1)
+    values_parameter_key: str | None = Field(
+        default=None, alias="valuesParameterKey", min_length=1
+    )
     translation_key: str = Field(
         default="", alias="translationKey", validate_default=True
     )
@@ -53,6 +56,30 @@ class SearchDimension(DomainModel):
         if len(set(self.values)) != len(self.values):
             raise ValueError(f"search values must be unique: {self.key}")
         return self
+
+    def configured_values(self, params: Mapping[str, object]) -> tuple[object, ...]:
+        """Read frozen user values, falling back only for legacy catalog metadata."""
+        values = (
+            params.get(self.values_parameter_key, self.values)
+            if self.values_parameter_key
+            else self.values
+        )
+        if not isinstance(values, (list, tuple)) or not values:
+            raise ValueError(f"search values must be a non-empty list: {self.key}")
+        return tuple(values)
+
+
+def _grid_dimensions() -> tuple[SearchDimension, ...]:
+    dimensions = []
+    for key in SEARCH_DIMENSION_KEYS:
+        value_key = f"search.values.{key}"
+        values = PARAMETER_DEFINITIONS[value_key].default
+        if not isinstance(values, tuple):
+            raise RuntimeError(f"search default is not a number list: {value_key}")
+        dimensions.append(
+            SearchDimension(key=key, valuesParameterKey=value_key, values=values)
+        )
+    return tuple(dimensions)
 
 
 class PresetDefinition(DomainModel):
@@ -183,6 +210,7 @@ _GRID_KEYS: Final[tuple[str, ...]] = (
     *_COMPOSITE_KEYS,
     "search.dimensions",
     "search.maxCombinations",
+    *(f"search.values.{key}" for key in SEARCH_DIMENSION_KEYS),
 )
 
 _VIX_DEFAULTS = _defaults_for(_VIX_KEYS, {"exit.enabled": False})
@@ -359,25 +387,7 @@ PRESET_DEFINITIONS: Final[Mapping[StrategyPresetId, PresetDefinition]] = (
                 ExecutionModule.SEARCH,
                 _GRID_KEYS,
                 _GRID_DEFAULTS,
-                dimensions=(
-                    SearchDimension(
-                        key="vix.buyThreshold",
-                        values=(
-                            Decimal("25"),
-                            Decimal("28"),
-                            Decimal("30"),
-                            Decimal("35"),
-                        ),
-                    ),
-                    SearchDimension(
-                        key="rsi.buyThreshold",
-                        values=(Decimal("25"), Decimal("28"), Decimal("30")),
-                    ),
-                    SearchDimension(
-                        key="accumulation.cashSafetyLimit",
-                        values=(Decimal("400"), Decimal("600"), Decimal("800")),
-                    ),
-                ),
+                dimensions=_grid_dimensions(),
             ),
             **{
                 preset_id: _preset(

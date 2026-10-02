@@ -99,6 +99,31 @@ test("the backend catalog response satisfies the frontend contract", () => {
   }
 });
 
+test("grid value bindings reference registered number lists and decode their defaults", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify(backendCatalog));
+  try {
+    const catalog = await fetchCatalog();
+    const grid = catalog.presets.find(preset => preset.id === "grid_search");
+    for (const dimension of grid.searchDimensions) {
+      const definition = catalog.parameters.find(field => field.key === dimension.valuesParameterKey);
+      assert.equal(definition.type, "number_list");
+      assert.ok(definition.default.every(value => typeof value === "number"));
+      assert.deepEqual(grid.defaultParams[definition.key], definition.default);
+    }
+    const invalid = structuredClone(catalog);
+    invalid.presets.find(preset => preset.id === "grid_search").searchDimensions[0].valuesParameterKey = "missing.values";
+    assert.equal(isCatalog(invalid), false);
+    invalid.presets.find(preset => preset.id === "grid_search").searchDimensions[0].valuesParameterKey = "";
+    assert.equal(isCatalog(invalid), false);
+    for (const dimensions of [null, {}, [null], ["vix.buyThreshold"]]) {
+      const malformed = structuredClone(catalog);
+      malformed.presets.find(preset => preset.id === "grid_search").searchDimensions = dimensions;
+      assert.equal(isCatalog(malformed), false);
+    }
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test("condition metadata rejects unknown keys, duplicate nodes and excessive depth", () => {
   const unknownKey = structuredClone(backendCatalog);
   unknownKey.conditions[0].buyParameterKeys.push("missing.key");

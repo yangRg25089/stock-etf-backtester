@@ -577,7 +577,7 @@ def _indicator_lookback(
                 dimension = dimensions.get(key)
                 if dimension is None:
                     continue
-                for value in dimension.values:
+                for value in dimension.configured_values(strategy.params):
                     if isinstance(value, int) and not isinstance(value, bool):
                         periods.append(value + (1 if key == "rsi.period" else 0))
     return max(periods, default=0)

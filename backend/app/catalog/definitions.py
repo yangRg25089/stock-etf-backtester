@@ -450,6 +450,18 @@ def _d(
     )
 
 
+_SEARCH_DEFAULT_VALUES: Final[Mapping[str, tuple[Decimal, ...]]] = MappingProxyType(
+    {
+        "vix.buyThreshold": tuple(Decimal(value) for value in (25, 28, 30, 35)),
+        "rsi.buyThreshold": tuple(Decimal(value) for value in (25, 28, 30)),
+        "accumulation.cashSafetyLimit": tuple(
+            Decimal(value) for value in (400, 600, 800)
+        ),
+    }
+)
+SEARCH_DIMENSION_KEYS: Final[tuple[str, ...]] = tuple(_SEARCH_DEFAULT_VALUES)
+
+
 _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
     # Shared run and contribution settings.
     _d(
@@ -901,23 +913,14 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         allowed_values=("monthly", "upfront"),
         level=ParameterLevel.PRESET,
     ),
-    # Search controls.  Values for a dimension are held by the preset below;
-    # the dimension key itself always points back to a normal definition.
+    # Search controls reference ordinary definitions; value lists are registered below.
     _d(
         "search.dimensions",
         ParameterType.ENUM_LIST,
-        (
-            "vix.buyThreshold",
-            "rsi.buyThreshold",
-            "accumulation.cashSafetyLimit",
-        ),
+        SEARCH_DIMENSION_KEYS,
         group_id="search",
         presets=_GRID_PRESET,
-        allowed_values=(
-            "vix.buyThreshold",
-            "rsi.buyThreshold",
-            "accumulation.cashSafetyLimit",
-        ),
+        allowed_values=SEARCH_DIMENSION_KEYS,
         level=ParameterLevel.SEARCH,
     ),
     _d(
@@ -969,8 +972,27 @@ def _build_registry(
     return MappingProxyType(registry)
 
 
+def _search_value_definitions() -> tuple[ParameterDefinition, ...]:
+    ordinary = {definition.key: definition for definition in _DEFINITION_LIST}
+    return tuple(
+        _d(
+            f"search.values.{key}",
+            ParameterType.NUMBER_LIST,
+            values,
+            presets=_GRID_PRESET,
+            group_id="search",
+            level=ParameterLevel.SEARCH,
+            unit=ordinary[key].unit,
+            minimum=ordinary[key].minimum,
+            maximum=ordinary[key].maximum,
+            step=ordinary[key].step,
+        )
+        for key, values in _SEARCH_DEFAULT_VALUES.items()
+    )
+
+
 PARAMETER_DEFINITIONS: Final[Mapping[str, ParameterDefinition]] = _build_registry(
-    _DEFINITION_LIST
+    (*_DEFINITION_LIST, *_search_value_definitions())
 )
 # Explicit aliases keep the registry discoverable for callers that prefer a
 # registry noun or a tuple of definitions.

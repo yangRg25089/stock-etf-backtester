@@ -26,7 +26,8 @@ export function useDialogValidation() {
     const dialog = focusDialogRef.current;
     if (!dialog?.open) return;
     // Effects run after the fieldset has become enabled and errors are rendered.
-    const target = dialog.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)')
+    const target = dialog.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")
+      ?? dialog.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)')
       ?? dialog.querySelector<HTMLElement>(".dialog-diagnostics");
     target?.focus();
   }, [errors, pending]);

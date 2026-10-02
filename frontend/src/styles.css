@@ -2795,6 +2795,19 @@ h2 {
 .condition-heading-actions { display: flex; align-items: center; flex-shrink: 0; gap: 4px; }
 .condition-enable-switch { flex: 0 0 44px; justify-content: center; width: 44px; min-height: 40px; }
 .condition-card { min-width: 0; padding: 10px; border: 1px solid var(--app-border); border-radius: 6px; background: white; }
+.search-dimension-editor { margin-top: 16px; }
+.search-dimension-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+.search-dimension-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); color: var(--app-muted); cursor: pointer; }
+.search-dimension-toggle[aria-pressed="true"] { background: var(--app-accent); border-color: var(--app-accent); color: white; font-weight: 650; }
+.search-dimension-toggle:disabled { opacity: .55; cursor: not-allowed; }
+.search-values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px; margin-top: 12px; }
+.search-value-card { min-width: 0; padding: 10px; background: white; border: 1px solid var(--app-border); border-radius: 6px; }
+.search-value-card .number-list-control { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.search-value-card .number-list-control > .text-button { min-height: 40px; }
+.search-combination-settings { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.search-combination-settings .field { flex: 0 1 240px; }
+.search-combination-count { font-weight: 650; color: var(--app-accent); }
+@media (pointer: coarse) { .search-dimension-toggle, .search-value-card .number-list-control > .text-button { min-height: 44px; } }
 .strategy-parameter-grid[hidden], .strategy-rule-content[hidden], .condition-group-content[hidden] { display: none; }
 .condition-group { min-width: 0; padding: 8px 0 8px 8px; border-left: 2px solid #b5c9bf; }
 .condition-group.is-root { padding: 0; border: 0; }

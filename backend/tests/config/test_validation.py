@@ -283,6 +283,47 @@ def test_grid_combination_limit_uses_selected_registered_dimensions() -> None:
     assert diagnostics[0].field_path == ("strategies[0].params.search.maxCombinations")
 
 
+def test_grid_limits_use_configured_values_and_ignore_unselected_value_buffers() -> (
+    None
+):
+    result = validate_draft(
+        _draft(
+            preset_id="grid_search",
+            params={
+                "search.dimensions": ["vix.buyThreshold"],
+                "search.values.vix.buyThreshold": [29, 31],
+                "search.values.rsi.buyThreshold": [],
+                "search.maxCombinations": 2,
+            },
+        )
+    )
+    assert result.valid is True
+    config = result.config_for(("strategy-1",))
+    assert config is not None
+    assert config.strategies[0].params["search.values.vix.buyThreshold"] == (29, 31)
+    assert config.strategies[0].params["search.values.rsi.buyThreshold"] == ()
+
+
+def test_invalid_selected_grid_values_have_registered_error_paths() -> None:
+    for values in ([], [25, 25], [-1], ["25"], [True], [float("inf")]):
+        result = validate_draft(
+            _draft(
+                preset_id="grid_search",
+                params={
+                    "search.dimensions": ["vix.buyThreshold"],
+                    "search.values.vix.buyThreshold": values,
+                },
+            )
+        )
+        diagnostics = result.diagnostics_for(("strategy-1",))
+        assert result.valid is False
+        assert any(
+            d.field_path == "strategies[0].params.search.values.vix.buyThreshold"
+            and d.message_key != "diagnostics.configuration.unknown_parameter"
+            for d in diagnostics
+        )
+
+
 def test_enabled_signal_requirements_do_not_depend_on_and_or_logic() -> None:
     params: dict[str, object] = {
         "accumulation.conditionLogic": "OR",

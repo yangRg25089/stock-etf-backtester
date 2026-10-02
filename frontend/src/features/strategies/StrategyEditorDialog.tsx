@@ -9,6 +9,7 @@ import { DiagnosticList } from "../runs/DiagnosticList";
 import { ParameterField } from "../../shared/ui/ParameterField";
 import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 import { ConditionEditor } from "./ConditionEditor";
+import { SearchDimensionEditor } from "./SearchDimensionEditor";
 import { conditionFieldOwner, conditionLeaves } from "./conditions";
 import type { BacktestDraft, StrategyDraft } from "./model";
 
@@ -40,7 +41,7 @@ interface StrategyEditorFormProps {
 function groupedFields(catalog: Catalog, preset: PresetDefinition) {
   const groups = new Map<string, { translationKey: string; fields: NonNullable<Catalog["parameters"]> }>();
   for (const key of preset.parameterKeys) {
-    if (!((key.startsWith("accumulation.") && key !== "accumulation.conditionLogic") || key.startsWith("search.") || key.startsWith("scheduled."))) continue;
+    if (!((key.startsWith("accumulation.") && key !== "accumulation.conditionLogic") || key.startsWith("scheduled."))) continue;
     const definition = catalog.parameters?.find(item => item.key === key);
     if (!definition) continue;
     const groupId = definition.groupId ?? "general";
@@ -73,6 +74,8 @@ export function StrategyEditorForm({ catalog, strategy, preset, locale, errors, 
           </div>
         </section>)}
       </div>
+      {preset.editorMode === "search" && <SearchDimensionEditor catalog={catalog} preset={preset} strategyId={strategy.id}
+        params={strategy.params} errors={errors} locale={locale} currency={currency} onChange={onChange} />}
     </fieldset>
     {strategy.rules && <ConditionEditor catalog={catalog} strategyId={strategy.id} locale={locale} rules={strategy.rules}
       custom={preset.editorMode === "custom" || preset.editorMode === "search"} fixedTrend={preset.id === "ma_trend"}

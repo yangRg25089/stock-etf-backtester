@@ -530,3 +530,123 @@ def test_live_instrument_metadata_resolves_real_usd_and_jpy_quotes():
         assert metadata.symbol == symbol
         assert metadata.currency == currency, metadata.diagnostics
         assert not metadata.diagnostics
+
+
+def test_live_user_grid_values_freeze_trades_curves_and_csv_after_reopen(tmp_path):
+    previous_service = app.state.run_service
+    path = tmp_path / "user-grid.sqlite3"
+    store = SQLiteRunStore(path)
+    reopened = None
+    app.state.run_service = RunManager(
+        store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
+    )
+
+    async def run_grid():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://grid-live"
+        ) as client:
+            accepted = await client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "user-grid-live"},
+                json={
+                    "draft": {
+                        "shared": {
+                            "run": {
+                                "symbol": "QQQ",
+                                "startDate": "2024-01-31",
+                                "endDate": "2024-03-01",
+                            },
+                            "contribution": {"amount": 100, "day": 1},
+                        },
+                        "strategies": [
+                            {
+                                "id": "user-grid",
+                                "presetId": "grid_search",
+                                "params": {
+                                    "search.dimensions": ["vix.buyThreshold"],
+                                    "search.values.vix.buyThreshold": [0, 200],
+                                    "search.maxCombinations": 2,
+                                    "rsi.buyEnabled": False,
+                                    "ma.buyEnabled": False,
+                                    "bollinger.buyEnabled": False,
+                                    "rate.buyEnabled": False,
+                                    "pe.buyEnabled": False,
+                                    "accumulation.cashSafetyLimit": 100000000,
+                                    "accumulation.maxSignalBuysPerMonth": None,
+                                },
+                            }
+                        ],
+                    },
+                    "scope": "all_enabled",
+                },
+            )
+            assert accepted.status_code == 202, accepted.text
+            response = await client.get(f"/api/v1/runs/{accepted.json()['runId']}")
+            assert response.status_code == 200, response.text
+            return response.json()
+
+    try:
+        saved = asyncio.run(run_grid())
+        assert saved["snapshot"]["dataProvenance"]["sources"] == ["yahoo"]
+        assert saved["snapshot"]["config"]["strategies"][0]["params"][
+            "search.values.vix.buyThreshold"
+        ] == [0, 200]
+        grid = next(
+            row for row in saved["result"]["strategyRuns"] if row["id"] == "user-grid"
+        )
+        assert grid["status"] == "completed", grid["diagnostics"]
+        search = grid["searchResult"]
+        assert search["totalCandidateCount"] == 2
+        assert search["dimensions"][0]["values"] == [0, 200]
+        assert [
+            Decimal(row["metrics"]["actualInvested"]) for row in search["candidates"]
+        ] == [200, 0]
+        assert all(
+            Decimal(row["metrics"]["totalContributed"]) == 200
+            for row in search["candidates"]
+        )
+        store.close()
+        reopened = SQLiteRunStore(path)
+        # Reopening uses no supplier: the curves and CSV must come from saved results.
+        app.state.run_service = RunManager(store=reopened, executor=_InlineExecutor())
+
+        async def read_saved():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://grid-restored"
+            ) as client:
+                restored = await client.get(f"/api/v1/runs/{saved['runId']}")
+                assert restored.json() == saved
+                exported = await client.get(
+                    f"/api/v1/runs/{saved['runId']}/export/search-results",
+                    params={"focusedResultId": "user-grid"},
+                )
+                assert exported.status_code == 200, exported.text
+                rows = list(csv.DictReader(io.StringIO(exported.text)))
+                assert [Decimal(row["vix.buyThreshold"]) for row in rows] == [0, 200]
+                assert [Decimal(row["actualInvested"]) for row in rows] == [200, 0]
+                for candidate in search["candidates"]:
+                    response = await client.get(
+                        f"/api/v1/runs/{saved['runId']}/candidates/{candidate['candidateId']}"
+                    )
+                    assert response.status_code == 200, response.text
+                    detail = response.json()
+                    assert detail["metrics"] == candidate["metrics"]
+                    assert detail["dailyAssets"]
+                    assert Decimal(
+                        detail["dailyAssets"][-1]["actualInvested"]
+                    ) == Decimal(candidate["metrics"]["actualInvested"])
+                    signals = [
+                        signal
+                        for signal in detail["signals"]
+                        if signal["signalId"] == "vix.buy"
+                    ]
+                    assert signals and all(
+                        0 < Decimal(signal["observedValue"]) < 200 for signal in signals
+                    )
+
+        asyncio.run(read_saved())
+    finally:
+        app.state.run_service = previous_service
+        store.close()
+        if reopened is not None:
+            reopened.close()

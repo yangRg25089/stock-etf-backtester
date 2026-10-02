@@ -406,6 +406,15 @@ def _validate_strategy(
         else:
             valid_overrides[key] = value
 
+    selected_dimensions = valid_overrides.get(
+        "search.dimensions", preset.default_params.get("search.dimensions", ())
+    )
+    inactive_value_keys = {
+        dimension.values_parameter_key
+        for dimension in preset.search_dimensions
+        if isinstance(selected_dimensions, (list, tuple))
+        and dimension.key not in selected_dimensions
+    }
     resolved: dict[str, object] = {}
     for key in preset.parameter_keys:
         definition = definitions.get(key)
@@ -422,6 +431,9 @@ def _validate_strategy(
             key,
             preset.default_params.get(key, definition.default),
         )
+        if key in inactive_value_keys:
+            resolved[key] = thaw_value(value)
+            continue
         try:
             validate_parameter_value(definition, value)
         except ParameterValidationError as error:
@@ -534,7 +546,9 @@ def _validate_search_dimensions(
             )
     if diagnostics:
         return tuple(diagnostics)
-    combinations = prod(len(dimensions[key].values) for key in dimension_keys)
+    combinations = prod(
+        len(dimensions[key].configured_values(params)) for key in dimension_keys
+    )
     maximum = params.get("search.maxCombinations")
     if isinstance(maximum, int) and combinations > maximum:
         diagnostics.append(

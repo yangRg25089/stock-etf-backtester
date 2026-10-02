@@ -41,7 +41,8 @@ function isPresetDefinition(value: unknown): value is PresetDefinition {
     typeof value.id === "string" &&
     typeof value.nameKey === "string" &&
     typeof value.descriptionKey === "string" &&
-    Array.isArray(value.parameterKeys)
+    Array.isArray(value.parameterKeys) &&
+    (value.searchDimensions === undefined || Array.isArray(value.searchDimensions))
   );
 }
 
@@ -156,6 +157,13 @@ export function isCatalog(value: unknown): value is Catalog {
     parameters.every(({ groupId }) => groupIds.has(groupId)) &&
     presetIds.size === presets.length &&
     presets.every(({ parameterKeys: keys }) => keys.every((key) => parameterKeys.has(key))) &&
+    presets.every(preset => (preset.searchDimensions ?? []).every(dimension => {
+      if (!isRecord(dimension) || typeof dimension.key !== "string" || !parameterKeys.has(dimension.key) || !Array.isArray(dimension.values) || !dimension.values.length) return false;
+      if (dimension.valuesParameterKey == null) return true;
+      if (typeof dimension.valuesParameterKey !== "string" || !dimension.valuesParameterKey) return false;
+      return preset.parameterKeys.includes(dimension.valuesParameterKey) && parameters.some(parameter =>
+        parameter.key === dimension.valuesParameterKey && parameter.type === "number_list");
+    })) &&
     hasValidConditions(value, parameterKeys)
   );
 }

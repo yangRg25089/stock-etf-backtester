@@ -111,7 +111,10 @@ def run_grid_search(
     dimension_map = {dimension.key: dimension for dimension in preset.search_dimensions}
     dimensions = tuple(dimension_map[key] for key in dimension_keys)
     maximum = _integer_parameter(base_strategy.params, "search.maxCombinations")
-    combination_count = prod(len(dimension.values) for dimension in dimensions)
+    dimension_values = tuple(
+        dimension.configured_values(base_strategy.params) for dimension in dimensions
+    )
+    combination_count = prod(len(values) for values in dimension_values)
     hard_limit = _hard_combination_limit(catalog)
     if combination_count > min(maximum, hard_limit):
         raise ValueError(
@@ -124,9 +127,7 @@ def run_grid_search(
     cache = {} if calculation_cache is None else calculation_cache
     candidates: list[SearchCandidate] = []
     detail_ids: dict[str, str] = {}
-    for sequence, values in enumerate(
-        product(*(dimension.values for dimension in dimensions)), start=1
-    ):
+    for sequence, values in enumerate(product(*dimension_values), start=1):
         if check_cancelled is not None:
             check_cancelled()
         candidate_id = f"{source.strategy.id}:candidate:{sequence:05d}"
@@ -311,10 +312,12 @@ def run_grid_search(
     return SearchResult(
         strategyId=source.strategy.id,
         dimensions=tuple(
-            SearchResultDimension.model_validate(
-                dimension.model_dump(mode="python", by_alias=True)
+            SearchResultDimension(
+                key=dimension.key,
+                values=values,
+                translationKey=dimension.translation_key,
             )
-            for dimension in dimensions
+            for dimension, values in zip(dimensions, dimension_values, strict=True)
         ),
         totalCandidateCount=combination_count,
         candidates=candidate_rows,
@@ -507,8 +510,9 @@ def _strategy_calculation_payload(
     )
     params = dict(cast(Mapping[str, object], thaw_value(strategy.params)))
     if module is ExecutionModule.SEARCH:
-        params.pop("search.dimensions", None)
-        params.pop("search.maxCombinations", None)
+        params = {
+            key: value for key, value in params.items() if not key.startswith("search.")
+        }
     rules = strategy.rules or materialize_legacy_rules(preset, params)
     return {
         "executionModule": module_id,

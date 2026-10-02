@@ -157,6 +157,7 @@ def test_sqlite_store_preserves_decimal_strategy_parameters_after_reopen(
                 "vix.buyEnabled": True,
                 "vix.symbol": "^VIX",
                 "search.dimensions": (Decimal("24.50"), Decimal("25.00")),
+                "search.values.vix.buyThreshold": (Decimal("29.005"), Decimal("31")),
             }
         }
     )
@@ -179,6 +180,10 @@ def test_sqlite_store_preserves_decimal_strategy_parameters_after_reopen(
     assert restored_params["vix.buyEnabled"] is True
     assert restored_params["vix.symbol"] == "^VIX"
     assert restored_params["search.dimensions"] == (Decimal("24.50"), Decimal("25.00"))
+    assert restored_params["search.values.vix.buyThreshold"] == (
+        Decimal("29.005"),
+        Decimal("31"),
+    )
     assert (
         response.model_dump(mode="json", by_alias=True)["snapshot"]["config"][
             "strategies"

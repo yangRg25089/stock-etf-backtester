@@ -30,7 +30,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v8"
+CATALOG_VERSION: Final[str] = "catalog-v9"
 
 
 class SymbolSuggestion(DomainModel):
@@ -142,6 +142,17 @@ class Catalog(DomainModel):
                     definition, preset.default_params.get(key, definition.default)
                 )
             for dimension in preset.search_dimensions:
+                if dimension.values_parameter_key:
+                    values_definition = definitions.get(dimension.values_parameter_key)
+                    if (
+                        values_definition is None
+                        or values_definition.type is not ParameterType.NUMBER_LIST
+                        or values_definition.key not in preset.parameter_keys
+                    ):
+                        raise ValueError(
+                            "search values reference an invalid number list: "
+                            f"{dimension.key}"
+                        )
                 definition = definitions.get(dimension.key)
                 if definition is None:
                     raise ValueError(

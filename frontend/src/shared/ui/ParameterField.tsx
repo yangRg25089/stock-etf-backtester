@@ -214,6 +214,7 @@ export function ParameterField({
                 id={`${fieldId}-${index}`}
                 className={`input${unit ? " input-with-unit" : ""}`}
                 type="number"
+                required={required ?? (definition.nullable !== true)}
                 value={inputValue(item)}
                 onChange={(event: ChangeEvent<HTMLInputElement>) => {
                   const next = [...values];
