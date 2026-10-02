@@ -190,7 +190,7 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
   }));
 
   assert.match(html, /每月定额定投 · 基准/);
-  assert.match(html, /VIX 买入信号/);
+  assert.match(html, /波动率买入信号/);
   assert.doesNotMatch(html, /移動平均トレンド/);
   assert.match(html, /2024-02-02/);
   assert.match(html, /data-export-kind="summary"/);

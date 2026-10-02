@@ -3,6 +3,7 @@ import { translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
 import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 import { ToggleSwitch } from "../../shared/ui/ToggleSwitch";
+import { DiagnosticList } from "../runs/DiagnosticList";
 import { conditionFieldOwner, conditionLeaves, conditionParameters, createCondition, ruleConditionCount, type ConditionNode } from "./conditions";
 
 type Side = "buy" | "sell";
@@ -28,6 +29,28 @@ interface NodeProps extends Omit<ConditionEditorProps, "rules" | "onChange"> {
   root?: boolean;
   onChange(node: ConditionNode): void;
   onRemove?(): void;
+}
+
+function subtreeIds(node: ConditionNode): string[] {
+  return [node.id, ...("kind" in node ? [] : (node.children ?? []).flatMap(subtreeIds))];
+}
+
+function CollapsedConditionErrors({ node, errors, catalog, locale }: {
+  node: ConditionNode; errors: Diagnostic[]; catalog: Catalog; locale: Locale;
+}) {
+  if (node.enabled !== false) return null;
+  const ids = new Set(subtreeIds(node));
+  const diagnostics = errors.filter(error => {
+    const id = (error.details as Record<string, unknown> | undefined)?.conditionId;
+    return error.severity === "error" && typeof id === "string" && ids.has(id);
+  });
+  if (!diagnostics.length) return null;
+  return <div className="dialog-diagnostics condition-collapsed-errors" role="alert" tabIndex={0}>
+    <DiagnosticList diagnostics={diagnostics} locale={locale} fieldLabel={error => {
+      const parameter = catalog.parameters?.find(item => error.fieldPath?.endsWith(`.${item.key}`));
+      return parameter ? translate(locale, parameter.translationKey) : null;
+    }} />
+  </div>;
 }
 
 function DeleteCondition({ locale, onRemove, disabled }: { locale: Locale; onRemove(): void; disabled: boolean }) {
@@ -73,6 +96,7 @@ function ConditionNodeEditor(props: NodeProps) {
           {onRemove && <DeleteCondition locale={locale} onRemove={onRemove} disabled={props.disabled} />}
         </div>
       </header>}
+      {!root && <CollapsedConditionErrors node={node} errors={errors} catalog={catalog} locale={locale} />}
       <div className="strategy-parameter-grid" hidden={disabled}>
         {(keys ?? []).filter(key => !(fixedTrend && side === "sell" && key === "exit.ratio")).map(key => {
           const definition = catalog.parameters?.find(item => item.key === key);
@@ -99,6 +123,7 @@ function ConditionNodeEditor(props: NodeProps) {
         {onRemove && <DeleteCondition locale={locale} onRemove={onRemove} disabled={props.disabled} />}
       </div>
     </header>}
+    {!root && <CollapsedConditionErrors node={node} errors={errors} catalog={catalog} locale={locale} />}
     <div className="condition-group-content" hidden={disabled}>
       {children.map((child, index) => <div className="condition-child" key={child.id}>
         {index > 0 && <LogicConnector node={node} index={index} locale={locale} disabled={disabled} onChange={onChange} />}
@@ -144,6 +169,7 @@ export function ConditionEditor(props: ConditionEditorProps) {
           {node && <ToggleSwitch label={translate(locale, `strategy.${side}`)} checked={node.enabled !== false}
             onChange={enabled => onChange({ ...rules, [side]: { ...node, enabled } })} />}
         </header>
+        {node && <CollapsedConditionErrors node={node} errors={props.errors} catalog={catalog} locale={locale} />}
         <div className="strategy-rule-content" hidden={node?.enabled === false}>
           {node ? <ConditionNodeEditor {...props} node={node} side={side} depth={1} disabled={false} remaining={remaining}
             usedKinds={new Set(conditionLeaves(node).map(item => item.kind))} root={true} onChange={changed => onChange({ ...rules, [side]: changed })} />

@@ -22,14 +22,16 @@ interface DiagnosticListProps {
   locale: Locale;
   diagnostics: Diagnostic[];
   fieldAction?(diagnostic: Diagnostic): DiagnosticFieldAction | null;
+  fieldLabel?(diagnostic: Diagnostic): string | null;
 }
 
-export function DiagnosticList({ locale, diagnostics, fieldAction }: DiagnosticListProps) {
+export function DiagnosticList({ locale, diagnostics, fieldAction, fieldLabel }: DiagnosticListProps) {
   if (diagnostics.length === 0) return null;
   return (
     <ul className="diagnostic-list">
       {diagnostics.map((diagnostic, index) => {
         const action = fieldAction?.(diagnostic) ?? null;
+        const label = fieldLabel?.(diagnostic);
         const actionLabel = action
           ? interpolate(translate(locale, "diagnostics.openField"), { field: action.label })
           : null;
@@ -39,6 +41,7 @@ export function DiagnosticList({ locale, diagnostics, fieldAction }: DiagnosticL
               {translate(locale, `severity.${diagnostic.severity ?? "error"}`)}
             </span>
             <div>
+              {label && <strong className="diagnostic-field-name">{label}</strong>}
               <span>{translate(locale, diagnostic.messageKey)}</span>
               {diagnostic.messageKey === "diagnostics.calculation_failed" && (
                 <CalculationContext

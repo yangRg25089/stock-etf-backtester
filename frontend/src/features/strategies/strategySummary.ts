@@ -17,7 +17,7 @@ export function formatStrategySummary(
   if (params["vix.buyEnabled"] === false) return translate(locale, "strategy.vixDisabled");
   const maximum = params["accumulation.maxSignalBuysPerMonth"];
   return interpolate(translate(locale, "strategy.vixSummary"), {
-    symbol: String(params["vix.symbol"] ?? ""),
+    symbol: String(params["vix.symbol"] ?? "").replace(/^\^/, ""),
     threshold: String(params["vix.buyThreshold"] ?? ""),
     maximum: maximum == null
       ? translate(locale, "strategy.unlimited")

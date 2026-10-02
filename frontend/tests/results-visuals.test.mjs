@@ -380,7 +380,7 @@ test("trade details show execution fields and do not call failed results zero-tr
   assert.match(html, /2024-01-03/);
   assert.match(html, /买入/);
   assert.match(html, /卖出/);
-  assert.match(html, /VIX 买入信号/);
+  assert.match(html, /波动率买入信号/);
   assert.doesNotMatch(html, /vix\.buy/);
   const failed = renderToStaticMarkup(React.createElement(TradeTable, {
     locale: "zh",

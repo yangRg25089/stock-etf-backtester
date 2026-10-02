@@ -2793,6 +2793,9 @@ h2 {
 .condition-heading h3, .condition-card-heading h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; margin: 0; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .condition-kind-name { color: #496357; font-size: 12px; font-weight: 500; }
 .condition-heading-actions { display: flex; align-items: center; flex-shrink: 0; gap: 4px; }
+.condition-collapsed-errors { margin: 0; padding: 6px; border: 1px solid #ebcaca; border-radius: 6px; background: #fff8f8; }
+.condition-collapsed-errors .diagnostic-list { margin: 0; }
+.diagnostic-field-name { display: block; margin-bottom: 2px; font-size: inherit; }
 .condition-enable-switch { flex: 0 0 44px; justify-content: center; width: 44px; min-height: 40px; }
 .condition-card { min-width: 0; padding: 10px; border: 1px solid var(--app-border); border-radius: 6px; background: white; }
 .search-dimension-editor { margin-top: 16px; }

@@ -256,6 +256,8 @@
     #backtest-ui-preview .condition-logic-line { height: 1px; flex: 1; background: #bacac2; }
     #backtest-ui-preview .condition-card { padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; }
     #backtest-ui-preview .condition-card h3 { margin-bottom: 10px; }
+    #backtest-ui-preview .prototype-condition-errors { margin: 8px 0; padding: 8px; border: 1px solid #ebcaca; border-radius: 6px; color: #8a3636; background: #fff8f8; font-size: 12px; }
+    #backtest-ui-preview .prototype-condition-errors:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     #backtest-ui-preview .prototype-grid-settings { margin-bottom: 16px; }
     #backtest-ui-preview .prototype-grid-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px; }
     #backtest-ui-preview .prototype-grid-value-card { padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
@@ -310,7 +312,7 @@
 
             <div class="strategy-card-list">
               <article class="strategy-card is-active">
-                <button class="strategy-card-open" type="button" aria-label="ボラティリティ積立を編集" aria-haspopup="dialog"><strong class="strategy-card-name">ボラティリティ積立</strong><span class="strategy-card-summary">VIX: ^VIX ≥ 25、月間最大 1 回</span></button>
+                <button class="strategy-card-open" type="button" aria-label="ボラティリティ積立を編集" aria-haspopup="dialog"><strong class="strategy-card-name">ボラティリティ積立</strong><span class="strategy-card-summary">VIX ≥ 25 · 月 1 回</span></button>
                 <div class="strategy-actions"><button type="button" aria-label="ボラティリティ積立を削除" title="削除">×</button></div>
               </article>
             </div>
@@ -378,10 +380,10 @@
   <dialog class="strategy-dialog" aria-labelledby="prototype-strategy-title">
     <div class="dialog-shell"><header class="dialog-header"><h2 id="prototype-strategy-title">ボラティリティ積立</h2><button class="icon-button strategy-dialog-close" type="button" aria-label="閉じる" title="閉じる">×</button></header>
       <div class="dialog-content"><fieldset><legend>買付上限</legend><div class="fields"><div class="field"><label for="prototype-month-cap">月間買付上限</label><div class="unit-field"><input id="prototype-month-cap" type="number" value="1"/><span class="unit">回</span></div></div><div class="field"><label for="prototype-cash-limit">現金安全上限</label><div class="unit-field"><input id="prototype-cash-limit" type="number" value="1200"/><span class="unit">USD</span></div></div></div></fieldset>
-        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>買付 · VIX</h3><button type="button" role="switch" aria-label="買付" aria-checked="true"><i class="signal-switch" aria-hidden="true"><span></span></i></button></header>
-          <div class="condition-card"><div class="fields"><div class="field"><label for="prototype-vix-symbol">ボラティリティ指数</label><select id="prototype-vix-symbol"><option>^VIX — S&amp;P 500</option><option>^VXN — Nasdaq 100</option><option>^VXD — Dow Jones</option></select><small>判定に使う指数。</small></div><div class="field"><label for="prototype-vix-threshold">買付しきい値</label><div class="unit-field"><input id="prototype-vix-threshold" type="number" value="25"/><span class="unit">pt</span></div><small>終値 ≥ しきい値。</small></div></div></div>
+        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>買付 · ボラティリティ</h3><button type="button" role="switch" aria-label="買付" aria-checked="true"><i class="signal-switch" aria-hidden="true"><span></span></i></button></header>
+          <div class="condition-card"><div class="fields"><div class="field"><label for="prototype-vix-symbol">ボラティリティ指数</label><select id="prototype-vix-symbol"><option>^VIX — S&amp;P 500</option><option>^VXN — Nasdaq 100</option><option>^VXD — Dow Jones</option></select><small>判定に使う指数。</small></div><div class="field"><label for="prototype-vix-threshold">指数買付しきい値</label><div class="unit-field"><input id="prototype-vix-threshold" type="number" required min="0" step="0.01" value="25"/><span class="unit">pt</span></div><small>終値 ≥ しきい値。</small></div></div></div>
         </section>
-        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>売却 · VIX</h3><button type="button" role="switch" aria-label="売却" aria-checked="false"><i class="signal-switch" aria-hidden="true"><span></span></i></button></header>
+        <section class="strategy-rule-block"><header class="signal-switch-row"><h3>売却 · ボラティリティ</h3><button type="button" role="switch" aria-label="売却" aria-checked="false"><i class="signal-switch" aria-hidden="true"><span></span></i></button></header>
           <div class="condition-card" hidden><div class="fields"><div class="field"><label for="prototype-exit-low">売却しきい値</label><input id="prototype-exit-low" type="number" value="15" disabled/></div><div class="field"><label for="prototype-exit-ratio">売却割合</label><input id="prototype-exit-ratio" type="number" value="0.5" disabled/></div></div></div>
         </section>
 
@@ -390,11 +392,11 @@
     </div>
   </dialog>
   <template id="prototype-grid-template"><section class="prototype-grid-settings"><h3>検索設定</h3><p>候補値を組み合わせて比較します。</p><div class="prototype-grid-values">
-<fieldset class="prototype-grid-value-card"><legend>VIX しきい値の候補</legend><div class="fields">
-<div class="field"><label class="sr-only" for="prototype-grid-vix-0">VIX しきい値の候補 1</label><div class="unit-field"><input id="prototype-grid-vix-0" type="number" required min="0" step="0.01" value="25"/><span class="unit">pt</span></div></div>
-<div class="field"><label class="sr-only" for="prototype-grid-vix-1">VIX しきい値の候補 2</label><div class="unit-field"><input id="prototype-grid-vix-1" type="number" required min="0" step="0.01" value="28"/><span class="unit">pt</span></div></div>
-<div class="field"><label class="sr-only" for="prototype-grid-vix-2">VIX しきい値の候補 3</label><div class="unit-field"><input id="prototype-grid-vix-2" type="number" required min="0" step="0.01" value="30"/><span class="unit">pt</span></div></div>
-<div class="field"><label class="sr-only" for="prototype-grid-vix-3">VIX しきい値の候補 4</label><div class="unit-field"><input id="prototype-grid-vix-3" type="number" required min="0" step="0.01" value="35"/><span class="unit">pt</span></div></div>
+<fieldset class="prototype-grid-value-card"><legend>指数しきい値の候補</legend><div class="fields">
+<div class="field"><label class="sr-only" for="prototype-grid-vix-0">指数しきい値の候補 1</label><div class="unit-field"><input id="prototype-grid-vix-0" type="number" required min="0" step="0.01" value="25"/><span class="unit">pt</span></div></div>
+<div class="field"><label class="sr-only" for="prototype-grid-vix-1">指数しきい値の候補 2</label><div class="unit-field"><input id="prototype-grid-vix-1" type="number" required min="0" step="0.01" value="28"/><span class="unit">pt</span></div></div>
+<div class="field"><label class="sr-only" for="prototype-grid-vix-2">指数しきい値の候補 3</label><div class="unit-field"><input id="prototype-grid-vix-2" type="number" required min="0" step="0.01" value="30"/><span class="unit">pt</span></div></div>
+<div class="field"><label class="sr-only" for="prototype-grid-vix-3">指数しきい値の候補 4</label><div class="unit-field"><input id="prototype-grid-vix-3" type="number" required min="0" step="0.01" value="35"/><span class="unit">pt</span></div></div>
 </div></fieldset>
 <fieldset class="prototype-grid-value-card"><legend>RSI しきい値の候補</legend><div class="fields">
 <div class="field"><label class="sr-only" for="prototype-grid-rsi-0">RSI しきい値の候補 1</label><div class="unit-field"><input id="prototype-grid-rsi-0" type="number" required min="0" step="0.01" value="25"/><span class="unit">pt</span></div></div>
@@ -425,10 +427,40 @@
         trigger = opener; dialog.showModal();
       };
       const closeDialog = (dialog) => {
-        const invalid = dialog.querySelector("input:invalid, select:invalid");
-        if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
+        dialog.querySelectorAll(".prototype-condition-errors").forEach(box => box.remove());
+        const invalid = [...dialog.querySelectorAll("input, select")].filter(field => {
+          const copy = field.cloneNode(true);
+          copy.disabled = false; copy.value = field.value;
+          return !copy.checkValidity();
+        });
+        if (invalid.length) {
+          invalid.filter(field => field.disabled).forEach(field => {
+            const section = field.closest(".strategy-rule-block");
+            if (!section) return;
+            let box = section.querySelector(".prototype-condition-errors");
+            if (!box) {
+              box = document.createElement("div"); box.className = "prototype-condition-errors";
+              box.setAttribute("role", "alert"); box.tabIndex = 0;
+              section.querySelector(".signal-switch-row").after(box);
+            }
+            const message = document.createElement("p");
+            message.textContent = `${root.querySelector(`label[for="${field.id}"]`)?.textContent ?? "入力値"}：値を確認してください。`;
+            box.append(message);
+          });
+          const field = invalid.find(item => !item.disabled);
+          if (field) { field.reportValidity(); field.focus(); }
+          else dialog.querySelector(".prototype-condition-errors")?.focus();
+          return;
+        }
         dialog.close(); trigger?.focus(); trigger = null;
       };
+      [sharedDialog, strategyDialog].forEach(dialog => {
+        const content = dialog.querySelector(".dialog-content");
+        new ResizeObserver(() => {
+          const active = document.activeElement;
+          if (dialog.open && content.contains(active)) active.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }).observe(content);
+      });
       toggle.addEventListener("click", () => {
         const open = toggle.getAttribute("aria-expanded") === "true";
         toggle.setAttribute("aria-expanded", String(!open));
@@ -511,6 +543,7 @@
         button.setAttribute("aria-checked", String(enabled));
         button.closest(".strategy-rule-block").querySelector(".condition-card").hidden = !enabled;
         button.closest(".strategy-rule-block").querySelectorAll("input, select").forEach(field => { field.disabled = !enabled; });
+        button.closest(".strategy-rule-block").querySelector(".prototype-condition-errors")?.remove();
       }));
       const add = root.querySelector(".add-button");
       const menu = root.querySelector(".strategy-add-menu");

@@ -48,6 +48,6 @@ test("boolean parameters keep the catalog label attached to the checkbox", () =>
   assert.match(html, /<label class="field-label" for="field-vix-buyEnabled">/);
   assert.match(html, /<div class="checkbox-control">/);
   assert.match(html, /type="checkbox" checked/);
-  assert.match(html, /VIX買付シグナル/);
+  assert.match(html, /指数買付シグナル/);
   assert.match(html, /有効/);
 });

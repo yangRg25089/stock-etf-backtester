@@ -35,6 +35,16 @@ test("localized diagnostics hide internal field paths and stable codes", () => {
   assertNoInternalDetails(html);
 });
 
+test("collapsed field errors can show the readable field label without exposing paths", () => {
+  const html = renderToStaticMarkup(React.createElement(DiagnosticList, {
+    locale: "zh",
+    diagnostics: [{ code: "invalid_parameter", severity: "error", messageKey: "diagnostics.configuration.out_of_range", fieldPath: "strategies[0].rules.buy.params.rsi.period" }],
+    fieldLabel() { return "RSI期间"; },
+  }));
+  assert.match(html, /<strong class="diagnostic-field-name">RSI期间<\/strong>/);
+  assert.doesNotMatch(html, /strategies\[0\]|rules\.buy|rsi\.period/);
+});
+
 test("backend diagnostic messages have readable Japanese and Chinese text", () => {
   function diagnosticKeys(directory) {
     return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {

@@ -104,8 +104,8 @@ test("strategy editor keeps one label per field and no repeated parameter summar
   assert.match(html, /id="field-strategy-vix_dca-1-vix-symbol"/);
   assert.match(html, /VXN — Nasdaq 100 ボラティリティ指数/);
   assert.match(html, /VXD — Dow Jones ボラティリティ指数/);
-  assert.match(html, /<h3 id="strategy-parameter-heading-strategy-vix_dca-1-vix">買付<span class="condition-kind-name">VIX<\/span><\/h3>/);
-  assert.match(html, /シグナル判定に使う指数。/);
+  assert.match(html, /<h3 id="strategy-parameter-heading-strategy-vix_dca-1-vix">買付<span class="condition-kind-name">ボラティリティ<\/span><\/h3>/);
+  assert.match(html, /この条件で使う指数。/);
   assert.equal(createInitialWorkspaceState(catalog).runScope, "all_enabled");
 });
 
@@ -146,8 +146,8 @@ test("turning off VIX shows the required disabled copy and preserves the preset 
   const html = render(state);
   const editor = renderEditor(state.draft.strategies[0]);
   assert.equal(state.draft.strategies[0].presetId, "vix_dca");
-  assert.match(html, /VIX シグナル無効/);
-  assert.doesNotMatch(html, /VIX: \^VIX ≥ 25、月間最大 1 回/);
+  assert.match(html, /買付条件オフ/);
+  assert.doesNotMatch(html, /VIX ≥ 25/);
   assert.match(editor, /role="switch"[^>]*aria-label="買付"[^>]*aria-checked="false"/);
 });
 

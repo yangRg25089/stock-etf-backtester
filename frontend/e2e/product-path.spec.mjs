@@ -475,7 +475,7 @@ test("catalog lists all presets, independent condition toggles, and locale chang
   await expect(page.locator(".strategy-parameter-group")).toHaveCount(0);
   await page.locator(".strategy-card-open").first().click();
   await expect(page.locator(".strategy-dialog #strategy-editor-heading")).toHaveText("ボラティリティ積立");
-  await expect(page.locator(".strategy-dialog #field-strategy-vix_dca-1-vix-symbol-hint")).toContainText("シグナル判定");
+  await expect(page.locator(".strategy-dialog #field-strategy-vix_dca-1-vix-symbol-hint")).toHaveText("この条件で使う指数。");
   const japaneseDialogA11y = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
@@ -526,7 +526,7 @@ test("catalog lists all presets, independent condition toggles, and locale chang
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("历史回测");
   await page.locator(".strategy-card-open").first().click();
-  await expect(page.locator(".strategy-dialog .condition-heading h3").first()).toHaveText("买入VIX");
+  await expect(page.locator(".strategy-dialog .condition-heading h3").first()).toHaveText("买入波动率");
   const chineseDialogA11y = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();

@@ -2,16 +2,37 @@ import { useEffect, useRef, useState } from "react";
 import { RunApiError } from "../../api/runs";
 import type { Diagnostic } from "../../api/generated";
 
-function nativeDiagnostic(input: HTMLInputElement): Diagnostic {
+type ValidationControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+function nativeDiagnostic(input: ValidationControl, validity: ValidityState): Diagnostic {
   const key = input.dataset.parameterKey;
   const conditionId = input.closest<HTMLElement>(".condition-card")?.dataset.conditionId;
-  const issue = input.validity.valueMissing ? "required"
-    : input.validity.rangeOverflow || input.validity.rangeUnderflow ? "out_of_range" : "invalid_value";
+  const issue = validity.valueMissing ? "required"
+    : validity.rangeOverflow || validity.rangeUnderflow ? "out_of_range" : "invalid_value";
   return {
     code: "invalid_parameter", severity: "error", messageKey: `diagnostics.configuration.${issue}`,
     fieldPath: key && (input.closest(".shared-settings-dialog") ? key : `params.${key}`),
-    ...(conditionId ? { details: { conditionId } } : {}),
+    details: { parameterKey: key, ...(conditionId ? { conditionId } : {}) },
   };
+}
+
+function nativeError(dialog: HTMLDialogElement | null): Diagnostic | null {
+  const active = dialog?.querySelector<ValidationControl>("input:invalid, select:invalid, textarea:invalid");
+  if (active) {
+    const error = nativeDiagnostic(active, active.validity);
+    active.reportValidity();
+    return error;
+  }
+  // Disabled condition fields retain their values and must remain valid too.
+  for (const field of dialog?.querySelectorAll<ValidationControl>(
+    ".condition-card input:disabled, .condition-card select:disabled, .condition-card textarea:disabled",
+  ) ?? []) {
+    const copy = field.cloneNode(true) as ValidationControl;
+    copy.disabled = false;
+    copy.value = field.value;
+    if (!copy.validity.valid) return nativeDiagnostic(field, copy.validity);
+  }
+  return null;
 }
 
 // Validation belongs to the editor. It never changes the saved workspace or run.
@@ -30,25 +51,34 @@ export function useDialogValidation() {
       ?? dialog.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)')
       ?? dialog.querySelector<HTMLElement>(".dialog-diagnostics");
     target?.focus();
+    const fields = dialog.querySelector(".dialog-fields");
+    if (!fields) return;
+    const observer = new ResizeObserver(() => {
+      const active = document.activeElement;
+      if (dialog.open && active instanceof HTMLElement && fields.contains(active)) {
+        active.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+    });
+    observer.observe(fields);
+    return () => observer.disconnect();
   }, [errors, pending]);
 
   const attemptClose = async (dialog: HTMLDialogElement | null,
     validate: (signal: AbortSignal) => Promise<Diagnostic[]>, commit: () => void) => {
     if (controllerRef.current) return;
     focusDialogRef.current = dialog;
-    const invalid = dialog?.querySelector<HTMLInputElement>("input:invalid, select:invalid, textarea:invalid");
-    invalid?.reportValidity();
+    const localError = nativeError(dialog);
     const controller = new AbortController();
     controllerRef.current = controller;
     setPending(true);
     try {
       const diagnostics = await validate(controller.signal);
       if (controller.signal.aborted) return;
-      const localError = invalid ? nativeDiagnostic(invalid) : null;
       const conditionId = (localError?.details as Record<string, unknown> | undefined)?.conditionId;
+      const parameterKey = (localError?.details as Record<string, unknown> | undefined)?.parameterKey;
       const combined = localError && !diagnostics.some(item =>
         item.severity === "error" && (item.details as Record<string, unknown> | undefined)?.conditionId === conditionId &&
-        (item.fieldPath === localError.fieldPath || (invalid?.dataset.parameterKey && item.fieldPath?.endsWith(`.${invalid.dataset.parameterKey}`))))
+        (item.fieldPath === localError.fieldPath || (typeof parameterKey === "string" && item.fieldPath?.endsWith(`.${parameterKey}`))))
         ? [...diagnostics, localError] : diagnostics;
       setErrors(combined);
       if (!combined.some(item => item.severity === "error")) commit();
