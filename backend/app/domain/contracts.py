@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from datetime import date as Date
 from decimal import Decimal
 from enum import StrEnum
+from itertools import pairwise
 from typing import Literal
 
 from pydantic import (
@@ -32,6 +33,7 @@ from app.domain.status import (
     transition_status,
 )
 from app.domain.valuation import ValuationObservation as ValuationObservation
+from app.domain.values import AwareTimestamp, Symbol
 
 
 class StrategyPresetId(StrEnum):
@@ -98,7 +100,7 @@ class MutableDomainModel(BaseModel):
 
 
 class RunSettings(DomainModel):
-    symbol: str = Field(min_length=1)
+    symbol: Symbol
     start_date: Date = Field(alias="startDate")
     end_date: Date = Field(alias="endDate")
     end_mode: EndMode = Field(default=EndMode.FIXED, alias="endMode")
@@ -260,7 +262,7 @@ class RunSnapshot(DomainModel):
     data_provenance: RunDataProvenance = Field(
         default_factory=RunDataProvenance, alias="dataProvenance"
     )
-    created_at: datetime = Field(
+    created_at: AwareTimestamp = Field(
         default_factory=lambda: datetime.now(UTC), alias="createdAt"
     )
 
@@ -271,13 +273,6 @@ class RunSnapshot(DomainModel):
     ) -> FrozenRunConfig | Mapping[str, object]:
         if isinstance(value, RunConfig):
             return FrozenRunConfig.from_config(value)
-        return value
-
-    @field_validator("created_at")
-    @classmethod
-    def require_timezone(cls, value: datetime) -> datetime:
-        if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError("createdAt must include a timezone")
         return value
 
     @classmethod
@@ -315,7 +310,7 @@ class MarketBar(DomainModel):
     valuation_price: Decimal = Field(alias="valuationPrice", gt=0)
     currency: str = Field(min_length=1)
     source: str = Field(min_length=1)
-    observed_at: datetime = Field(alias="observedAt")
+    observed_at: AwareTimestamp = Field(alias="observedAt")
 
     @model_validator(mode="after")
     def validate_simulation_ohlc(self) -> "MarketBar":
@@ -354,6 +349,8 @@ class MarketSnapshot(DomainModel):
             for bar in self.bars
         ):
             raise ValueError("market bars must use the snapshot symbol and currency")
+        if any(left.date >= right.date for left, right in pairwise(self.bars)):
+            raise ValueError("market bar dates must be strictly increasing and unique")
         return self
 
 
@@ -370,8 +367,8 @@ class MacroObservation(DomainModel):
     value: Decimal
     unit: str = Field(min_length=1)
     source: str = Field(min_length=1)
-    observed_at: datetime = Field(alias="observedAt")
-    published_at: datetime | None = Field(default=None, alias="publishedAt")
+    observed_at: AwareTimestamp = Field(alias="observedAt")
+    published_at: AwareTimestamp | None = Field(default=None, alias="publishedAt")
     source_unit: str | None = Field(default=None, alias="sourceUnit", min_length=1)
     aligned_session_date: Date | None = Field(default=None, alias="alignedSessionDate")
 
@@ -810,6 +807,8 @@ class RunResult(DomainModel):
     def derive_status(self) -> "RunResult":
         if self.strategy_runs:
             object.__setattr__(self, "status", _aggregate_status(self.strategy_runs))
+        elif self.status is not StrategyStatus.QUEUED:
+            raise ValueError("an empty result collection must be queued")
         return self
 
     @property

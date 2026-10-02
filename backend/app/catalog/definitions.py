@@ -5,8 +5,9 @@ translation keys so that the catalog can be consumed by either UI locale without
 changing a run configuration.
 """
 
+import re
 from collections.abc import Iterable, Mapping
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, DecimalException
 from enum import StrEnum
 from types import MappingProxyType
@@ -16,6 +17,7 @@ from pydantic import Field, model_validator
 
 from app.domain.contracts import StrategyPresetId
 from app.domain.status import DomainModel
+from app.domain.values import SYMBOL_PATTERN
 
 
 class ParameterType(StrEnum):
@@ -181,8 +183,14 @@ def validate_parameter_value(definition: "ParameterDefinition", value: object) -
                 ParameterValueIssue.INVALID_TYPE,
                 f"symbol parameter has a non-string value: {definition.key}",
             )
+        if re.fullmatch(SYMBOL_PATTERN, value) is None:
+            raise ParameterValidationError(
+                definition.key,
+                ParameterValueIssue.INVALID_VALUE,
+                f"symbol parameter has an unsupported format: {definition.key}",
+            )
     elif parameter_type is ParameterType.DATE:
-        if not isinstance(value, date):
+        if not isinstance(value, date) or isinstance(value, datetime):
             raise ParameterValidationError(
                 definition.key,
                 ParameterValueIssue.INVALID_TYPE,
@@ -309,10 +317,17 @@ class ParameterDefinition(DomainModel):
     translation_key: str = Field(alias="translationKey")
     level: ParameterLevel = ParameterLevel.STRATEGY
     nullable: bool = False
+    pattern: str | None = None
     group_id: str = Field(alias="groupId", pattern=r"^[a-z][a-z0-9_]*$")
 
     @model_validator(mode="after")
     def validate_metadata(self) -> "ParameterDefinition":
+        if self.type is ParameterType.SYMBOL:
+            if self.pattern is not None and self.pattern != SYMBOL_PATTERN:
+                raise ValueError("symbol parameters must use the shared format")
+            object.__setattr__(self, "pattern", SYMBOL_PATTERN)
+        elif self.pattern is not None:
+            raise ValueError("only symbol parameters have a format pattern")
         if not self.applicable_presets:
             raise ValueError("applicablePresets must not be empty")
         if self.minimum is not None:

@@ -197,6 +197,7 @@ export type ParameterDefinition = {
   translationKey: string;
   level?: ParameterLevel;
   nullable?: boolean;
+  pattern?: string | null;
   groupId: string;
 };
 

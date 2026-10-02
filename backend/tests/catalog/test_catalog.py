@@ -116,7 +116,7 @@ EXPECTED_PARAMETER_KEYS = {
 
 
 def test_catalog_version_advances_when_the_run_scope_ui_parameter_is_retired() -> None:
-    assert CATALOG_VERSION == "catalog-v10"
+    assert CATALOG_VERSION == "catalog-v11"
     assert "run.scope" not in PARAMETER_DEFINITIONS
 
 
