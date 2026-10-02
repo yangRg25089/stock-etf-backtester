@@ -814,3 +814,5 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 四个旧 tmp worktree 均无未提交修改；解除 task6 分支占用后保留为 detached，不删除目录或忽略文件。六个旧本地分支已删除，git branch 验证只剩 main。
 - git ls-files 验证已无 agent 配置；git check-ignore 验证五个本地文件不会再次跟踪。工作树仅剩用户 RV 原稿未跟踪，未修改或暂存。
 - 已只读 fetch 核对远端：origin/main 仍为 4176e35，远端另外保留两个 feature 分支。Task 102/W 的此前自动审批拒绝仍要求确认指定 GitHub 目标；尚未推送 main 或删除远端分支，待确认后完成 Task 120 最后步骤。
+- 额外从 bundle 克隆到隔离临时 bare 仓库，git fsck --full 和两个独有旧提交/整理提交的 cat-file 检查通过；临时校验仓库自动清理，证明备份可实际恢复，不仅验证引用头。
+- 收敛 main 后再次完整验收：454 passed（19.58 秒，15 条既有提示），Ruff check/98 文件格式及 mypy 60 文件通过（`/tmp/backtester-phase29-main-final.log`）；最终 aggregate diff check 通过。远端目标确认问题已明确提出，等确认后才执行相关写入。
