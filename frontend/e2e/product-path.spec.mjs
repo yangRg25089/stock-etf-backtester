@@ -2126,6 +2126,12 @@ test("strategy AND OR segments and buy sell switches remain independent and keyb
   await page.locator(".strategy-card-open").last().click();
   const dialog = page.locator(".strategy-dialog");
   await dialog.locator('[data-rule-side="buy"] .condition-add-select').first().selectOption("rsi");
+  await expect(dialog.locator('[data-rule-side="buy"] .field-segment:has(input[value="AND"])')).toHaveAttribute("title", "有効な条件すべて");
+  await expect(dialog.locator('[data-rule-side="buy"] .field-segment:has(input[value="OR"])')).toHaveAttribute("title", "有効な条件のいずれか");
+  const rsiSwitch = dialog.locator('[data-condition-kind="rsi"] .condition-card-heading').getByRole("switch");
+  await rsiSwitch.click();
+  await expect(rsiSwitch).toHaveAttribute("aria-checked", "false");
+  await expect(dialog.getByRole("radio", { name: "AND", exact: true })).toBeEnabled();
   await dialog.getByRole("radio", { name: "AND", exact: true }).check();
   await expect(dialog.getByRole("radio", { name: "AND", exact: true })).toBeChecked();
   await dialog.getByRole("radio", { name: "AND", exact: true }).focus();
@@ -2152,6 +2158,8 @@ test("strategy AND OR segments and buy sell switches remain independent and keyb
   await closeStrategyDialog(page);
   await page.getByRole("button", { name: "中文", exact: true }).click();
   await page.locator(".strategy-card-open").last().click();
+  await expect(dialog.locator('[data-rule-side="buy"] .field-segment:has(input[value="AND"])')).toHaveAttribute("title", "满足本组所有启用条件");
+  await expect(dialog.locator('[data-rule-side="buy"] .field-segment:has(input[value="OR"])')).toHaveAttribute("title", "满足本组任一启用条件");
   const cashLimit = dialog.locator('input[id$="-accumulation-cashSafetyLimit"]');
   await cashLimit.fill("1250");
   await page.setViewportSize({ width: 320, height: 700 });

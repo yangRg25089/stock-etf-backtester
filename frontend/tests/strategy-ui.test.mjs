@@ -127,12 +127,15 @@ test("strategy parameters follow catalog groups and select controls explain thei
   assert.match(ja, /ボリンジャー/);
   assert.match(ja, /data-rule-side="sell"/);
   assert.match(ja, /role="radiogroup" aria-label="隣接する条件カードの関係"/);
-  assert.match(ja, /title="このグループの全条件を満たす"/);
+  assert.match(ja, /title="有効な条件すべて"/);
+  assert.match(ja, /title="有効な条件のいずれか"/);
   assert.doesNotMatch(ja, /有効な買付条件すべて：AND = 全条件、OR = いずれか。/);
   assert.doesNotMatch(ja, /strategy-parameter-nav|strategy-editor-summary/);
   assert.match(ja, /百分率の数値（例：5 = 5%）/);
   assert.match(zh, /布林带/);
   assert.match(zh, /data-rule-side="sell"/);
+  assert.match(zh, /title="满足本组所有启用条件"/);
+  assert.match(zh, /title="满足本组任一启用条件"/);
   assert.match(zh, /通常自动识别；无法判断时选择来源单位。/);
 });
 
