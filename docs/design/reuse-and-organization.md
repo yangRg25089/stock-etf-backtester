@@ -111,6 +111,8 @@ SQLite 私有 JSON 编码必须无损保存冻结策略参数的领域类型（�
 
 建议目录按职责放置：`backend/app/catalog`、`config`、`data`、`domain`、`runs`、`export`；`frontend/src/features/config`、`strategies`、`runs`、`results`、`i18n`；统一表单控件放 `frontend/src/shared/ui`。这些是组织边界，不要求每个目录包装一个透传模块。领域契约只接收已物化的数据设置，不反向导入 catalog；注册表默认值与适用边界由 catalog/config 边界提供。数据供应商更换只改适配器，策略逻辑与 UI 契约不变。
 
+前端组合层使用 `useWorkspace` 管理草稿恢复、编号及草稿存储，使用 `useRunController` 管理提交校验、API/SSE、恢复、停止、锁定和完整终态缓存。两者共享既有 `WorkspaceState` 与纯 reducer，App 只组合 UI 与导航，不复制运行协议或结果推导。缺失 root 由启动边界显式报错；共享焦点、控件选择及错误样式使用语义颜色 token。
+
 ## V1 组件清单与统一规则
 
 工作台阶段 14 的组件摆放和交互目标见 [扁平化方案](workbench-flattening-proposal.md)，实现进度见 `tasks/plan.md` 和 `tasks/todo.md`。下表的职责继续成立；执行控件进入常驻顶栏、策略编辑器进入 dialog、指标与结果详情合并，状态组件不要求独立成功卡片。
