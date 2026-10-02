@@ -14,6 +14,8 @@ TESTS_ROOT = BACKEND_ROOT / "tests"
 sys.path.insert(0, str(BACKEND_ROOT))
 sys.path.insert(0, str(TESTS_ROOT))
 
+# Importing the app must not open or recover the user's persisted runs.
+os.environ["STOCK_ETF_BACKTESTER_RUN_STORE_PATH"] = ":memory:"
 app = import_module("app.main").app
 create_fixture_run_manager = import_module(
     "e2e.fixture_provider"

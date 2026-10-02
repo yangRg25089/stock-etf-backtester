@@ -8,6 +8,7 @@ import { findFocusedResult, isCompletedResult, resultDisplayName, selectedVolati
 import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
 import { resultColor } from "./colors";
+import { savedTechnicalIndicators } from "./technicalIndicators";
 
 interface ResultViewerProps {
   busy?: boolean;
@@ -62,6 +63,10 @@ export function ResultViewer({ locale, state, dispatch, error, busy = false }: R
       }];
     });
   const focusedIndex = chartResult ? strategyRuns.findIndex((result) => result.id === (candidateResult ? focusedResult?.id : chartResult.id)) : -1;
+  const technicalResults = strategyRuns.filter(result => selectedIds.includes(result.id) && isCompletedResult(result)
+    && result.id !== (candidateResult ? focusedResult?.id : null));
+  if (candidateResult) technicalResults.push(candidateResult);
+  const technicalIndicators = savedTechnicalIndicators(technicalResults);
 
   return (
     <div className="result-content">
@@ -97,6 +102,7 @@ export function ResultViewer({ locale, state, dispatch, error, busy = false }: R
               trades={chartResult.trades ?? []}
               signals={volatility[0]?.signals ?? []}
               volatilitySeries={volatility}
+              technicalIndicators={technicalIndicators}
               totalAssetLabel={resultDisplayName(locale, candidateResult && focusedResult ? focusedResult : chartResult, strategyRuns)}
               totalAssetResultId={chartResult.id}
               showFocusedAsset={Boolean(candidateResult) || selectedIds.includes(chartResult.id)}

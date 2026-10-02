@@ -270,6 +270,9 @@ def run_grid_search(
                         dailyAssets=metrics_result.daily_assets,
                         trades=ledger.trades,
                         signals=ledger.signals,
+                        technicalIndicators=batch.strategy(
+                            candidate_id
+                        ).technical_indicators,
                         unexecutedSignals=ledger.unexecuted_signals,
                         diagnostics=diagnostics,
                     )

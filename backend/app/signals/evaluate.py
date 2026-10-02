@@ -28,6 +28,8 @@ from app.domain.contracts import (
     MacroObservation,
     MarketBar,
     SignalEvaluation,
+    TechnicalIndicatorSample,
+    TechnicalIndicatorSeries,
     ValuationObservation,
 )
 from app.domain.immutability import freeze_mapping
@@ -47,7 +49,7 @@ from .indicators import (
     simple_moving_average,
 )
 
-SIGNAL_METHOD_VERSION = "signals-v1"
+SIGNAL_METHOD_VERSION = "signals-v2"
 
 
 class StrategySignalSeries(DomainModel):
@@ -55,6 +57,9 @@ class StrategySignalSeries(DomainModel):
 
     strategy_id: str = Field(alias="strategyId", min_length=1)
     evaluations: tuple[SignalEvaluation, ...] = ()
+    technical_indicators: tuple[TechnicalIndicatorSeries, ...] = Field(
+        default=(), alias="technicalIndicators"
+    )
 
     @property
     def available(self) -> bool:
@@ -470,7 +475,45 @@ def _evaluate_strategy(
                 () if sell is None else (sell,),
             )
         )
-    return StrategySignalSeries(strategyId=strategy.id, evaluations=tuple(evaluations))
+    indicator_caches: tuple[
+        tuple[Literal["ma", "rsi"], dict[int, tuple[Decimal | None, ...]]], ...
+    ] = (("ma", moving_averages), ("rsi", strength_indices))
+    technical = [
+        TechnicalIndicatorSeries(
+            kind=kind,
+            period=period,
+            samples=tuple(
+                TechnicalIndicatorSample(date=day, value=values[positions[day]])
+                for day in context.run_sessions
+            ),
+        )
+        for kind, cache in indicator_caches
+        for period, values in sorted(cache.items())
+    ]
+    for (period, deviations), bands in sorted(band_cache.items()):
+        technical.append(
+            TechnicalIndicatorSeries(
+                kind="bollinger",
+                period=period,
+                deviations=deviations,
+                samples=tuple(
+                    TechnicalIndicatorSample(
+                        date=day,
+                        value=None
+                        if (band := bands[positions[day]]) is None
+                        else band.middle,
+                        lower=None if band is None else band.lower,
+                        upper=None if band is None else band.upper,
+                    )
+                    for day in context.run_sessions
+                ),
+            )
+        )
+    return StrategySignalSeries(
+        strategyId=strategy.id,
+        evaluations=tuple(evaluations),
+        technicalIndicators=tuple(technical),
+    )
 
 
 def _append_vix_exit_signals(

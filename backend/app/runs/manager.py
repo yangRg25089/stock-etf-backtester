@@ -29,6 +29,7 @@ from app.domain.contracts import (
     SignalEvaluation,
     StrategyPresetId,
     StrategyRun,
+    TechnicalIndicatorSeries,
     Trade,
     UnexecutedSignal,
 )
@@ -59,6 +60,7 @@ class _Outcome:
     status: StrategyStatus
     diagnostics: tuple[Diagnostic, ...] = ()
     signals: tuple[SignalEvaluation, ...] = ()
+    technical_indicators: tuple[TechnicalIndicatorSeries, ...] = ()
     unexecuted_signals: tuple[UnexecutedSignal, ...] = ()
     trades: tuple[Trade, ...] = ()
     daily_assets: tuple[DailyAsset, ...] = ()
@@ -640,6 +642,7 @@ class RunManager:
                     daily_assets=best.daily_assets,
                     trades=best.trades,
                     signals=best.signals,
+                    technical_indicators=best.technical_indicators,
                     unexecuted_signals=best.unexecuted_signals,
                 )
             return outcome
@@ -693,6 +696,7 @@ class RunManager:
                 status=StrategyStatus.UNAVAILABLE,
                 diagnostics=diagnostics,
                 signals=ledger.signals,
+                technical_indicators=signals.technical_indicators,
                 unexecuted_signals=ledger.unexecuted_signals,
             )
 
@@ -715,6 +719,7 @@ class RunManager:
             ),
             diagnostics=diagnostics,
             signals=ledger.signals,
+            technical_indicators=signals.technical_indicators,
             unexecuted_signals=ledger.unexecuted_signals,
             trades=ledger.trades,
             daily_assets=metrics_result.daily_assets,
@@ -792,6 +797,7 @@ class RunManager:
                 updated = item.model_copy(
                     update={
                         "signals": outcome.signals,
+                        "technical_indicators": outcome.technical_indicators,
                         "unexecuted_signals": outcome.unexecuted_signals,
                         "trades": outcome.trades,
                         "daily_assets": outcome.daily_assets,

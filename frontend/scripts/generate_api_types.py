@@ -40,6 +40,8 @@ def _load_schemas() -> dict[str, Any]:
         "print(json.dumps(app.openapi()['components']['schemas']))"
     )
     env = os.environ.copy()
+    # OpenAPI generation is read-only and must not recover persisted user runs.
+    env["STOCK_ETF_BACKTESTER_RUN_STORE_PATH"] = ":memory:"
     backend_path = str(ROOT / "backend")
     env["PYTHONPATH"] = os.pathsep.join(
         part for part in (backend_path, env.get("PYTHONPATH", "")) if part

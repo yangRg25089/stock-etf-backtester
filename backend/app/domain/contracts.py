@@ -663,6 +663,55 @@ class SearchHeatmapSlice(DomainModel):
         return self
 
 
+class TechnicalIndicatorSample(DomainModel):
+    date: Date
+    value: Decimal | None = Field(default=None, allow_inf_nan=False)
+    lower: Decimal | None = Field(default=None, allow_inf_nan=False)
+    upper: Decimal | None = Field(default=None, allow_inf_nan=False)
+
+
+class TechnicalIndicatorSeries(DomainModel):
+    """Exact signal-cache values; null samples retain explicit warmup/gaps."""
+
+    kind: Literal["ma", "bollinger", "rsi"]
+    period: int = Field(ge=1)
+    deviations: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+    samples: tuple[TechnicalIndicatorSample, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_series(self) -> "TechnicalIndicatorSeries":
+        if (self.kind == "bollinger") != (self.deviations is not None):
+            raise ValueError("only Bollinger series require deviations")
+        dates = [sample.date for sample in self.samples]
+        if dates != sorted(set(dates)):
+            raise ValueError("indicator samples must have unique ascending dates")
+        for sample in self.samples:
+            if self.kind == "bollinger":
+                values = (sample.lower, sample.value, sample.upper)
+                if any(value is None for value in values) != all(
+                    value is None for value in values
+                ):
+                    raise ValueError(
+                        "Bollinger samples require all three bands or none"
+                    )
+                if (
+                    sample.lower is not None
+                    and sample.upper is not None
+                    and sample.value is not None
+                    and not (sample.lower <= sample.value <= sample.upper)
+                ):
+                    raise ValueError("Bollinger bands must be ordered")
+            elif sample.lower is not None or sample.upper is not None:
+                raise ValueError("only Bollinger samples contain bands")
+            if (
+                self.kind == "rsi"
+                and sample.value is not None
+                and not (0 <= sample.value <= 100)
+            ):
+                raise ValueError("RSI values must be between zero and one hundred")
+        return self
+
+
 class StrategyRun(DomainModel):
     """One strategy result; zero trades is valid when metrics are complete."""
 
@@ -673,6 +722,9 @@ class StrategyRun(DomainModel):
     status: StrategyStatus = StrategyStatus.QUEUED
     diagnostics: tuple[Diagnostic, ...] = ()
     signals: tuple[SignalEvaluation, ...] = ()
+    technical_indicators: tuple[TechnicalIndicatorSeries, ...] = Field(
+        default=(), alias="technicalIndicators"
+    )
     unexecuted_signals: tuple[UnexecutedSignal, ...] = Field(
         default=(), alias="unexecutedSignals"
     )

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { DailyAsset, SignalEvaluation, Trade } from "../../api/generated";
+import type { DailyAsset, SignalEvaluation, TechnicalIndicatorSeries, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { ChartCrosshair, ChartReadout, type ChartCursor, type CursorReading } from "./ChartCrosshair";
 import { useChartInteraction, type ChartInteractionProps } from "./useChartInteraction";
 import { tradeMarkerPoints } from "./chartTradeMarkers";
+import { chartSegments, technicalChartLines, type TechnicalChartLine } from "./technicalIndicators";
 import { isVolatilityObservation, type SavedVolatilitySeries } from "./model";
 import {
   normalizeSeriesToBase100,
+  normalizeValueToBase100,
   type ChartSeriesId,
   type SeriesSample,
   type NormalizedSeries,
@@ -18,7 +20,7 @@ import {
   type ChartViewport,
 } from "./chartViewport";
 
-type AxisSeriesId = ChartSeriesId | "index";
+type AxisSeriesId = ChartSeriesId | "rsi" | "index";
 
 interface StrategyChartSeries {
   id: string;
@@ -39,6 +41,7 @@ interface ResultsChartsProps {
   totalAssetLabel?: string;
   totalAssetResultId?: string;
   volatilitySeries?: SavedVolatilitySeries[];
+  technicalIndicators?: TechnicalIndicatorSeries[];
   showFocusedAsset?: boolean;
   vixSymbol?: string;
   vixThreshold?: string;
@@ -60,7 +63,7 @@ function seriesIdentity(series: SeriesDefinition): string {
 
 interface IndicatorComparison { label: string; color: string; samples: SeriesSample[] }
 
-type IndicatorSeriesDefinition = SeriesDefinition & { id: "drawdown" | "vix" };
+type IndicatorSeriesDefinition = Omit<SeriesDefinition, "id"> & { id: "drawdown" | "vix" | "rsi" };
 
 interface ChartPoint extends SeriesSample {
   x: number;
@@ -128,6 +131,7 @@ function formatAxisValue(
 }
 
 function axisTitle(locale: Locale, seriesId: AxisSeriesId, currency?: string): string {
+  if (seriesId === "rsi") return translate(locale, "chart.rsiAxis");
   if (seriesId === "index") return translate(locale, "chart.overlayAxis");
   if (seriesId === "totalAsset" && !currency) return translate(locale, "chart.totalAssetAxisPlain");
   if (seriesId === "price" && !currency) return translate(locale, "chart.priceAxisPlain");
@@ -143,17 +147,21 @@ function axisTitle(locale: Locale, seriesId: AxisSeriesId, currency?: string): s
 
 function chartScale(
   values: number[],
-  { maximumAtZero = false }: { maximumAtZero?: boolean } = {},
+  { maximumAtZero = false, fixedBounds }: { maximumAtZero?: boolean; fixedBounds?: [number, number] } = {},
   geometry = CHART,
 ): ChartScale {
-  const rawMinimum = Math.min(...values);
-  const rawMaximum = Math.max(...values);
+  let rawMinimum = Infinity;
+  let rawMaximum = -Infinity;
+  for (const value of values) {
+    rawMinimum = Math.min(rawMinimum, value);
+    rawMaximum = Math.max(rawMaximum, value);
+  }
   const span = rawMaximum - rawMinimum;
   const padding = span === 0
     ? Math.max(Math.abs(rawMaximum) * 0.05, maximumAtZero ? 0.01 : 1)
     : span * 0.08;
-  const minimum = rawMinimum - padding;
-  const maximum = maximumAtZero ? 0 : rawMaximum + padding;
+  const minimum = fixedBounds?.[0] ?? rawMinimum - padding;
+  const maximum = fixedBounds?.[1] ?? (maximumAtZero ? 0 : rawMaximum + padding);
   const plotHeight = geometry.height - geometry.top - geometry.bottom;
   return {
     minimum,
@@ -295,7 +303,7 @@ function samplesForSeries(
   });
 }
 
-function seriesLabel(locale: Locale, series: SeriesDefinition, currency?: string): string {
+function seriesLabel(locale: Locale, series: SeriesDefinition | IndicatorSeriesDefinition, currency?: string): string {
   const units = series.id === "totalAsset" || series.id === "price"
     ? currency
     : series.id === "drawdown"
@@ -416,10 +424,13 @@ function IndicatorChart({
   const currency = assets[0]?.currency;
   const visibleThreshold = series.id === "vix" && hasBuySignalObservations ? thresholdValue : null;
   const values = chartSamples.map((point) => point.value);
-  values.push(...comparisons.flatMap(comparison => samplesInViewport(comparison.samples, viewport, assets.length).map(point => point.value)));
+  for (const comparison of comparisons) for (const point of samplesInViewport(comparison.samples, viewport, assets.length)) {
+    values.push(point.value);
+  }
   if (visibleThreshold !== null) values.push(visibleThreshold);
   const scale = chartScale(values, {
     maximumAtZero: series.id === "drawdown",
+    fixedBounds: series.id === "rsi" ? [0, 100] : undefined,
   }, geometry);
   const points = lineCoordinates(chartSamples, scale, assets.length, viewport);
   const titleId = `chart-title-${series.id}`;
@@ -465,11 +476,11 @@ function IndicatorChart({
             </clipPath>
           </defs>
           <g clipPath={`url(#${plotClipId})`}>
-            {comparisons.map(comparison => {
+            {comparisons.flatMap(comparison => {
               const line = lineCoordinates(samplesInViewport(comparison.samples, viewport, assets.length), scale, assets.length, viewport);
-              return line.length > 1 ? <polyline key={comparison.label} className="chart-series-line chart-vix-line"
-                points={line.map(point => `${point.x},${point.y}`).join(" ")} fill="none" stroke={comparison.color}
-                strokeWidth={1.2} vectorEffect="non-scaling-stroke" aria-label={comparison.label}><title>{comparison.label}</title></polyline> : null;
+              return chartSegments(line).filter(segment => segment.length > 1).map((segment, index) => <polyline key={`${comparison.label}-${index}`} className="chart-series-line"
+                points={segment.map(point => `${point.x},${point.y}`).join(" ")} fill="none" stroke={comparison.color}
+                strokeWidth={1.2} vectorEffect="non-scaling-stroke" aria-label={comparison.label}><title>{comparison.label}</title></polyline>);
             })}
             {thresholdY !== null && (
               <line className="chart-threshold-line" x1={CHART.left} y1={thresholdY} x2={CHART.width - CHART.right} y2={thresholdY}>
@@ -477,9 +488,10 @@ function IndicatorChart({
               </line>
             )}
             {points.length > 1 ? (
-              <polyline
+              chartSegments(points).filter(segment => segment.length > 1).map((segment, index) => <polyline
+                key={index}
                 className={`chart-series-line${series.id === "vix" ? " chart-vix-line" : ""}`}
-                points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+                points={segment.map((point) => `${point.x},${point.y}`).join(" ")}
                 fill="none"
                 stroke={series.color}
                 strokeWidth={1.2}
@@ -488,7 +500,7 @@ function IndicatorChart({
                 aria-label={lineLabel}
               >
                 <title>{lineLabel}</title>
-              </polyline>
+              </polyline>)
             ) : points.length === 1 && series.id !== "vix" ? (
               <circle className="chart-series-point" cx={points[0]?.x} cy={points[0]?.y} r="3" tabIndex={0} aria-label={lineLabel}>
                 <title>{lineLabel}</title>
@@ -518,12 +530,13 @@ function OverlayChart({
   chartInteractionProps,
   cursor,
   volatilityComparisons,
+  technicalLines,
 }: {
   locale: Locale;
   assets: DailyAsset[];
   trades: Trade[];
   series: SeriesDefinition[];
-  indicatorSeries: IndicatorSeriesDefinition[];
+  indicatorSeries: Array<SeriesDefinition & { id: "drawdown" | "vix" }>;
   samplesById: Map<ChartSeriesId, SeriesSample[]>;
   normalizedById: Map<ChartSeriesId, NormalizedSeries | null>;
   comparisonSeries: StrategyChartSeries[];
@@ -532,6 +545,7 @@ function OverlayChart({
   chartInteractionProps: ChartInteractionProps;
   cursor: ChartCursor | null;
   volatilityComparisons: IndicatorComparison[];
+  technicalLines: TechnicalChartLine[];
 }) {
   const geometry = MAIN_WITHOUT_DATES;
   const highlight = useSeriesHighlight();
@@ -562,6 +576,13 @@ function OverlayChart({
   }
 
   const dateCount = assets.length;
+  const priceBaseline = normalizedById.get("price")?.baseValue;
+  const technicalNormalized = technicalLines.filter(line => line.kind !== "rsi").map(line => ({ ...line,
+    points: line.samples.flatMap(point => {
+      const value = normalizeValueToBase100("price", point.value, priceBaseline ?? 0);
+      return value === null ? [] : [{ ...point, indexValue: value }];
+    }),
+  }));
   const range = visibleIndexRange(dateCount, viewport);
   const visibleNormalized = normalized.map(({ definition, result }) => ({
     definition,
@@ -573,6 +594,7 @@ function OverlayChart({
     100,
     ...visibleNormalized.flatMap(({ chartPoints }) => chartPoints.map((point) => point.indexValue)),
     ...comparisonNormalized.flatMap(({ result }) => samplesInViewport(result.points, viewport, dateCount).map((point) => point.indexValue)),
+    ...technicalNormalized.flatMap(line => samplesInViewport(line.points, viewport, dateCount).map(point => point.indexValue)),
   ];
   const scale = chartScale(values, {}, geometry);
   const titleId = "chart-title-overlay";
@@ -583,7 +605,7 @@ function OverlayChart({
       color: primaryAsset.definition.color, result: primaryAsset.result, trades }] : []),
     ...comparisonNormalized.map(comparison => ({ ...comparison, trades: comparison.trades ?? [] })),
   ];
-  const visibleIdentities = new Set([...normalized.map(({ definition }) => seriesIdentity(definition)), ...comparisonNormalized.map(comparison => comparison.id)]);
+  const visibleIdentities = new Set([...normalized.map(({ definition }) => seriesIdentity(definition)), ...comparisonNormalized.map(comparison => comparison.id), ...technicalNormalized.map(line => line.id)]);
   const highlightedId = highlight.highlightedId && visibleIdentities.has(highlight.highlightedId) ? highlight.highlightedId : null;
   const startDate = assets[Math.round(range.start)]?.date ?? "";
   const endDate = assets[Math.round(range.end)]?.date ?? "";
@@ -602,6 +624,10 @@ function OverlayChart({
   const comparisonCursorPoints = comparisonNormalized.flatMap(({ color, result }) => {
     const point = result.points.find((sample) => sample.index === cursor?.index);
     return point ? [{ y: scale.y(point.indexValue), color }] : [];
+  });
+  const technicalCursorPoints = technicalNormalized.flatMap(line => {
+    const point = line.points.find(sample => sample.index === cursor?.index);
+    return point ? [{ y: scale.y(point.indexValue), color: line.color }] : [];
   });
   const readings: CursorReading[] = normalized.map(({ definition, result }) => {
     const point = result.points.find((sample) => sample.index === readingIndex);
@@ -629,6 +655,10 @@ function OverlayChart({
       color: comparison.color,
     });
   }
+  for (const line of technicalLines) {
+    const point = line.samples.find(sample => sample.index === readingIndex);
+    readings.push({ label: line.label, value: preciseValue(point?.value, locale, line.kind === "rsi" ? undefined : currency), color: line.color });
+  }
   return (
     <figure className="chart-panel chart-overlay" data-window-start={viewport.start} data-window-end={viewport.end}>
       <figcaption className="core-chart-heading">
@@ -637,6 +667,7 @@ function OverlayChart({
           ...normalized.map(({ definition }) => ({ ...definition, id: seriesIdentity(definition), seriesId: definition.id,
             label: definition.label ? seriesLabel(locale, definition, currency) : axisTitle(locale, definition.id, currency) })),
           ...comparisonNormalized.map(comparison => ({ ...comparison, resultId: comparison.id })),
+          ...technicalNormalized,
         ]} highlight={highlight} />
       </figcaption>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
@@ -682,6 +713,10 @@ function OverlayChart({
                 points={samplesInViewport(comparison.result.points, viewport, dateCount).map(point => ({ x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }))}
                 color={comparison.color} gradientId={gradientId} />
             ))}
+            {technicalNormalized.filter(line => line.id === highlightedId).flatMap(line => chartSegments(samplesInViewport(line.points, viewport, dateCount)).map((segment, index) => (
+              <HighlightArea key={`${line.id}-${index}`} points={segment.map(point => ({ x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }))}
+                color={line.color} gradientId={`${gradientId}-${index}`} />
+            )))}
             <line
               className="chart-baseline-line"
               data-baseline="100"
@@ -748,6 +783,14 @@ function OverlayChart({
                 </g>
               );
             })}
+            {technicalNormalized.flatMap(line => chartSegments(samplesInViewport(line.points, viewport, dateCount)).filter(segment => segment.length > 1).map((segment, index) => (
+              <polyline key={`${line.id}-${index}`} className="chart-technical-line" data-kind={line.kind} data-baseline={priceBaseline}
+                points={segment.map(point => `${xPosition(point.index, dateCount, viewport)},${scale.y(point.indexValue)}`).join(" ")}
+                fill="none" stroke={line.color} strokeDasharray={line.dashed ? "5 3" : undefined}
+                strokeWidth={highlightedId === line.id ? 2.4 : 1.1} vectorEffect="non-scaling-stroke" aria-label={line.label}>
+                <title>{line.label}</title>
+              </polyline>
+            )))}
             {tradeSeries.filter(strategy => strategy.id === highlight.inspectedId).flatMap(strategy => {
               const points = strategy.result.points.map(point => ({ date: point.date,
                 x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }));
@@ -762,7 +805,7 @@ function OverlayChart({
             })}
           </g>
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, dateCount, viewport)} y={cursorY}
-            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={[...cursorPoints, ...comparisonCursorPoints]} />}
+            valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={[...cursorPoints, ...comparisonCursorPoints, ...technicalCursorPoints]} />}
         </svg>
       </div>
     </figure>
@@ -780,12 +823,14 @@ export function ResultsCharts({
   totalAssetLabel,
   totalAssetResultId,
   volatilitySeries = [],
+  technicalIndicators = [],
   showFocusedAsset = true,
   vixSymbol,
   vixThreshold,
   visibleSeriesIds,
   onSeriesChange,
 }: ResultsChartsProps) {
+  const [hiddenTechnicalKinds, setHiddenTechnicalKinds] = useState<string[]>([]);
   const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps, zoomAt, resetRange, toggleWheelZoom } = useChartInteraction(dailyAssets.length, CHART, busy);
   const rootElement = useRef<HTMLDivElement | null>(null);
   const containerRef = useCallback((element: HTMLDivElement | null) => {
@@ -826,8 +871,13 @@ export function ResultsCharts({
     ? { ...series, color: totalAssetColor ?? series.color, label: totalAssetLabel, resultId: totalAssetResultId }
     : series);
   const indicatorSeries = selected.filter(
-    (series): series is IndicatorSeriesDefinition => series.id === "drawdown" || series.id === "vix",
+    (series): series is SeriesDefinition & { id: "drawdown" | "vix" } => series.id === "drawdown" || series.id === "vix",
   ).map(series => series.id === "vix" ? { ...series, label: (vixSymbol ?? "^VIX").replace(/^\^/, "") } : series);
+  const savedLines = useMemo(() => technicalChartLines(technicalIndicators, dailyAssets, locale), [technicalIndicators, dailyAssets, locale]);
+  const technicalKinds = [...new Set(savedLines.map(line => line.kind))];
+  const priceVisible = coreSeries.some(series => series.id === "price");
+  const technicalLines = savedLines.filter(line => !hiddenTechnicalKinds.includes(line.kind) && (line.kind === "rsi" || priceVisible));
+  const rsiLines = technicalLines.filter(line => line.kind === "rsi");
   useEffect(() => {
     const element = rootElement.current;
     const svg = element?.querySelector("svg.result-chart");
@@ -882,6 +932,19 @@ export function ResultsCharts({
                   {seriesLabel(locale, series, currency)}
                 </button>
               );
+            })}
+            {technicalKinds.map(kind => {
+              const visible = !hiddenTechnicalKinds.includes(kind) && (kind === "rsi" || priceVisible);
+              const label = kind === "bollinger" ? "BOLL" : kind.toUpperCase();
+              return <button className={`legend-toggle${visible ? " is-visible" : ""}`} type="button" key={kind}
+                data-series={kind} aria-pressed={visible} disabled={busy}
+                onClick={() => {
+                  if (!visible && kind !== "rsi" && !priceVisible) onSeriesChange("price", true);
+                  setHiddenTechnicalKinds(current => visible ? [...current, kind] : current.filter(item => item !== kind));
+                }}>
+                <span className="legend-swatch" style={{ backgroundColor: savedLines.find(line => line.kind === kind)?.color }} aria-hidden="true" />
+                <span className="legend-check" aria-hidden="true">{visible ? "✓" : "−"}</span>{label}
+              </button>;
             })}
           </div>
         </div>
@@ -942,6 +1005,7 @@ export function ResultsCharts({
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
               volatilityComparisons={indicatorSeries.some(series => series.id === "vix") ? volatilityComparisons : []}
+              technicalLines={technicalLines}
             />
           )}
           {indicatorSeries.map((series) => (
@@ -960,6 +1024,10 @@ export function ResultsCharts({
               comparisons={series.id === "vix" ? volatilityComparisons : []}
             />
           ))}
+          {rsiLines[0] && <IndicatorChart locale={locale} assets={dailyAssets}
+            series={{ id: "rsi", color: rsiLines[0].color, labelKey: "chart.rsiAxis", label: rsiLines[0].label }}
+            samples={rsiLines[0].samples} comparisons={rsiLines.slice(1)} thresholdValue={null} hasBuySignalObservations={false}
+            viewport={viewport} chartInteractionProps={chartInteractionProps} cursor={cursor} />}
           <ChartDateAxis dates={dailyAssets.map((asset) => asset.date)} locale={locale} viewport={viewport} cursor={cursor} />
         </div>
       )}

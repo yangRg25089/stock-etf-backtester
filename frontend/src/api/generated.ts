@@ -353,6 +353,7 @@ export type StrategyRun = {
   status?: StrategyStatus;
   diagnostics?: Array<Diagnostic>;
   signals?: Array<SignalEvaluation>;
+  technicalIndicators?: Array<TechnicalIndicatorSeries>;
   unexecutedSignals?: Array<UnexecutedSignal>;
   trades?: Array<Trade>;
   dailyAssets?: Array<DailyAsset>;
@@ -375,6 +376,20 @@ export type SymbolSuggestion = {
   name: string;
   currency: string;
   source: string;
+};
+
+export type TechnicalIndicatorSample = {
+  date: string;
+  value?: string | null;
+  lower?: string | null;
+  upper?: string | null;
+};
+
+export type TechnicalIndicatorSeries = {
+  kind: "ma" | "bollinger" | "rsi";
+  period: number;
+  deviations?: string | null;
+  samples?: Array<TechnicalIndicatorSample>;
 };
 
 export type Trade = {
