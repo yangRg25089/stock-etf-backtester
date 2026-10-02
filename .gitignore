@@ -20,3 +20,12 @@ frontend/.test-output/
 .env
 .env.*
 !.env.example
+
+# Personal AI agent configuration stays local
+AGENTS.md
+CLAUDE.md
+.agents/
+.pi/
+.codex/
+.claude/
+.cursor/
