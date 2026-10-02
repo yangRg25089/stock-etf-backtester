@@ -791,19 +791,18 @@ function OverlayChart({
                 <title>{line.label}</title>
               </polyline>
             )))}
-            {tradeSeries.filter(strategy => strategy.id === highlight.inspectedId).flatMap(strategy => {
-              const points = strategy.result.points.map(point => ({ date: point.date,
-                x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }));
-              return tradeMarkerPoints(strategy.trades, points).map(({ trade, index, price, coordinates }) => {
-                return (
-                  <polygon className={`chart-trade-marker chart-trade-marker-${trade.side}`} data-anchor-series="totalAsset" data-result-id={strategy.id}
-                    color={strategy.color} points={coordinates} key={`${strategy.id}-${trade.date}-${trade.side}-${index}`}>
-                    <title>{`${strategy.label} · ${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(price, locale, "price", trade.currency ?? currency)}`}</title>
-                  </polygon>
-                );
-              });
-            })}
           </g>
+          {/* Keep edge triangles complete while limiting their anchors to the visible window. */}
+          {tradeSeries.filter(strategy => strategy.id === highlight.inspectedId).flatMap(strategy => {
+            const points = strategy.result.points.filter(point => point.index >= range.start && point.index <= range.end)
+              .map(point => ({ date: point.date, x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }));
+            return tradeMarkerPoints(strategy.trades, points).map(({ trade, index, price, coordinates }) => (
+              <polygon className={`chart-trade-marker chart-trade-marker-${trade.side}`} data-anchor-series="totalAsset" data-result-id={strategy.id}
+                color={strategy.color} points={coordinates} vectorEffect="non-scaling-stroke" key={`${strategy.id}-${trade.date}-${trade.side}-${index}`}>
+                <title>{`${strategy.label} · ${trade.date} ${translate(locale, `trade.side.${trade.side}`)} ${formatAxisValue(price, locale, "price", trade.currency ?? currency)}`}</title>
+              </polygon>
+            ));
+          })}
           {cursor && <ChartCrosshair date={cursorDate} x={xPosition(cursor.index, dateCount, viewport)} y={cursorY}
             valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={[...cursorPoints, ...comparisonCursorPoints, ...technicalCursorPoints]} />}
         </svg>

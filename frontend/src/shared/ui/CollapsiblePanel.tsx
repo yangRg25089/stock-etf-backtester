@@ -6,7 +6,6 @@ interface CollapsiblePanelProps {
   expanded: boolean;
   onExpandedChange(expanded: boolean): void;
   children: ReactNode;
-  headerDetails?: ReactNode;
   headerActions?: ReactNode;
   alwaysVisible?: ReactNode;
   className?: string;
@@ -18,7 +17,6 @@ export function CollapsiblePanel({
   expanded,
   onExpandedChange,
   children,
-  headerDetails,
   headerActions,
   alwaysVisible,
   className = "",
@@ -50,7 +48,6 @@ export function CollapsiblePanel({
             <span>{title}</span>
           </button>
         </h3>
-        {headerDetails && <div className="collapsible-panel-details">{headerDetails}</div>}
         {headerActions && <div className="collapsible-panel-actions">{headerActions}</div>}
       </header>
       {alwaysVisible && <div className="collapsible-panel-always-visible">{alwaysVisible}</div>}

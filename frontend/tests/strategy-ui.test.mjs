@@ -35,6 +35,33 @@ function render(state, locale = "ja") {
   }));
 }
 
+test("every catalog editor always contains ordered buy-limit, buy and sell blocks", () => {
+  for (const locale of ["ja", "zh"]) {
+    for (const preset of catalog.presets) {
+      const strategy = { id: `structure-${preset.id}`, presetId: preset.id, params: structuredClone(preset.defaultParams), rules: structuredClone(preset.defaultRules) };
+      const html = renderEditor(strategy, locale);
+      const limit = html.indexOf(`strategy-parameter-heading-${strategy.id}-buy_limits`);
+      const buy = html.indexOf('data-rule-side="buy"');
+      const sell = html.indexOf('data-rule-side="sell"');
+      assert.ok(limit >= 0 && buy > limit && sell > buy, `${locale} ${preset.id} has all three ordered sections`);
+      assert.equal((html.match(/data-rule-side=/g) ?? []).length, 2);
+      if (preset.id === "ma_buy_only") {
+        assert.match(html, locale === "ja" ? /売却なし/ : /不卖出/);
+        const sellBlock = html.slice(sell);
+        assert.doesNotMatch(sellBlock, /role="switch"|data-parameter-key=/);
+      }
+      if (["ma_buy_only", "ma_trend"].includes(preset.id)) {
+        assert.match(html, /data-parameter-key="accumulation.maxSignalBuysPerMonth"/);
+        assert.doesNotMatch(html, /data-parameter-key="accumulation.cashSafetyLimit"/);
+      }
+      if (["monthly_dca", "lump_sum"].includes(preset.id)) {
+        assert.match(html, /data-parameter-key="scheduled.fundingMode"/);
+        assert.match(html, locale === "ja" ? /上限なし/ : /不设买入上限/);
+      }
+    }
+  }
+});
+
 function renderEditor(strategy, locale = "ja") {
   const preset = catalog.presets.find((item) => item.id === strategy.presetId);
   return renderToStaticMarkup(React.createElement(StrategyEditorForm, {

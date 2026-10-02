@@ -9,6 +9,7 @@ import { ExportControls } from "./ExportControls";
 import { ResultComparison } from "./ResultSummary";
 import { SearchResults } from "./SearchResults";
 import { TradeTable } from "./TradeTable";
+import { resultDisplayName } from "./model";
 
 type ResultTab = "comparison" | "trades" | "search";
 
@@ -31,10 +32,6 @@ const TAB_KEYS: Record<ResultTab, string> = {
   trades: "results.tab.trades",
   search: "results.tab.search",
 };
-
-function resultOptionLabel(locale: Locale, result: StrategyRun): string {
-  return `${translate(locale, `presets.${result.presetId}.name`)} · ${translate(locale, `results.role.${result.role}`)}`;
-}
 
 export function ResultDetails({
   busy = false,
@@ -91,26 +88,9 @@ export function ResultDetails({
 
   const panelId = (tab: ResultTab) => `result-panel-${tab}`;
   const tabId = (tab: ResultTab) => `result-tab-${tab}`;
-  const saved = run?.snapshot.config.shared.run;
-
-  const headerDetails = (
-    <div className="result-saved-context">
-      {saved && (
-        <details className="result-snapshot-info">
-          <summary aria-label={translate(locale, "results.savedSettings")} title={translate(locale, "results.savedSettings")}>
-            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-              <circle cx="10" cy="10" r="8" /><path d="M10 9v5M10 5v1" />
-            </svg>
-          </summary>
-          <div className="result-snapshot-info-content">
-            <strong>{translate(locale, "results.savedSettings")}</strong>
-            <p>{saved.symbol} · {saved.startDate} — {saved.endDate}</p>
-            {focusedResult && <p>{resultOptionLabel(locale, focusedResult)}</p>}
-          </div>
-        </details>
-      )}
-    </div>
-  );
+  const tradeOwner = focusedResult ?? displayedResult;
+  const tradeOwnerName = tradeOwner ? resultDisplayName(locale, tradeOwner, strategyRuns) : translate(locale, "results.tab.trades");
+  const candidateNumber = candidateResult && focusedResult?.searchResult?.candidates.find(candidate => candidate.candidateId === candidateResult.id)?.sequence;
   const headerActions = (
     <div className="result-context-actions">
       <ExportControls locale={locale} runId={run?.runId ?? null} result={displayedResult} searchResult={focusedResult} />
@@ -124,7 +104,6 @@ export function ResultDetails({
       title={translate(locale, "results.details")}
       expanded={expanded}
       onExpandedChange={setExpanded}
-      headerDetails={headerDetails}
       headerActions={headerActions}
       alwaysVisible={(!run || error || diagnostics.length > 0) ? (
         <>
@@ -186,7 +165,6 @@ export function ResultDetails({
                     busy={busy}
                     locale={locale}
                     strategyRuns={strategyRuns}
-                    focusedResultId={state.focusedResultId}
                     selectedResultIds={state.selectedResultIds ?? []}
                     onFocus={(id) => dispatch({ type: "result.focus", id })}
                     onToggleSelection={(id) => dispatch({ type: "result.toggleSelection", id })}
@@ -196,8 +174,8 @@ export function ResultDetails({
 
               {tab === "trades" && (
                 <section aria-labelledby="result-trades-heading">
-                  <h4 className="sr-only" id="result-trades-heading">
-                    {translate(locale, "results.tab.trades")}
+                  <h4 className="result-trades-context" id="result-trades-heading" aria-live="polite">
+                    {tradeOwnerName}{candidateNumber && <span> · #{candidateNumber}</span>}
                   </h4>
                   <TradeTable
                     locale={locale}

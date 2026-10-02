@@ -24,8 +24,8 @@ export function SearchDimensionEditor({ catalog, preset, strategyId, params, err
   const selectorErrors = errors.filter(item => item.fieldPath?.endsWith(".search.dimensions"));
   const maximum = catalog.parameters?.find(item => item.key === "search.maxCombinations");
   const headingId = `search-dimensions-${strategyId}`;
-  return <section className="strategy-parameter-group search-dimension-editor" aria-labelledby={headingId}>
-    <h3 id={headingId}>{translate(locale, "parameterGroups.search")}</h3>
+  return <section className="search-dimension-editor" aria-labelledby={headingId}>
+    <h4 id={headingId}>{translate(locale, "parameterGroups.search")}</h4>
     <div className="search-dimension-toggles" role="group" aria-label={translate(locale, "parameters.search.dimensions")}>
       {dimensions.map(dimension => <button key={dimension.key} type="button" className="search-dimension-toggle"
         data-dimension-key={dimension.key} aria-pressed={selected.includes(dimension.key)}

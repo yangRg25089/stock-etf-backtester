@@ -189,7 +189,7 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
     dispatch() {},
   }));
 
-  assert.match(html, /每月定额定投 · 基准/);
+  assert.match(html, /class="result-trades-context"[^>]*>\s*每月定额定投/);
   assert.match(html, /波动率买入信号/);
   assert.doesNotMatch(html, /移動平均トレンド/);
   assert.match(html, /2024-02-02/);
@@ -215,11 +215,11 @@ test("result details leads with one complete comparison table and no duplicate K
   assert.ok(chartPosition >= 0);
   assert.doesNotMatch(html, /class="run-status-panel/);
   assert.doesNotMatch(html, /results\.detailsEntry/);
-  assert.match(html, /QQQ · 2020-01-01 — 2024-02-02/);
+  assert.doesNotMatch(html, /result-snapshot-info|QQQ · 2020-01-01 — 2024-02-02/);
   assert.doesNotMatch(html, /class="result-run-id"/);
-  assert.match(html, /<p>每月定额定投 · 基准/);
+  assert.match(html, /class="result-trades-context"[^>]*>\s*每月定额定投/);
   assert.match(html, /aria-controls="result-chart-panel-content"[^>]*aria-expanded="true"|aria-expanded="true"[^>]*aria-controls="result-chart-panel-content"/);
-  assert.match(html, /每月定额定投 · 基准/);
+  assert.match(html, /class="result-trades-context"[^>]*>\s*每月定额定投/);
   assert.match(html, /data-export-kind="summary"/);
   assert.equal((html.match(/class="metric-card"/g) ?? []).length, 0);
   assert.match(html, /已投入本金/);
@@ -332,7 +332,7 @@ test("request and partial failures stay visible while draft edits do not add res
     dispatch() {},
   }));
   assert.doesNotMatch(staleHtml, /当前设置与保存此结果时不同|snapshot-warning/);
-  assert.match(staleHtml, /QQQ · 2020-01-01 — 2024-02-02/);
+  assert.doesNotMatch(staleHtml, /result-snapshot-info|QQQ · 2020-01-01 — 2024-02-02/);
 });
 
 test("saved details default to comparison, consolidate metrics, and gate search by result data", () => {
@@ -383,7 +383,7 @@ test("trade tables render directly and remain available independently of chart c
   assert.match(chartOnly, /id="result-chart-panel-heading"[^>]*>.*?<span>資産推移<\/span>/s);
   assert.doesNotMatch(chartOnly, /display-toggle|result-display-heading|trade-display-icon/);
   assert.match(chartOnly, /class="sr-only" id="result-comparison-heading">実行結果の比較/);
-  assert.match(chartOnly, /class="sr-only" id="result-trades-heading">取引明細/);
+  assert.match(chartOnly, /class="result-trades-context" id="result-trades-heading"[^>]*>\s*毎月定額積立/);
 
   state.showChart = false;
   const tradesOnly = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -538,10 +538,12 @@ test("result errors announce one localized reason when the API title duplicates 
 });
 
 
-test("saved source context is available on demand without repeated visible ticker and dates", () => {
+test("result info and repeated ticker or dates are absent in every saved run state", () => {
   const state = workspaceWithRun();
-  const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
-  assert.match(html, /<details class="result-snapshot-info"/);
-  assert.match(html, /保存した設定/);
-  assert.doesNotMatch(html, /class="result-saved-range"|QQQ · 相対|QQQ · 価格/);
+  for (const status of ["queued", "running", "completed", "completed_with_warning", "unavailable", "failed"]) {
+    state.runResponse.status = status;
+    const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
+    assert.doesNotMatch(html, /result-snapshot-info|保存した設定|result-saved-context|result-saved-range|QQQ · 相対|QQQ · 価格/);
+    assert.match(html, /class="result-trades-context"[^>]*>\s*毎月定額積立/);
+  }
 });

@@ -31,6 +31,7 @@ test("selected saved MA, Bollinger and RSI show periods, exact readings, common 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   const comparison = page.locator("#result-panel-comparison");
+  await comparison.getByRole("button", { name: /移動平均トレンド（売買）/ }).click();
   const core = page.locator(".chart-overlay");
   await expect(core.locator('polyline[data-kind="ma"]')).toHaveCount(1);
   const baseline = saved.result.strategyRuns[0].dailyAssets[0].simulationPrice;
@@ -126,6 +127,7 @@ test("long histories retain all technical lines and responsive interactions with
     samples: history.map(asset => ({ date: asset.date, value: kind === "rsi" ? "50" : asset.simulationPrice })) })));
   await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
   await page.goto("/");
+  await page.locator("#result-panel-comparison").getByRole("button", { name: /移動平均トレンド（売買）/ }).click();
   const core = page.locator(".chart-overlay");
   await expect(core.locator(".chart-technical-line")).toHaveCount(18);
   await expect(page.locator(".chart-rsi .chart-series-line")).toHaveCount(18);

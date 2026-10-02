@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { Catalog, ConditionGroup, ConditionKind, Diagnostic, StrategyRules } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { ParameterField } from "../../shared/ui/ParameterField";
@@ -15,6 +15,7 @@ interface ConditionEditorProps {
   rules: StrategyRules;
   custom: boolean;
   fixedTrend?: boolean;
+  buyContent?: ReactNode;
   currency?: string;
   errors: Diagnostic[];
   onChange(value: StrategyRules): void;
@@ -176,10 +177,10 @@ export function ConditionEditor(props: ConditionEditorProps) {
   return <div className="strategy-rule-sections">
     {(["buy", "sell"] as const).map(side => {
       const node = rules[side];
-      if (!node && !custom) return null;
+      const buyContent = side === "buy" ? props.buyContent : null;
       const name = node && "kind" in node ? translate(locale, `conditions.${node.kind}`) : null;
       const headingId = `strategy-parameter-heading-${strategyId}-${side === "buy" && node && "kind" in node ? node.kind : side}`;
-      return <section key={side} className={`strategy-rule-section${node?.enabled === false || !node ? " is-disabled" : ""}`}
+      return <section key={side} className={`strategy-rule-section${node?.enabled === false || (!node && !buyContent) ? " is-disabled" : ""}`}
         data-rule-side={side} aria-labelledby={headingId}>
         <header className="condition-heading">
           <h3 id={headingId}>{translate(locale, `strategy.${side}`)}{name && <span className="condition-kind-name">{name}</span>}</h3>
@@ -190,7 +191,7 @@ export function ConditionEditor(props: ConditionEditorProps) {
         <div className="strategy-rule-content" hidden={node?.enabled === false}>
           {node ? <ConditionNodeEditor {...props} node={node} side={side} depth={1} disabled={false} remaining={remaining}
             usedKinds={new Set(conditionLeaves(node).map(item => item.kind))} root={true} onChange={changed => onChange({ ...rules, [side]: changed })} />
-            : <p className="condition-empty">{translate(locale, "conditions.empty")}</p>}
+            : buyContent ?? <p className="condition-empty">{translate(locale, side === "sell" && !custom ? "strategy.noSell" : "conditions.empty")}</p>}
         </div>
       </section>;
     })}

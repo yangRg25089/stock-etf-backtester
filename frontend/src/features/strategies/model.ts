@@ -205,15 +205,14 @@ export function workspaceReducer(
         ? state.focusedResultId
         : action.value.selectedStrategyIds[0] ?? savedResults[0]?.id ?? null;
       const availableIds = new Set(savedResults.map((result) => result.id));
-      const selectedResultIds = state.selectedResultIds.filter((id) => availableIds.has(id));
-      const nextSelectedResultIds = sameRun
-        ? selectedResultIds
-        : focusedResultId && availableIds.has(focusedResultId) ? [focusedResultId] : [];
+      const selectedResultIds = sameRun
+        ? state.selectedResultIds.filter((id) => availableIds.has(id))
+        : [];
       return {
         ...state,
         runResponse: action.value,
         focusedResultId,
-        selectedResultIds: nextSelectedResultIds,
+        selectedResultIds,
         ...(!sameRun ? {
           showChart: catalog ? uiBooleanDefault(catalog, "display.showChart", true) : true,
           visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],

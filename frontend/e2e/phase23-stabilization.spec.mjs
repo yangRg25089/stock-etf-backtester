@@ -124,6 +124,7 @@ test("selected comparison rows lift forward without shifting table columns or ro
   const rows = page.locator("#result-panel-comparison tbody tr");
   const monthly = rows.filter({ hasText: "毎月定額積立" });
   const initial = rows.filter({ hasText: "ボラティリティ積立" });
+  await initial.locator(".result-select").click();
   await expect(initial).toHaveCSS("translate", "0px -1px");
   const selectedColor = await initial.evaluate(node => getComputedStyle(node).backgroundColor);
   const before = await monthly.evaluate(node => ({ top: node.offsetTop, height: node.offsetHeight, color: getComputedStyle(node).backgroundColor }));
@@ -627,7 +628,7 @@ test("custom group choices reserve space for a usable child at catalog limits", 
   await expect(dialog).toBeHidden();
 });
 
-test("buy-only templates omit the unused sell section while custom strategies keep both", async ({ page }) => {
+test("buy-only templates keep a passive sell section while custom strategies keep both editors", async ({ page }) => {
   await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
@@ -635,7 +636,9 @@ test("buy-only templates omit the unused sell section while custom strategies ke
   await page.locator(".strategy-card-open").last().click();
   const dialog = page.locator(".strategy-dialog");
   await expect(dialog.locator('[data-rule-side="buy"]')).toBeVisible();
-  await expect(dialog.locator('[data-rule-side="sell"]')).toHaveCount(0);
+  await expect(dialog.locator('[data-rule-side="sell"]')).toBeVisible();
+  await expect(dialog.locator('[data-rule-side="sell"]')).toContainText("売却なし");
+  await expect(dialog.locator('[data-rule-side="sell"] [role="switch"], [data-rule-side="sell"] input')).toHaveCount(0);
   await expect(dialog.locator(".strategy-parameter-group").first()).toContainText("買付の上限");
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toBeHidden();
@@ -871,6 +874,7 @@ test("selected strategies retain their own trade markers and core curves always 
   await page.goto("/");
 
   const secondSelection = page.locator("#result-panel-comparison").getByRole("button", { name: /移動平均トレンド（売買）/ });
+  await page.locator("#result-panel-comparison").getByRole("button", { name: /ボラティリティ積立/ }).click();
   await secondSelection.click();
   await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
   const firstLegend = page.locator(`.overlay-legend-item[data-result-id="${first.id}"]`);
@@ -921,6 +925,7 @@ test("hiding the only visible core curve switches to the available alternative",
   await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
+  await page.locator("#result-panel-comparison").getByRole("button", { name: /ボラティリティ積立/ }).click();
   const assetToggle = page.locator('.legend-toggle[data-series="totalAsset"]');
   const priceToggle = page.locator('.legend-toggle[data-series="price"]');
   await assetToggle.click();

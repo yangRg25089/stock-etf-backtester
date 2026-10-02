@@ -802,6 +802,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator("#result-details")).toBeVisible();
   await expect(page.locator(".result-run-id, #result-focus-select, .metric-card")).toHaveCount(0);
   const resultRows = page.locator(".comparison-table tbody tr");
+  await expect(resultRows.locator('.result-select[aria-pressed="true"]')).toHaveCount(0);
+  await resultRows.filter({ hasText: "ボラティリティ積立" }).locator(".result-select").click();
   await resultRows.filter({ hasText: "毎月定額積立" }).locator(".result-select").click();
   await expect(resultRows.filter({ hasText: "毎月定額積立" }).locator(".result-select")).toHaveAttribute("aria-pressed", "true");
   await resultRows.filter({ hasText: "ボラティリティ積立" }).locator(".result-select").click();
@@ -1648,6 +1650,7 @@ test("multi-selected curves match row colors while focus, CSV and the shared win
   const monthly = rows.filter({ hasText: "毎月定額積立" });
   const lump = rows.filter({ hasText: "一括投資" });
   const vix = rows.filter({ hasText: "ボラティリティ積立" });
+  await vix.locator("button").click();
   await monthly.locator("button").click();
   await lump.locator("button").click();
   await expect(vix.locator("button")).toHaveAttribute("aria-pressed", "true");
@@ -1724,8 +1727,11 @@ test("strategy menu, condition connectors and comparison selections retain full 
     ));
     expect(targets.length).toBeGreaterThan(10);
     for (const target of targets) expect(target.height, JSON.stringify(targets)).toBeGreaterThanOrEqual(44);
-    const selected = page.locator('.comparison-table .result-select[aria-pressed="true"]').first();
-    await selected.tap();
+    const selection = page.locator('.comparison-table .result-select').first();
+    await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
+    await selection.tap();
+    await expect(selection).toHaveAttribute("aria-pressed", "true");
+    await selection.tap();
     await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
     const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     expect(accessibility.violations).toEqual([]);
@@ -1807,10 +1813,9 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   const row = page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" });
   await row.locator("td").last().click();
   await expect(row.locator("button")).toHaveAttribute("aria-pressed", "true");
-  await page.locator(".result-snapshot-info summary").click();
-  await expect(page.locator(".result-snapshot-info-content")).toContainText("毎月定額積立");
-  await page.locator(".result-snapshot-info summary").click();
+  await expect(page.locator(".result-snapshot-info")).toHaveCount(0);
   await page.getByRole("tab", { name: "取引明細" }).click();
+  await expect(page.locator(".result-trades-context")).toHaveText("毎月定額積立");
   const scroll = page.locator(".trade-table-scroll");
   await expect(scroll).toBeVisible();
   const initial = await scroll.evaluate((element) => {
@@ -1846,6 +1851,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
   const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   await completed;
+  await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
   for (const width of [1440, 1920, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     const sizes = await page.locator(".result-chart").evaluateAll((charts) => charts.map((chart) => {
@@ -1881,11 +1887,10 @@ test("linked figures share widths, halve indicator height, and highlight legends
       const direction = marker.classList.contains("chart-trade-marker-buy") ? 1 : -1;
       return {
         anchor: marker.dataset.anchorSeries,
-        difference: point ? Math.abs(tip.y - direction * 5 - point.y) : null,
+        difference: point ? Math.abs(tip.y - direction * 7 - point.y) : null,
       };
     });
   });
-  expect(tradeAnchors.length).toBeGreaterThan(0);
   expect(tradeAnchors.length).toBeGreaterThan(0);
   for (const marker of tradeAnchors) {
     expect(marker.anchor).toBe("totalAsset");
@@ -1966,11 +1971,7 @@ test("context is concise and strategy dialogs show one combination label", async
   await expect(page.locator(".shared-settings-summary-text")).toContainText("2024-03-01");
   await expect(page.locator(".shared-settings-summary-text")).not.toContainText("最新");
   await expect(page.locator(".result-saved-range, .result-focused-name, .strategy-parameter-nav")).toHaveCount(0);
-  const info = page.locator(".result-snapshot-info");
-  await expect(info.locator(".result-snapshot-info-content")).toBeHidden();
-  await info.locator("summary").click();
-  await expect(info.locator(".result-snapshot-info-content")).toContainText("QQQ");
-  await info.locator("summary").click();
+  await expect(page.locator(".result-snapshot-info, .result-saved-context")).toHaveCount(0);
   await expect(page.locator(".chart-overlay figcaption, .overlay-legend").filter({ hasText: "QQQ" })).toHaveCount(0);
   await addStrategy(page, "composite_dca");
   await page.locator(".strategy-card-open").last().click();
@@ -2255,6 +2256,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   const saved = await (await response).json();
   const price = page.locator(".chart-legend button").filter({ hasText: "価格" });
   const asset = page.locator('.chart-legend button[data-series="totalAsset"]');
+  await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
   await expect(page.locator(".chart-overlay .overlay-series-line")).toHaveCount(2);
   await price.click();
   await expect(page.locator(".chart-overlay .overlay-price")).toHaveCount(0);
@@ -2304,6 +2306,7 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const result = saved.result.strategyRuns.find((r) => r.presetId === "vix_dca");
+  await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
   const stack = page.locator(".chart-linked-stack");
   const core = stack.locator(".chart-overlay");
   const vix = stack.locator(".chart-vix");
@@ -2392,7 +2395,7 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   expect(errors).toEqual([]);
 });
 
-test("saved settings info fits a narrow touch viewport and remains a full touch target", async ({ page, context }) => {
+test("result info is absent and trade context remains readable in a narrow touch viewport", async ({ page, context }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto("/");
   await openSharedSettings(page);
@@ -2404,22 +2407,23 @@ test("saved settings info fits a narrow touch viewport and remains a full touch 
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await page.locator(".workbench-mobile-view").last().click();
-  const info = page.locator(".result-snapshot-info summary");
-  await info.click();
-  await expect(page.locator(".result-snapshot-info-content")).toBeVisible();
-  const bounds = await page.locator(".result-snapshot-info-content").boundingBox();
+  await expect(page.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
+  await page.getByRole("tab", { name: "取引明細", exact: true }).click();
+  await expect(page.locator(".result-trades-context")).toHaveText("ボラティリティ積立");
+  const bounds = await page.locator(".result-trades-context").boundingBox();
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
   const touch = await context.browser().newContext({ viewport: { width: 320, height: 700 }, hasTouch: true, isMobile: true });
   try {
     const touchPage = await touch.newPage();
     await touchPage.goto(page.url());
-    const target = touchPage.locator(".result-snapshot-info summary");
-    await expect(target).toBeVisible();
-    const size = await target.boundingBox();
-    expect(size.width).toBeGreaterThanOrEqual(44);
+    await expect(touchPage.locator(".comparison-table tbody tr")).toHaveCount(3);
+    await touchPage.locator(".workbench-mobile-view").last().tap();
+    await expect(touchPage.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
+    const tab = touchPage.getByRole("tab", { name: "取引明細", exact: true });
+    const size = await tab.boundingBox();
     expect(size.height).toBeGreaterThanOrEqual(44);
-    await target.tap();
-    await expect(touchPage.locator(".result-snapshot-info-content")).toBeVisible();
+    await tab.tap();
+    await expect(touchPage.locator(".result-trades-context")).toHaveText("ボラティリティ積立");
   } finally { await touch.close(); }
 });

@@ -80,7 +80,7 @@ test("trades anchor to the contributed-capital asset curve even when price is vi
   for (const [index, [x, y]] of markers.entries()) {
     const curve = assetPoints[index + 1];
     assert.equal(x, curve[0]);
-    assert.ok(Math.abs(y - curve[1] - (trades[index].side === "buy" ? 5 : -5)) < 1e-8);
+    assert.ok(Math.abs(y - curve[1] - (trades[index].side === "buy" ? 7 : -7)) < 1e-8);
   }
   assert.doesNotMatch(html, /data-anchor-series="totalAsset"/);
   assert.doesNotMatch(render(["price"]), /chart-trade-marker/);
@@ -103,7 +103,7 @@ test("each selected comparison anchors its own saved trades and identity to its 
     const [marker] = tradeMarkerPoints(comparison.trades, comparison.dailyAssets.map((asset, index) => ({ date: asset.date, x: curvePoints[index][0], y: curvePoints[index][1] })));
     const [x, y] = marker.coordinates.split(" ")[0].split(",").map(Number);
     assert.equal(x, curvePoints[index + 1][0]);
-    assert.ok(Math.abs(y - curvePoints[index + 1][1] - (comparison.trades[0].side === "buy" ? 5 : -5)) < 1e-8);
+    assert.ok(Math.abs(y - curvePoints[index + 1][1] - (comparison.trades[0].side === "buy" ? 7 : -7)) < 1e-8);
     assert.match(curveGroup, new RegExp(`stroke="${comparison.color}"`));
 
   }
@@ -463,7 +463,7 @@ test("trade marker coordinates keep buy and sell directions and omit unsaved or 
   const points = dailyAssets.map((asset, index) => ({ date: asset.date, x: index * 10, y: 100 - index * 5 }));
   const result = tradeMarkerPoints([...trades, { ...trades[0], date: "2023-12-31" }, { ...trades[0], price: "invalid" }], points);
   assert.equal(result.length, 2);
-  assert.equal(result[0].coordinates, "10,100 5,91 15,91");
-  assert.equal(result[1].coordinates, "20,85 15,94 25,94");
+  assert.equal(result[0].coordinates, "10,102 7,91 13,91");
+  assert.equal(result[1].coordinates, "20,83 17,94 23,94");
   assert.deepEqual(result.map(item => item.trade.side), ["buy", "sell"]);
 });

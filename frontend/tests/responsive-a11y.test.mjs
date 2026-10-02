@@ -200,13 +200,14 @@ test("coarse-pointer workbench divider keeps a 44px hit area", () => {
   const tabletTouch = mediaBlock("@media (pointer: coarse) and (min-width: 768px) and (max-width: 1279px)");
   assert.match(tabletTouch, /grid-template-columns:\s*280px 44px minmax\(0, 1fr\)/);
   assert.match(tabletTouch, /\.workbench-divider\s*\{\s*display:\s*grid/);
+  assert.match(prototype, /\.config-toggle\s*\{\s*width:\s*44px;\s*min-width:\s*44px;\s*min-height:\s*44px/);
 });
 
 test("workbench explanatory text meets the readable type scale", () => {
   assert.match(blockFor(".shared-settings-summary-text"), /font-size:\s*12px/);
   assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /font-size:\s*12px/);
   assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /-webkit-line-clamp:\s*2/);
-  assert.match(blockFor(".result-snapshot-info-content"), /font-size:\s*12px/);
+  assert.match(blockFor(".result-trades-context"), /font-size:\s*13px/);
   assert.doesNotMatch(app, /result-focus-select/);
 });
 

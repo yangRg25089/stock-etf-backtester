@@ -72,7 +72,8 @@ test("result curve selection is independent from focused result details", () => 
     ] },
   };
   state = workspaceReducer(state, { type: "run.update", value: response });
-  assert.deepEqual(state.selectedResultIds, ["strategy-selected"]);
+  assert.deepEqual(state.selectedResultIds, []);
+  state = workspaceReducer(state, { type: "result.toggleSelection", id: "strategy-selected" });
   state = workspaceReducer(state, { type: "result.toggleSelection", id: "benchmark-dca" });
   state = workspaceReducer(state, { type: "result.focus", id: "benchmark-dca" });
   assert.deepEqual(state.selectedResultIds, ["strategy-selected", "benchmark-dca"]);

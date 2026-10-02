@@ -12,7 +12,6 @@ interface ResultComparisonProps {
   busy?: boolean;
   locale: Locale;
   strategyRuns: StrategyRun[];
-  focusedResultId: string | null;
   selectedResultIds?: string[];
   onFocus(id: string): void;
   onToggleSelection?(id: string): void;
@@ -22,7 +21,6 @@ export function ResultComparison({
   busy = false,
   locale,
   strategyRuns,
-  focusedResultId,
   selectedResultIds = [],
   onFocus,
   onToggleSelection = () => undefined,
@@ -79,7 +77,7 @@ export function ResultComparison({
             return (
               <tr
                 ref={element => { if (element) rows.current.set(result.id, element); else rows.current.delete(result.id); }}
-                className={`${result.status === "running" || result.status === "loading" ? "is-running " : ""}${focusedResultId === result.id ? "is-focused " : ""}${isSelected ? "is-selected" : ""}`}
+                className={`${result.status === "running" || result.status === "loading" ? "is-running " : ""}${isSelected ? "is-selected" : ""}`}
                 style={{ "--result-color": color } as CSSProperties}
                 key={`${result.role}-${result.id}`}
                 onClick={() => { if (!busy) { onFocus(result.id); onToggleSelection(result.id); } }}

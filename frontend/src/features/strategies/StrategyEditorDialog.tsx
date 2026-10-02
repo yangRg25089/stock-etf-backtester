@@ -38,48 +38,41 @@ interface StrategyEditorFormProps {
   onRulesChange(value: StrategyRules): void;
 }
 
-function groupedFields(catalog: Catalog, preset: PresetDefinition) {
-  const groups = new Map<string, { translationKey: string; fields: NonNullable<Catalog["parameters"]> }>();
-  for (const key of preset.parameterKeys) {
-    if (!((key.startsWith("accumulation.") && key !== "accumulation.conditionLogic") || key.startsWith("scheduled."))) continue;
-    const definition = catalog.parameters?.find(item => item.key === key);
-    if (!definition) continue;
-    const groupId = definition.groupId ?? "general";
-    const group = catalog.parameterGroups?.find(item => item.id === groupId);
-    const current = groups.get(groupId) ?? { translationKey: group?.translationKey ?? "parameterGroups.general", fields: [] };
-    current.fields.push(definition);
-    groups.set(groupId, current);
-  }
-  return [...groups.entries()];
-}
-
 export function StrategyEditorForm({ catalog, strategy, preset, locale, errors, currency, onChange, onRulesChange }: StrategyEditorFormProps) {
   const dependencyValues = Object.fromEntries((catalog.parameters ?? []).map(definition => [definition.key,
     Object.hasOwn(strategy.params, definition.key) ? strategy.params[definition.key] : definition.default,
   ]));
+  const fields = (catalog.parameters ?? []).filter(definition => preset.parameterKeys.includes(definition.key));
+  const limitFields = fields.filter(definition => definition.groupId === "buy_limits");
+  const fundingFields = fields.filter(definition => definition.groupId === "scheduled_funding");
+  const limitHeadingId = `strategy-parameter-heading-${strategy.id}-buy_limits`;
+  const limitHeadingKey = catalog.parameterGroups?.find(group => group.id === "buy_limits")?.translationKey ?? "parameterGroups.buy_limits";
   return <section className="strategy-editor" aria-label={translate(locale, preset.nameKey)}>
 
     <fieldset className="strategy-parameters">
       <legend className="sr-only">{translate(locale, "strategy.parameters")}</legend>
       <div className="strategy-parameter-groups">
-        {groupedFields(catalog, preset).map(([groupId, group]) => <section className="strategy-parameter-group" key={groupId}
-          aria-labelledby={`strategy-parameter-heading-${strategy.id}-${groupId}`}>
-          <h3 id={`strategy-parameter-heading-${strategy.id}-${groupId}`}>{translate(locale, group.translationKey)}</h3>
+        <section className="strategy-parameter-group" aria-labelledby={limitHeadingId}>
+          <h3 id={limitHeadingId}>{translate(locale, limitHeadingKey)}</h3>
           <div className="strategy-parameter-grid">
-            {group.fields.map(definition => <ParameterField key={definition.key} id={parameterFieldId(definition.key, strategy.id)}
+            {limitFields.map(definition => <ParameterField key={definition.key} id={parameterFieldId(definition.key, strategy.id)}
               definition={definition} value={strategy.params[definition.key]} locale={locale} dependencyValues={dependencyValues}
               currency={currency} errors={errors.filter(error => !error.fieldPath?.includes(".rules."))}
               placeholder={definition.key === "accumulation.maxSignalBuysPerMonth" ? translate(locale, "strategy.unlimited") : undefined}
               appearance={definition.type === "boolean" ? "switch" : "default"} onChange={value => onChange(definition.key, value)} />)}
           </div>
-        </section>)}
+          {limitFields.length === 0 && <p className="condition-empty">{translate(locale, "strategy.noBuyLimits")}</p>}
+          {preset.editorMode === "search" && <SearchDimensionEditor catalog={catalog} preset={preset} strategyId={strategy.id}
+            params={strategy.params} errors={errors} locale={locale} currency={currency} onChange={onChange} />}
+        </section>
       </div>
-      {preset.editorMode === "search" && <SearchDimensionEditor catalog={catalog} preset={preset} strategyId={strategy.id}
-        params={strategy.params} errors={errors} locale={locale} currency={currency} onChange={onChange} />}
     </fieldset>
-    {strategy.rules && <ConditionEditor catalog={catalog} strategyId={strategy.id} locale={locale} rules={strategy.rules}
+    <ConditionEditor catalog={catalog} strategyId={strategy.id} locale={locale} rules={strategy.rules ?? { buy: null, sell: null }}
       custom={preset.editorMode === "custom" || preset.editorMode === "search"} fixedTrend={preset.id === "ma_trend"}
-      currency={currency} errors={errors} onChange={onRulesChange} />}
+      buyContent={fundingFields.length > 0 ? <div className="strategy-parameter-grid">{fundingFields.map(definition =>
+        <ParameterField key={definition.key} definition={definition} id={parameterFieldId(definition.key, strategy.id)}
+          value={strategy.params[definition.key]} locale={locale} errors={errors} currency={currency} onChange={value => onChange(definition.key, value)} />)}</div> : undefined}
+      currency={currency} errors={errors} onChange={onRulesChange} />
   </section>;
 }
 

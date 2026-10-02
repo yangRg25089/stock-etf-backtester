@@ -39,6 +39,16 @@ body {
   line-height: 1.45;
 }
 
+:root:has(dialog[open]),
+body:has(dialog[open]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+dialog {
+  overscroll-behavior: none;
+}
+
 button,
 input,
 select {
@@ -443,7 +453,7 @@ summary:focus-visible,
   min-height: 0;
   padding: 16px 18px;
   overflow: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 
 .shared-settings-dialog .shared-settings {
@@ -535,7 +545,7 @@ summary:focus-visible,
   min-height: 0;
   padding: 16px 18px;
   overflow: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 
 .strategy-dialog-content .strategy-editor {
@@ -566,7 +576,7 @@ summary:focus-visible,
   min-width: 0;
   max-height: min(160px, 22dvh);
   overflow: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 
 .dialog-diagnostics:focus-visible {
@@ -1258,7 +1268,8 @@ h2 {
   border-radius: 7px;
 }
 
-.strategy-parameter-group h3 {
+.strategy-parameter-group h3,
+.search-dimension-editor h4 {
   margin: 0 0 11px;
   color: var(--app-foreground);
   font-size: 12px;
@@ -1499,11 +1510,6 @@ h2 {
   transform: rotate(90deg);
 }
 
-.collapsible-panel-details {
-  flex: 1 1 200px;
-  min-width: 0;
-}
-
 .collapsible-panel-actions {
   flex: 0 1 auto;
   min-width: 0;
@@ -1536,49 +1542,6 @@ h2 {
   align-items: center;
   padding-block: 14px;
 }
-
-.result-saved-context {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 9px;
-  min-width: 0;
-}
-
-.result-snapshot-info { position: relative; }
-.result-snapshot-info summary {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  min-height: 32px;
-  color: var(--app-muted);
-  cursor: pointer;
-  list-style: none;
-}
-.result-snapshot-info summary::-webkit-details-marker { display: none; }
-.result-snapshot-info summary svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-}
-.result-snapshot-info-content {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 8;
-  width: max-content;
-  max-width: min(360px, calc(100vw - 60px));
-  padding: 12px;
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 6px;
-  box-shadow: 0 4px 16px #19232118;
-  font-size: 12px;
-}
-.result-snapshot-info-content p { margin: 6px 0 0; }
 
 .result-context-actions {
   display: flex;
@@ -1718,8 +1681,8 @@ h2 {
 .comparison-sort.is-sorted { color: var(--app-accent); }
 .comparison-sort:hover:enabled { color: #105e50; }
 .comparison-sort:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
-.result-rank { min-width: 1.2em; color: #64716c; font-variant-numeric: tabular-nums; }
-.comparison-table tbody tr:hover:not(.is-focused):not(.is-selected) { background: #f0f7f3; }
+.result-rank { min-width: 1.2em; color: var(--app-foreground); font-variant-numeric: tabular-nums; }
+.comparison-table tbody tr:hover:not(.is-selected) { background: #f0f7f3; }
 
 .export-download-icon {
   width: 15px;
@@ -1731,7 +1694,7 @@ h2 {
   stroke-linejoin: round;
 }
 
-.comparison-table tbody tr:nth-child(even):not(.is-focused):not(.is-selected),
+.comparison-table tbody tr:nth-child(even):not(.is-selected),
 .data-table tbody tr:nth-child(even) {
   background: #fbfcfb;
 }
@@ -1768,10 +1731,6 @@ h2 {
 .data-table th:first-child,
 .data-table td:first-child {
   text-align: left;
-}
-
-.comparison-table tbody tr.is-focused {
-  background: var(--app-accent-soft);
 }
 
 .comparison-table tbody tr {
@@ -2132,7 +2091,7 @@ h2 {
   height: 64px;
   min-width: 680px;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
 }
 
 .overlay-legend-swatch {
@@ -2143,8 +2102,14 @@ h2 {
 
 .chart-trade-marker {
   fill: currentColor;
-  stroke: #fff;
-  stroke-width: 1.5;
+  stroke: var(--app-surface);
+  stroke-width: 1.15;
+  stroke-linejoin: round;
+}
+
+.chart-trade-marker-sell {
+  fill: var(--app-surface);
+  stroke: var(--app-red);
 }
 
 .chart-empty,
@@ -2155,6 +2120,15 @@ h2 {
   border: 1px dashed var(--app-border);
   border-radius: var(--app-radius);
   font-size: 12px;
+}
+
+.result-trades-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .trade-table-content {
@@ -2537,7 +2511,6 @@ h2 {
     align-items: stretch;
   }
 
-  .collapsible-panel-details,
   .collapsible-panel-actions {
     flex: 1 1 auto;
     width: 100%;
@@ -2665,7 +2638,7 @@ h2 {
 
 @media (pointer: coarse) {
   .comparison-sort { min-height: 44px; }
-  .result-snapshot-info summary { width: 44px; min-height: 44px; }
+  .result-tab { min-height: 44px; }
 
   button,
   .input,

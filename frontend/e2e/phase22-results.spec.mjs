@@ -16,6 +16,7 @@ async function openSaved(page, saved) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".chart-overlay")).toBeVisible();
+  await page.locator(".comparison-table").getByRole("button", { name: /ボラティリティ積立/ }).click();
 }
 
 test("selected volatility survives focus, column sorting preserves colors and asset names", async ({ page }) => {
@@ -119,7 +120,7 @@ test("fresh runs reset preferences, lock unsafe actions and progressively rank c
   for (const selector of [".shared-settings-open-button", ".add-strategy-button", ".strategy-card-open", ".comparison-sort", ".comparison-table .result-select"]) {
     for (const control of await page.locator(selector).all()) await expect(control).toBeDisabled();
   }
-  await expect(selected).toHaveCount(1);
+  await expect(selected).toHaveCount(0);
   await expect(page.locator('.comparison-table th[aria-sort="descending"]')).toContainText("投入額に対する利益率");
   const ids = pending.result.strategyRuns.map(row=>row.id);
   const completedIds = [];
@@ -142,7 +143,8 @@ test("fresh runs reset preferences, lock unsafe actions and progressively rank c
     runId:final.runId,status:final.status,progress:final.progress,strategyStatuses:Object.fromEntries(final.result.strategyRuns.map(row=>[row.id,row.status])),
   }); window.phase22Stream.close(); }, { final });
   await expect(page.locator(".run-submit-button")).toBeEnabled();
-  await expect(selected).toHaveCount(1);
+  await expect(selected).toHaveCount(0);
+  await page.locator(".comparison-table").getByRole("button", { name: /ボラティリティ積立/ }).click();
   await expect(page.locator('.chart-legend button[data-series="vix"]')).toHaveAttribute("aria-pressed","true");
   await expect(page.locator(".chart-wheel-zoom-toggle")).toHaveAttribute("aria-pressed","false");
   await expect(page.locator(".chart-overlay")).toHaveAttribute("data-window-start","0");

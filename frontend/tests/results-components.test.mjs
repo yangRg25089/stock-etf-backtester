@@ -51,7 +51,6 @@ test("comparison table focuses saved identity without role or status columns", (
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh",
     strategyRuns: results,
-    focusedResultId: "benchmark-dca",
     selectedResultIds: ["benchmark-dca"],
     onFocus() {},
   }));
@@ -67,7 +66,6 @@ test("comparison rows expose independent curve selection and stable row colors",
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh",
     strategyRuns: results,
-    focusedResultId: "vix-instance",
     selectedResultIds: ["vix-instance"],
     onFocus() {},
     onToggleSelection() {},
@@ -78,11 +76,18 @@ test("comparison rows expose independent curve selection and stable row colors",
   assert.match(html, /aria-pressed="false"><span>每月定额定投/);
 });
 
+test("unselected comparison rows never receive a focus background", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultComparison, {
+    locale: "zh", strategyRuns: results, selectedResultIds: [], onFocus() {}, onToggleSelection() {},
+  }));
+  assert.doesNotMatch(html, /is-focused|is-selected|aria-pressed="true"/);
+});
+
 test("metric cards label contribution return separately from capital multiple", () => {
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh",
     strategyRuns: [{ ...results[0], metrics: metrics("125.00") }],
-    focusedResultId: results[0].id, onFocus() {},
+    onFocus() {},
   }));
 
   assert.match(html, /投入回报率/);
@@ -97,7 +102,7 @@ test("unavailable optional metrics render as unavailable rather than zero", () =
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "ja",
     strategyRuns: [{ ...results[0], metrics: { ...metrics("125"), xirr: null, maximumDrawdown: null } }],
-    focusedResultId: results[0].id, onFocus() {},
+    onFocus() {},
   }));
   assert.match(html, /—/);
   assert.doesNotMatch(html, /NaN|undefined/);
@@ -107,7 +112,7 @@ test("unavailable optional metrics render as unavailable rather than zero", () =
 test("legacy gross turnover is not presented as invested principal", () => {
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh", strategyRuns: [{ ...results[0], metrics: { ...metrics("125"), investmentBasis: "buy_turnover", actualInvested: "500" } }],
-    focusedResultId: results[0].id, onFocus() {},
+    onFocus() {},
   }));
   assert.doesNotMatch(html, /\$500/);
   assert.match(html, /<td>—<\/td>/);
@@ -116,7 +121,7 @@ test("legacy gross turnover is not presented as invested principal", () => {
  test("comparison contains every performance field and short labels distinguish repeated presets", () => {
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh", strategyRuns: [...results, { ...results[0], id: "second-vix" }],
-    focusedResultId: "second-vix", onFocus() {},
+    onFocus() {},
   }));
   for (const label of ["已投入本金", "注入本金", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤"]) assert.match(html, new RegExp(label));
   assert.match(html, /波动率信号定投 · 1/);

@@ -142,6 +142,10 @@ test("grid best and non-best candidates display saved curves and export the sele
     // A candidate with no purchases has a horizontal 100 line (zero SVG height).
     expect(await curve.evaluate(node => node.getBBox().width)).toBeGreaterThan(0);
     expect(selected.dailyAssets.length).toBe(grid.dailyAssets.length);
+    const candidate = grid.searchResult.candidates.find(item => item.candidateId === selected.id);
+    await page.getByRole("tab", { name: "取引明細", exact: true }).click();
+    await expect(page.locator(".result-trades-context")).toHaveText(`グリッド検索 · #${candidate.sequence}`);
+    await page.getByRole("tab", { name: "検索結果", exact: true }).click();
   }
   const downloadPromise = page.waitForEvent("download");
   await page.locator('[data-export-kind="daily-assets"]').click();

@@ -102,7 +102,7 @@ test("new run resets result preferences while same-run updates preserve them", (
   const edited = { ...initial, runResponse: makeRun("old"), focusedResultId: "benchmark", selectedResultIds: [firstId, "benchmark"], visibleSeriesIds: ["price"], showChart: false };
   const fresh = workspaceReducer(edited, { type: "run.update", value: makeRun("new") });
   assert.equal(fresh.focusedResultId, firstId);
-  assert.deepEqual(fresh.selectedResultIds, [firstId]);
+  assert.deepEqual(fresh.selectedResultIds, []);
   assert.deepEqual(fresh.visibleSeriesIds, initial.visibleSeriesIds);
   assert.equal(fresh.showChart, initial.showChart);
   const selected = { ...fresh, selectedResultIds: [], visibleSeriesIds: ["price"], showChart: false };
@@ -110,6 +110,22 @@ test("new run resets result preferences while same-run updates preserve them", (
   assert.deepEqual(updated.selectedResultIds, []);
   assert.deepEqual(updated.visibleSeriesIds, ["price"]);
   assert.equal(updated.showChart, false);
+});
+
+test("new running, progress and terminal responses never select a strategy implicitly", () => {
+  let state = createInitialWorkspaceState(catalog);
+  const id = state.activeStrategyId;
+  const response = { runId: "new-unselected", status: "queued", selectedStrategyIds: [id], result: { strategyRuns: [{ id, status: "queued" }] } };
+  state.selectedResultIds = [id];
+  state = workspaceReducer(state, { type: "run.update", value: response });
+  assert.deepEqual(state.selectedResultIds, []);
+  state = workspaceReducer(state, { type: "run.progress", value: { runId: response.runId, status: "running", progress: {}, strategyStatuses: { [id]: "completed" } } });
+  assert.deepEqual(state.selectedResultIds, []);
+  state = workspaceReducer(state, { type: "run.update", value: { ...response, status: "completed" } });
+  assert.deepEqual(state.selectedResultIds, []);
+  state = workspaceReducer(state, { type: "result.toggleSelection", id });
+  state = workspaceReducer(state, { type: "run.update", value: { ...response, status: "completed" } });
+  assert.deepEqual(state.selectedResultIds, [id]);
 });
 
 test("editor selection does not toggle, run, or replace another instance's parameters", () => {
