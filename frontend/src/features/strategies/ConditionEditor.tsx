@@ -113,7 +113,9 @@ function ConditionNodeEditor(props: NodeProps) {
   }
 
   const children = node.children ?? [];
-  const canAdd = remaining > 0 && depth < (catalog.conditionLimits?.maxDepth ?? Infinity) && !disabled;
+  const maxDepth = catalog.conditionLimits?.maxDepth ?? Infinity;
+  const canAdd = remaining > 0 && depth < maxDepth && !disabled;
+  const canAddGroup = canAdd && remaining > 1 && depth + 1 < maxDepth;
   return <section className={`condition-group${root ? " is-root" : ""}${disabled ? " is-disabled" : ""}`} data-condition-id={node.id}>
     {!root && <header className="condition-card-heading">
       <h4>{translate(locale, "conditions.group")}</h4>
@@ -137,7 +139,7 @@ function ConditionNodeEditor(props: NodeProps) {
         <select id={`condition-add-${node.id}`} className="input condition-add-select" value="" disabled={!canAdd}
           onChange={event => {
             const value = event.target.value;
-            if (!value || (value !== "group" && props.usedKinds.has(value as ConditionKind))) return;
+            if (!canAdd || !value || (value === "group" ? !canAddGroup : props.usedKinds.has(value as ConditionKind))) return;
             const id = `${side}-${value}-${crypto.randomUUID()}`;
             const child: ConditionNode = value === "group"
               ? { type: "group", id, enabled: true, operator: "AND", children: [] }
@@ -146,7 +148,7 @@ function ConditionNodeEditor(props: NodeProps) {
           }}>
           <option value="">＋ {translate(locale, "conditions.add")}</option>
           {(catalog.conditions ?? []).map(item => <option key={item.kind} value={item.kind} disabled={props.usedKinds.has(item.kind)}>{translate(locale, item.nameKey)}</option>)}
-          <option value="group">{translate(locale, "conditions.group")}</option>
+          <option value="group" disabled={!canAddGroup}>{translate(locale, "conditions.group")}</option>
         </select>
         {!canAdd && !disabled && <span className="field-hint">{translate(locale, "conditions.limit")}</span>}
       </div>}
@@ -160,6 +162,7 @@ export function ConditionEditor(props: ConditionEditorProps) {
   return <div className="strategy-rule-sections">
     {(["buy", "sell"] as const).map(side => {
       const node = rules[side];
+      if (!node && !custom) return null;
       const name = node && "kind" in node ? translate(locale, `conditions.${node.kind}`) : null;
       const headingId = `strategy-parameter-heading-${strategyId}-${side === "buy" && node && "kind" in node ? node.kind : side}`;
       return <section key={side} className={`strategy-rule-section${node?.enabled === false || !node ? " is-disabled" : ""}`}
@@ -173,7 +176,7 @@ export function ConditionEditor(props: ConditionEditorProps) {
         <div className="strategy-rule-content" hidden={node?.enabled === false}>
           {node ? <ConditionNodeEditor {...props} node={node} side={side} depth={1} disabled={false} remaining={remaining}
             usedKinds={new Set(conditionLeaves(node).map(item => item.kind))} root={true} onChange={changed => onChange({ ...rules, [side]: changed })} />
-            : <p className="condition-empty">{translate(locale, custom ? "conditions.empty" : "conditions.buyOnly")}</p>}
+            : <p className="condition-empty">{translate(locale, "conditions.empty")}</p>}
         </div>
       </section>;
     })}

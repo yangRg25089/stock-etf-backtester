@@ -13,10 +13,12 @@ from typing import Any
 import httpx
 from fastapi.encoders import jsonable_encoder
 
+from app.engine_version import ENGINE_VERSION
 from app.main import app
 from app.runs.manager import RunManager
 from app.runs.sqlite_store import SQLiteRunStore
 from app.runs.yahoo_data import YahooRunDataProvider
+from app.signals import SIGNAL_METHOD_VERSION
 
 
 class _InlineExecutor(Executor):
@@ -29,6 +31,121 @@ class _InlineExecutor(Executor):
         except BaseException as error:
             future.set_exception(error)
         return future
+
+
+def test_live_reversed_volatility_exit_tiers_save_matching_trades_and_csv(tmp_path):
+    previous_service = app.state.run_service
+    path = tmp_path / "exit-tiers.sqlite3"
+    store = SQLiteRunStore(path)
+    reopened = None
+    app.state.run_service = RunManager(
+        store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
+    )
+
+    async def submit():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://exit-tiers-live"
+        ) as client:
+            response = await client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "reversed-exit-tiers"},
+                json={
+                    "draft": {
+                        "shared": {
+                            "run": {
+                                "symbol": "QQQ",
+                                "startDate": "2024-01-31",
+                                "endDate": "2024-03-01",
+                            },
+                            "contribution": {"amount": 100, "day": 1},
+                        },
+                        "strategies": [
+                            {
+                                "id": "exit-tiers",
+                                "presetId": "vix_dca",
+                                "params": {
+                                    "vix.buyThreshold": 0,
+                                    "exit.enabled": True,
+                                    "exit.vix.low1": 199,
+                                    "exit.vix.ratio1": 0.2,
+                                    "exit.vix.low2": 200,
+                                    "exit.vix.ratio2": 0.8,
+                                    "accumulation.cashSafetyLimit": 100000000,
+                                    "accumulation.maxSignalBuysPerMonth": None,
+                                },
+                            }
+                        ],
+                    },
+                    "scope": "all_enabled",
+                },
+            )
+            assert response.status_code == 202, response.text
+            saved = await client.get(f"/api/v1/runs/{response.json()['runId']}")
+            assert saved.status_code == 200, saved.text
+            return saved.json()
+
+    try:
+        saved = asyncio.run(submit())
+        assert saved["snapshot"]["dataProvenance"]["sources"] == ["yahoo"]
+        assert saved["snapshot"]["engineVersion"] == ENGINE_VERSION
+        assert SIGNAL_METHOD_VERSION in ENGINE_VERSION.split("/")
+        result = next(
+            row for row in saved["result"]["strategyRuns"] if row["id"] == "exit-tiers"
+        )
+        assert result["status"] == "completed", result["diagnostics"]
+        signals = [
+            signal
+            for signal in result["signals"]
+            if signal["signalId"] == "vix.exit.low1"
+        ]
+        assert signals and all(
+            signal["state"] == "true" and 0 < Decimal(signal["observedValue"]) < 199
+            for signal in signals
+        )
+        assets = {asset["date"]: asset for asset in result["dailyAssets"]}
+        dates = list(assets)
+        sells = [trade for trade in result["trades"] if trade["side"] == "sell"]
+        assert sells
+        for trade in sells:
+            previous = assets[dates[dates.index(trade["date"]) - 1]]
+            assert trade["signalId"] == "vix.exit.low1"
+            assert abs(
+                Decimal(trade["quantity"])
+                - Decimal(previous["timingQuantity"]) * Decimal("0.2")
+            ) < Decimal("1e-20")
+        assert all(
+            Decimal(asset["actualInvested"]) <= Decimal(asset["totalContributed"])
+            for asset in assets.values()
+        )
+        store.close()
+        reopened = SQLiteRunStore(path)
+        app.state.run_service = RunManager(store=reopened, executor=_InlineExecutor())
+
+        async def restore_and_export():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://exit-tiers-restored",
+            ) as client:
+                restored = await client.get(f"/api/v1/runs/{saved['runId']}")
+                assert restored.json() == saved
+                exported = await client.get(
+                    f"/api/v1/runs/{saved['runId']}/export/trades",
+                    params={"focusedResultId": "exit-tiers"},
+                )
+                assert exported.status_code == 200, exported.text
+                rows = list(csv.DictReader(io.StringIO(exported.text)))
+                assert len(rows) == len(result["trades"])
+                for row, trade in zip(rows, result["trades"], strict=True):
+                    assert row["signalId"] == trade["signalId"]
+                    assert Decimal(row["quantity"]) == Decimal(trade["quantity"])
+                    assert Decimal(row["cashAmount"]) == Decimal(trade["cashAmount"])
+
+        asyncio.run(restore_and_export())
+    finally:
+        app.state.run_service = previous_service
+        store.close()
+        if reopened is not None:
+            reopened.close()
 
 
 def test_live_repeated_trend_trades_save_first_use_principal_and_csv(tmp_path) -> None:

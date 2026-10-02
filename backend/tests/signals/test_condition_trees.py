@@ -5,6 +5,7 @@ from app.catalog.service import get_catalog
 from app.config.validation import validate_draft
 from app.domain.status import SignalState
 from app.ledger import run_strategy
+from app.metrics import MetricsInput, calculate_metrics
 from app.runs.yahoo_data import _indicator_lookback, _macro_key
 from app.signals.evaluate import evaluate_signals
 from tests.signals.test_evaluate import _SESSIONS, _snapshot
@@ -155,6 +156,83 @@ def test_empty_buy_group_is_false_instead_of_vacuously_true():
         item.state is SignalState.FALSE
         for item in series.evaluations
         if item.signal_id == "accumulation.buy"
+    )
+
+
+def test_reversed_vix_exit_tiers_keep_the_matching_ratio_and_next_day_trade():
+    frozen, _ = config(
+        leaf("entry", "vix", {"vix.buyThreshold": 25}),
+        leaf(
+            "exit",
+            "vix",
+            {
+                "exit.vix.low1": 10,
+                "exit.vix.ratio1": Decimal("0.2"),
+                "exit.vix.low2": 12,
+                "exit.vix.ratio2": Decimal("0.8"),
+            },
+        ),
+    )
+    frozen = frozen.model_copy(
+        update={
+            "shared": frozen.shared.model_copy(
+                update={
+                    "contribution": frozen.shared.contribution.model_copy(
+                        update={"day": 3}
+                    )
+                }
+            )
+        }
+    )
+    snapshot = _snapshot(
+        ("10",) * 7,
+        vix_values={day: "30" if day == _SESSIONS[2] else "9" for day in _SESSIONS[2:]},
+    )
+    series = evaluate_signals(frozen, snapshot, sessions=_SESSIONS).strategies[0]
+    exit_signal = next(
+        item
+        for item in series.evaluations
+        if item.date == _SESSIONS[3] and item.signal_id == "conditions.sell"
+    )
+    assert exit_signal.sell_ratio == Decimal("0.2")
+    assert exit_signal.triggered_signal_ids == ("vix.exit:exit.low1",)
+    calendar = ExchangeCalendar.from_dates(
+        _SESSIONS,
+        as_of_date=_SESSIONS[-1],
+        latest_complete_date=_SESSIONS[-1],
+        calendar_coverage_end_date=_SESSIONS[-1],
+    )
+    result = run_strategy(
+        frozen,
+        frozen.strategies[0],
+        schedule(frozen.shared, calendar),
+        snapshot,
+        series,
+        exchange_calendar=calendar,
+    )
+    assert result.available
+    first_buy = next(item for item in result.trades if item.side.value == "buy")
+    first_sell = next(item for item in result.trades if item.side.value == "sell")
+    assert first_buy.date == _SESSIONS[3]
+    assert first_sell.date == _SESSIONS[4]
+    assert first_sell.quantity == first_buy.quantity * Decimal("0.2")
+    assert first_sell.signal_id == "vix.exit:exit.low1"
+    assert result.daily_assets[2].cash == Decimal("20")
+    assert result.daily_assets[2].timing_quantity == Decimal("8")
+    metrics = calculate_metrics(
+        MetricsInput(
+            strategy=frozen.strategies[0],
+            schedule=schedule(frozen.shared, calendar),
+            ledger=result,
+            data_fingerprint=snapshot.fingerprint,
+        )
+    )
+    assert metrics.summary.actual_invested == Decimal("100")
+    assert metrics.daily_assets[0].actual_invested == Decimal("0")
+    assert metrics.daily_assets[0].total_contributed == Decimal("100")
+    assert all(
+        asset.actual_invested == asset.total_contributed == Decimal("100")
+        for asset in metrics.daily_assets[1:]
     )
 
 

@@ -47,6 +47,8 @@ from .indicators import (
     simple_moving_average,
 )
 
+SIGNAL_METHOD_VERSION = "signals-v1"
+
 
 class StrategySignalSeries(DomainModel):
     """One strategy's evaluations; unavailable dependencies are strict."""
@@ -508,21 +510,25 @@ def _append_vix_exit_signals(
         )
         return
 
-    low2_hit = value <= _decimal_parameter(params, "exit.vix.low2")
-    low1_hit = not low2_hit and value <= _decimal_parameter(params, "exit.vix.low1")
+    thresholds = {
+        number: _decimal_parameter(params, f"exit.vix.low{number}") for number in (2, 1)
+    }
+    # Stable ordering keeps the previous second-tier priority when values tie.
+    priority = sorted(thresholds, key=thresholds.__getitem__)
+    winner = next((number for number in priority if value <= thresholds[number]), None)
     evaluations.extend(
         (
             _state_evaluation(
                 day,
                 "vix.exit.low1",
-                low1_hit,
+                winner == 1,
                 observed_value=value,
                 observed_unit="index_points",
             ),
             _state_evaluation(
                 day,
                 "vix.exit.low2",
-                low2_hit,
+                winner == 2,
                 observed_value=value,
                 observed_unit="index_points",
             ),

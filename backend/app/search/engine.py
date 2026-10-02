@@ -48,7 +48,11 @@ from app.search.types import (
     SearchResult,
     SearchResultDimension,
 )
-from app.signals import INDICATOR_METHOD_VERSION, evaluate_signals
+from app.signals import (
+    INDICATOR_METHOD_VERSION,
+    SIGNAL_METHOD_VERSION,
+    evaluate_signals,
+)
 
 SEARCH_METHOD_VERSION = "search-v2"
 
@@ -345,6 +349,7 @@ def calculation_fingerprint(
         "dataFingerprint": source.snapshot.fingerprint,
         "strategy": _strategy_calculation_payload(strategy, catalog),
         "indicatorMethod": INDICATOR_METHOD_VERSION,
+        "signalMethod": SIGNAL_METHOD_VERSION,
         "ledgerMethod": LEDGER_METHOD_VERSION,
         "metricMethod": METRIC_METHOD_VERSION,
     }

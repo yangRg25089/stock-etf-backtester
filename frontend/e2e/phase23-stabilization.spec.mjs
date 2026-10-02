@@ -311,7 +311,8 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
   const sell = dialog.locator('[data-rule-side="sell"]');
   await sell.locator(".condition-heading").getByRole("switch").click();
   await sell.locator('select[data-parameter-key="vix.symbol"]').selectOption("^VXD");
-  await expect(sell.getByLabel("売却しきい値（低）", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("売却しきい値 1", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("売却しきい値 2", { exact: true })).toBeVisible();
   await dialog.locator(".dialog-done").click();
   await expect(page.locator(".strategy-nav-card").first()).toContainText("VXN ≥ 25");
   await expect(page.locator(".strategy-nav-card").first()).not.toContainText("VIX:");
@@ -319,9 +320,12 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
   await page.locator(".strategy-card-open").click();
   await expect(buy.locator(".condition-heading")).toContainText("波动率");
   await expect(buy.getByLabel("指数买入阈值", { exact: true })).toBeVisible();
-  await expect(sell.getByLabel("卖出阈值（低）", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("卖出阈值 1", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("卖出阈值 2", { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 760 });
   expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await sell.getByLabel("卖出阈值 2", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath("volatility-tier-labels.png") });
   await dialog.locator(".dialog-done").click();
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.locator(".add-strategy-button").click();
@@ -332,6 +336,70 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
   await expect(sell.getByLabel("指数上限", { exact: true })).toBeVisible();
   await expect(sell).toContainText("此条件使用的指数。");
   await dialog.locator(".dialog-done").click();
+});
+
+test("custom group choices reserve space for a usable child at catalog limits", async ({ page }) => {
+  let maxNodes;
+  const countNodes = node => !node ? 0 : 1 + (node.children ?? []).reduce((sum, child) => sum + countNodes(child), 0);
+  await page.route("**/api/v1/catalog", async route => {
+    const response = await route.fetch();
+    const catalog = await response.json();
+    catalog.conditionLimits.maxDepth = 3;
+    maxNodes = Math.max(...catalog.presets.map(preset => countNodes(preset.defaultRules?.buy) + countNodes(preset.defaultRules?.sell))) + 2;
+    catalog.conditionLimits.maxNodes = maxNodes;
+    await route.fulfill({ json: catalog });
+  });
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.goto("/");
+  await page.locator(".add-strategy-button").click();
+  await page.locator('[data-preset-id="composite_dca"]').click();
+  await page.locator(".strategy-card-open").last().click();
+  const dialog = page.locator(".strategy-dialog");
+  const buy = dialog.locator('[data-rule-side="buy"]');
+  const rootSelect = buy.locator(".condition-group.is-root > .condition-group-content > .condition-add > .condition-add-select");
+  await rootSelect.selectOption("group");
+  const nested = buy.locator(".condition-group:not(.is-root)").first();
+  await expect(nested.locator('.condition-add-select option[value="group"]')).toBeDisabled();
+  await expect(nested.locator('.condition-add-select option[value="rsi"]')).toBeEnabled();
+  await nested.locator(".condition-add-select").selectOption("rsi");
+  await nested.locator(".condition-remove").last().click();
+  const nodeCount = () => dialog.locator(".condition-card, .condition-group").count();
+  for (let count = await nodeCount(); count < maxNodes - 1; count++) {
+    await rootSelect.selectOption("group");
+    await expect.poll(nodeCount).toBe(count + 1);
+  }
+  await expect(rootSelect.locator('option[value="group"]')).toBeDisabled();
+  await expect(rootSelect.locator('option[value="rsi"]')).toBeEnabled();
+  await rootSelect.selectOption("rsi");
+  await expect(rootSelect).toBeDisabled();
+  await buy.locator('[data-condition-kind="rsi"] .condition-remove').click();
+  await expect(rootSelect).toBeEnabled();
+  await expect(rootSelect.locator('option[value="group"]')).toBeDisabled();
+  await buy.locator(".condition-group:not(.is-root)").last().locator(".condition-remove").click();
+  await expect(rootSelect.locator('option[value="group"]')).toBeEnabled();
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
+});
+
+test("buy-only templates omit the unused sell section while custom strategies keep both", async ({ page }) => {
+  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.goto("/");
+  await page.locator(".add-strategy-button").click();
+  await page.locator('[data-preset-id="ma_buy_only"]').click();
+  await page.locator(".strategy-card-open").last().click();
+  const dialog = page.locator(".strategy-dialog");
+  await expect(dialog.locator('[data-rule-side="buy"]')).toBeVisible();
+  await expect(dialog.locator('[data-rule-side="sell"]')).toHaveCount(0);
+  await expect(dialog.locator(".strategy-parameter-group").first()).toContainText("買付の上限");
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
+  await page.locator(".add-strategy-button").click();
+  await page.locator('[data-preset-id="composite_dca"]').click();
+  await page.locator(".strategy-card-open").last().click();
+  await expect(dialog.locator(".strategy-rule-section")).toHaveCount(2);
+  await expect(dialog.locator('[data-rule-side="sell"] .condition-heading [role="switch"]')).toBeVisible();
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
 });
 
 test("editable grid values freeze into search results, candidate curves and CSV", async ({ page }) => {

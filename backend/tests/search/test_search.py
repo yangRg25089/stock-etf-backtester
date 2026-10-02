@@ -602,6 +602,17 @@ def test_calculation_fingerprint_includes_nested_rules_and_independent_values() 
     assert len(fingerprints) == 3
 
 
+def test_calculation_fingerprint_includes_signal_method_version(monkeypatch) -> None:
+    config = _config()
+    source = _input(config)
+    original = calculation_fingerprint(source, strategy=config.strategies[0])
+    monkeypatch.setattr(
+        "app.search.engine.SIGNAL_METHOD_VERSION", "signals-next", raising=False
+    )
+    updated = calculation_fingerprint(source, strategy=config.strategies[0])
+    assert updated != original
+
+
 def test_heatmap_slice_records_fixed_values_for_every_other_dimension() -> None:
     config = _config(
         dimensions=[

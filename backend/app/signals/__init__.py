@@ -1,6 +1,11 @@
 """Pure technical indicators and three-state strategy signal evaluation."""
 
-from .evaluate import SignalBatch, StrategySignalSeries, evaluate_signals
+from .evaluate import (
+    SIGNAL_METHOD_VERSION,
+    SignalBatch,
+    StrategySignalSeries,
+    evaluate_signals,
+)
 from .indicators import (
     INDICATOR_METHOD_VERSION,
     BollingerBands,
@@ -12,6 +17,7 @@ from .indicators import (
 __all__ = [
     "BollingerBands",
     "INDICATOR_METHOD_VERSION",
+    "SIGNAL_METHOD_VERSION",
     "SignalBatch",
     "StrategySignalSeries",
     "bollinger_bands",

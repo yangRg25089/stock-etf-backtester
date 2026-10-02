@@ -307,6 +307,46 @@ def test_vix_sell_levels_check_the_lower_tier_first() -> None:
     assert _states(result.strategies[0], days[1])["vix.exit.low2"] is SignalState.FALSE
 
 
+@pytest.mark.parametrize(
+    ("first_threshold", "second_threshold", "observed", "winner"),
+    (
+        ("10", "12", "9", 1),
+        ("10", "12", "10", 1),
+        ("10", "12", "11", 2),
+        ("10", "12", "12", 2),
+        ("10", "12", "13", None),
+        ("12", "10", "9", 2),
+        ("10", "10", "10", 2),
+    ),
+)
+def test_vix_exit_priority_follows_threshold_values(
+    first_threshold: str, second_threshold: str, observed: str, winner: int | None
+) -> None:
+    config = _config(
+        params={
+            "vix.buyEnabled": False,
+            "rsi.buyEnabled": False,
+            "ma.buyEnabled": False,
+            "bollinger.buyEnabled": False,
+            "rate.buyEnabled": False,
+            "pe.buyEnabled": False,
+            "exit.enabled": True,
+            "exit.vix.low1": Decimal(first_threshold),
+            "exit.vix.low2": Decimal(second_threshold),
+        }
+    )
+    series = evaluate_signals(
+        config,
+        _snapshot(("10",) * 7, vix_values={day: observed for day in _SESSIONS[2:]}),
+        sessions=_SESSIONS,
+    ).strategies[0]
+    states = _states(series, _SESSIONS[2])
+    for number in (1, 2):
+        assert states[f"vix.exit.low{number}"] is (
+            SignalState.TRUE if number == winner else SignalState.FALSE
+        )
+
+
 def test_rsi_sell_threshold_is_inclusive_when_rsi_buy_is_disabled() -> None:
     day = _SESSIONS[2]
     config = _config(
