@@ -3,6 +3,17 @@ import { expect, test } from "@playwright/test";
 
 const VIEWPORTS = [320, 375, 767, 768, 1024, 1280, 1440, 1920];
 
+async function themeColor(page, token) {
+  return page.evaluate(name => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${name})`;
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  }, token);
+}
+
 async function openSharedSettings(page) {
   await expect(page.locator(".workbench-layout")).toBeVisible();
   if (!(await page.locator(".workbench-config").isVisible())) {
@@ -124,7 +135,7 @@ test("shared settings dialog edits the draft, restores focus, and the sidebar to
   await page.goto("/");
   const sidebarToggle = page.locator(".workbench-divider .workbench-config-toggle");
   await expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
-  await expect(sidebarToggle).toHaveCSS("background-color", "rgb(244, 246, 245)");
+  await expect(sidebarToggle).toHaveCSS("background-color", await themeColor(page, "--app-bg"));
   const initialPosition = await sidebarToggle.boundingBox();
   await sidebarToggle.click();
   await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
@@ -779,8 +790,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   });
   const runButton = page.getByRole("button", { name: "バックテストを実行" });
   await expect(runButton).toBeEnabled();
-  await expect(runButton).toHaveCSS("background-color", "rgb(20, 125, 104)");
-  await expect(runButton).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(runButton).toHaveCSS("background-color", await themeColor(page, "--app-action"));
+  await expect(runButton).toHaveCSS("color", await themeColor(page, "--app-action-text"));
   await expect(runButton).toHaveText("");
   await expect(runButton.locator("svg.run-play-icon")).toHaveCount(1);
   await expect(runButton).toHaveAttribute("title", "バックテストを実行");
@@ -1011,8 +1022,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     lines.map((line) => line.getAttribute("stroke-width")),
   )).toEqual(["1.2", "1.2"]);
   await expect(coreChart.locator(".chart-baseline-line")).toHaveAttribute("data-baseline", "100");
-  await expect(coreChart.locator(".overlay-legend")).toContainText("価格 (USD)");
-  await expect(coreChart.locator(".overlay-legend")).toContainText("毎月定額積立 (USD)");
+  await expect(coreChart.locator(".overlay-legend")).toContainText("銘柄の終値 (USD)");
+  await expect(coreChart.locator(".overlay-legend")).toContainText("毎月定額積立");
   expect(await coreChart.locator(".chart-gridline").count()).toBeGreaterThan(7);
   await expect(coreChart.locator(".candlestick")).toHaveCount(0);
   const chartWindowBeforeCollapse = {
@@ -1612,9 +1623,9 @@ test("borderless chevron stays on the sidebar boundary and repeatedly reopens", 
   const toggle = page.locator(".workbench-config-toggle");
   const divider = page.locator(".workbench-divider");
   await expect(toggle).toHaveCSS("border-top-width", "0px");
-  await expect(toggle).toHaveCSS("background-color", "rgb(244, 246, 245)");
+  await expect(toggle).toHaveCSS("background-color", await themeColor(page, "--app-bg"));
   await toggle.hover();
-  await expect(toggle).toHaveCSS("background-color", "rgb(244, 246, 245)");
+  await expect(toggle).toHaveCSS("background-color", await themeColor(page, "--app-bg"));
   await expect(toggle.locator("svg")).toHaveCSS("stroke-width", "2.8px");
   for (let iteration = 0; iteration < 3; iteration += 1) {
     const configBounds = await page.locator(".workbench-config").boundingBox();
@@ -1703,14 +1714,14 @@ test("strategy menu, condition connectors and comparison selections retain full 
     await closeSharedSettings(page);
     await page.locator(".add-strategy-button").tap();
     const targets = await page.locator(".strategy-add-option:not(:disabled)").evaluateAll(nodes =>
-      nodes.map(node => ({ control: "menu", height: node.getBoundingClientRect().height })),
+      nodes.map(node => ({ control: "menu", height: node.offsetHeight })),
     );
     await page.locator('.strategy-add-option[data-preset-id="composite_dca"]').tap();
     await page.locator(".strategy-card-open").last().tap();
     const buy = page.locator('[data-rule-side="buy"]');
     await buy.locator(".condition-add-select").selectOption("rsi");
     targets.push(...await buy.locator(".field-segment").evaluateAll(nodes =>
-      nodes.map(node => ({ control: "AND/OR", height: node.getBoundingClientRect().height })),
+      nodes.map(node => ({ control: "AND/OR", height: node.offsetHeight })),
     ));
     await closeStrategyDialog(page);
     await openSharedSettings(page);
@@ -1723,7 +1734,7 @@ test("strategy menu, condition connectors and comparison selections retain full 
     await expect(page.locator(".comparison-table")).toBeVisible();
     await expect(page.locator(".run-submit-button")).toBeEnabled();
     targets.push(...await page.locator(".comparison-table .result-select").evaluateAll(nodes =>
-      nodes.map(node => ({ control: "comparison", height: (node.closest("label") ?? node).getBoundingClientRect().height })),
+      nodes.map(node => ({ control: "comparison", height: (node.closest("label") ?? node).offsetHeight })),
     ));
     expect(targets.length).toBeGreaterThan(10);
     for (const target of targets) expect(target.height, JSON.stringify(targets)).toBeGreaterThanOrEqual(44);
@@ -1915,13 +1926,13 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await expect(core.locator(".overlay-price.is-highlighted")).toHaveAttribute("stroke-width", "2.4");
   await expect(core.locator(".overlay-series-line.overlay-totalAsset")).toHaveAttribute("stroke-width", "1.2");
   await expect(core.locator(".chart-highlight-area")).toBeVisible();
-  await expect(core.locator("linearGradient stop").first()).toHaveAttribute("stop-color", "#276d9b");
+  await expect(core.locator("linearGradient stop").first()).toHaveAttribute("stop-color", await core.locator(".overlay-price.is-highlighted").getAttribute("stroke"));
   await page.mouse.move(0, 0);
   await expect(core.locator(".chart-highlight-area")).toHaveCount(0);
   const assetLegend = core.locator('.overlay-legend-item[data-series="totalAsset"]');
   await assetLegend.focus();
   await expect(core.locator(".overlay-totalAsset.is-highlighted")).toHaveAttribute("stroke-width", "2.4");
-  await expect(core.locator("linearGradient stop").first()).toHaveAttribute("stop-color", "#147d68");
+  await expect(core.locator("linearGradient stop").first()).toHaveAttribute("stop-color", await core.locator(".overlay-totalAsset.is-highlighted").getAttribute("stroke"));
   await page.keyboard.press("Tab");
   await expect(core.locator(".chart-highlight-area")).toHaveCount(0);
   await expect(core).toHaveAttribute("data-window-start", initialWindow);
@@ -2022,7 +2033,7 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   for (let cycle = 0; cycle < 3; cycle += 1) {
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
-    await expect(toggle).toHaveCSS("background-color", "rgb(20, 125, 104)");
+    await expect(toggle).toHaveCSS("background-color", await themeColor(page, "--app-accent"));
     await svg.scrollIntoViewIfNeeded();
     const box = await svg.boundingBox();
     const start = Number(await core.getAttribute("data-window-start"));
@@ -2254,7 +2265,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
-  const price = page.locator(".chart-legend button").filter({ hasText: "価格" });
+  const price = page.locator('.legend-toggle[data-series="price"]');
   const asset = page.locator('.chart-legend button[data-series="totalAsset"]');
   await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
   await expect(page.locator(".chart-overlay .overlay-series-line")).toHaveCount(2);
@@ -2372,9 +2383,9 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await coreSvg.focus();
   await page.keyboard.press("Shift+ArrowLeft");
   await expect(core.locator(".chart-crosshair")).toHaveAttribute("data-date", result.dailyAssets[0].date);
-  const zeroPrincipal = core.locator(".chart-cursor-reading").filter({ hasText: "ボラティリティ積立" });
+  const zeroPrincipal = core.locator(".chart-strategy-readout").filter({ hasText: "ボラティリティ積立" });
   await expect(zeroPrincipal).toContainText("0.00 USD");
-  await expect(zeroPrincipal).toContainText("相対指数 —");
+  await expect(zeroPrincipal).toContainText("元本リターン指数 —");
   await page.keyboard.press("Shift+ArrowRight");
   await expect(core.locator(".chart-crosshair")).toHaveAttribute("data-date", day.date);
   await page.keyboard.press("Escape");

@@ -10,15 +10,40 @@ export interface CursorReading {
   color?: string;
 }
 
-export function ChartReadout({ date, readings }: { date?: string; readings: CursorReading[] }) {
+export interface StrategyReading {
+  id: string;
+  label: string;
+  color: string;
+  rank?: number;
+  readings: CursorReading[];
+}
+
+function ReadingValues({ readings }: { readings: CursorReading[] }) {
+  return readings.map(({ label, value, color }) => (
+    <span key={label} className="chart-cursor-reading" style={color ? { color } : undefined}>
+      <span>{label}</span> <strong>{value}</strong>
+    </span>
+  ));
+}
+
+export function ChartReadout({ date, readings, strategies = [] }: {
+  date?: string;
+  readings: CursorReading[];
+  strategies?: StrategyReading[];
+}) {
   if (!date) return null;
   return (
     <div className="chart-crosshair-readout" data-date={date}>
-      <time dateTime={date}>{date}</time>
-      {readings.map(({ label, value, color }) => (
-        <span key={label} className="chart-cursor-reading" style={color ? { color } : undefined}>
-          <span>{label}</span> <strong>{value}</strong>
-        </span>
+      <div className="chart-market-readout" data-date={date}>
+        <time dateTime={date}>{date}</time>
+        <ReadingValues readings={readings} />
+      </div>
+      {strategies.map(strategy => (
+        <div className="chart-strategy-readout" data-result-id={strategy.id} data-date={date} key={strategy.id}>
+          <span className="chart-strategy-rank" aria-hidden="true">{strategy.rank}</span>
+          <span className="chart-strategy-name" title={strategy.label} style={{ color: strategy.color }}>{strategy.label}</span>
+          <ReadingValues readings={strategy.readings} />
+        </div>
       ))}
     </div>
   );

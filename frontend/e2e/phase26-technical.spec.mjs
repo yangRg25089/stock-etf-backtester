@@ -42,7 +42,7 @@ test("selected saved MA, Bollinger and RSI show periods, exact readings, common 
   await expect(core.locator('polyline[data-kind="ma"]')).toHaveCount(1);
   await expect(core.locator('polyline[data-kind="bollinger"]')).toHaveCount(3);
   await expect(page.locator(".chart-rsi.is-compact")).toHaveCount(1);
-  const maLegend = core.locator(".overlay-legend-item").filter({ hasText: /^MA2$/ });
+  const maLegend = core.getByRole("button", { name: "MA2", exact: true });
   const maIdentity = await maLegend.getAttribute("data-series");
   await maLegend.click();
   await comparison.getByRole("button", { name: /移動平均トレンド（売買）/ }).click();

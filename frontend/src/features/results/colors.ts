@@ -1,5 +1,7 @@
+export const PRICE_COLOR = "#9c4b0d";
+
 const RESULT_COLORS = [
-  "#147d68",
+  "#30497d",
   "#a65b0f",
   "#7656a6",
   "#395cb7",

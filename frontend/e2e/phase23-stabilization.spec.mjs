@@ -893,11 +893,11 @@ test("selected strategies retain their own trade markers and core curves always 
   await firstLegend.click();
   await expect(firstLegend).toHaveAttribute("aria-pressed", "true");
   await page.mouse.move(0, 0);
-  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
   await expect(firstLegend).toHaveClass(/is-highlighted/);
 
   await secondSelection.click();
-  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
   await firstLegend.hover();
   await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
   await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveCount(0);
@@ -906,6 +906,10 @@ test("selected strategies retain their own trade markers and core curves always 
   await firstLegend.focus();
   await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
   await page.keyboard.press("Tab");
+  await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
+  await firstLegend.click();
+  await page.mouse.move(0, 0);
+  await expect(firstLegend).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
 
   const assetToggle = page.locator('.legend-toggle[data-series="totalAsset"]');

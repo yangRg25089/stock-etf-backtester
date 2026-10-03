@@ -4,13 +4,15 @@
     #backtest-ui-preview {
       box-sizing: border-box;
       position: relative;
-      --bg: #f4f6f5;
+      --bg: #f3f5f9;
       --surface: #fff;
-      --text: #192321;
-      --muted: #5d6a65;
-      --border: #dce3df;
-      --accent: #147d68;
-      --accent-soft: #e5f3ef;
+      --text: #253c6d;
+      --muted: #455b8a;
+      --border: #d4dbea;
+      --accent: #30497d;
+      --accent-soft: #eaf0fa;
+      --action: #f2842f;
+      --action-text: #192d52;
       color: var(--text);
       background: var(--bg);
       border: 1px solid var(--border);
@@ -32,7 +34,7 @@
     #backtest-ui-preview button:focus-visible,
     #backtest-ui-preview input:focus-visible,
     #backtest-ui-preview select:focus-visible,
-    #backtest-ui-preview summary:focus-visible { outline: 3px solid #148b75; outline-offset: 2px; }
+    #backtest-ui-preview summary:focus-visible { outline: 3px solid #455b8a; outline-offset: 2px; }
     #backtest-ui-preview .sr-only {
       position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
       overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
@@ -55,14 +57,14 @@
     #backtest-ui-preview input,
     #backtest-ui-preview select { min-height: 38px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; }
     #backtest-ui-preview button { cursor: pointer; }
-    #backtest-ui-preview button:hover { border-color: #9eb6ac; }
+    #backtest-ui-preview button:hover { border-color: #8b9abb; }
     #backtest-ui-preview .icon-button { display: inline-grid; place-items: center; width: 40px; min-width: 40px; padding: 0; }
-    #backtest-ui-preview .run-button { color: #fff; background: var(--accent); border-color: var(--accent); }
+    #backtest-ui-preview .run-button { color: var(--action-text); background: var(--action); border-color: var(--accent); }
     #backtest-ui-preview .config-toggle { width: 24px; min-width: 0; border: 0; background: var(--bg); color: var(--accent); }
     #backtest-ui-preview .config-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
     #backtest-ui-preview .config-toggle:hover svg,
     #backtest-ui-preview .config-toggle:focus-visible svg { stroke-width: 2.8; }
-    #backtest-ui-preview .run-button { box-shadow: 0 2px 5px #135d5033; }
+    #backtest-ui-preview .run-button { box-shadow: 0 2px 5px #253c6d20; }
     #backtest-ui-preview .run-button svg { width: 17px; height: 17px; fill: currentColor; }
 
 
@@ -81,11 +83,11 @@
     #backtest-ui-preview .strategy-navigator { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 7px; min-height: 0; }
     #backtest-ui-preview .strategy-nav-heading { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; font-weight: 650; }
     #backtest-ui-preview .strategy-add { position: relative; display: flex; min-height: 44px; }
-    #backtest-ui-preview .add-button { width: 44px; min-height: 44px; color: white; background: var(--accent); border-color: var(--accent); font-size: 24px; }
+    #backtest-ui-preview .add-button { width: 44px; min-height: 44px; color: var(--action-text); background: var(--action); border-color: var(--accent); font-size: 24px; }
     html:has(#backtest-ui-preview dialog[open]), body:has(#backtest-ui-preview dialog[open]) { overflow: hidden; overscroll-behavior: none; }
     #backtest-ui-preview dialog { overscroll-behavior: none; }
     #backtest-ui-preview .trade-context { margin: 10px 0; font-size: 13px; font-weight: 650; }
-    #backtest-ui-preview .strategy-add-menu { position: absolute; z-index: 8; top: 0; left: 54px; width: calc(100% - 58px); max-height: min(480px, calc(100dvh - 260px)); overflow: auto; padding: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 8px 24px #19232120; }
+    #backtest-ui-preview .strategy-add-menu { position: absolute; z-index: 8; top: 0; left: 54px; width: calc(100% - 58px); max-height: min(480px, calc(100dvh - 260px)); overflow: auto; padding: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 8px 24px #253c6d20; }
     #backtest-ui-preview .strategy-add-menu[hidden] { display: none; }
     #backtest-ui-preview .strategy-add-menu button { width: 100%; padding: 7px; text-align: left; border: 0; }
     #backtest-ui-preview .strategy-add-menu button:hover { background: var(--accent-soft); }
@@ -93,14 +95,14 @@
     #backtest-ui-preview .strategy-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 6px; padding: 7px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
     #backtest-ui-preview .strategy-card-list { padding: 4px; }
     #backtest-ui-preview .strategy-card { margin-inline-start: 8px; transform-origin: right center; transition: margin-inline-start 160ms ease-out, transform 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out; }
-    #backtest-ui-preview .strategy-card.is-active { z-index: 1; margin-inline-start: 0; transform: scale(1.015); background: #e0eee8; border-color: #83b3a5; box-shadow: inset 3px 0 0 var(--accent), 0 2px 8px #1923211f; }
-    #backtest-ui-preview .strategy-card:has(.strategy-card-open:hover) { background: #e0eee8; }
+    #backtest-ui-preview .strategy-card.is-active { z-index: 1; margin-inline-start: 0; transform: scale(1.015); background: #dde6f5; border-color: #8b9abb; box-shadow: inset 3px 0 0 var(--accent), 0 2px 8px #253c6d20; }
+    #backtest-ui-preview .strategy-card:has(.strategy-card-open:hover) { background: #dde6f5; }
     #backtest-ui-preview .strategy-card-open { display: grid; min-width: 0; padding: 0; text-align: left; background: transparent; border: 0; }
     #backtest-ui-preview .strategy-card.is-active .strategy-card-open,
-    #backtest-ui-preview .strategy-card-open:hover { background: #e0eee8; }
+    #backtest-ui-preview .strategy-card-open:hover { background: #dde6f5; }
     #backtest-ui-preview .strategy-card-name { font-weight: 650; }
     #backtest-ui-preview .strategy-card-summary { margin-top: 2px; color: var(--muted); font-size: 12px; }
-    #backtest-ui-preview .strategy-actions { position: absolute; top: 3px; right: 4px; display: flex; align-items: center; gap: 5px; padding: 3px; background: var(--surface); border-radius: 6px; box-shadow: 0 2px 8px #19232120; opacity: 0; pointer-events: none; }
+    #backtest-ui-preview .strategy-actions { position: absolute; top: 3px; right: 4px; display: flex; align-items: center; gap: 5px; padding: 3px; background: var(--surface); border-radius: 6px; box-shadow: 0 2px 8px #253c6d20; opacity: 0; pointer-events: none; }
     #backtest-ui-preview .strategy-card:hover .strategy-actions,
     #backtest-ui-preview .strategy-card:has(:focus-visible) .strategy-actions { opacity: 1; pointer-events: auto; }
     #backtest-ui-preview .strategy-actions button { width: 36px; min-width: 36px; min-height: 36px; padding: 0; }
@@ -131,13 +133,13 @@
     #backtest-ui-preview .chart-range-controls button { min-height: 34px; padding: 0 8px; color: var(--muted); font-size: 12px; }
     #backtest-ui-preview .chart-legend button[aria-pressed="true"],
     #backtest-ui-preview .chart-range-controls .zoom-mode[aria-pressed="true"] { color: white; background: var(--accent); border-color: var(--accent); }
-    #backtest-ui-preview .swatch { display: inline-block; width: 14px; height: 2px; margin-right: 5px; vertical-align: middle; background: #276d9b; }
-    #backtest-ui-preview .swatch.asset { background: #147d68; }
+    #backtest-ui-preview .swatch { display: inline-block; width: 14px; height: 2px; margin-right: 5px; vertical-align: middle; background: #9c4b0d; }
+    #backtest-ui-preview .swatch.asset { background: #30497d; }
     #backtest-ui-preview .swatch.drawdown { background: #a7373a; }
     #backtest-ui-preview .swatch.vix { background: #7656a6; }
     #backtest-ui-preview .range-label { flex: 1 0 100%; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .chart-gesture-hint { margin: 0 0 4px; color: var(--muted); font-size: 11px; }
-    #backtest-ui-preview .is-wheel-zoom-active { outline: 2px solid #147d6880; outline-offset: 4px; }
+    #backtest-ui-preview .is-wheel-zoom-active { outline: 2px solid #30497d80; outline-offset: 4px; }
     #backtest-ui-preview .chart-linked-stack { display: grid; gap: 0; overflow-x: auto; }
     #backtest-ui-preview .chart-figure { min-width: 680px; margin: 0; padding: 0; }
     #backtest-ui-preview .chart-figure figcaption { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 2px; font-weight: 650; }
@@ -146,23 +148,23 @@
     #backtest-ui-preview .chart-core-readout-row { height: 64px; padding: 4px 6px; overflow-y: auto; overscroll-behavior: auto; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .date-axis-row { min-width: 680px; }
     #backtest-ui-preview .date-axis-row svg { display: block; width: 100%; height: auto; aspect-ratio: 800 / 44; user-select: none; }
-    #backtest-ui-preview .grid-line { stroke: #dce3df; stroke-width: 1; }
+    #backtest-ui-preview .grid-line { stroke: #d4dbea; stroke-width: 1; }
     #backtest-ui-preview .tick { fill: var(--muted); font-size: 10px; }
     #backtest-ui-preview .axis-title { fill: var(--text); font-size: 10px; font-weight: 600; }
-    #backtest-ui-preview .price-line { vector-effect: non-scaling-stroke; fill: none; stroke: #276d9b; stroke-width: 1.2; }
-    #backtest-ui-preview .asset-line { vector-effect: non-scaling-stroke; fill: none; stroke: #147d68; stroke-width: 1.2; }
-    #backtest-ui-preview .base-line { stroke: #81918b; stroke-width: 1; stroke-dasharray: 4 4; }
+    #backtest-ui-preview .price-line { vector-effect: non-scaling-stroke; fill: none; stroke: #9c4b0d; stroke-width: 1.2; }
+    #backtest-ui-preview .asset-line { vector-effect: non-scaling-stroke; fill: none; stroke: #30497d; stroke-width: 1.2; }
+    #backtest-ui-preview .base-line { stroke: #8b9abb; stroke-width: 1; stroke-dasharray: 4 4; }
     #backtest-ui-preview .legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin: 0; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .comparison-table-wrap { overflow-x: auto; }
     #backtest-ui-preview [data-panel="comparison"].comparison-table-wrap { max-height: min(300px, 30dvh); overflow: auto; overscroll-behavior: contain; }
     #backtest-ui-preview .comparison-table thead { position: sticky; z-index: 2; top: 0; }
     #backtest-ui-preview .comparison-table tbody tr { position: relative; translate: 0 0; transition: translate 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out; }
-    #backtest-ui-preview .comparison-table tbody tr:has(.result-select[aria-pressed="true"]) { z-index: 1; translate: 0 -1px; background: color-mix(in srgb, var(--row-color) 18%, var(--surface)); box-shadow: 0 3px 6px rgb(20 64 52 / 18%), inset 0 0 0 1px var(--row-color); }
+    #backtest-ui-preview .comparison-table tbody tr:has(.result-select[aria-pressed="true"]) { z-index: 1; translate: 0 -1px; background: color-mix(in srgb, var(--row-color) 18%, var(--surface)); box-shadow: 0 3px 6px rgb(37 60 109 / 18%), inset 0 0 0 1px var(--row-color); }
     #backtest-ui-preview [data-panel="trades"] .comparison-table-wrap { max-height: 420px; overflow: auto; }
     #backtest-ui-preview [data-panel="trades"] thead th { position: sticky; top: 0; }
     #backtest-ui-preview .signal-switch { width: 36px; height: 22px; min-height: 22px; background: var(--accent); border-radius: 12px; border: 0; padding: 3px; }
     #backtest-ui-preview .signal-switch span { display: block; width: 16px; height: 16px; background: #fff; border-radius: 50%; transform: translateX(14px); }
-    #backtest-ui-preview .signal-switch[aria-checked="false"] { background: #87968d; }
+    #backtest-ui-preview .signal-switch[aria-checked="false"] { background: #455b8a; }
     #backtest-ui-preview .signal-switch[aria-checked="false"] span { transform: none; }
     #backtest-ui-preview .unit-field { position: relative; }
     #backtest-ui-preview .unit-field input { width: 100%; padding-right: 54px; }
@@ -184,9 +186,9 @@
     #backtest-ui-preview td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: right; }
     #backtest-ui-preview th:first-child,
     #backtest-ui-preview td:first-child { text-align: left; }
-    #backtest-ui-preview thead th { color: var(--muted); background: #f7f9f8; font-weight: 600; }
-    #backtest-ui-preview dialog { width: min(840px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow: hidden; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 20px 64px #101d1980; }
-    #backtest-ui-preview dialog::backdrop { background: #17211e80; backdrop-filter: blur(1px); }
+    #backtest-ui-preview thead th { color: var(--muted); background: #f5f7fb; font-weight: 600; }
+    #backtest-ui-preview dialog { width: min(840px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow: hidden; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 20px 64px #253c6d80; }
+    #backtest-ui-preview dialog::backdrop { background: #253c6d80; backdrop-filter: blur(1px); }
     #backtest-ui-preview .dialog-shell { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: calc(100dvh - 24px); }
     #backtest-ui-preview .dialog-header,
     #backtest-ui-preview .dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; background: var(--surface); }
@@ -243,11 +245,22 @@
       #backtest-ui-preview .config-collapsed { grid-template-columns: 0 44px minmax(0, 1fr); }
     }
     @media (prefers-reduced-motion: reduce) { #backtest-ui-preview .strategy-card, #backtest-ui-preview .comparison-table tbody tr { transition: none; } }
+    #backtest-ui-preview .chart-market-readout { display: flex; align-items: center; min-height: 32px; }
+    #backtest-ui-preview .chart-strategy-readout { display: grid; grid-template-columns: 18px minmax(170px, 1.2fr) repeat(3, minmax(150px, 1fr)); gap: 8px; min-height: 24px; }
+    #backtest-ui-preview .legend button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 2px 4px #253c6d20; translate: 0 -1px; }
+    #backtest-ui-preview .dialog-done { background: var(--action); color: var(--action-text); border-color: var(--accent); }
+    #backtest-ui-preview .comparison-table-wrap { --table-controls-height: 36px; }
+    #backtest-ui-preview .table-height-controls { position: sticky; top: 0; left: 0; z-index: 3; display: flex; justify-content: flex-end; align-items: center; width: 100%; height: var(--table-controls-height); padding: 4px 6px; background: var(--surface); }
+    #backtest-ui-preview .table-expand-button { display: grid; place-items: center; width: 28px; min-height: 28px; color: var(--accent); padding: 3px; }
+    #backtest-ui-preview .table-expand-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    #backtest-ui-preview .comparison-table thead, #backtest-ui-preview [data-panel="trades"] thead th { top: var(--table-controls-height); }
+    #backtest-ui-preview .comparison-table-wrap.is-height-expanded { max-height: none; }
+    @media (pointer: coarse) { #backtest-ui-preview .table-expand-button { min-width: 44px; min-height: 44px; } #backtest-ui-preview .comparison-table-wrap { --table-controls-height: 52px; } }
     #backtest-ui-preview [hidden] { display: none !important; }
     #backtest-ui-preview .signal-switch-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 12px; padding: 6px 10px; border-radius: 6px; background: var(--bg); }
     #backtest-ui-preview .signal-switch-row button { width: auto; padding-inline: 8px; display: flex; gap: 8px; align-items: center; color: var(--muted); background: transparent; border: 0; }
     #backtest-ui-preview .signal-switch-row .signal-switch { display: inline-block; }
-    #backtest-ui-preview .signal-switch-row button[aria-checked="false"] .signal-switch { background: #87968d; }
+    #backtest-ui-preview .signal-switch-row button[aria-checked="false"] .signal-switch { background: #455b8a; }
     #backtest-ui-preview .signal-switch-row button[aria-checked="false"] .signal-switch span { transform: none; }
     #backtest-ui-preview .logic-segments { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 7px; }
     #backtest-ui-preview .logic-segments label { position: relative; cursor: pointer; }
@@ -256,7 +269,7 @@
     #backtest-ui-preview .logic-segments input:checked + span { color: white; background: var(--accent); }
     #backtest-ui-preview .logic-segments input:focus-visible + span { outline: 3px solid var(--accent); }
     #backtest-ui-preview .condition-logic-connector { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
-    #backtest-ui-preview .condition-logic-line { height: 1px; flex: 1; background: #bacac2; }
+    #backtest-ui-preview .condition-logic-line { height: 1px; flex: 1; background: #8b9abb; }
     #backtest-ui-preview .condition-card { padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; }
     #backtest-ui-preview .condition-card h3 { margin-bottom: 10px; }
     #backtest-ui-preview .prototype-condition-errors { margin: 8px 0; padding: 8px; border: 1px solid #ebcaca; border-radius: 6px; color: #8a3636; background: #fff8f8; font-size: 12px; }
@@ -265,11 +278,11 @@
     #backtest-ui-preview .prototype-grid-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px; }
     #backtest-ui-preview .prototype-grid-value-card { padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
     #backtest-ui-preview .prototype-grid-value-card .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    #backtest-ui-preview .strategy-rule-block { margin-bottom: 16px; padding: 12px; background: #f3f8f5; border: 1px solid #bcd6ca; border-radius: 8px; }
+    #backtest-ui-preview .strategy-rule-block { margin-bottom: 16px; padding: 12px; background: #f5f7fb; border: 1px solid #d4dbea; border-radius: 8px; }
     #backtest-ui-preview .cursor-example { display: none; pointer-events: none; }
     #backtest-ui-preview .show-cursor .cursor-example { display: block; }
     #backtest-ui-preview .cursor-example line { stroke: #819bb2; stroke-width: 1; stroke-dasharray: 3 3; }
-    #backtest-ui-preview .cursor-example rect { fill: #24372f; }
+    #backtest-ui-preview .cursor-example rect { fill: #253c6d; }
     #backtest-ui-preview .cursor-example text { fill: white; font-size: 11px; }
     #backtest-ui-preview .cursor-example .cursor-reading { fill: var(--text); font-size: 11px; }
     @media (min-width: 1280px) {
@@ -280,7 +293,7 @@
   #backtest-ui-preview .strategy-add { margin-left: auto; }
   #backtest-ui-preview .strategy-add-menu { left: auto; right: 0; top: calc(100% + 6px); }
   #backtest-ui-preview .result-select { border: 0; padding: 6px 8px; background: transparent; color: inherit; }
-  #backtest-ui-preview .result-select[aria-pressed="true"] { color: #125c4e; font-weight: 650; }
+  #backtest-ui-preview .result-select[aria-pressed="true"] { color: #253c6d; font-weight: 650; }
   #backtest-ui-preview .etf-options { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   #backtest-ui-preview .etf-options button { padding: 8px 12px; }
 </style>
@@ -332,10 +345,11 @@
           </header>
           <div id="prototype-result-body" class="panel-body">
             <div class="result-tabs" role="tablist" aria-label="実行結果"><button type="button" role="tab" aria-selected="true" data-tab="comparison">戦略比較</button><button type="button" role="tab" aria-selected="false" data-tab="trades">取引明細</button></div>
-            <section class="tab-panel comparison-table-wrap" role="tabpanel" data-panel="comparison">
-              <table class="comparison-table"><caption class="sr-only">実行結果の比較</caption><thead><tr><th scope="col"><button class="comparison-sort" type="button" data-column="0">戦略<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="1">投入済み元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="2">注入元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="3">期末資産<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="4">純損益<span aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="descending"><button class="comparison-sort" type="button" data-column="5">投入利益率<span aria-hidden="true">↓</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="6">資産倍率<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="7">XIRR<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="8">最大ドローダウン<span aria-hidden="true">↕</span></button></th></tr></thead><tbody><tr style="--row-color:#7656a6"><th scope="row"><span class="result-rank" aria-hidden="true">1</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 一括投資</button></th><td>$8,100</td><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td></tr><tr style="--row-color:#a65b0f"><th scope="row"><span class="result-rank" aria-hidden="true">2</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 毎月定額積立</button></th><td>$8,100</td><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td></tr><tr style="--row-color:#147d68"><th scope="row"><span class="result-rank" aria-hidden="true">3</span> <button type="button" class="result-select" aria-pressed="true"><span aria-hidden="true" style="color:var(--row-color)">●</span> ボラティリティ積立</button></th><td>$7,800</td><td>$8,100</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td></tr></tbody></table>
+            <section class="tab-panel comparison-table-wrap" role="tabpanel" data-panel="comparison" id="prototype-comparison-scroll">
+              <div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="戦略比較" aria-label="戦略比較を全行表示" aria-expanded="false" aria-controls="prototype-comparison-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div>
+              <table class="comparison-table"><caption class="sr-only">実行結果の比較</caption><thead><tr><th scope="col"><button class="comparison-sort" type="button" data-column="0">戦略<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="1">投入済み元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="2">注入元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="3">期末資産<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="4">純損益<span aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="descending"><button class="comparison-sort" type="button" data-column="5">投入利益率<span aria-hidden="true">↓</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="6">資産倍率<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="7">XIRR<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="8">最大ドローダウン<span aria-hidden="true">↕</span></button></th></tr></thead><tbody><tr style="--row-color:#7656a6"><th scope="row"><span class="result-rank" aria-hidden="true">1</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 一括投資</button></th><td>$8,100</td><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td></tr><tr style="--row-color:#a65b0f"><th scope="row"><span class="result-rank" aria-hidden="true">2</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 毎月定額積立</button></th><td>$8,100</td><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td></tr><tr style="--row-color:#30497d"><th scope="row"><span class="result-rank" aria-hidden="true">3</span> <button type="button" class="result-select" aria-pressed="true"><span aria-hidden="true" style="color:var(--row-color)">●</span> ボラティリティ積立</button></th><td>$7,800</td><td>$8,100</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td></tr></tbody></table>
             </section>
-            <section class="tab-panel" role="tabpanel" data-panel="trades" hidden><h4 class="trade-context">ボラティリティ積立</h4><div class="comparison-table-wrap"><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td>2026-08-03</td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td>2026-09-01</td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
+            <section class="tab-panel" role="tabpanel" data-panel="trades" hidden><h4 class="trade-context">ボラティリティ積立</h4><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td>2026-08-03</td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td>2026-09-01</td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
           </div>
         </section>
 
@@ -344,22 +358,22 @@
           <div id="prototype-chart-body" class="panel-body">
             <div class="chart-toolbar">
               <div class="chart-controls">
-                <div class="chart-legend" role="group" aria-label="表示する系列"><button type="button" data-series="price" aria-pressed="true"><i class="swatch"></i>価格 (USD)</button><button type="button" data-series="asset" aria-pressed="true"><i class="swatch asset"></i>戦略資産 (USD)</button><button type="button" data-series="drawdown" aria-pressed="true"><i class="swatch drawdown"></i>ドローダウン (%)</button><button type="button" data-series="vix" aria-pressed="true"><i class="swatch vix"></i>ボラティリティ指数</button></div>
+                <div class="chart-legend" role="group" aria-label="表示する系列"><button type="button" data-series="price" aria-pressed="true"><i class="swatch"></i>銘柄の終値 (USD)</button><button type="button" data-series="asset" aria-pressed="true"><i class="swatch asset"></i>戦略資産 (USD)</button><button type="button" data-series="drawdown" aria-pressed="true"><i class="swatch drawdown"></i>ドローダウン (%)</button><button type="button" data-series="vix" aria-pressed="true"><i class="swatch vix"></i>ボラティリティ指数</button></div>
               </div>
               <div class="chart-range-controls" role="group" aria-label="全図共通の期間操作"><span class="range-label sr-only">表示期間（全図共通）：2020-01-01 — 2026-09-29</span><button class="icon-button zoom-mode" type="button" aria-label="通常スクロールで拡大・縮小" title="通常スクロールで拡大・縮小" aria-pressed="false">⌕</button><button class="icon-button" type="button" aria-label="期間を縮小" title="期間を縮小">−</button><button class="icon-button" type="button" aria-label="期間を拡大" title="期間を拡大">＋</button><button class="icon-button" type="button" aria-label="全期間に戻す" title="全期間に戻す">↺</button></div>
             </div>
             <p class="chart-gesture-hint sr-only">通常スクロールは結果欄を移動 · Ctrl/Command＋スクロールは全図を同期して拡大・縮小</p>
             <div class="chart-linked-stack">
             <figure class="chart-figure">
-              <figcaption>価格・元本リターン<div class="legend"><button type="button" aria-pressed="false" data-highlight="price"><i class="swatch"></i>価格 (USD)</button><button type="button" aria-pressed="false" data-highlight="asset"><i class="swatch asset"></i>ボラティリティ積立 (USD)</button><span>基準100</span></div></figcaption>
-              <div class="chart-core-readout-row">2023-05-01 · 価格指数 210 · 元本リターン 158 · ドローダウン −8% · VIX 25</div>
+              <figcaption>価格・元本リターン<div class="legend"><button type="button" aria-pressed="false" data-highlight="price"><i class="swatch"></i>銘柄の終値 (USD)</button><button type="button" aria-pressed="false" data-highlight="asset"><i class="swatch asset"></i>ボラティリティ積立</button><span>基準100</span></div></figcaption>
+              <div class="chart-core-readout-row"><div class="chart-market-readout">2023-05-01 · 銘柄の終値 410.00 USD · ドローダウン −8% · VIX 25</div><div class="chart-strategy-readout"><span>3</span><strong>ボラティリティ積立</strong><span>資産 12,680.00 USD</span><span>元本 8,100.00 USD</span><span>元本リターン指数 156.5</span></div></div>
               <svg viewBox="0 0 800 274" role="img" aria-label="価格の開始値と累計投入元本を基準100とした推移。横軸は日付">
                 <g fill="none"><path class="grid-line" d="M92 20.0H774 M92 55.1H774 M92 90.3H774 M92 125.4H774 M92 160.6H774 M92 195.7H774 M92 230.9H774 M92 266.0H774 M92.0 20V266 M205.7 20V266 M319.3 20V266 M433.0 20V266 M546.7 20V266 M660.3 20V266 M774.0 20V266"/><line class="base-line" x1="92" y1="248.4" x2="774" y2="248.4"/></g>
                 <g class="tick"><text x="42" y="24.0">360</text><text x="42" y="59.1">320</text><text x="42" y="94.3">280</text><text x="42" y="129.4">240</text><text x="42" y="164.6">200</text><text x="42" y="199.7">160</text><text x="42" y="234.9">120</text><text x="42" y="270.0">80</text></g>
-                <defs><linearGradient id="prototype-price-gradient" x2="0" y2="1"><stop stop-color="#276d9b" stop-opacity=".3"/><stop offset="1" stop-color="#276d9b" stop-opacity="0"/></linearGradient><linearGradient id="prototype-asset-gradient" x2="0" y2="1"><stop stop-color="#147d68" stop-opacity=".3"/><stop offset="1" stop-color="#147d68" stop-opacity="0"/></linearGradient></defs>
+                <defs><linearGradient id="prototype-price-gradient" x2="0" y2="1"><stop stop-color="#9c4b0d" stop-opacity=".3"/><stop offset="1" stop-color="#9c4b0d" stop-opacity="0"/></linearGradient><linearGradient id="prototype-asset-gradient" x2="0" y2="1"><stop stop-color="#30497d" stop-opacity=".3"/><stop offset="1" stop-color="#30497d" stop-opacity="0"/></linearGradient></defs>
                 <path class="chart-area area-price" d="M92 266L92 248.4L160 229.1L230 237.0L300 195.7L370 210.7L440 151.8L510 171.1L580 121.9L650 140.4L720 63.1L774 24.4L774 266Z" fill="url(#prototype-price-gradient)"/><path class="chart-area area-asset" d="M92 266L92 248.4L160 238.8L230 245.8L300 222.1L370 236.1L440 197.5L510 209.8L580 177.3L650 199.2L720 165.8L774 156.2L774 266Z" fill="url(#prototype-asset-gradient)"/>
                 <polyline class="price-line" points="92,248.4 160,229.1 230,237.0 300,195.7 370,210.7 440,151.8 510,171.1 580,121.9 650,140.4 720,63.1 774,24.4"/><polyline class="asset-line" points="92,248.4 160,238.8 230,245.8 300,222.1 370,236.1 440,197.5 510,209.8 580,177.3 650,199.2 720,165.8 774,156.2"/>
-                <polygon class="trade-marker" fill="#147d68" stroke="#fff" data-anchor-series="totalAsset" points="440,204.5 437,193.5 443,193.5"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="20" y2="266"/><line x1="92" x2="774" y1="197.5" y2="197.5"/><circle cx="440" cy="197.5" r="3.5" fill="#147d68"/></g><text class="axis-title" transform="translate(18 144) rotate(-90)" text-anchor="middle">指数（価格の開始値・元本 = 100）</text>
+                <polygon class="trade-marker" fill="#30497d" stroke="#fff" data-anchor-series="totalAsset" points="440,204.5 437,193.5 443,193.5"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="20" y2="266"/><line x1="92" x2="774" y1="197.5" y2="197.5"/><circle cx="440" cy="197.5" r="3.5" fill="#30497d"/></g><text class="axis-title" transform="translate(18 144) rotate(-90)" text-anchor="middle">指数（価格の開始値・元本 = 100）</text>
               </svg>
             </figure>
             <figure class="chart-figure compact-indicator"><svg viewBox="0 0 800 90" role="img" aria-label="ドローダウン (%)、主図と同期した期間"><path class="grid-line" fill="none" d="M92 8H774 M92 45.0H774 M92 82H774 M92.0 8V82 M205.7 8V82 M319.3 8V82 M433.0 8V82 M546.7 8V82 M660.3 8V82 M774.0 8V82"/><text class="tick" x="42" y="12">0</text><text class="tick" x="42" y="49.0">−15</text><text class="tick" x="42" y="86">−30</text><polyline fill="none" stroke="#a7373a" stroke-width="1.2" vector-effect="non-scaling-stroke" points="92,30.2 160,45.0 230,56.1 300,37.6 370,59.8 440,26.5 510,74.6 580,33.9 650,41.3 720,19.1 774,30.2"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="8" y2="82"/></g></svg></figure>
@@ -541,22 +555,35 @@
         root.querySelector("#prototype-symbol").value = button.textContent;
       }));
       let pinnedSeries = null;
-      root.querySelectorAll("[data-highlight]").forEach((item) => {
-        const figure = item.closest("figure");
-        const show = id => {
+      let hoveredSeries = null;
+      let focusedSeries = null;
+      const applySeries = () => {
+        const id = hoveredSeries ?? focusedSeries ?? pinnedSeries;
+        root.querySelectorAll(".chart-figure").forEach(figure => {
           figure.classList.remove("highlight-price", "highlight-asset");
           if (id) figure.classList.add("highlight-" + id);
-        };
-        item.addEventListener("mouseenter", () => { show(item.dataset.highlight); figure.classList.toggle("inspecting-asset", item.dataset.highlight === "asset"); });
-        item.addEventListener("mouseleave", () => { show(pinnedSeries); figure.classList.remove("inspecting-asset"); });
-        item.addEventListener("focus", () => { show(item.dataset.highlight); figure.classList.toggle("inspecting-asset", item.dataset.highlight === "asset"); });
-        item.addEventListener("blur", () => { show(pinnedSeries); figure.classList.remove("inspecting-asset"); });
-        item.addEventListener("click", () => {
+          figure.classList.toggle("inspecting-asset", id === "asset");
+        });
+        root.querySelectorAll("[data-highlight]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.highlight === pinnedSeries)));
+      };
+      root.querySelectorAll("[data-highlight]").forEach(item => {
+        item.addEventListener("mouseenter", () => { hoveredSeries = item.dataset.highlight; applySeries(); });
+        item.addEventListener("mouseleave", () => { hoveredSeries = null; applySeries(); });
+        item.addEventListener("focus", () => { focusedSeries = item.dataset.highlight; applySeries(); });
+        item.addEventListener("blur", () => { focusedSeries = null; applySeries(); });
+        item.addEventListener("click", event => {
           pinnedSeries = pinnedSeries === item.dataset.highlight ? null : item.dataset.highlight;
-          root.querySelectorAll("[data-highlight]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.highlight === pinnedSeries)));
-          show(pinnedSeries);
+          if (event.detail > 0) focusedSeries = null;
+          applySeries();
         });
       });
+      root.querySelectorAll("[data-table-height-toggle]").forEach(button => button.addEventListener("click", () => {
+        const expanded = button.getAttribute("aria-expanded") !== "true";
+        button.setAttribute("aria-expanded", String(expanded));
+        button.setAttribute("aria-label", button.dataset.tableHeightToggle + (expanded ? "の高さを戻す" : "を全行表示"));
+        button.closest(".comparison-table-wrap").classList.toggle("is-height-expanded", expanded);
+        button.querySelector("path").setAttribute("d", expanded ? "M3 7h4V3m6 0v4h4M3 13h4v4m6 0v-4h4" : "M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4");
+      }));
       root.querySelectorAll(".signal-switch-row button").forEach((button) => button.addEventListener("click", () => {
         const enabled = button.getAttribute("aria-checked") !== "true";
         button.setAttribute("aria-checked", String(enabled));

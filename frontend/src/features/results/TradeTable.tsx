@@ -1,8 +1,11 @@
+import { useId, useState } from "react";
 import type { StrategyStatus, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatCurrency, formatQuantity } from "./format";
+import { TableExpandButton } from "./TableExpandButton";
 
 interface TradeTableProps {
+  busy?: boolean;
   locale: Locale;
   status: StrategyStatus | undefined;
   trades: Trade[];
@@ -19,16 +22,23 @@ function signalLabel(locale: Locale, signalId: string | null | undefined): strin
   return label === key ? translate(locale, "trade.signalOther") : label;
 }
 
-export function TradeTable({ locale, status, trades }: TradeTableProps) {
+export function TradeTable({ locale, status, trades, busy = false }: TradeTableProps) {
+  const [heightExpanded, setHeightExpanded] = useState(false);
+  const scrollId = useId();
   if (!tradeStatusIsComplete(status)) {
     return <p className="metric-empty" role="status">{translate(locale, "trade.unavailable")}</p>;
   }
   return (
     <div className="trade-table-content">
-      <div className="data-table-scroll trade-table-scroll"
+      <div id={scrollId} className={`data-table-scroll trade-table-scroll${heightExpanded ? " is-height-expanded" : ""}`}
         tabIndex={0}
         role="region"
         aria-label={translate(locale, "trade.tableTitle", { count: String(trades.length) })}>
+        <div className="table-height-controls">
+          <TableExpandButton locale={locale} tableName={translate(locale, "results.tab.trades")}
+            controls={scrollId} expanded={heightExpanded} disabled={busy || trades.length === 0}
+            onToggle={() => setHeightExpanded(previous => !previous)} />
+        </div>
         <table className="data-table trade-table">
           <caption className="sr-only">
             {translate(locale, "trade.tableTitle", { count: String(trades.length) })}

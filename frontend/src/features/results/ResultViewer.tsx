@@ -9,6 +9,7 @@ import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
 import { resultColor } from "./colors";
 import { savedTechnicalIndicators } from "./technicalIndicators";
+import { DEFAULT_COMPARISON_SORT, sortedComparisons } from "./comparisonModel";
 
 interface ResultViewerProps {
   busy?: boolean;
@@ -23,6 +24,9 @@ export function ResultViewer({ locale, state, dispatch, error, busy = false }: R
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const strategyRuns = run?.result?.strategyRuns ?? [];
   const selectedIds = state.selectedResultIds;
+  const [comparisonView, setComparisonView] = useState({ runId: run?.runId, sort: DEFAULT_COMPARISON_SORT });
+  const comparisonSort = comparisonView.runId === run?.runId ? comparisonView.sort : DEFAULT_COMPARISON_SORT;
+  const orderedResults = sortedComparisons(strategyRuns, comparisonSort, locale);
   const [candidateView, setCandidateView] = useState<{ runId: string; parentId: string; result: StrategyRun } | null>(null);
   const [candidatePending, setCandidatePending] = useState(false);
   const [candidateErrorKey, setCandidateErrorKey] = useState<string | null>(null);
@@ -79,6 +83,8 @@ export function ResultViewer({ locale, state, dispatch, error, busy = false }: R
         state={state}
         dispatch={dispatch}
         error={error}
+        comparisonSort={comparisonSort}
+        onComparisonSortChange={sort => setComparisonView({ runId: run?.runId, sort })}
         candidateResult={candidateResult ?? null}
         candidatePending={candidatePending}
         candidateErrorKey={candidateErrorKey}
@@ -107,6 +113,7 @@ export function ResultViewer({ locale, state, dispatch, error, busy = false }: R
               totalAssetResultId={chartResult.id}
               showFocusedAsset={Boolean(candidateResult) || selectedIds.includes(chartResult.id)}
               comparisonSeries={selectedComparisons}
+              strategyOrder={orderedResults.map(result => candidateResult && result.id === focusedResult?.id ? candidateResult.id : result.id)}
               totalAssetColor={focusedIndex >= 0 ? resultColor(focusedIndex) : undefined}
               vixSymbol={volatility[0]?.symbol}
               vixThreshold={volatility[0]?.threshold}

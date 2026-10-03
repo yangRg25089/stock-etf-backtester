@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatCurrency, formatMultiple, formatPercent } from "./format";
 import { resultColor } from "./colors";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
 import { COMPARISON_COLUMNS, DEFAULT_COMPARISON_SORT, sortedComparisons, type ComparisonSort, type ComparisonSortKey } from "./comparisonModel";
+import { TableExpandButton } from "./TableExpandButton";
 
 const useRowLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -13,6 +14,8 @@ interface ResultComparisonProps {
   locale: Locale;
   strategyRuns: StrategyRun[];
   selectedResultIds?: string[];
+  sort?: ComparisonSort;
+  onSortChange?(sort: ComparisonSort): void;
   onFocus(id: string): void;
   onToggleSelection?(id: string): void;
 }
@@ -22,10 +25,13 @@ export function ResultComparison({
   locale,
   strategyRuns,
   selectedResultIds = [],
+  sort = DEFAULT_COMPARISON_SORT,
+  onSortChange = () => undefined,
   onFocus,
   onToggleSelection = () => undefined,
 }: ResultComparisonProps) {
-  const [sort, setSort] = useState<ComparisonSort>(DEFAULT_COMPARISON_SORT);
+  const [heightExpanded, setHeightExpanded] = useState(false);
+  const scrollId = useId();
   const rows = useRef(new Map<string, HTMLTableRowElement>());
   const previousTops = useRef(new Map<string, number>());
   const ordered = sortedComparisons(strategyRuns, sort, locale);
@@ -46,16 +52,21 @@ export function ResultComparison({
   }, [ordered]);
   const changeSort = (key: ComparisonSortKey) => {
     if (busy) return;
-    setSort(current => ({ key, direction: current.key === key
-      ? current.direction === "ascending" ? "descending" : "ascending"
-      : key === "strategy" || key === "maximumDrawdown" ? "ascending" : "descending" }));
+    onSortChange({ key, direction: sort.key === key
+      ? sort.direction === "ascending" ? "descending" : "ascending"
+      : key === "strategy" || key === "maximumDrawdown" ? "ascending" : "descending" });
   };
   if (strategyRuns.length === 0) {
     return <p className="metric-empty">{translate(locale, "results.noComparisons")}</p>;
   }
   return (
-    <div className="comparison-table-scroll" tabIndex={0} role="region"
+    <div id={scrollId} className={`comparison-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} tabIndex={0} role="region"
       aria-label={translate(locale, "results.comparisonTitle")}>
+      <div className="table-height-controls">
+        <TableExpandButton locale={locale} tableName={translate(locale, "results.tab.comparison")}
+          controls={scrollId} expanded={heightExpanded} disabled={busy}
+          onToggle={() => setHeightExpanded(previous => !previous)} />
+      </div>
       <table className="comparison-table">
         <caption className="sr-only">{translate(locale, "results.comparisonTitle")}</caption>
         <thead>

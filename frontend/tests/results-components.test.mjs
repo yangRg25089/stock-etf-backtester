@@ -76,6 +76,23 @@ test("comparison rows expose independent curve selection and stable row colors",
   assert.match(html, /aria-pressed="false"><span>每月定额定投/);
 });
 
+test("comparison uses the supplied shared sort without changing identity colors", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultComparison, {
+    locale: "zh", strategyRuns: results,
+    sort: { key: "endingEquity", direction: "descending" }, onSortChange() {}, onFocus() {},
+  }));
+  assert.ok(html.indexOf("每月定额定投") < html.indexOf("波动率信号定投"));
+  assert.match(html, /aria-sort="descending"[^>]*>.*期末资产/);
+});
+
+test("comparison header exposes an accessible height expansion control and locks it during runs", () => {
+  const render = busy => renderToStaticMarkup(React.createElement(ResultComparison, {
+    locale: "zh", strategyRuns: results, busy, onFocus() {},
+  }));
+  assert.match(render(false), /table-expand-button[^>]*aria-label="展开全部策略比较"[^>]*aria-expanded="false"[^>]*aria-controls="[^"]+"/);
+  assert.match(render(true), /table-expand-button[^>]*disabled=""/);
+});
+
 test("unselected comparison rows never receive a focus background", () => {
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh", strategyRuns: results, selectedResultIds: [], onFocus() {}, onToggleSelection() {},

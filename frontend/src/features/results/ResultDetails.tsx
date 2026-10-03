@@ -10,6 +10,7 @@ import { ResultComparison } from "./ResultSummary";
 import { SearchResults } from "./SearchResults";
 import { TradeTable } from "./TradeTable";
 import { resultDisplayName } from "./model";
+import { DEFAULT_COMPARISON_SORT, type ComparisonSort } from "./comparisonModel";
 
 type ResultTab = "comparison" | "trades" | "search";
 
@@ -21,6 +22,8 @@ interface ResultDetailsProps {
   state: WorkspaceState;
   dispatch(action: WorkspaceAction): void;
   error: RunApiError | null;
+  comparisonSort?: ComparisonSort;
+  onComparisonSortChange?(sort: ComparisonSort): void;
   candidateResult?: StrategyRun | null;
   candidatePending?: boolean;
   candidateErrorKey?: string | null;
@@ -41,6 +44,8 @@ export function ResultDetails({
   state,
   dispatch,
   error,
+  comparisonSort = DEFAULT_COMPARISON_SORT,
+  onComparisonSortChange,
   candidateResult = null,
   candidatePending = false,
   candidateErrorKey = null,
@@ -166,6 +171,8 @@ export function ResultDetails({
                     locale={locale}
                     strategyRuns={strategyRuns}
                     selectedResultIds={state.selectedResultIds ?? []}
+                    sort={comparisonSort}
+                    onSortChange={onComparisonSortChange}
                     onFocus={(id) => dispatch({ type: "result.focus", id })}
                     onToggleSelection={(id) => dispatch({ type: "result.toggleSelection", id })}
                   />
@@ -178,6 +185,7 @@ export function ResultDetails({
                     {tradeOwnerName}{candidateNumber && <span> · #{candidateNumber}</span>}
                   </h4>
                   <TradeTable
+                    busy={busy}
                     locale={locale}
                     status={displayedResult?.status}
                     trades={displayedResult?.trades ?? []}

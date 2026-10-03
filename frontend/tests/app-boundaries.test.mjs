@@ -21,7 +21,7 @@ test("startup rejects a missing root with an explicit error before mounting Reac
 
 test("shared focus, muted controls and errors use semantic color tokens", () => {
   const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-  for (const color of ["#148b75", "#126754", "#e9eeeb", "#125c4e", "#0f6856", "#fffafa", "#dfb8b9", "#67282b"]) {
-    assert.equal(css.split(color).length - 1, 1, `${color} should be defined once`);
+  for (const color of ["#253c6d", "#30497d", "#455b8a", "#f2842f", "#e8ecf3", "#9c4b0d", "#fffafa", "#dfb8b9", "#67282b"]) {
+    assert.equal((css.match(new RegExp(`${color}\\b`, "g")) ?? []).length, 1, `${color} should be defined once`);
   }
 });

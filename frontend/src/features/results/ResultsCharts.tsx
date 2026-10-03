@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { DailyAsset, SignalEvaluation, TechnicalIndicatorSeries, Trade } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { ChartCrosshair, ChartReadout, type ChartCursor, type CursorReading } from "./ChartCrosshair";
@@ -6,6 +6,7 @@ import { useChartInteraction, type ChartInteractionProps } from "./useChartInter
 import { tradeMarkerPoints } from "./chartTradeMarkers";
 import { chartSegments, technicalChartLines, type TechnicalChartLine } from "./technicalIndicators";
 import { isVolatilityObservation, type SavedVolatilitySeries } from "./model";
+import { PRICE_COLOR, resultColor } from "./colors";
 import {
   normalizeSeriesToBase100,
   normalizeValueToBase100,
@@ -37,6 +38,7 @@ interface ResultsChartsProps {
   trades: Trade[];
   signals: SignalEvaluation[];
   comparisonSeries?: StrategyChartSeries[];
+  strategyOrder?: string[];
   totalAssetColor?: string;
   totalAssetLabel?: string;
   totalAssetResultId?: string;
@@ -77,8 +79,8 @@ interface ChartScale {
 }
 
 const SERIES: SeriesDefinition[] = [
-  { id: "price", color: "#276d9b", labelKey: "chart.price" },
-  { id: "totalAsset", color: "#147d68", labelKey: "chart.totalAsset" },
+  { id: "price", color: PRICE_COLOR, labelKey: "chart.price" },
+  { id: "totalAsset", color: resultColor(0), labelKey: "chart.totalAsset" },
   { id: "drawdown", color: "#a7373a", labelKey: "chart.drawdown" },
   { id: "vix", color: "#7656a6", labelKey: "chart.vix" },
 ];
@@ -312,16 +314,22 @@ function seriesLabel(locale: Locale, series: SeriesDefinition | IndicatorSeriesD
   return `${series.label ?? translate(locale, series.labelKey)}${units ? ` (${units})` : ""}`;
 }
 
-function useSeriesHighlight() {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  function toggleSelected(id: string, pointer: boolean) {
-    if (pointer) setFocusedId(null);
-    setSelectedId((previous) => previous === id ? null : id);
+function useSeriesHighlight(visibleIds: ReadonlySet<string>) {
+  const [state, setState] = useState({ hoveredId: null as string | null, focusedId: null as string | null, selectedId: null as string | null });
+  const visible = (id: string | null) => id && visibleIds.has(id) ? id : null;
+  const hoveredId = visible(state.hoveredId);
+  const focusedId = visible(state.focusedId);
+  const selectedId = visible(state.selectedId);
+  useEffect(() => {
+    setState(previous => previous.hoveredId === hoveredId && previous.focusedId === focusedId && previous.selectedId === selectedId
+      ? previous : { hoveredId, focusedId, selectedId });
+  }, [hoveredId, focusedId, selectedId]);
+  function inspect(id: string | null, source: keyof typeof state, pointer = false) {
+    setState(previous => source === "selectedId"
+      ? { ...previous, selectedId: previous.selectedId === id ? null : id, focusedId: pointer ? null : previous.focusedId }
+      : { ...previous, [source]: id });
   }
-  return { highlightedId: hoveredId ?? focusedId ?? selectedId, inspectedId: hoveredId ?? focusedId,
-    selectedId, toggleSelected, setHoveredId, setFocusedId };
+  return { highlightedId: hoveredId ?? focusedId ?? selectedId, selectedId, inspect };
 }
 
 function SeriesLegend({
@@ -336,19 +344,21 @@ function SeriesLegend({
       {entries.map((definition) => (
         <button
           type="button"
-          className={`overlay-legend-item${highlight.highlightedId === definition.id ? " is-highlighted" : ""}`}
+          className={`overlay-legend-item${highlight.highlightedId === definition.id ? " is-highlighted" : ""}${highlight.selectedId === definition.id ? " is-selected" : ""}`}
           aria-pressed={highlight.selectedId === definition.id}
+          style={{ "--series-color": definition.color } as CSSProperties}
           key={definition.id}
           data-series={definition.seriesId ?? definition.id}
           data-result-id={definition.resultId}
-          onMouseEnter={() => highlight.setHoveredId(definition.id)}
-          onMouseLeave={() => highlight.setHoveredId(null)}
-          onFocus={() => highlight.setFocusedId(definition.id)}
-          onBlur={() => highlight.setFocusedId(null)}
-          onClick={event => highlight.toggleSelected(definition.id, event.detail > 0)}
+          onMouseEnter={() => highlight.inspect(definition.id, "hoveredId")}
+          onMouseLeave={() => highlight.inspect(null, "hoveredId")}
+          onFocus={() => highlight.inspect(definition.id, "focusedId")}
+          onBlur={() => highlight.inspect(null, "focusedId")}
+          onClick={event => highlight.inspect(definition.id, "selectedId", event.detail > 0)}
         >
           <i className="overlay-legend-swatch" style={{ backgroundColor: definition.color }} aria-hidden="true" />
           {definition.label}
+          <span className="overlay-legend-selection" aria-hidden="true">{highlight.selectedId === definition.id ? "✓" : ""}</span>
         </button>
       ))}
     </div>
@@ -525,6 +535,7 @@ function OverlayChart({
   samplesById,
   normalizedById,
   comparisonSeries,
+  strategyOrder,
   currency,
   viewport,
   chartInteractionProps,
@@ -540,6 +551,7 @@ function OverlayChart({
   samplesById: Map<ChartSeriesId, SeriesSample[]>;
   normalizedById: Map<ChartSeriesId, NormalizedSeries | null>;
   comparisonSeries: StrategyChartSeries[];
+  strategyOrder: string[];
   currency?: string;
   viewport: ChartViewport;
   chartInteractionProps: ChartInteractionProps;
@@ -548,7 +560,6 @@ function OverlayChart({
   technicalLines: TechnicalChartLine[];
 }) {
   const geometry = MAIN_WITHOUT_DATES;
-  const highlight = useSeriesHighlight();
   const gradientId = `chart-gradient-${useId()}`;
   const normalized = series.flatMap((definition) => {
     const result = normalizedById.get(definition.id);
@@ -567,15 +578,6 @@ function OverlayChart({
     });
     return points.length > 0 ? [{ ...comparison, result: { ...result, points } }] : [];
   });
-  if (normalized.length === 0 && comparisonNormalized.length === 0) {
-    return (
-      <p className="chart-empty">
-        {translate(locale, "chart.noOverlaySeries")}
-      </p>
-    );
-  }
-
-  const dateCount = assets.length;
   const priceBaseline = normalizedById.get("price")?.baseValue;
   const technicalNormalized = technicalLines.filter(line => line.kind !== "rsi").map(line => ({ ...line,
     points: line.samples.flatMap(point => {
@@ -583,6 +585,14 @@ function OverlayChart({
       return value === null ? [] : [{ ...point, indexValue: value }];
     }),
   }));
+  const visibleIdentities = new Set([...normalized.map(({ definition }) => seriesIdentity(definition)), ...comparisonNormalized.map(comparison => comparison.id), ...technicalNormalized.map(line => line.id)]);
+  const highlight = useSeriesHighlight(visibleIdentities);
+  const highlightedId = highlight.highlightedId;
+  if (normalized.length === 0 && comparisonNormalized.length === 0) {
+    return <p className="chart-empty">{translate(locale, "chart.noOverlaySeries")}</p>;
+  }
+
+  const dateCount = assets.length;
   const range = visibleIndexRange(dateCount, viewport);
   const visibleNormalized = normalized.map(({ definition, result }) => ({
     definition,
@@ -601,12 +611,10 @@ function OverlayChart({
   const descriptionId = "chart-description-overlay";
   const primaryAsset = normalized.find(({ definition }) => definition.id === "totalAsset");
   const tradeSeries = [
-    ...(primaryAsset ? [{ id: seriesIdentity(primaryAsset.definition), label: seriesLabel(locale, primaryAsset.definition, currency),
-      color: primaryAsset.definition.color, result: primaryAsset.result, trades }] : []),
+    ...(primaryAsset ? [{ id: seriesIdentity(primaryAsset.definition), label: primaryAsset.definition.label ?? translate(locale, primaryAsset.definition.labelKey),
+      color: primaryAsset.definition.color, result: primaryAsset.result, trades, dailyAssets: assets }] : []),
     ...comparisonNormalized.map(comparison => ({ ...comparison, trades: comparison.trades ?? [] })),
   ];
-  const visibleIdentities = new Set([...normalized.map(({ definition }) => seriesIdentity(definition)), ...comparisonNormalized.map(comparison => comparison.id), ...technicalNormalized.map(line => line.id)]);
-  const highlightedId = highlight.highlightedId && visibleIdentities.has(highlight.highlightedId) ? highlight.highlightedId : null;
   const startDate = assets[Math.round(range.start)]?.date ?? "";
   const endDate = assets[Math.round(range.end)]?.date ?? "";
   const plotHeight = geometry.height - geometry.top - geometry.bottom;
@@ -629,7 +637,7 @@ function OverlayChart({
     const point = line.points.find(sample => sample.index === cursor?.index);
     return point ? [{ y: scale.y(point.indexValue), color: line.color }] : [];
   });
-  const readings: CursorReading[] = normalized.map(({ definition, result }) => {
+  const readings: CursorReading[] = normalized.filter(({ definition }) => definition.id === "price").map(({ definition, result }) => {
     const point = result.points.find((sample) => sample.index === readingIndex);
     const rawPoint = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
     return {
@@ -638,7 +646,6 @@ function OverlayChart({
       color: definition.color,
     };
   });
-  readings.push({ label: translate(locale, "chart.principal"), value: preciseValue(numericValue(assets[readingIndex]?.totalContributed), locale, currency) });
   for (const definition of indicatorSeries) {
     const point = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
     readings.push({ label: definition.label ?? translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color });
@@ -647,32 +654,38 @@ function OverlayChart({
     const point = comparison.samples.find(sample => sample.index === readingIndex);
     readings.push({ label: comparison.label, value: point ? formatAxisValue(point.value, locale, "vix") : "—", color: comparison.color });
   }
-  for (const comparison of comparisonNormalized) {
-    const point = comparison.result.points.find((sample) => sample.index === readingIndex);
-    readings.push({
-      label: comparison.label,
-      value: translate(locale, "chart.relativeIndexValue", { value: point?.indexValue.toFixed(1) ?? "—" }),
-      color: comparison.color,
-    });
-  }
   for (const line of technicalLines) {
     const point = line.samples.find(sample => sample.index === readingIndex);
     readings.push({ label: line.label, value: preciseValue(point?.value, locale, line.kind === "rsi" ? undefined : currency), color: line.color });
   }
+  const ranks = new Map(strategyOrder.map((id, index) => [id, index + 1]));
+  const strategyReadings = tradeSeries.map(strategy => {
+    const point = strategy.result.points.find(sample => sample.index === readingIndex);
+    const asset = strategy.dailyAssets.find(asset => asset.date === readingDate);
+    return {
+      id: strategy.id, label: strategy.label, color: strategy.color, rank: ranks.get(strategy.id),
+      readings: [
+        { label: translate(locale, "chart.asset"), value: preciseValue(numericValue(asset?.totalAsset), locale, currency) },
+        { label: translate(locale, "chart.principal"), value: preciseValue(numericValue(asset?.totalContributed), locale, currency) },
+        { label: translate(locale, "chart.principalIndex"), value: point?.indexValue.toFixed(1) ?? "—" },
+      ],
+    };
+  }).sort((left, right) => (left.rank ?? Infinity) - (right.rank ?? Infinity));
   return (
     <figure className="chart-panel chart-overlay" data-window-start={viewport.start} data-window-end={viewport.end}>
       <figcaption className="core-chart-heading">
         <span>{translate(locale, "chart.overlayTitle")}</span>
         <SeriesLegend locale={locale} entries={[
           ...normalized.map(({ definition }) => ({ ...definition, id: seriesIdentity(definition), seriesId: definition.id,
-            label: definition.label ? seriesLabel(locale, definition, currency) : axisTitle(locale, definition.id, currency) })),
+            label: definition.label ?? axisTitle(locale, definition.id, currency) })),
           ...comparisonNormalized.map(comparison => ({ ...comparison, resultId: comparison.id })),
           ...technicalNormalized,
         ]} highlight={highlight} />
       </figcaption>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
-      <div className="chart-core-readout-row" tabIndex={0} role="group" aria-label={translate(locale, "chart.savedReadings")}>
-        <ChartReadout date={readingDate} readings={readings} />
+      <div className="chart-core-readout-row" tabIndex={0} role="group" aria-label={translate(locale, "chart.savedReadings")}
+        style={{ "--chart-readout-lines": Math.min(strategyReadings.length, 4) } as CSSProperties}>
+        <ChartReadout date={readingDate} readings={readings} strategies={strategyReadings} />
       </div>
       <div className="chart-canvas">
         <svg
@@ -793,7 +806,7 @@ function OverlayChart({
             )))}
           </g>
           {/* Keep edge triangles complete while limiting their anchors to the visible window. */}
-          {tradeSeries.filter(strategy => strategy.id === highlight.inspectedId).flatMap(strategy => {
+          {tradeSeries.filter(strategy => strategy.id === highlightedId).flatMap(strategy => {
             const points = strategy.result.points.filter(point => point.index >= range.start && point.index <= range.end)
               .map(point => ({ date: point.date, x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }));
             return tradeMarkerPoints(strategy.trades, points).map(({ trade, index, price, coordinates }) => (
@@ -818,6 +831,7 @@ export function ResultsCharts({
   trades,
   signals = [],
   comparisonSeries = [],
+  strategyOrder = [],
   totalAssetColor,
   totalAssetLabel,
   totalAssetResultId,
@@ -999,6 +1013,7 @@ export function ResultsCharts({
               samplesById={samplesById}
               normalizedById={normalizedById}
               comparisonSeries={visibleComparisons}
+              strategyOrder={strategyOrder}
               currency={currency}
               viewport={viewport}
               chartInteractionProps={chartInteractionProps}

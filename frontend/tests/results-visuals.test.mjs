@@ -65,6 +65,25 @@ test("shared chart details are visible before interaction and use the last saved
   assert.doesNotMatch(html, /class="chart-crosshair"/);
 });
 
+test("chart readouts separate market data from strategy rows in comparison order", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh", dailyAssets, trades: [], signals: [], visibleSeriesIds: ["price", "totalAsset", "drawdown"],
+    totalAssetResultId: "first", totalAssetLabel: "策略甲", strategyOrder: ["second", "first"],
+    comparisonSeries: [{ id: "second", label: "策略乙", color: "#395cb7", dailyAssets: dailyAssets.map(asset => ({ ...asset, totalAsset: "140", totalContributed: "120" })) }],
+    onSeriesChange() {},
+  }));
+  const market = html.match(/<div class="chart-market-readout"[^>]*>(.*?)<\/div>/)[1];
+  assert.match(market, /标的收盘价/);
+  assert.match(market, /回撤/);
+  assert.doesNotMatch(market, /策略甲|策略乙|本金/);
+  const rows = [...html.matchAll(/<div class="chart-strategy-readout" data-result-id="([^"]+)"[^>]*>(.*?)<\/div>/g)];
+  assert.deepEqual(rows.map(row => row[1]), ["second", "first"]);
+  assert.match(rows[0][2], /140\.00 USD/);
+  assert.match(rows[0][2], /120\.00 USD/);
+  assert.match(rows[0][2], /116\.7/);
+  assert.match(rows[1][2], /104\.00 USD/);
+});
+
 test("trades anchor to the contributed-capital asset curve even when price is visible", () => {
   const assets = dailyAssets.map((asset, index) => ({ ...asset, totalAsset: ["100", "198", "203"][index], totalContributed: ["100", "200", "200"][index] }));
   const render = visibleSeriesIds => renderToStaticMarkup(React.createElement(ResultsCharts, {
@@ -192,7 +211,7 @@ test("all financial charts use readable lines and idle charts hide saved trade m
   assert.match(html, /chart-axis-title/);
   assert.match(html, /class="chart-toolbar">[\s\S]*class="chart-controls"[\s\S]*class="chart-range-controls"/);
   assert.match(html, /表示期間（全図共通）/);
-  assert.match(html, /価格 \(USD\)/);
+  assert.match(html, /銘柄の終値 \(USD\)/);
   assert.match(html, /総資産/);
   assert.match(html, /ドローダウン/);
   assert.match(html, /class="chart-linked-stack"/);
@@ -213,7 +232,7 @@ test("saved snapshots render a close-price trend line without requiring OHLC", (
 
   assert.match(html, /overlay-series overlay-price/);
   assert.doesNotMatch(html, /class="candlestick candlestick-/);
-  assert.match(html, /<polyline[^>]*tabindex="0"[^>]*aria-label="価格 \(USD\) · 2024-01-04/);
+  assert.match(html, /<polyline[^>]*tabindex="0"[^>]*aria-label="銘柄の終値 \(USD\) · 2024-01-04/);
 });
 
 test("linked view keeps a core comparison and natural-unit indicators underneath", () => {
@@ -248,7 +267,7 @@ test("linked view keeps a core comparison and natural-unit indicators underneath
   assert.match(html, /chart-panel chart-drawdown is-compact/);
   assert.match(html, /chart-panel chart-vix is-compact/);
   assert.doesNotMatch(html, /overlay-drawdown|overlay-vix/);
-  assert.match(html, /aria-label="价格 \(USD\) · 2024-01-04 · US\$80/);
+  assert.match(html, /aria-label="标的收盘价 \(USD\) · 2024-01-04 · US\$80/);
 });
 
 test("core comparison starts at 100 and keeps original total-asset currency in the legend", () => {
@@ -421,6 +440,13 @@ test("trade details show execution fields and do not call failed results zero-tr
   }));
   assert.doesNotMatch(failed, /还没有交易/);
   assert.match(failed, /交易明细不可用/);
+});
+
+test("trade height expansion is disabled for empty trades and while calculations run", () => {
+  const render = (trades, busy) => renderToStaticMarkup(React.createElement(TradeTable, { locale: "ja", status: "completed", trades, busy }));
+  assert.match(render(trades, false), /table-expand-button[^>]*aria-label="取引明細を全行表示"[^>]*aria-expanded="false"/);
+  assert.match(render([], false), /table-expand-button[^>]*disabled=""/);
+  assert.match(render(trades, true), /table-expand-button[^>]*disabled=""/);
 });
 
 test("comparison curves default to thin strokes and legends support keyboard highlight", () => {

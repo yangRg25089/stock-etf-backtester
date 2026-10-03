@@ -36,10 +36,10 @@ test("selected volatility survives focus, column sorting preserves colors and as
   await expect(page.locator("polyline.overlay-totalAsset")).toHaveAttribute("stroke", color);
   const headers = page.locator(".comparison-table thead th");
   for (let index=0; index<9; index++) {
-    await headers.nth(index).locator("button").click();
+    await headers.nth(index).locator(".comparison-sort").click();
     await expect(headers.nth(index)).toHaveAttribute("aria-sort", /ascending|descending/);
     const firstDirection = await headers.nth(index).getAttribute("aria-sort");
-    await headers.nth(index).locator("button").press("Enter");
+    await headers.nth(index).locator(".comparison-sort").press("Enter");
     await expect(headers.nth(index)).toHaveAttribute("aria-sort", firstDirection === "ascending" ? "descending" : "ascending");
     await expect(page.locator(".comparison-table th[aria-sort]")).toHaveCount(1);
     expect(await ma.evaluate(node => node.style.getPropertyValue("--result-color"))).toBe(color);

@@ -175,22 +175,36 @@ test("keyboard focus, skip navigation, and reduced motion remain visible and sup
 });
 
 test("semantic text colors meet WCAG AA contrast against their surfaces", () => {
+  const token = name => {
+    const value = css.match(new RegExp(`--app-${name}:\\s*([^;]+)`, "i"))[1].trim();
+    const reference = value.match(/^var\(--app-([\w-]+)\)$/);
+    if (reference) return token(reference[1]);
+    return value.length === 4 ? `#${[...value.slice(1)].map(channel => channel.repeat(2)).join("")}` : value;
+  };
   const pairs = [
-    ["#ffffff", "#147d68"],
-    ["#192321", "#f4f6f5"],
-    ["#5d6a65", "#f4f6f5"],
-    ["#147d68", "#ffffff"],
-    ["#43524d", "#e9eeeb"],
-    ["#125c4e", "#e5f3ef"],
+    [token("surface"), token("accent")],
+    [token("foreground"), token("bg")],
+    [token("muted"), token("bg")],
+    [token("accent"), token("surface")],
+    [token("foreground"), token("control-muted-bg")],
+    [token("accent-text"), token("accent-soft")],
+    [token("action-text"), token("action")],
+    [token("foreground"), token("selection-bg")],
     ["#74460e", "#faedcf"],
     ["#842a2d", "#f6e0e1"],
     ["#825013", "#f7ecd8"],
-    ["#3e6258", "#e5f3ef"],
   ];
   for (const [foreground, background] of pairs) {
     assert.ok(contrastRatio(foreground, background) >= 4.5, `${foreground} on ${background} is below 4.5:1`);
   }
-  assert.ok(contrastRatio("#148b75", "#f4f6f5") >= 3, "focus outline should remain visible as a UI indicator");
+  assert.ok(contrastRatio(token("focus"), token("bg")) >= 3, "focus outline should remain visible as a UI indicator");
+});
+
+test("the application and prototype share the requested blue and orange palette", () => {
+  for (const color of ["#253c6d", "#30497d", "#455b8a", "#f2842f"]) {
+    assert.ok(css.toLowerCase().includes(color));
+    assert.ok(prototype.toLowerCase().includes(color));
+  }
 });
 
 test("coarse-pointer workbench divider keeps a 44px hit area", () => {
@@ -260,7 +274,7 @@ test("primary workbench actions use the accent fill and selected chart modes are
   assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-bg\)/);
   assert.doesNotMatch(blockFor(".workbench-config-toggle:hover svg,\n.workbench-config-toggle:focus-visible svg"), /background:|color:/);
   assert.match(css, /\.workbench-config-toggle:hover svg[\s\S]*?stroke-width:\s*2\.8/s);
-  assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent\)/);
+  assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-action\)/);
   assert.match(blockFor(".chart-wheel-zoom-toggle[aria-pressed=\"true\"]"), /background:\s*var\(--app-accent\)/);
 });
 
@@ -269,15 +283,15 @@ test("base button styles precede and preserve emphasized action colors", () => {
   for (const selector of [".workbench-config-toggle", ".shared-settings-open-button", ".add-strategy-button", ".button-primary"]) {
     assert.ok(css.indexOf(`\n${selector} {`) > buttonRule, `${selector} follows base button styles`);
   }
-  assert.match(blockFor(".button-primary"), /background:\s*var\(--app-accent\)/);
+  assert.match(blockFor(".button-primary"), /background:\s*var\(--app-action\)/);
   assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-bg\)/);
-  assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-accent\)/);
+  assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-action\)/);
   assert.doesNotMatch(app, /shared-settings-summary-icon|local-tag/);
 });
 
 test("wheel zoom mode and primary run icon have clear visual affordances", () => {
   assert.match(runActions, /className="run-play-icon"/);
-  assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-accent\)/);
+  assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-action\)/);
   assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*44px/s);
   assert.match(css, /\.chart-wheel-zoom-toggle\[aria-pressed="true"\]/);
   assert.match(css, /\.shared-settings-dialog/);
@@ -303,7 +317,7 @@ test("linked figures have no separator and keep one shared readout under the cor
   const compact = blockFor(".workbench-results .chart-linked-stack .chart-panel.is-compact");
   assert.doesNotMatch(compact, /border-top|padding-top:\s*[1-9]/);
   const charts = readFileSync(new URL("../src/features/results/ResultsCharts.tsx", import.meta.url), "utf8");
-  assert.match(css, /\.chart-core-readout-row\s*\{[^}]*height:\s*64px/s);
+  assert.match(css, /\.chart-core-readout-row\s*\{[^}]*height:\s*calc\(40px \+ var\(--chart-readout-lines, 1\) \* 24px\)/s);
   assert.match(css, /\.chart-crosshair-readout\s*\{[^}]*position:\s*static/s);
   assert.doesNotMatch(charts, /chart-indicator-readout-row/);
   assert.equal((charts.match(/<ChartReadout\b/g) ?? []).length, 1);
