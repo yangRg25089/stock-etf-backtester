@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic import ValidationError
@@ -652,6 +653,111 @@ def test_yahoo_market_adapter_uses_explicit_price_bases_and_inclusive_range() ->
         for diagnostic in result.diagnostics
     )
     assert date(2024, 2, 2) in result.missing_market_sessions
+
+
+@pytest.mark.parametrize(
+    "first_trade",
+    [
+        datetime(2024, 1, 31, 9, 30, tzinfo=ZoneInfo("America/New_York")),
+        int(
+            datetime(
+                2024, 1, 31, 9, 30, tzinfo=ZoneInfo("America/New_York")
+            ).timestamp()
+        ),
+    ],
+)
+def test_yahoo_normalizes_verified_listing_date(first_trade: object) -> None:
+    ticker = _Ticker(
+        _Frame(
+            ["Close", "Adj Close"],
+            [
+                (
+                    datetime(2024, 1, 31, 21, tzinfo=UTC),
+                    {"Close": 100, "Adj Close": 100},
+                ),
+                (
+                    datetime(2024, 2, 1, 21, tzinfo=UTC),
+                    {"Close": 101, "Adj Close": 101},
+                ),
+            ],
+        ),
+        metadata={
+            "firstTradeDate": first_trade,
+            "exchangeTimezoneName": "America/New_York",
+        },
+    )
+    result = _yahoo_adapter(ticker).load(
+        _request(
+            _calendar(date(2024, 1, 30), date(2024, 1, 31), date(2024, 2, 1)),
+            end=date(2024, 2, 1),
+        )
+    )
+    assert result.available_from == date(2024, 1, 31)
+    assert result.snapshot is not None
+    # The adapter reports missing sessions; the run layer applies the verified range.
+    assert result.missing_market_sessions == (date(2024, 1, 30),)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {},
+        {"firstTradeDate": datetime(2024, 1, 31, 9, 30)},
+        {"firstTradeDate": "2024-01-31"},
+        {"firstTradeDate": True},
+        {"firstTradeDate": 1706707800},
+        {"firstTradeDate": 1706707800, "exchangeTimezoneName": "bad/timezone"},
+    ],
+)
+def test_yahoo_never_infers_listing_date_from_incomplete_metadata(metadata) -> None:
+    ticker = _Ticker(
+        _Frame(
+            ["Close", "Adj Close"],
+            [
+                (
+                    datetime(2024, 1, 31, 21, tzinfo=UTC),
+                    {"Close": 100, "Adj Close": 100},
+                ),
+            ],
+        ),
+        metadata=metadata,
+    )
+    result = _yahoo_adapter(ticker).load(
+        _request(
+            _calendar(date(2024, 1, 30), date(2024, 1, 31)),
+            end=date(2024, 1, 31),
+        )
+    )
+    assert result.available_from is None
+    assert result.missing_market_sessions == (date(2024, 1, 30),)
+
+
+def test_yahoo_does_not_trust_listing_metadata_that_contradicts_real_bars() -> None:
+    ticker = _Ticker(
+        _Frame(
+            ["Close", "Adj Close"],
+            [
+                (
+                    datetime(2024, 1, 30, 21, tzinfo=UTC),
+                    {"Close": 100, "Adj Close": 100},
+                ),
+                (
+                    datetime(2024, 1, 31, 21, tzinfo=UTC),
+                    {"Close": 101, "Adj Close": 101},
+                ),
+            ],
+        ),
+        metadata={"firstTradeDate": datetime(2024, 1, 31, 14, 30, tzinfo=UTC)},
+    )
+    result = _yahoo_adapter(ticker).load(
+        _request(
+            _calendar(date(2024, 1, 30), date(2024, 1, 31)),
+            end=date(2024, 1, 31),
+        )
+    )
+    assert result.available_from is None
+    assert result.snapshot is not None
+    assert len(result.snapshot.market.bars) == 2
 
 
 def test_yahoo_market_adapter_normalizes_ohlc_to_the_simulation_price_basis() -> None:

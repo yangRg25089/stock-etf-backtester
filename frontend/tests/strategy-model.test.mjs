@@ -29,6 +29,36 @@ function validationFor(state, overrides = {}) {
   };
 }
 
+test("only a new accepted run applies resolved dates to the draft", () => {
+  const initial = createInitialWorkspaceState(catalog);
+  const state = {
+    ...initial,
+    draft: { ...initial.draft, shared: { ...initial.draft.shared,
+      run: { ...initial.draft.shared.run, symbol: "SOXQ", endDate: "2024-03-28" },
+    } },
+  };
+  const accepted = {
+    runId: "resolved-range", selectedStrategyIds: [state.activeStrategyId],
+    snapshot: { config: { shared: { run: { symbol: "SOXQ", startDate: "2021-06-11", endDate: "2024-03-28" } } },
+      dateAdjustments: [{ field: "startDate", requestedDate: "2020-01-01", effectiveDate: "2021-06-11", reason: "market_available_from" }],
+    }, result: { strategyRuns: [] },
+  };
+  const restored = workspaceReducer(state, { type: "run.update", value: accepted }, catalog);
+  assert.equal(restored.draft.shared.run.startDate, "2020-01-01");
+  const updated = workspaceReducer(state, { type: "run.update", value: accepted, applyResolvedDates: true }, catalog);
+  assert.equal(updated.draft.shared.run.startDate, "2021-06-11");
+  assert.equal(updated.draft.shared.run.endDate, "2024-03-28");
+  assert.equal(updated.draft.shared.contribution, state.draft.shared.contribution);
+  assert.equal(updated.draft.strategies, state.draft.strategies);
+  assert.equal(state.draft.shared.run.startDate, "2020-01-01");
+  const unchanged = { ...accepted, snapshot: { ...accepted.snapshot, dateAdjustments: [] } };
+  assert.equal(workspaceReducer(state, { type: "run.update", value: unchanged, applyResolvedDates: true }, catalog).draft, state.draft);
+  const edited = { ...state, draft: { ...state.draft, shared: { ...state.draft.shared,
+    run: { ...state.draft.shared.run, startDate: "2023-01-01" },
+  } } };
+  assert.equal(workspaceReducer(edited, { type: "run.update", value: accepted, applyResolvedDates: true }, catalog).draft, edited.draft);
+});
+
 test("initial workspace comes from the VIX preset and shared catalog defaults", () => {
   const state = createInitialWorkspaceState(catalog);
   const [strategy] = state.draft.strategies;

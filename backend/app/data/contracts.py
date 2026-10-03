@@ -87,6 +87,7 @@ class MarketDataResult(DomainModel):
     fingerprint: str | None = None
     cache_key: DataCacheKey = Field(alias="cacheKey")
     context: SnapshotContext | None = None
+    available_from: Date | None = Field(default=None, alias="availableFrom")
     missing_market_sessions: tuple[Date, ...] = Field(
         default=(), alias="missingMarketSessions"
     )

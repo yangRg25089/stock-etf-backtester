@@ -34,7 +34,7 @@ function App() {
   const catalog = catalogState.status === "ready" ? catalogState.value : null;
   const { workspace, setWorkspace, nextStrategyId, saveFailed: draftSaveFailed } = useWorkspace(catalog);
   const {
-    dispatch, currentValidation, runError, runBusy, stopping, availability,
+    dispatch, currentValidation, runError, runBusy, stopping, availability, dateAdjustments,
     handleRun, handleStop, handleReset, isLocked, browserSaveFailed: resultSaveFailed,
   } = useRunController(catalog, workspace, setWorkspace);
   const browserSaveFailed = draftSaveFailed || resultSaveFailed;
@@ -144,9 +144,9 @@ function App() {
 
   return (
     <div className="app-frame" lang={locale === "ja" ? "ja" : "zh-Hans"}>
-      <h1 className="sr-only">{translate(locale, "page.title")}</h1>
       <a className="skip-link" href="#main-content">{translate(locale, "app.skipToMain")}</a>
       <header className="app-topbar">
+        <h1 className="sr-only">{translate(locale, "page.title")}</h1>
         <div className="topbar-brand">
           <div className="brand">
             <span className="brand-mark" aria-hidden="true">B</span>
@@ -249,6 +249,13 @@ function App() {
                       </span>
                     </span>
                   </button>
+                  {dateAdjustments.length > 0 && (
+                    <p className="shared-date-adjustment" role="status">
+                      {dateAdjustments.map((adjustment) => interpolate(translate(locale,
+                        adjustment.reason === "indicator_warmup" ? "run.adjustedIndicatorStart" : "run.adjustedMarketStart"),
+                      { date: adjustment.effectiveDate })).join(" ")}
+                    </p>
+                  )}
                   {currentValidation && validationDiagnostics(currentValidation).length > 0 && (
                     <details className="validation-diagnostics config-diagnostics">
                       <summary>{translate(locale, "diagnostics.title")}</summary>
@@ -284,11 +291,11 @@ function App() {
               aria-label={translate(locale, "section.results")}
               hidden={mobilePanel === "config"}
             >
-              <section className="results" aria-label={translate(locale, "section.results")}>
+              <div className="results">
                 <fieldset className="result-interactions" disabled={runBusy} aria-label={translate(locale, "section.results")}>
                   <ResultViewer locale={locale} state={workspace} dispatch={dispatch} error={runError} busy={runBusy} />
                 </fieldset>
-              </section>
+              </div>
             </section>
           </div>
         )}

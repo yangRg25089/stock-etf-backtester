@@ -17,6 +17,7 @@ from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from math import isfinite
 from typing import Protocol, cast
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.data.contracts import DataCacheKey, MacroDataResult, MarketDataResult
 from app.data.market_data import (
@@ -45,7 +46,7 @@ TickerFactory = Callable[[str], object]
 _LOGGER = logging.getLogger(__name__)
 
 _YAHOO_DUAL_PRICE_BASIS = "adj-close-simulation+split-close-valuation-v1"
-_NORMALIZER_VERSION = "yfinance-adapter-v2"
+_NORMALIZER_VERSION = "yfinance-adapter-v3"
 
 
 class YahooFinanceAdapter:
@@ -170,6 +171,13 @@ class YahooFinanceAdapter:
                 missing_sessions=request.data_sessions,
             )
         assert currency is not None
+        available_from, metadata_error = _available_from(ticker, request.symbol)
+        if metadata_error is not None:
+            return _required_market_unavailable(
+                cache_key=cache_key,
+                diagnostic=metadata_error,
+                missing_sessions=request.data_sessions,
+            )
 
         close_column = _resolve_column(frame, "Close", request.symbol)
         adjusted_column = _resolve_column(frame, "Adj Close", request.symbol)
@@ -288,6 +296,8 @@ class YahooFinanceAdapter:
             bars.append(rows_for_date[0])
 
         quote_dates = {bar.date for bar in bars}
+        if available_from is not None and bars and bars[0].date < available_from:
+            available_from = None
         missing = _missing_sessions(request, quote_dates)
         if missing:
             diagnostics.append(_missing_session_diagnostic(missing, self.provider))
@@ -308,6 +318,7 @@ class YahooFinanceAdapter:
                 snapshot=None,
                 fingerprint=None,
                 cacheKey=cache_key,
+                availableFrom=available_from,
                 missingMarketSessions=missing,
                 diagnostics=tuple(diagnostics),
             )
@@ -322,6 +333,7 @@ class YahooFinanceAdapter:
             context=request.snapshot_context,
             missing_sessions=missing,
             diagnostics=tuple(diagnostics),
+            available_from=available_from,
         )
 
     def load_macro(
@@ -609,6 +621,31 @@ def _read_metadata(
     except Exception as error:
         return None, _provider_error(error, symbol)
     return value, None
+
+
+def _available_from(
+    ticker: object, symbol: str
+) -> tuple[Date | None, Diagnostic | None]:
+    """Normalize the vendor's first trade timestamp, never infer it from gaps."""
+
+    value, error = _read_metadata(ticker, "history_metadata", "firstTradeDate", symbol)
+    if error is not None:
+        return None, error
+    timezone, error = _read_metadata(
+        ticker, "history_metadata", "exchangeTimezoneName", symbol
+    )
+    if error is not None:
+        return None, error
+    try:
+        zone = ZoneInfo(timezone) if isinstance(timezone, str) else None
+        timestamp = _as_datetime(value)
+        if timestamp is not None:
+            return (timestamp.astimezone(zone) if zone else timestamp).date(), None
+        if isinstance(value, int) and not isinstance(value, bool) and zone is not None:
+            return datetime.fromtimestamp(value, zone).date(), None
+    except (ZoneInfoNotFoundError, ValueError, OverflowError, OSError):
+        return None, None
+    return None, None
 
 
 def _quote_currency(

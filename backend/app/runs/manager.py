@@ -339,6 +339,7 @@ class RunManager:
             if (
                 item.calendar != reference_calendar
                 or item.snapshot.market != reference_snapshot.market
+                or item.date_adjustments != reference.date_adjustments
             ):
                 diagnostic = Diagnostic(
                     code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
@@ -359,6 +360,36 @@ class RunManager:
         data_loads: Mapping[str, StrategyDataLoad],
     ) -> RunSnapshot:
         config = submission.config
+        resolved = next(
+            (
+                item
+                for item in data_loads.values()
+                if item.snapshot is not None
+                and item.calendar is not None
+                and not any(
+                    d.message_key == "data.run_context_mismatch"
+                    for d in item.diagnostics
+                )
+            ),
+            None,
+        )
+        adjustments = resolved.date_adjustments if resolved is not None else ()
+        if adjustments:
+            fields = {"startDate": "start_date", "endDate": "end_date"}
+            updates = {fields[item.field]: item.effective_date for item in adjustments}
+            for item in adjustments:
+                if (
+                    getattr(config.shared.run, fields[item.field])
+                    != item.requested_date
+                ):
+                    raise ValueError("resolved date does not match the submitted range")
+            config = config.model_copy(
+                update={
+                    "shared": config.shared.model_copy(
+                        update={"run": config.shared.run.model_copy(update=updates)},
+                    )
+                }
+            )
         data_payload = {
             "providerVersion": self._data_provider.version,
             "strategyData": [
@@ -376,6 +407,10 @@ class RunManager:
                         diagnostic.model_dump(mode="json", by_alias=True)
                         for diagnostic in item.diagnostics
                     ],
+                    "dateAdjustments": [
+                        adjustment.model_dump(mode="json", by_alias=True)
+                        for adjustment in item.date_adjustments
+                    ],
                 }
                 for strategy_id, item in sorted(data_loads.items())
             ],
@@ -387,6 +422,7 @@ class RunManager:
             dataFingerprint=_fingerprint(data_payload),
             engineVersion=submission.engine_version,
             dataProvenance=_data_provenance(data_loads),
+            dateAdjustments=adjustments,
         )
 
     def _queued_response(

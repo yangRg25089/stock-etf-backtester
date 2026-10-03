@@ -74,7 +74,7 @@
 | `StrategyInstance {id, presetId, instanceNumber, params, rules}` | 添加即参与运行；弹窗缓冲通过校验后一次提交；自定义最多十个，序号不因删除改变 |
 | `activeStrategyId` | 保留的内部单实例 API 目标；UI 不显示范围/目标选择，dialog 编辑对象独立，不自动启用或运行 |
 | `runScope` | UI 固定 `all_enabled`，API 仍支持 `active`；当前实例必须存在才能单独运行，全部模式至少有一个实例；所选范围之外的实例不参与本次运行 |
-| `RunSnapshot {runId, config, catalogVersion, dataFingerprint, engineVersion, dataProvenance}` | 提交时冻结的共享设置、各实例参数和数据来源/覆盖标记，不受后续草稿变化影响 |
+| `RunSnapshot {runId, config, catalogVersion, dataFingerprint, engineVersion, dataProvenance, dateAdjustments}` | 提交时冻结的共享设置、各实例参数、数据来源/覆盖标记及实际日期调整，不受后续草稿变化影响 |
 | `StrategyRun` | 该快照中的实例状态、诊断、账本、指标、交易和信号观测值；每日资产保留可选的调整后 OHLC；`benchmark` 是角色字段，不是第二套算法 |
 | `focusedResultId` | 交易、搜索、保存身份和导出的归属；与 `activeStrategyId` 及曲线多选独立 |
 | `selectedResultIds` | 仅决定主图中的策略资产收益曲线；焦点/运行范围独立，取消全部时仍保留价格 |
@@ -99,6 +99,8 @@ SQLite 私有 JSON 编码必须无损保存冻结策略参数的领域类型（�
 ## 模块接口与目录组织
 
 数据结果携带独立 `SnapshotContext`：回测起止日、频率、目标会话和规范化版本。`compose_data_snapshot(MarketDataResult, macro_results)` 只合并相同上下文，并检查各缓存身份覆盖该上下文、宏观对齐日属于实际目标行情会话；来源/dataVersion 可不同，规范化版本必须相同。预热和宏观回看区间可以不同。运行层清洗缺口后显式重绑定结果上下文，原供应商缓存身份不改写。
+
+`MarketDataResult.availableFrom` 为供应商可核实的首个交易日，未知或与真实报价矛盾时为 null，不由头部缺口推断。运行数据层把日期解析记录传入 `StrategyDataLoad.dateAdjustments`，作业层在冻结前应用到共享配置，并保留于 `RunSnapshot.dateAdjustments`（field/requestedDate/effectiveDate/reason）。同一运行的日历、行情和调整记录必须一致；仅本次接受响应可按记录同步当前草稿对应日期，正常更新与恢复旧结果均不改草稿。没有调整的响应不复制草稿，不影响已完成的弹窗校验身份。
 
 行情缓存指纹只包含请求行情窗口内的会话，不包含宏观陈旧设置；宏观缓存包含自己的回看会话和陈旧政策。fixture 结果同时含行情和宏观，故其缓存身份包含两类输入。未知本地解析/模型错误由运行层记录 `calculation_failed` 的安全阶段元数据；提供方网络错误与已知数据缺失分别返回结构化诊断，不能把程序错误伪装成网络失败。
 

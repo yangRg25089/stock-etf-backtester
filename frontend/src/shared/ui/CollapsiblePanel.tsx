@@ -54,8 +54,6 @@ export function CollapsiblePanel({
       <div
         id={contentId}
         className="collapsible-panel-body"
-        role="region"
-        aria-labelledby={toggleId}
         hidden={!expanded}
       >
         {children}

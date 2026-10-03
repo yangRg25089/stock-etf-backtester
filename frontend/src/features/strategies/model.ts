@@ -42,7 +42,7 @@ export type WorkspaceAction =
   | { type: "strategy.rules"; id: string; value: StrategyRules }
   | { type: "shared.change"; value: SharedDraft }
   | { type: "run.reset" }
-  | { type: "run.update"; value: RunResponse }
+  | { type: "run.update"; value: RunResponse; applyResolvedDates?: boolean }
   | { type: "run.progress"; value: RunProgressEvent }
   | { type: "result.focus"; id: string | null }
   | { type: "result.toggleSelection"; id: string }
@@ -197,6 +197,16 @@ export function workspaceReducer(
         selectedResultIds: [],
       };
     case "run.update": {
+      let draft = state.draft;
+      if (action.applyResolvedDates && action.value.snapshot.config.shared.run.symbol === draft.shared.run.symbol) {
+        const run = { ...draft.shared.run };
+        for (const adjustment of action.value.snapshot.dateAdjustments ?? []) {
+          if (run[adjustment.field] === adjustment.requestedDate) run[adjustment.field] = adjustment.effectiveDate;
+        }
+        if (run.startDate !== draft.shared.run.startDate || run.endDate !== draft.shared.run.endDate) {
+          draft = { ...draft, shared: { ...draft.shared, run } };
+        }
+      }
       const savedResults = action.value.result?.strategyRuns ?? [];
       const sameRun = state.runResponse?.runId === action.value.runId;
       const focusIsAvailable = state.focusedResultId !== null &&
@@ -210,6 +220,7 @@ export function workspaceReducer(
         : [];
       return {
         ...state,
+        draft,
         runResponse: action.value,
         focusedResultId,
         selectedResultIds,

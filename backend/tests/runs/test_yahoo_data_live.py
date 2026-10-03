@@ -33,6 +33,117 @@ class _InlineExecutor(Executor):
         return future
 
 
+def test_live_soxq_pre_listing_start_adjusts_shared_snapshot_and_exports(
+    tmp_path,
+) -> None:
+    previous_service = app.state.run_service
+    path = tmp_path / "soxq-listing.sqlite3"
+    store = SQLiteRunStore(path)
+    reopened = None
+    app.state.run_service = RunManager(
+        store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
+    )
+
+    async def run_and_export():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://soxq-listing-live"
+        ) as client:
+            body = {
+                "draft": {
+                    "shared": {
+                        "run": {
+                            "symbol": "SOXQ",
+                            "startDate": "2020-01-01",
+                            "endDate": "2021-08-31",
+                        },
+                        "contribution": {"amount": 100, "day": 1},
+                    },
+                    "strategies": [
+                        {
+                            "id": "volatility",
+                            "presetId": "vix_dca",
+                            "params": {"vix.buyThreshold": 0},
+                        }
+                    ],
+                },
+                "scope": "all_enabled",
+            }
+            accepted = await client.post(
+                "/api/v1/runs",
+                json=body,
+                headers={"Idempotency-Key": "soxq-before-listing"},
+            )
+            assert accepted.status_code == 202, accepted.text
+            saved = await client.get(f"/api/v1/runs/{accepted.json()['runId']}")
+            data = saved.json()
+            run = data["snapshot"]["config"]["shared"]["run"]
+            assert run["startDate"] == "2021-06-11"
+            assert run["endDate"] == "2021-08-31"
+            assert data["snapshot"]["dateAdjustments"] == [
+                {
+                    "field": "startDate",
+                    "requestedDate": "2020-01-01",
+                    "effectiveDate": "2021-06-11",
+                    "reason": "market_available_from",
+                }
+            ]
+            assert data["status"] == "completed", [
+                (row["id"], row["status"], row["diagnostics"])
+                for row in data["result"]["strategyRuns"]
+            ]
+            for row in data["result"]["strategyRuns"]:
+                assert row["status"] == "completed", row["diagnostics"]
+                assert row["dailyAssets"][0]["date"] == "2021-06-11"
+                assert Decimal(row["metrics"]["totalContributed"]) == 200
+                assert Decimal(row["metrics"]["actualInvested"]) <= 200
+            exported = await client.get(
+                f"/api/v1/runs/{data['runId']}/export/daily-assets",
+                params={"focusedResultId": "volatility"},
+            )
+            assert exported.status_code == 200
+            rows = list(csv.DictReader(io.StringIO(exported.text)))
+            assert rows[0]["date"] == "2021-06-11"
+            assert rows[-1]["date"] == "2021-08-31"
+            assert Decimal(rows[0]["totalContributed"]) == 0
+            assert Decimal(rows[-1]["totalContributed"]) == 200
+            retried = await client.post(
+                "/api/v1/runs",
+                json=body,
+                headers={"Idempotency-Key": "soxq-before-listing"},
+            )
+            assert retried.json()["snapshot"] == data["snapshot"]
+            return data
+
+    try:
+        saved = asyncio.run(run_and_export())
+        store.close()
+        reopened = SQLiteRunStore(path)
+        app.state.run_service = RunManager(store=reopened, executor=_InlineExecutor())
+
+        async def restored():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://soxq-restored"
+            ) as client:
+                response = await client.get(f"/api/v1/runs/{saved['runId']}")
+                assert response.json() == saved
+                exported = await client.get(
+                    f"/api/v1/runs/{saved['runId']}/export/summary",
+                    params={"focusedResultId": "volatility"},
+                )
+                assert exported.status_code == 200
+                assert all(
+                    Decimal(row["totalContributed"]) == 200
+                    for row in csv.DictReader(io.StringIO(exported.text))
+                )
+
+        asyncio.run(restored())
+    finally:
+        app.state.run_service = previous_service
+        store.close()
+        if reopened is not None:
+            reopened.close()
+
+
 def test_live_reversed_volatility_exit_tiers_save_matching_trades_and_csv(tmp_path):
     previous_service = app.state.run_service
     path = tmp_path / "exit-tiers.sqlite3"

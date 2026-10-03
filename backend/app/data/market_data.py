@@ -510,12 +510,14 @@ def _market_data_result(
     context: SnapshotContext,
     missing_sessions: tuple[Date, ...],
     diagnostics: tuple[Diagnostic, ...],
+    available_from: Date | None = None,
 ) -> MarketDataResult:
     if not bars:
         return MarketDataResult(
             snapshot=None,
             fingerprint=None,
             cacheKey=cache_key,
+            availableFrom=available_from,
             missingMarketSessions=missing_sessions,
             diagnostics=diagnostics,
         )
@@ -544,6 +546,7 @@ def _market_data_result(
         fingerprint=normalized_fingerprint,
         cacheKey=cache_key,
         context=context,
+        availableFrom=available_from,
         missingMarketSessions=missing_sessions,
         diagnostics=diagnostics,
     )

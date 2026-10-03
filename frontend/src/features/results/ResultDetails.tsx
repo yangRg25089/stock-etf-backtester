@@ -162,7 +162,7 @@ export function ResultDetails({
               hidden={visibleTab !== tab}
             >
               {tab === "comparison" && (
-                <section aria-labelledby="result-comparison-heading">
+                <div>
                   <h4 className="sr-only" id="result-comparison-heading">
                     {translate(locale, "results.comparisonTitle")}
                   </h4>
@@ -176,7 +176,7 @@ export function ResultDetails({
                     onFocus={(id) => dispatch({ type: "result.focus", id })}
                     onToggleSelection={(id) => dispatch({ type: "result.toggleSelection", id })}
                   />
-                </section>
+                </div>
               )}
 
               {tab === "trades" && (

@@ -274,6 +274,63 @@ def _runs(response: RunResponse) -> Mapping[str, StrategyRun]:
     return {item.id: item for item in response.result.strategy_runs}
 
 
+def test_resolved_listing_start_is_frozen_without_mutating_submission() -> None:
+    class AdjustedProvider(_FixtureProvider):
+        def load_for_strategy(self, **kwargs: object) -> StrategyDataLoad:
+            loaded = super().load_for_strategy(**kwargs)
+            return StrategyDataLoad(
+                calendar=loaded.calendar,
+                snapshot=loaded.snapshot,
+                dateAdjustments=[
+                    {
+                        "field": "startDate",
+                        "requestedDate": "2020-01-01",
+                        "effectiveDate": "2024-01-02",
+                        "reason": "market_available_from",
+                    }
+                ],
+            )
+
+    submission = _submission("listed")
+    original_run = submission.config.shared.run.model_copy(
+        update={"start_date": date(2020, 1, 1)}
+    )
+    submission = submission.model_copy(
+        update={
+            "config": submission.config.model_copy(
+                update={
+                    "shared": submission.config.shared.model_copy(
+                        update={"run": original_run}
+                    )
+                },
+            )
+        }
+    )
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(), data_provider=AdjustedProvider(), executor=executor
+    )
+    accepted = manager.submit_run(
+        submission=submission, idempotency_key="listing-adjustment"
+    )
+    assert accepted.snapshot.config.shared.run.start_date == date(2024, 1, 2)
+    assert accepted.snapshot.date_adjustments[0].requested_date == date(2020, 1, 1)
+    assert submission.config.shared.run.start_date == date(2020, 1, 1)
+    assert (
+        manager.submit_run(submission=submission, idempotency_key="listing-adjustment")
+        == accepted
+    )
+    assert len(executor.jobs) == 1
+    executor.run_next()
+    completed = manager.get_run(accepted.run_id)
+    assert completed is not None
+    assert completed.snapshot == accepted.snapshot
+    assert all(
+        row.metrics and row.metrics.total_contributed == 100
+        for row in _runs(completed).values()
+    )
+
+
 def test_manager_freezes_inputs_and_completes_zero_trade_result_and_benchmarks() -> (
     None
 ):

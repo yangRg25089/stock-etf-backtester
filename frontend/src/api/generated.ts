@@ -231,6 +231,13 @@ export type RunDataProvenance = {
   marketDataThrough?: string | null;
 };
 
+export type RunDateAdjustment = {
+  field: "startDate" | "endDate";
+  requestedDate: string;
+  effectiveDate: string;
+  reason: "market_available_from" | "indicator_warmup";
+};
+
 export type RunProgress = {
   completedStrategies: number;
   totalStrategies: number;
@@ -268,6 +275,7 @@ export type RunSnapshot = {
   dataFingerprint: string;
   engineVersion: string;
   dataProvenance?: RunDataProvenance;
+  dateAdjustments?: Array<RunDateAdjustment>;
   createdAt?: string;
 };
 

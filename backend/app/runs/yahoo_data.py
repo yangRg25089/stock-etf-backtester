@@ -30,6 +30,7 @@ from app.data.providers.yahoo import YahooFinanceAdapter
 from app.domain.contracts import (
     FrozenStrategyInstance,
     InstrumentMetadata,
+    RunDateAdjustment,
     SharedSettings,
 )
 from app.domain.status import Diagnostic, DiagnosticCode
@@ -318,18 +319,48 @@ class YahooRunDataProvider:
                     and actual_latest_quote >= shared.run.start_date
                     else None
                 ),
+                available_from=market_result.available_from,
             )
         )
+        macro_prefix = (
+            tuple(day for day in calendar_dates if day < market_result.available_from)[
+                -shared.data.macro_staleness_sessions :
+            ]
+            if market_result.available_from is not None
+            and shared.data.macro_staleness_sessions > 0
+            else ()
+        )
+        # Index observations may predate the asset's listing. Keep their as-of
+        # calendar context, without requesting or inventing pre-listing prices.
         final_calendar = ExchangeCalendar.from_dates(
-            effective_calendar_dates,
+            (*macro_prefix, *effective_calendar_dates),
             as_of_date=as_of_date,
             latest_complete_date=actual_latest_quote,
             calendar_coverage_end_date=as_of_date,
         )
+        resolved_start = max(
+            shared.run.start_date, market_result.available_from or shared.run.start_date
+        )
+        date_adjustments = (
+            (
+                RunDateAdjustment(
+                    field="startDate",
+                    requestedDate=shared.run.start_date,
+                    effectiveDate=resolved_start,
+                    reason="market_available_from",
+                ),
+            )
+            if resolved_start != shared.run.start_date
+            else ()
+        )
         effective_request = request.model_copy(
             update={
+                "start_date": resolved_start,
                 "end_date": effective_calendar_dates[-1],
                 "exchange_calendar": final_calendar,
+                "prewarm_start_date": _prewarm_start(
+                    effective_calendar_dates, resolved_start, lookback_sessions
+                ),
             }
         )
         macro_results = self._load_macro_results(
@@ -344,6 +375,7 @@ class YahooRunDataProvider:
             calendar=final_calendar,
             market_diagnostics=effective_market_diagnostics,
             macro_results=macro_results,
+            date_adjustments=date_adjustments,
         )
 
     def _exchange_code(self, symbol: str) -> tuple[str | None, Diagnostic | None]:
@@ -403,6 +435,7 @@ class YahooRunDataProvider:
         calendar: ExchangeCalendar,
         market_diagnostics: tuple[Diagnostic, ...],
         macro_results: Mapping[MacroKey, MacroDataResult],
+        date_adjustments: tuple[RunDateAdjustment, ...] = (),
     ) -> Mapping[str, StrategyDataLoad]:
         loaded: dict[str, StrategyDataLoad] = {}
         run_macros = tuple(
@@ -482,6 +515,7 @@ class YahooRunDataProvider:
                 calendar=calendar,
                 snapshot=snapshot,
                 diagnostics=_unique_diagnostics(diagnostics),
+                dateAdjustments=date_adjustments,
             )
         return loaded
 
@@ -644,6 +678,7 @@ def _apply_market_gap_policy(
     *,
     scheduled_end: Date,
     latest_quote: Date | None,
+    available_from: Date | None = None,
 ) -> tuple[tuple[Date, ...], tuple[Diagnostic, ...]]:
     """Skip isolated gaps and trim unreported final quotes without filling."""
 
@@ -653,6 +688,8 @@ def _apply_market_gap_policy(
         effective_dates = tuple(day for day in calendar_dates if day <= latest_quote)
     else:
         effective_dates = calendar_dates
+    if available_from is not None:
+        effective_dates = tuple(day for day in effective_dates if day >= available_from)
     if not effective_dates:
         return calendar_dates, diagnostics
 
@@ -692,6 +729,8 @@ def _apply_market_gap_policy(
             unresolved: set[Date] = set()
             missing_indices: list[int] = []
             for missing_date in missing_dates:
+                if available_from is not None and missing_date < available_from:
+                    continue
                 if (
                     has_quote
                     and latest_quote is not None

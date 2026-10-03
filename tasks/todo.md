@@ -872,7 +872,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 ## 阶段 31：连续滚动、有效行情区间与外部对照
 
 - [x] Task 126：删除读数内部纵向滚动并自然展开全部策略行。
-- [ ] Task 127：ETF 起始可用日期自动解析、画面同步及真实 SOXQ 验收。
+- [x] Task 127：ETF 起始可用日期自动解析、画面同步及真实 SOXQ 验收。
 - [ ] Task 128：横展开可恢复日期/预热边界与准确诊断。
 - [ ] Task 129：真实复杂条件回测与 DQYDJ 计算结果对照。
 - [ ] Task 130：todo 核对、设计树自审与最终稳定化完整门禁。
@@ -889,3 +889,12 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 先建立原固定高度/内部滚动的失败回归，再删除高度预算、纵向滚动及该区域的滚动焦点；全部已选策略读数自然展开，由结果区域统一滚动。当前规范、开发说明及原型同步。
 - 前端 191 passed；typecheck、零警告 lint、build 通过。5 项浏览器专项通过（15.4 秒），包括 12 个策略行全部可达、鼠标停在读数上仍推动结果区域且内部 scrollTop 为零、原生 100%/125%/150% 缩放、触控和 axe。
 - 差异复审确认没有新增状态或并行滚动机制，无需额外抽象。日志 `/tmp/backtester-phase31-readout-unit-green.log`、`/tmp/backtester-phase31-readout-browser-green.log`。
+
+### 可用起始日验收
+
+- 10 项边界回归先失败，覆盖首个交易时间的带时区/epoch 规范化、未知/坏元数据及上市后连续缺失。适配器增加可核实的 availableFrom，正常源版本更新为 v3；与真实报价矛盾的元数据不能用于调整。相关 data/run/manager 111 项通过，Ruff check 和 mypy 60 源文件通过。
+- 真实 SOXQ 2020-01-01 → 2021-08-31 先复现快照仍为 2020 年；修复后 startDate=2021-06-11，策略及两个基准全部 completed，本金均为 200，首个不完整月份不补缴。幂等重试、SQLite 关闭重开、保存响应逐字比较及 CSV 通过（1.95 秒，2 条已有 yfinance 提示）。
+- 首轮清洗误删了标的上市前的 VIX 日历上下文，真实首日信号因此 unavailable；保留宏观回看交易日而不请求/编造上市前股价后已修复。日期记录在冻结前应用，同一数据上下文包含同一调整记录，原提交配置不变。
+- 前端接受响应只修改本次请求仍匹配的日期并持久化；旧结果恢复不覆盖草稿。无调整/已编辑的响应保持原草稿引用，消除不必要的校验失效。前端 192 passed、typecheck/lint/build 通过；日期同步、日中简短提示、单次完整 GET、重开及编辑后恢复的完整浏览器路径通过（5.5 秒）。最后一轮明确等待弹窗异步校验并提交后才刷新，纠正测试提前导航的前提。
+- 完整 axe 发现重复结果区域、卡片内外及表格区域名称，以及隐藏主标题位于 landmark 外；保留唯一有名区域和现有 disclosure 控件，将主标题归入 banner，未跳过或缩窄新检查。当前规范/复用规范/开发说明同步；日志 `/tmp/backtester-phase31-normalized-slice.log`、`/tmp/backtester-phase31-soxq-green.log`、`/tmp/backtester-phase31-dates-browser.log`。
+- 最终扩大到 data/run/manager/SQLite/domain 135 passed（1.79 秒）；98 文件格式、Ruff check、mypy 60 文件通过，diff check 通过。补充 CSV 复验按实际 API 契约传 focusedResultId；旧快照、幂等及日期持久化保持。

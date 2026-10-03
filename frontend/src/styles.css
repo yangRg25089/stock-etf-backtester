@@ -393,6 +393,13 @@ summary:focus-visible,
   overflow-wrap: anywhere;
 }
 
+.shared-date-adjustment {
+  margin: 6px 10px 0;
+  color: var(--app-muted);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
 .shared-settings-summary-symbol { color: var(--app-accent-strong); font-weight: 650; }
 .shared-settings-summary-period { font-variant-numeric: tabular-nums; }
 

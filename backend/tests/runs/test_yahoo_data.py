@@ -4,6 +4,48 @@ from app.domain.status import Diagnostic, DiagnosticCode
 from app.runs.yahoo_data import _apply_market_gap_policy
 
 
+def test_listing_boundary_removes_only_verified_pre_listing_sessions() -> None:
+    days = (date(2024, 1, 29), date(2024, 1, 30), date(2024, 1, 31), date(2024, 2, 1))
+    diagnostics = (
+        Diagnostic(
+            code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+            messageKey="market.missing_sessions",
+            source="yahoo",
+            details={"missingSessions": ["2024-01-29", "2024-01-30"]},
+        ),
+    )
+    sessions, retained = _apply_market_gap_policy(
+        days,
+        diagnostics,
+        scheduled_end=days[-1],
+        latest_quote=days[-1],
+        available_from=date(2024, 1, 31),
+    )
+    assert sessions == days[2:]
+    assert retained == ()
+
+
+def test_listing_boundary_does_not_hide_consecutive_gaps_after_listing() -> None:
+    days = (date(2024, 1, 29), date(2024, 1, 30), date(2024, 1, 31), date(2024, 2, 1))
+    diagnostics = (
+        Diagnostic(
+            code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+            messageKey="market.missing_sessions",
+            source="yahoo",
+            details={"missingSessions": ["2024-01-29", "2024-01-30", "2024-01-31"]},
+        ),
+    )
+    sessions, retained = _apply_market_gap_policy(
+        days,
+        diagnostics,
+        scheduled_end=days[-1],
+        latest_quote=days[-1],
+        available_from=date(2024, 1, 30),
+    )
+    assert sessions == days[1:]
+    assert retained[0].details["missingSessions"] == ("2024-01-30", "2024-01-31")
+
+
 def test_calendar_range_handles_weekends_at_both_requested_boundaries() -> None:
     from app.runs.yahoo_data import YahooRunDataProvider, _session_records
 

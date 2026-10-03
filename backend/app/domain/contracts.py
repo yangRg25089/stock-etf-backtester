@@ -251,6 +251,21 @@ class RunDataProvenance(DomainModel):
         return tuple(sorted(set(value)))
 
 
+class RunDateAdjustment(DomainModel):
+    """A verified date resolution applied before the run is frozen."""
+
+    field: Literal["startDate", "endDate"]
+    requested_date: Date = Field(alias="requestedDate")
+    effective_date: Date = Field(alias="effectiveDate")
+    reason: Literal["market_available_from", "indicator_warmup"]
+
+    @model_validator(mode="after")
+    def require_changed_date(self) -> "RunDateAdjustment":
+        if self.requested_date == self.effective_date:
+            raise ValueError("a date adjustment must change the requested date")
+        return self
+
+
 class RunSnapshot(DomainModel):
     """The immutable input boundary for one submitted run."""
 
@@ -261,6 +276,9 @@ class RunSnapshot(DomainModel):
     engine_version: str = Field(alias="engineVersion", min_length=1)
     data_provenance: RunDataProvenance = Field(
         default_factory=RunDataProvenance, alias="dataProvenance"
+    )
+    date_adjustments: tuple[RunDateAdjustment, ...] = Field(
+        default=(), alias="dateAdjustments"
     )
     created_at: AwareTimestamp = Field(
         default_factory=lambda: datetime.now(UTC), alias="createdAt"
@@ -274,6 +292,22 @@ class RunSnapshot(DomainModel):
         if isinstance(value, RunConfig):
             return FrozenRunConfig.from_config(value)
         return value
+
+    @model_validator(mode="after")
+    def validate_date_adjustments(self) -> "RunSnapshot":
+        fields = {
+            "startDate": self.config.shared.run.start_date,
+            "endDate": self.config.shared.run.end_date,
+        }
+        seen: set[str] = set()
+        for adjustment in self.date_adjustments:
+            if (
+                adjustment.field in seen
+                or fields[adjustment.field] != adjustment.effective_date
+            ):
+                raise ValueError("date adjustments must uniquely match frozen dates")
+            seen.add(adjustment.field)
+        return self
 
     @classmethod
     def from_config(

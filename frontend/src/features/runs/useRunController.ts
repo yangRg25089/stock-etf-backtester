@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { Catalog, Diagnostic, RunResponse } from "../../api/generated";
+import type { Catalog, Diagnostic, RunDateAdjustment, RunResponse } from "../../api/generated";
 import {
   createIdempotencyKey, fetchRun, fetchLatestRun, subscribeToRunEvents,
   RunApiError, submitRun, validateDraft, stopRun, type RunProgressEvent,
@@ -41,6 +41,7 @@ export function useRunController(
 ) {
   const [validationState, setValidationState] = useState<ValidationState | null>(null);
   const [runError, setRunError] = useState<RunApiError | null>(null);
+  const [dateAdjustments, setDateAdjustments] = useState<RunDateAdjustment[]>([]);
   const [runBusy, setRunBusy] = useState(false);
   const [browserSaveFailed, setBrowserSaveFailed] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -149,6 +150,7 @@ export function useRunController(
     stopRequested.current = false;
     setStopping(false);
     setRunError(null);
+    setDateAdjustments([]);
 
     try {
       const validation = await validateDraft(apiDraft, controller.signal);
@@ -173,9 +175,11 @@ export function useRunController(
       activeRunId.current = accepted.runId;
       if (stopRequested.current) await stopRun(accepted.runId, controller.signal);
       rememberDismissedRun(null);
+      setDateAdjustments(accepted.snapshot.dateAdjustments ?? []);
       dispatch({
         type: "run.update",
         value: accepted,
+        applyResolvedDates: true,
       });
       await subscribeToRunEvents(
         accepted.runId,
@@ -225,10 +229,11 @@ export function useRunController(
     rememberDismissedRun(workspace?.runResponse?.runId ?? null);
     dispatch({ type: "run.reset" });
     setRunError(null);
+    setDateAdjustments([]);
   };
 
   return {
-    dispatch, currentValidation, runError, runBusy, browserSaveFailed, stopping,
+    dispatch, currentValidation, runError, runBusy, browserSaveFailed, stopping, dateAdjustments,
     availability, handleRun, handleStop, handleReset, isLocked,
   };
 }

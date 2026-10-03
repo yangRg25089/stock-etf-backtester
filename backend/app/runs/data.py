@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from app.calendar import ExchangeCalendar
 from app.config.validation import DataRequirement
 from app.domain.contracts import (
     DataSnapshot,
     FrozenStrategyInstance,
+    RunDateAdjustment,
     SharedSettings,
 )
 from app.domain.status import (
@@ -28,6 +29,9 @@ class StrategyDataLoad(DomainModel):
     calendar: ExchangeCalendar | None = None
     snapshot: DataSnapshot | None = None
     diagnostics: tuple[Diagnostic, ...] = ()
+    date_adjustments: tuple[RunDateAdjustment, ...] = Field(
+        default=(), alias="dateAdjustments"
+    )
 
     @model_validator(mode="after")
     def require_complete_context(self) -> StrategyDataLoad:
@@ -35,6 +39,8 @@ class StrategyDataLoad(DomainModel):
             raise ValueError("calendar and data snapshot must be loaded together")
         if self.snapshot is None and not self.diagnostics:
             raise ValueError("missing strategy data requires a diagnostic")
+        if self.snapshot is None and self.date_adjustments:
+            raise ValueError("date resolution requires verified strategy data")
         return self
 
 
