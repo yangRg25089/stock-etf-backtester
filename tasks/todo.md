@@ -868,3 +868,24 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 最终前端 191 passed、typecheck、零警告 lint、production build 通过；完整 Playwright/axe 109 passed（2.8 分钟），包含新八项和原生 100%/125%/150% 缩放。后端完整 454 passed（22.87 秒，15 条既有 yfinance 提示），真实 QQQ/VIX/VXN/VXD、技术指标、API/停止/恢复/CSV 门禁通过；Ruff check/98 文件格式和 mypy 60 文件通过。均使用隔离运行库，不修改用户结果。
 - 整体与策略弹窗发现扫查未出现新的中等及以上确认缺陷；开发说明、当前规范和原型同步。历史 Task 102/W/120 仅剩指定远端目标待确认，阶段 30 的本地实现全部完成。用户新追加的取消读数内滚动、ETF 有效区间自动调整及 DQYDJ 校验另列阶段 31，继续按顺序实现。
 - 最终日志：`/tmp/backtester-phase30-unit-green.log`、`/tmp/backtester-phase30-build-green.log`、`/tmp/backtester-phase30-browser-green.log`、`/tmp/backtester-phase30-backend-final.log`、`/tmp/backtester-phase30-backend-static-final.log`；全部差异复审/简化及 diff check 通过。
+
+## 阶段 31：连续滚动、有效行情区间与外部对照
+
+- [x] Task 126：删除读数内部纵向滚动并自然展开全部策略行。
+- [ ] Task 127：ETF 起始可用日期自动解析、画面同步及真实 SOXQ 验收。
+- [ ] Task 128：横展开可恢复日期/预热边界与准确诊断。
+- [ ] Task 129：真实复杂条件回测与 DQYDJ 计算结果对照。
+- [ ] Task 130：todo 核对、设计树自审与最终稳定化完整门禁。
+
+### 当前依据
+
+- 初始工作树干净，main/fa53b12 已完成前轮所有八项；基线为前端 191、后端 454、浏览器 109 passed。
+- 读数的固定高度与内部滚动由最新明确要求覆盖；修改实际组件、CSS、原型和当前规范，不只隐藏滚动条。
+- Nasdaq 原始上市通知确认 SOXQ 2021-06-11 开始交易；业务实现不硬编码 SOXQ，而用供应商规范化元数据与真实行情边界。整个指定区间早于上市的结束日行为已提出可选澄清，其他工作继续。
+- DQYDJ 原始计算说明确认 Tiingo、定期间隔 1/7/30/365 天及股息开盘再投；将实际运行后记录数值，先对齐口径。外部页面及临时截图仅作证据，不上传用户资金/条件或凭据。
+
+### 连续滚动验收
+
+- 先建立原固定高度/内部滚动的失败回归，再删除高度预算、纵向滚动及该区域的滚动焦点；全部已选策略读数自然展开，由结果区域统一滚动。当前规范、开发说明及原型同步。
+- 前端 191 passed；typecheck、零警告 lint、build 通过。5 项浏览器专项通过（15.4 秒），包括 12 个策略行全部可达、鼠标停在读数上仍推动结果区域且内部 scrollTop 为零、原生 100%/125%/150% 缩放、触控和 axe。
+- 差异复审确认没有新增状态或并行滚动机制，无需额外抽象。日志 `/tmp/backtester-phase31-readout-unit-green.log`、`/tmp/backtester-phase31-readout-browser-green.log`。

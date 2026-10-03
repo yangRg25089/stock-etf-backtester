@@ -683,8 +683,7 @@ function OverlayChart({
         ]} highlight={highlight} />
       </figcaption>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
-      <div className="chart-core-readout-row" tabIndex={0} role="group" aria-label={translate(locale, "chart.savedReadings")}
-        style={{ "--chart-readout-lines": Math.min(strategyReadings.length, 4) } as CSSProperties}>
+      <div className="chart-core-readout-row" role="group" aria-label={translate(locale, "chart.savedReadings")}>
         <ChartReadout date={readingDate} readings={readings} strategies={strategyReadings} />
       </div>
       <div className="chart-canvas">

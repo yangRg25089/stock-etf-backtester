@@ -2158,10 +2158,10 @@ h2 {
 .chart-strategy-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
 .chart-cursor-reading { white-space: nowrap; }
 .chart-core-readout-row {
-  height: calc(40px + var(--chart-readout-lines, 1) * 24px);
+  min-height: 40px;
+  height: auto;
   min-width: 680px;
-  overflow-y: auto;
-  overscroll-behavior: auto;
+  overflow: visible;
 }
 
 .overlay-legend-swatch {

@@ -317,7 +317,9 @@ test("linked figures have no separator and keep one shared readout under the cor
   const compact = blockFor(".workbench-results .chart-linked-stack .chart-panel.is-compact");
   assert.doesNotMatch(compact, /border-top|padding-top:\s*[1-9]/);
   const charts = readFileSync(new URL("../src/features/results/ResultsCharts.tsx", import.meta.url), "utf8");
-  assert.match(css, /\.chart-core-readout-row\s*\{[^}]*height:\s*calc\(40px \+ var\(--chart-readout-lines, 1\) \* 24px\)/s);
+  assert.match(blockFor(".chart-core-readout-row"), /height:\s*auto/);
+  assert.match(blockFor(".chart-core-readout-row"), /overflow:\s*visible/);
+  assert.doesNotMatch(charts, /chart-readout-lines|chart-core-readout-row[^>]*tabIndex/);
   assert.match(css, /\.chart-crosshair-readout\s*\{[^}]*position:\s*static/s);
   assert.doesNotMatch(charts, /chart-indicator-readout-row/);
   assert.equal((charts.match(/<ChartReadout\b/g) ?? []).length, 1);

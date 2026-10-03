@@ -1751,7 +1751,7 @@ test("strategy menu, condition connectors and comparison selections retain full 
   }
 });
 
-test("many selected historical strategies keep permanent readings inside their reserved space", async ({ page }) => {
+test("many selected strategies naturally expand readings and scroll the results pane", async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/");
   await openSharedSettings(page);
@@ -1777,10 +1777,18 @@ test("many selected historical strategies keep permanent readings inside their r
   const row = page.locator(".chart-core-readout-row");
   await row.scrollIntoViewIfNeeded();
   const geometry = await row.evaluate(node => ({ height: node.clientHeight, contentHeight: node.scrollHeight, overflow: getComputedStyle(node).overflowY }));
-  expect(geometry.contentHeight).toBeGreaterThan(geometry.height);
-  expect(geometry.overflow).toBe("auto");
-  await row.evaluate(node => { node.scrollTop = node.scrollHeight; });
-  await expect(row.locator(".chart-cursor-reading").last()).toBeInViewport();
+  expect(geometry.height).toBeGreaterThanOrEqual(geometry.contentHeight - 1);
+  expect(geometry.overflow).toBe("visible");
+  await expect(row.locator(".chart-strategy-readout")).toHaveCount(12);
+  const results = page.locator(".workbench-results");
+  const before = await results.evaluate(node => node.scrollTop);
+  await row.hover();
+  await page.mouse.wheel(0, 140);
+  await expect.poll(() => results.evaluate(node => node.scrollTop)).toBeGreaterThan(before);
+  expect(await row.evaluate(node => node.scrollTop)).toBe(0);
+  const last = row.locator(".chart-strategy-readout").last();
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeInViewport();
   const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(accessibility.violations).toEqual([]);
 });
