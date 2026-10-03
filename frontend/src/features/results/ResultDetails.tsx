@@ -103,7 +103,8 @@ export function ResultDetails({
   const candidateNumber = candidateResult && focusedResult?.searchResult?.candidates.find(candidate => candidate.candidateId === candidateResult.id)?.sequence;
   const headerActions = (
     <div className="result-context-actions">
-      <ExportControls locale={locale} runId={run?.runId ?? null} result={displayedResult} searchResult={focusedResult} />
+      <ExportControls locale={locale} runId={run?.runId ?? null} result={displayedResult} searchResult={focusedResult}
+        busy={busy || candidatePending} />
       <ReportDownloadButton locale={locale} run={run} result={displayedResult} catalog={catalog}
         parent={candidateResult ? focusedResult : null} busy={busy || candidatePending} />
     </div>

@@ -26,8 +26,14 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
     return wrapReportText(value, width, text => context.measureText(text).width);
   };
   const title = wrap(report.title, 32, BODY_WIDTH, 700);
-  const metricRows = report.metrics.map(metric => ({ ...metric, labelLines: wrap(metric.label, 18, 248) }));
-  const metricHeight = Math.max(...metricRows.map(metric => metric.labelLines.length)) * 24 + 56;
+  const metricRows = report.metrics.map(metric => {
+    font(28, 700);
+    const valueSize = Math.max(18, Math.min(28, 28 * 240 / Math.max(context.measureText(metric.value).width, 1)));
+    return { ...metric, labelLines: wrap(metric.label, 18, 240), valueSize,
+      valueLines: wrap(metric.value, valueSize, 240, 700) };
+  });
+  const metricHeight = Math.max(...metricRows.map(metric => metric.labelLines.length * 24
+    + metric.valueLines.length * (metric.valueSize + 6))) + 38;
   const legend = report.lines.map(line => ({ ...line, labelLines: wrap(line.label, 19, BODY_WIDTH - 34) }));
   const legendHeight = legend.reduce((height, line) => height + line.labelLines.length * 26, 0);
   const sections = report.sections.map(section => ({ ...section,
@@ -66,7 +72,8 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
     const top = y + Math.floor(index / 4) * metricHeight;
     context.fillStyle = palette.soft; context.fillRect(x, top, 264, metricHeight - 12);
     textLines(metric.labelLines, x + 12, top + 12, 24, 18, palette.muted);
-    text(metric.value, x + 12, top + 16 + metric.labelLines.length * 24, 28, palette.text, 700);
+    textLines(metric.valueLines, x + 12, top + 16 + metric.labelLines.length * 24,
+      metric.valueSize + 6, metric.valueSize, palette.text, 700);
   });
   y += metricHeight * 2 + 28;
   text(report.chartTitle, MARGIN, y, 24, palette.text, 700);

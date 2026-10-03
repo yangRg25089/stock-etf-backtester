@@ -24,7 +24,9 @@ export async function performCsvExport(
   runId: string,
   focusedResultId: string,
   kind: ExportKind,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const exported = await fetchCsvExport(runId, focusedResultId, kind);
+  const exported = await fetchCsvExport(runId, focusedResultId, kind, signal);
+  if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
   triggerFileDownload(exported.blob, exported.filename);
 }

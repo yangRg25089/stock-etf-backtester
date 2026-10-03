@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ExportKind, StrategyRun } from "../../api/generated";
 import { ExportApiError } from "../../api/exports";
 import { translate, type Locale } from "../../i18n/messages";
@@ -12,21 +12,31 @@ interface ExportControlsProps {
   runId: string | null;
   result: StrategyRun | null;
   searchResult?: StrategyRun | null;
+  busy?: boolean;
 }
 
-export function ExportControls({ locale, runId, result, searchResult }: ExportControlsProps) {
+export function ExportControls({ locale, runId, result, searchResult, busy = false }: ExportControlsProps) {
   const [pendingKind, setPendingKind] = useState<ExportKind | null>(null);
   const [error, setError] = useState<ExportApiError | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setPendingKind(null);
+    setError(null);
+    return () => controller.current?.abort();
+  }, [runId, result?.id, searchResult?.id, locale, busy]);
   const targetFor = (kind: ExportKind) => kind === "search-results" ? searchResult ?? result : result;
 
   const handleExport = async (kind: ExportKind) => {
     const target = targetFor(kind);
-    if (!runId || !target || !isExportAvailable(target, kind) || pendingKind) return;
+    if (busy || !runId || !target || !isExportAvailable(target, kind) || pendingKind) return;
+    const request = new AbortController();
+    controller.current = request;
     setPendingKind(kind);
     setError(null);
     try {
-      await performCsvExport(runId, target.id, kind);
+      await performCsvExport(runId, target.id, kind, request.signal);
     } catch (caught) {
+      if (request.signal.aborted) return;
       if (caught instanceof ExportApiError) {
         setError(caught);
       } else {
@@ -37,7 +47,7 @@ export function ExportControls({ locale, runId, result, searchResult }: ExportCo
         }]));
       }
     } finally {
-      setPendingKind(null);
+      if (!request.signal.aborted) setPendingKind(null);
     }
   };
 
@@ -45,7 +55,7 @@ export function ExportControls({ locale, runId, result, searchResult }: ExportCo
     <div className="export-controls" role="group" aria-label={translate(locale, "export.csvLabel")}>
       {EXPORT_KINDS.map((kind) => {
         const target = targetFor(kind);
-        const disabled = !runId || !target || !isExportAvailable(target, kind) || pendingKind !== null;
+        const disabled = busy || !runId || !target || !isExportAvailable(target, kind) || pendingKind !== null;
         const label = `${translate(locale, "export.csvLabel")}: ${translate(locale, `export.kind.${kind}`)}`;
         return (
           <button

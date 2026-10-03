@@ -8,6 +8,7 @@ const { renderToStaticMarkup } = require("react-dom/server");
 const { ExportApiError, fetchCsvExport } = require("../.test-output/api/exports.js");
 const { performCsvExport } = require("../.test-output/features/results/exportModel.js");
 const { SearchResults } = require("../.test-output/features/results/SearchResults.js");
+const { ExportControls } = require("../.test-output/features/results/ExportControls.js");
 
 function candidate(candidateId, sequence, status = "completed") {
   return {
@@ -216,4 +217,34 @@ test("CSV action downloads the focused server response", async () => {
     URL.createObjectURL = originalCreateObjectUrl;
     URL.revokeObjectURL = originalRevokeObjectUrl;
   }
+});
+
+test("CSV cancellation after body completion prevents even an abort-insensitive response from downloading", async () => {
+  const originalFetch = globalThis.fetch;
+  const controller = new AbortController();
+  let receivedSignal;
+  globalThis.fetch = async (_url, init) => {
+    receivedSignal = init.signal;
+    const response = new Response("header\nvalue\n", { status: 200 });
+    response.blob = async () => {
+      controller.abort();
+      return new Blob(["header\nvalue\n"]);
+    };
+    return response;
+  };
+  try {
+    await assert.rejects(performCsvExport("saved", "old-focus", "summary", controller.signal),
+      error => error.name === "AbortError");
+    assert.equal(receivedSignal, controller.signal);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("all available CSV actions are disabled while a run or candidate is loading", () => {
+  const result = { id: "complete", status: "completed", presetId: "monthly_dca", metrics: candidate("c", 1).metrics };
+  const html = renderToStaticMarkup(React.createElement(ExportControls, {
+    locale: "zh", runId: "saved", result, busy: true,
+  }));
+  assert.equal((html.match(/disabled=""/g) ?? []).length, 4);
 });
