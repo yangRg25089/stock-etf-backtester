@@ -62,7 +62,7 @@ with sqlite3.connect(".local/runs.sqlite3") as source:
 
 键盘/辅助激活删除条件或嵌套组后，父组在 React 更新结束时恢复新增入口焦点；删除释放的类型/节点已可使用，窄屏目标保持可见。鼠标删除不触发该焦点跳转。
 
-每日 `totalContributed` 是累计外部注资，包含未买入现金；`actualInvested` 是注资首次用于买入的累计本金。回收资金及收益优先用于再买，不重复计入，始终满足 `0 ≤ actualInvested ≤ totalContributed`。唯一指标模块同时保存每日与汇总值，CSV 读取保存值，不累加成交或重算。新结果 `investmentBasis=original_principal`；历史累计买入成交额标记 `buy_turnover`，前端「已投入本金」显示占位，旧每日缺值留空，历史 CSV 保留原口径并附该标记。成交额仍见交易 CSV。指标版本为 `metrics-v6`、账本为 `ledger-v4`，参与普通/搜索缓存指纹。净利润、注资本金收益率、XIRR 和剔除注资的单位净值回撤口径不变。真实 QQQ 重复买卖验证本金、资产分解、SQLite 重启和每日/汇总 CSV 一致。常驻读数按全部已选策略自然展开，仅结果区纵向滚动；读数不是滚轮缩放区域，不遮挡曲线。缺累计本金的历史结果保留价格和原始导出，重新运行后获得本金收益曲线。
+每日 `totalContributed` 是累计外部注资，包含未买入现金；`actualInvested` 是注资首次用于买入的累计本金。回收资金及收益优先用于再买，不重复计入，始终满足 `0 ≤ actualInvested ≤ totalContributed`。唯一指标模块同时保存每日与汇总值，CSV 读取保存值，不累加成交或重算。新结果 `investmentBasis=original_principal`；历史累计买入成交额标记 `buy_turnover`，前端「已投入本金」显示占位，旧每日缺值留空，历史 CSV 保留原口径并附该标记。成交额仍见交易 CSV。指标版本为 `metrics-v7`、账本为 `ledger-v4`，参与普通/搜索缓存指纹。净利润、注资本金收益率、XIRR 和剔除注资的单位净值回撤口径不变。真实 QQQ 重复买卖验证本金、资产分解、SQLite 重启和每日/汇总 CSV 一致。常驻读数按全部已选策略自然展开，仅结果区纵向滚动；读数不是滚轮缩放区域，不遮挡曲线。缺累计本金的历史结果保留价格和原始导出，重新运行后获得本金收益曲线。
 
 主图价格以首个有效价格为 100；资产曲线为 `totalAsset / totalContributed * 100`，单位净值与回撤算法保持原有定义。仅保留紧密联动图：买卖标记固定到资产累计本金收益线，只在查看对应图例时显示；细长等腰三角以向下实心表示买入、向上空心红边表示卖出，方向/填充不只依赖颜色。VIX/回撤以半高辅助图显示自然单位，不显示辅助标题/局部图例；所有辅助绘图区等高。日期刻度和定位日期标签在独立底部轴显示，不占最后一个图的高度；共享日期窗口与十字纵线，横线属于当前图。定位读取最近保存日，缺失值显示占位。Shift+左右键查看读数，Escape 收起；普通滚轮滚动结果区，显式放大镜模式或 Ctrl/Command+滚轮缩放，拖动跟随指针。放大镜取消后即使鼠标仍悬停也显示未选中，边界开关背景始终为页面底色、悬停仅加粗图标。交易页明确显示当前策略名称；网格候选追加保存候选序号，与交易/CSV 同源。直接显示保存交易表，无显隐状态或参数。结果 info 的入口、渲染、专用样式与翻译均已删除，领域 RunSnapshot 和导出来源信息保持。比较表多选只控制主图曲线，焦点独立控制明细/导出；行色/曲线/读数共用颜色映射，切换焦点保留日期窗口。所有选中资产线被取消时保留价格恢复入口，失败状态不画残留资产。VIX 无常态小点，主图图例可点击锁定高亮。指标开关有勾选符号；放大镜开启有图表聚焦边框和短状态，关闭即恢复普通滚动。
 
@@ -110,6 +110,17 @@ E2E 包含隔离 Chromium 临时 profile 的原生 `tabs.setZoom/getZoom` 100%/1
 后端全量 `pytest` 包含 `tests/runs/test_yahoo_data_live.py`，需要外网访问 Yahoo 和 Yahoo Finance 的交易所元数据。该回归检查真实 QQQ 和所选波动率指数的日期、来源、信号可用状态及完整 API 运行结果，不断言实时行情数值；网络或 Yahoo 服务不可用时全量 pytest 会失败。纯账本、信号边界和 fixture API 测试仍保持确定性。
 
 逐策略门禁：`STOCK_ETF_BACKTESTER_RUN_STORE_PATH=:memory: python -m pytest -o addopts='' -q tests/runs/test_single_strategy_live.py`。它请求真实 QQQ、波动率及利率，独立复算 12 类默认模板和 10 种变体，覆盖再投入、零交易、安全阀、嵌套条件、搜索候选与 CSV。金额误差上限为 `1e-20`，XIRR 用独立 ACT/365 净现值残差 `1e-18` 验证；测试不硬编码供应商历史报价。PE 不可用和未知单位属于明确的负面用例，不是正向绩效验收。报告浏览器专项：`npm run test:e2e -- e2e/phase32-report.spec.mjs`，检查实际原生 PNG 下载、双语/窄屏、快照隔离、候选、失败重试及取消。
+
+增强弱点门禁：
+
+```bash
+cd backend
+STOCK_ETF_BACKTESTER_RUN_STORE_PATH=:memory: .venv/bin/python -m pytest -o addopts='' -q tests/ledger/test_stress_invariants.py tests/signals/test_condition_truth_matrix.py tests/runs/test_complex_stress_live.py
+```
+
+覆盖固定种子长期分数卖出和三档注资、价格尺度/未来隔离、嵌套严格三态全组合，以及真实 QQQ/VIX/VXN/利率的单独/批量/反序/搜索、基准、保存恢复和 CSV。逐策略独立 oracle 也核对逐日 MA/RSI/布林带；不调用生产算法获取预期值，不放宽金额预算。本金追踪按账本同一顺序重放总现金，避免分池合并的有限精度误拒绝；真实超支包括低于误差预算的微小超支仍拒绝。
+
+前端专项：`npm run test:e2e -- e2e/phase33-weakness.spec.mjs`。覆盖 CSV 迟到成功/错误的取消及新焦点重试、大额 KPI 卡片、长历史条件文本的原生 PNG 像素预算，以及三个策略图例快速悬停/锁定/释放的身份一致性。CSV/PNG 在焦点、运行、语言或忙碌变化时取消待下载内容；报告完整文字在字体最小值后换行，位图预算不省略条件。详细复现与验收见 `docs/design/phase33-weakness-audit.md`。
 
 ## 显式 live smoke
 

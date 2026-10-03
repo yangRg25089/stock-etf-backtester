@@ -964,3 +964,36 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 复审/简化复用已有名称、颜色、归一、格式和文件下载工具，普通结果只取规范保存身份；长图 extrema 使用 reduce，避免浏览器参数上限。没有新增长期 suppression、跳过断言、旁路算法、秘密或生成物；完整差异和 `git diff --check` 通过。
 - 日志：`/tmp/backtester-phase32-backend-acceptance.log`、`/tmp/backtester-phase32-unit-acceptance.log`、`/tmp/backtester-phase32-browser-acceptance.log`、`/tmp/backtester-phase32-principal-red2.log`、`/tmp/backtester-phase32-principal-green.log`、`/tmp/backtester-phase32-stabilization-final.log`、`/tmp/backtester-phase32-real-png.log`。
 - 未完成：Task135 的 SEC 联系标识及历史 PE 正向链路；历史 Task102、检查点W、Task120 的指定远端推送/删除目标确认。不可用测试或本地 main 清理均不代表这些项目已完成。
+
+## 阶段 33：弱点测试与复杂观测
+
+- [x] Task 136：基线、弱点矩阵和确定性压力/尺度/时序测试。
+- [x] Task 137：长期真实复杂策略、多策略/搜索及保存导出的独立交叉验算。
+- [x] Task 138：多选/生命周期/报告边界的浏览器和多维身份检查。
+- [x] Task 139：本轮确认问题的失败回归、根因修复与复验。
+- [x] Task 140：完整门禁、复审/简化、稳定化扫查与覆盖记录。
+
+### 当前依据
+
+- 初始工作树干净，main/f1d82c3；上一轮后端 498、前端 200、浏览器 116 passed。
+- 用户明确要求提高策略复杂度及观测维度；以固定种子压力、真实来源及跨层一致性相互补充，不把增加用例数量等同覆盖完整。
+- PE 历史接入/联系人和既有远端确认项独立保留；本轮优先强化已实现能力。
+
+### 复杂度、观测与已确认修复
+
+- 新增18组固定种子长期压力，每组315日，注资0.01/137.19/100万，含分数卖出再买和月底安全阀；3组价格尺度及未来数据前缀变换。独立有理数参考按28位逐操作舍入，逐笔/逐日金额仍保持 `1e-20`；先出现13失败，其中2个真缺陷与11个参考精度假设错误分别记录，没有放宽预算。
+- 严格三态矩阵共5510个组合检查，覆盖所有叶子状态、AND/OR、四叶嵌套和顺序变化；缺失字段/来源/日期/详情完整传播，卖出只取满足分组的最大比例，空组不触发。
+- 真实长期QQQ/VIX/VXN/利率：2019-12-16至2021-02-26，137.19/第31日，每侧6类原子条件、12叶/4层组合；3身份单独、批量、反序一致，基准同样独立复算。两搜索候选逐日核对，四类CSV字段、身份/币种/来源/排名一致，SQLite重开响应相等。原22项真实矩阵也加严逐日MA/RSI/布林带及本金生产输出上限。
+- P33-01：百万级长期序列因两个资金池加法顺序产生一位Decimal舍入差，误拒绝合法买入。改为按账本交易顺序重放总现金，移除回收池状态，metrics-v7更新普通/搜索指纹；最小回归及压力通过，真实超支至 `1e-25` 仍严格拒绝。
+- P33-02：旧CSV成功/错误迟到污染新焦点。身份/语言/运行与候选加载变化取消请求并清空旧状态，下载前检查取消，旧catch/finally不覆盖新请求；两类迟到响应及新焦点重试通过。
+- P33-03：PNG大额KPI越过卡片内宽。按真实字体适配字号，18px下限后换行、卡片高度同步；四项大额完整数字宽度均≤240px，实际PNG截图无裁切。27,022字符历史未知条件说明也完整保留，实际像素预算通过。历史说明只是读取兼容显示测试，不代表新配置允许未知字段。
+- 多选图例正反序反复查看、点击锁定/释放均绑定正确策略买卖点；原有锁定规则与仅悬停旧指摘区分，未修改正确产品。现有报告夹具抽取复用，原断言保留；无新依赖、长期suppression、跳过检查或第二套生产算法。
+
+### 最终门禁与发现扫查
+
+- 后端完整 `STOCK_ETF_BACKTESTER_RUN_STORE_PATH=:memory: .venv/bin/python -m pytest -o addopts='' -q`：**534 passed**，59.35秒、37条既有yfinance弃用提示；最后补强缺失诊断完整内容及最小会计fixture的定向 **54 passed**，3.60秒。真实复杂CSV/来源/排名最终专项 **1 passed**，17.44秒。
+- 前端完整 `npm test`：**202 passed**；`npm run typecheck`、`npm run lint`（零警告）、`npm run build`通过。后端Ruff check、103文件格式和mypy 60源文件通过；OpenAPI重生成 **66 schemas**，generated.ts无差异。
+- 完整 `npm run test:e2e`：**121 passed**，3.1分钟；另最后全页/十类策略弹窗完整axe、运行停止/重置/迟到响应、新增弱点扫查 **11 passed**，25.5秒。控制台/pageerror无意外失败；原有双语/多尺寸/原生100%/125%/150%缩放门禁继续通过。
+- 完整差异复审及简化完成，`git diff --check`通过；检查草稿与保存隔离、金额尺度、普通/基准/搜索、三态/时点、CSV/PNG取消和资源预算。没有新的已确认中等及以上缺陷。本轮已实现范围为COMPLETE；PE未接入的整体范围仍为PARTIAL。
+- 审计与复现见 `docs/design/phase33-weakness-audit.md`；截图保存在忽略目录 `.local/verification/phase33/`，不入Git。日志：`/tmp/backtester-phase33-stress-first.log`、`/tmp/backtester-phase33-principal-green.log`、`/tmp/backtester-phase33-ui-red.log`、`/tmp/backtester-phase33-ui-green.log`、`/tmp/backtester-phase33-backend-acceptance.log`、`/tmp/backtester-phase33-unit-final.log`、`/tmp/backtester-phase33-browser-final.log`、`/tmp/backtester-phase33-stabilization-final.log`、`/tmp/backtester-phase33-final-review-green.log`。
+- 仅Task135（历史SEC联系人/PE真实正向接入）及历史Task102/检查点W/Task120（指定远端写入目标确认）尚未完成；本地仍仅main，agent相关文件不跟踪，不绕过此前远端自动审批拒绝。
