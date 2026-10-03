@@ -6,6 +6,8 @@
 
 应用启动不访问外部网络。纯计算确定性测试使用固定数据；后端的默认 Yahoo provider 回归测试会实际请求 Yahoo 和交易所日历，覆盖 QQQ 与 `^VIX`、`^VXN`、`^VXD`，另验收 QQQ/USD 和 7203.T/JPY 真实报价币种。用户提交回测后，默认 API provider 调用 Yahoo 获取标的日线及启用条件所需的指数/利率序列；数据先经过现有适配器规范化，再进入快照和回测。共通弹窗选择目录以外的代码时，通过 `/api/v1/instruments/{symbol}` 读取供应商元数据确认币种；不推测币种或做汇率换算。当前交易所日历映射覆盖美国 NASDAQ、NYSE、AMEX/ARCA 与 OTC 常用代码；未知交易所会返回未支持诊断。Yahoo 请求失败会返回限流、超时或请求错误诊断。浏览器 E2E 使用仓库 fixture provider，`live smoke` 是独立的只读连通性检查。
 
+额外的 [外部校验报告](design/external-calibration.md)记录实际 DQYDJ ETF 输出与真实 Yahoo 基准对照，以及含 VIX/MA/RSI/布林嵌套条件的独立指标/资金复算。外部观测保留为小型证据，测试仍请求真实 Yahoo；DQYDJ 不成为运行供应商。
+
 已提交的 `RunSnapshot.dataProvenance` 冻结来源列表、日历截止日和行情最新报价日。汇总、每日资产、交易、搜索结果四类 CSV 都从这个保存快照附带 `dataSources`、`calendarAsOf`、`marketDataThrough`，导出不读取当前草稿或重新请求数据。`marketDataThrough` 表示行情报价覆盖，不代表宏观或 SEC 数据也更新到该日；这些数据的观察日/公开时间保留在数据快照和诊断中。运行完成日志以结构化字段记录相同来源与日期，不输出配置值或供应商响应。
 
 运行记录由本机 SQLite `RunStore` 保存，默认路径为仓库根目录 `.local/runs.sqlite3`，该目录已加入 Git 忽略规则。可通过 `STOCK_ETF_BACKTESTER_RUN_STORE_PATH` 指定另一文件路径。运行响应、冻结快照和幂等键均持久化；SQLite 私有版本化编码保留冻结参数中的 `Decimal` 类型，旧格式记录依照对应 catalog 参数类型恢复，API 快照 JSON 仍以十进制字符串对外。页面启动时读取最近一次已保存运行；未完成作业经单条 `/api/v1/runs/{runId}/events` SSE 连接恢复进度，结束后只读取一次完整结果。断开页面订阅不会终止服务端运行。服务重启时，仍处于 `queued/loading/running` 的策略会转成带 `runs.interrupted_by_restart` 诊断的 `failed`，已经结束的策略和部分结果保留。

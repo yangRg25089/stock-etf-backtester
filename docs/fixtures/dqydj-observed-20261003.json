@@ -1,0 +1,28 @@
+{
+  "observedOn": "2026-10-03",
+  "source": "https://dqydj.com/etf-return-calculator/",
+  "symbol": "QQQ",
+  "instrument": "Invesco QQQ Trust Series 1",
+  "exchange": "NASDAQ",
+  "currency": "USD",
+  "requestedStartDate": "2024-04-01",
+  "requestedEndDate": "2024-05-15",
+  "dividends": "reinvest",
+  "displayedBannerStartDate": "2024-04-02",
+  "displayedBannerEndDate": "2024-05-14",
+  "lastChartPointDate": "2024-05-15",
+  "lumpSum": {
+    "initialAmount": "200",
+    "finalValue": "203.56",
+    "annualReturnPercent": "15.78"
+  },
+  "monthly": {
+    "initialAmount": "100",
+    "periodicAmount": "100",
+    "frequency": "Monthly",
+    "firstPeriodicEventDate": "2024-05-02",
+    "displayedAddedShares": "0.24",
+    "finalValue": "208.27",
+    "annualReturnPercent": "67.52"
+  }
+}
