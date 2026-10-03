@@ -39,7 +39,7 @@
 | `rsi.buyEnabled`, `rsi.period`, `rsi.buyThreshold` | 启用RSI / 多条件默认开；RSI周期 / `14`；RSI阈值 / `30` | 策略实例；同一周期结果供买卖复用 |
 | `ma.buyEnabled`, `ma.period`, `ma.buyDeviationPct` | 启用200日均线 / 多条件默认开；均线周期 / `200`；价格低于均线百分比阈值 / `-1` | 策略实例；`buyEnabled` 和偏离阈值只适用多条件，趋势策略必需 `ma.period` 并使用同一均线实现 |
 | `bollinger.buyEnabled`, `bollinger.period`, `bollinger.stddev` | 启用布林带 / 多条件默认开；周期 / `20`；标准差倍数 / `2` | 策略实例；上下轨由同一指标模块给买卖规则 |
-| `rate.buyEnabled`, `rate.symbol`, `rate.thresholdPct`, `rate.sourceUnit` | 启用利率 / 关；利率代码 / `^TNX`；利率阈值 / `2.5`；来源单位默认由适配器识别 | 策略实例；无法识别单位时可显式选取并记录 |
+| `rate.buyEnabled`, `rate.symbol`, `rate.thresholdPct`, `rate.sourceUnit` | 启用利率 / 关；利率代码 / `^TNX`；利率阈值 / `2.5`；默认来源单位明确配置为百分数值 | 策略实例；可选 auto，但未识别时准确报单位错误，不按代码猜倍率；配置和快照记录单位 |
 | `pe.buyEnabled`, `pe.threshold`, `pe.etfMinCoverage` | 启用PE / 关；PE阈值 / `25`；ETF 覆盖率 / `0.80` | 策略实例；适用能力由数据诊断决定；阈值最小值/步长同为 `0.000001`，保持正值范围与原生输入有效性 |
 | `exit.enabled`, `exit.vix.low1`, `exit.vix.ratio1`, `exit.vix.low2`, `exit.vix.ratio2` | 启用卖出策略 / 开；VIX卖出阈值1 / `12`、比例1 / `0.20`；阈值2 / `10`、比例2 / `0.30` | 策略实例；仅多条件策略；VIX 信号定投预设默认关 |
 | `exit.rsi.enabled`, `exit.rsi.threshold`, `exit.rsi.ratio` | 启用RSI卖出 / 关；RSI卖出阈值 / `70`；比例 / `0.25` | 策略实例；即使 RSI 买入关，卖出开仍依赖 RSI 数据 |
@@ -54,7 +54,7 @@
 
 ## 草稿、作业与结果状态
 
-股票代码的格式是共享领域约束 `SYMBOL_PATTERN`（1–32 个 ASCII 字母、数字及 `.^=_-`），catalog 的 symbol 字段通过 `pattern` 暴露同一约束；运行/数据契约共用 `Symbol`，不各自维护 regex。注册日期只接受 date，不接受 datetime；搜索列表必须非空且唯一。目录版本为 `catalog-v11`，已保存旧运行保留原目录指纹和原结果。
+股票代码的格式是共享领域约束 `SYMBOL_PATTERN`（1–32 个 ASCII 字母、数字及 `.^=_-`），catalog 的 symbol 字段通过 `pattern` 暴露同一约束；运行/数据契约共用 `Symbol`，不各自维护 regex。注册日期只接受 date，不接受 datetime；搜索列表必须非空且唯一。目录版本为 `catalog-v12`，已保存旧运行保留原目录指纹和原结果。
 
 ### 阶段 21 的当前约束
 
@@ -141,6 +141,7 @@ SQLite 私有 JSON 编码必须无损保存冻结策略参数的领域类型（�
 | `DiagnosticList` / `ResultDetails` | 统一实际错误/覆盖诊断与翻译，保存诊断去重并在折叠时可读；比较表不显示角色或状态；机器状态/CSV 保留，错误由诊断呈现，旧面板组件及样式完全删除 |
 | `ResultViewer` / `ChartLegend` | 独立结果焦点/多选曲线、稳定行色、指标、网格与轴标签、收盘价走势折线、VIX 观察值、交易标记、曲线显隐和交易明细；价格归一到起点 100，资产显示累计本金收益，回撤/VIX 自然单位底部联动，各图表共享日期窗口，均读取保存快照，图例不修改策略启用 |
 | `ExportControls` | 从当前结果快照选导出种类，下载图标与 .csv 名称明确动作；无结果禁用，零交易可导出表头 |
+| `ReportDownloadButton` / `reportModel` / `reportImage` | 同一明细焦点的保存策略/搜索候选生成「报告.png」；纯模型抽取冻结配置及已保存指标/日次值，复用曲线归一口径；原生 Canvas 按实际字体测量换行，完整期间及两项基准，不依赖 UI 视口/草稿，不重新计算绩效。字体/编码期间可取消，失败可重试；位图最多 1600 万像素、单边 16384，自动调整像素倍率 |
 | `SearchDimensionEditor` | 从注册表筛选可搜索字段，沿用普通输入的单位、范围和错误 |
 | `LocaleControl` | 可访问的日/中文分段控件；只改变文案与格式 |
 

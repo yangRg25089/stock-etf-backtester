@@ -922,3 +922,45 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 简化及完整差异复审：删除读数内滚动、固定高度预算和专用焦点；日期建议解析保持一个纯函数入口，恢复操作复用字段导航；行情日期查找为集合，所有预热仍取唯一依赖解析。确认无新依赖、秘密、意外生成物或无关删除，`git diff --check` 通过。
 - 阶段31 Task126–130本地全部完成。全todo剩余仅 **Task102、检查点W、Task120** 的指定远端写入目标确认；本地仅main、agent相关文件不跟踪，保留既有恢复备份。此前自动审批拒绝的推送/删除不重试或绕过。
 - 最终日志：`/tmp/backtester-phase31-backend-final.log`、`/tmp/backtester-phase31-unit-final.log`、`/tmp/backtester-phase31-type-final.log`、`/tmp/backtester-phase31-lint-final.log`、`/tmp/backtester-phase31-build-final.log`、`/tmp/backtester-phase31-browser-final.log`、`/tmp/backtester-phase31-audit-final.log`。
+
+## 阶段 32：逐策略计算审计与 PNG 结果报告
+
+- [x] Task 131：全部目录的独立真实数据运行、计算核对与矩阵证据。
+- [x] Task 132：确认缺陷的失败回归、根因修复及真实来源复验。
+- [x] Task 133：已保存单策略/搜索候选 PNG 汇总截图报告下载。
+- [x] Task 134：完整门禁、报告浏览器验收、设计复审和稳定化复扫。
+- [ ] Task 135：PE 历史数据接入及正向真实估值验算；SEC 请求联系人邮箱尚未收到，仍需核对历史证券/EPS/持仓/公开时间口径。
+
+### 当前依据
+
+- 初始工作树干净，main/1dec11c；上一轮后端 473、前端 194、浏览器 112 passed。
+- 本轮明确要求测试和核对所有单策略；不以成功 HTTP 状态代替指标正确，也不把数据不可用伪装成计算完成。
+- 报告默认使用 PNG，数据来自当前已保存的明细结果及冻结配置；与既有四种 CSV 并列，不改变 CSV 契约。
+
+### 逐策略真实验算
+
+- 12 类目录默认模板各自提交，另有 10 种真实变体，共 22 项通过。真实 QQQ 2020-01-01 至 2020-06-30、月度 100 USD/第 1 日，11 类正向成功；PE 只验证明确 unavailable、无伪造指标及基准隔离，未计为正向成功。独立核对信号/阈值、技术指标、嵌套 AND/OR、t+1/日内顺序、注资/现金/持仓、资金来源/本金上限、净利润/倍数/收益/单位净值/回撤、XIRR、保存响应及 CSV。详细矩阵见 `docs/design/phase32-strategy-audit.md`。
+- 金额内部断言保持 `1e-20`，ACT/365 独立净现值残差 `1e-18`；不调用生产信号/交易/指标算法当作预期结果，不硬编码供应商价格。搜索阈值 20/25 的候选逐条复算并检查保存排名；每次自动 DCA/一次投入也核对。
+- VXN/VXD 的真实卖出再买分别覆盖 52/50 次卖出；零交易实际已投入本金为 0，安全阀有 6 次买入。未知利率单位仍准确失败，仅一条诊断定位到所属条件；布林/RSI/均线乖离/利率卖出及嵌套组合均有真实链路证据。
+
+### 确认缺陷的失败回归与修复
+
+- P32-01/02：默认利率 auto 缺单位、每日重复错误。唯一注册表将默认 `^TNX` 明确配置为 percent_point，catalog-v12；不是按代码猜倍率。适配器一次校验单位，运行层绑定所属条件字段和冻结策略身份。失败回归及真实默认/未知单位路径通过。
+- P32-03：真实 VXD 再买被本金追踪误报超支；较大回收金额减法的 Decimal 有限精度触发 ValueError。先严格验证总可用现金，再拆分剩余原始/回收资金，保留真实超支拒绝和已投入本金不重复；两种金额回归先失败后通过，metrics-v6 纳入普通/搜索指纹，真实 VXD 复验通过。51 项账本/指标/来源定向检查通过。
+- P32-04：320px 结果视图的 h1→h3 跳级由完整 axe 发现，独立 sr-only 结果 h2 修复，原型同步；没有过滤可访问性规则。P32-05：报告的普通结果按当前保存运行解析同一身份，拒绝陈旧对象混入新指标；单测先失败后通过。
+
+### PNG 产品及实际下载验收
+
+- 结果详情新增橙色「报告.png」下载当前明细策略/已保存搜索候选：八项 KPI、实际完整区间、保存条件、价格/本金收益及两项基准、回撤、保存身份/版本/数据指纹。独立于草稿、多选、曲线显隐和缩放，不请求行情或重算绩效；复用现有格式、曲线口径和下载工具，无新依赖。
+- 按真实字体测量换行，双语、长条件/指纹、零交易、候选、旧本金口径及未知字段均保留准确语义。位图上限 1600 万像素/单边 16384；字体加载/编码期间换焦点或重跑取消旧图片，释放位图/URL；编码失败可见且可重试。
+- 6 项报告模型单测、4 项原生 Canvas 浏览器路径通过；检查 PNG 签名/尺寸及文字/数值，草稿 100 改 999 不影响旧报告，候选编号/参数/指标一致。另将 11 类真实成功保存响应从产品入口下载成 PNG，金额/文件/像素一致；实看 VIX、较长搜索报告和工作台无裁切，PE 禁用。图片保存在忽略目录 `.local/verification/phase32/reports/`，不加入 Git。
+
+### 最终复审、门禁与未完成范围
+
+- 设计树自审覆盖单位/时点、t+1、卖出回收/本金、搜索、保存身份/候选、草稿隔离、异步取消和双语窄屏。全画面后重点复扫十类策略弹窗，完整 axe、控制台/pageerror、滚轮/拖动/缩放、运行/停止/恢复及旧结果路径通过；当前已实现范围未发现新的中等及以上确认缺陷。PE 接入作为明确未完成能力单列 Task135，整体结论为 PARTIAL。
+- 最终后端 `STOCK_ETF_BACKTESTER_RUN_STORE_PATH=:memory: .venv/bin/python -m pytest -o addopts='' -q`：**498 passed**，41.60 秒，33 条既有 yfinance 弃用提示；包括本轮 22 项真实策略矩阵。Ruff check、100 文件格式检查、mypy 60 源文件通过。
+- 前端 `npm test`：**200 passed**；`npm run typecheck`、`npm run lint`（零警告）、`npm run build` 全部通过。`npm run test:e2e`：**116 passed**，包含报告及原有双语/多尺寸/原生 100%/125%/150% 缩放门禁。五项全画面/弹窗/报告最终专项也全部通过。测试使用隔离内存运行库/临时浏览器，没有打开个人 SQLite 或浏览器 profile。
+- OpenAPI 重生成 **66 schemas** 且无契约差异；报告只新增浏览器下载，不新增 API 导出端点。
+- 复审/简化复用已有名称、颜色、归一、格式和文件下载工具，普通结果只取规范保存身份；长图 extrema 使用 reduce，避免浏览器参数上限。没有新增长期 suppression、跳过断言、旁路算法、秘密或生成物；完整差异和 `git diff --check` 通过。
+- 日志：`/tmp/backtester-phase32-backend-acceptance.log`、`/tmp/backtester-phase32-unit-acceptance.log`、`/tmp/backtester-phase32-browser-acceptance.log`、`/tmp/backtester-phase32-principal-red2.log`、`/tmp/backtester-phase32-principal-green.log`、`/tmp/backtester-phase32-stabilization-final.log`、`/tmp/backtester-phase32-real-png.log`。
+- 未完成：Task135 的 SEC 联系标识及历史 PE 正向链路；历史 Task102、检查点W、Task120 的指定远端推送/删除目标确认。不可用测试或本地 main 清理均不代表这些项目已完成。

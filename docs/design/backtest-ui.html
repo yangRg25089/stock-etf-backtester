@@ -119,6 +119,7 @@
 
     #backtest-ui-preview .export-controls { display: flex; flex-wrap: wrap; gap: 4px; }
     #backtest-ui-preview .export-controls button { min-height: 32px; padding: 0 8px; color: var(--muted); font-size: 12px; }
+    #backtest-ui-preview .prototype-report-download { color: var(--action-text); background: var(--action); border-color: var(--accent); min-height: 36px; font-weight: 600; }
     #backtest-ui-preview .panel-body { padding: 0 10px 10px; }
     #backtest-ui-preview .result-tabs { display: flex; gap: 4px; margin: 0; overflow-x: auto; border-bottom: 1px solid var(--border); }
     #backtest-ui-preview .result-tabs button { flex: 0 0 auto; padding: 7px 9px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); }
@@ -338,10 +339,11 @@
       <div class="divider"><button id="prototype-config-toggle" class="icon-button config-toggle" type="button" aria-label="設定を閉じる" title="設定を閉じる" aria-expanded="true"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m13 5-5 5 5 5"/></svg></button></div>
 
       <section class="results-pane" aria-label="結果">
+        <h2 class="sr-only">結果</h2>
         <section class="result-card" id="prototype-result-details" aria-label="実行結果">
           <header class="panel-heading">
             <div class="panel-heading-main"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-result-body"><span class="chevron" aria-hidden="true">⌄</span>実行結果</button></div>
-            <div class="result-context-actions"><div class="export-controls" role="group" aria-label="CSV をエクスポート"><button type="button" title="サマリー CSV">↓ サマリー.csv</button><button type="button" title="日次資産 CSV">↓ 日次資産.csv</button><button type="button" title="取引 CSV">↓ 取引.csv</button><button type="button" disabled title="検索結果なし">↓ 検索結果.csv</button></div></div>
+            <div class="result-context-actions"><div class="export-controls" role="group" aria-label="CSV をエクスポート"><button type="button" title="サマリー CSV">↓ サマリー.csv</button><button type="button" title="日次資産 CSV">↓ 日次資産.csv</button><button type="button" title="取引 CSV">↓ 取引.csv</button><button type="button" disabled title="検索結果なし">↓ 検索結果.csv</button></div><button type="button" class="prototype-report-download" title="保存済み戦略の結果を PNG で保存">↓ レポート.png</button></div>
           </header>
           <div id="prototype-result-body" class="panel-body">
             <div class="result-tabs" role="tablist" aria-label="実行結果"><button type="button" role="tab" aria-selected="true" data-tab="comparison">戦略比較</button><button type="button" role="tab" aria-selected="false" data-tab="trades">取引明細</button></div>

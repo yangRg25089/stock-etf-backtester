@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchCandidate, RunApiError } from "../../api/runs";
-import type { Diagnostic, RunResponse, StrategyRun } from "../../api/generated";
+import type { Catalog, Diagnostic, RunResponse, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
@@ -13,6 +13,7 @@ import { DEFAULT_COMPARISON_SORT, sortedComparisons } from "./comparisonModel";
 import type { DiagnosticFieldAction } from "../runs/DiagnosticList";
 
 interface ResultViewerProps {
+  catalog?: Catalog | null;
   busy?: boolean;
   locale: Locale;
   state: WorkspaceState;
@@ -21,7 +22,7 @@ interface ResultViewerProps {
   fieldAction?(diagnostic: Diagnostic): DiagnosticFieldAction | null;
 }
 
-export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy = false }: ResultViewerProps) {
+export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy = false, catalog }: ResultViewerProps) {
   const run: RunResponse | null = state.runResponse;
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const strategyRuns = run?.result?.strategyRuns ?? [];
@@ -77,6 +78,7 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
   return (
     <div className="result-content">
       <ResultDetails
+        catalog={catalog}
         busy={busy}
         key={run?.runId ?? "no-run"}
         locale={locale}

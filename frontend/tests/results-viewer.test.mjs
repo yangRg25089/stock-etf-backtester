@@ -472,7 +472,8 @@ test("an empty workspace keeps the details card first and every CSV kind visible
   }));
   assert.ok(html.indexOf('id="result-details"') >= 0);
   assert.match(html, /还没有结果/);
-  assert.equal((html.match(/<button[^>]*disabled/g) ?? []).length, 4);
+  assert.equal((html.match(/<button[^>]*disabled/g) ?? []).length, 5);
+  assert.match(html, /data-report-kind="png" disabled/);
   assert.match(html, /data-export-kind="summary" disabled/);
   assert.match(html, /data-export-kind="search-results" disabled/);
 });

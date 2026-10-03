@@ -1572,6 +1572,25 @@ h2 {
   padding-top: 0;
 }
 
+.report-download-control {
+  min-width: 0;
+}
+
+.report-download-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+.report-download-error {
+  max-width: 240px;
+  margin: 6px 0 0;
+}
+
 .result-details .collapsible-panel-always-visible > .empty-results {
   margin: 9px 0;
 }

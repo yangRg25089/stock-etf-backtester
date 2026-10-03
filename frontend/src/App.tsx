@@ -306,9 +306,10 @@ function App() {
               aria-label={translate(locale, "section.results")}
               hidden={mobilePanel === "config"}
             >
+              <h2 className="sr-only">{translate(locale, "section.results")}</h2>
               <div className="results">
                 <fieldset className="result-interactions" disabled={runBusy} aria-label={translate(locale, "section.results")}>
-                  <ResultViewer locale={locale} state={workspace} dispatch={dispatch} error={runError} busy={runBusy} fieldAction={fieldActionForDiagnostic} />
+                  <ResultViewer catalog={catalog} locale={locale} state={workspace} dispatch={dispatch} error={runError} busy={runBusy} fieldAction={fieldActionForDiagnostic} />
                 </fieldset>
               </div>
             </section>

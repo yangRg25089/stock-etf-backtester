@@ -163,7 +163,7 @@ test("strategy parameters follow catalog groups and select controls explain thei
   assert.match(zh, /data-rule-side="sell"/);
   assert.match(zh, /title="满足本组所有启用条件"/);
   assert.match(zh, /title="满足本组任一启用条件"/);
-  assert.match(zh, /通常自动识别；无法判断时选择来源单位。/);
+  assert.match(zh, /默认 Yahoo 利率以 % 报价；其他序列按来源选择单位。/);
 });
 
 test("turning off VIX shows the required disabled copy and preserves the preset id", () => {

@@ -8,7 +8,7 @@ export function isExportAvailable(result: StrategyRun | null, kind: ExportKind):
   return kind !== "search-results" || (result.presetId === "grid_search" && result.searchResult !== null && result.searchResult !== undefined);
 }
 
-export function triggerCsvDownload(blob: Blob, filename: string): void {
+export function triggerFileDownload(blob: Blob, filename: string): void {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
@@ -17,7 +17,7 @@ export function triggerCsvDownload(blob: Blob, filename: string): void {
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 export async function performCsvExport(
@@ -26,5 +26,5 @@ export async function performCsvExport(
   kind: ExportKind,
 ): Promise<void> {
   const exported = await fetchCsvExport(runId, focusedResultId, kind);
-  triggerCsvDownload(exported.blob, exported.filename);
+  triggerFileDownload(exported.blob, exported.filename);
 }

@@ -8,6 +8,8 @@
 
 额外的 [外部校验报告](design/external-calibration.md)记录实际 DQYDJ ETF 输出与真实 Yahoo 基准对照，以及含 VIX/MA/RSI/布林嵌套条件的独立指标/资金复算。外部观测保留为小型证据，测试仍请求真实 Yahoo；DQYDJ 不成为运行供应商。
 
+[逐策略审计](design/phase32-strategy-audit.md)记录全部 12 类目录的真实运行状态、独立信号/账本/指标及 CSV 验算。11 类有实际成功计算证据；PE 当前只验证明确不可用及局部失败隔离，不能据此宣称历史 PE 计算通过。
+
 已提交的 `RunSnapshot.dataProvenance` 冻结来源列表、日历截止日和行情最新报价日。汇总、每日资产、交易、搜索结果四类 CSV 都从这个保存快照附带 `dataSources`、`calendarAsOf`、`marketDataThrough`，导出不读取当前草稿或重新请求数据。`marketDataThrough` 表示行情报价覆盖，不代表宏观或 SEC 数据也更新到该日；这些数据的观察日/公开时间保留在数据快照和诊断中。运行完成日志以结构化字段记录相同来源与日期，不输出配置值或供应商响应。
 
 运行记录由本机 SQLite `RunStore` 保存，默认路径为仓库根目录 `.local/runs.sqlite3`，该目录已加入 Git 忽略规则。可通过 `STOCK_ETF_BACKTESTER_RUN_STORE_PATH` 指定另一文件路径。运行响应、冻结快照和幂等键均持久化；SQLite 私有版本化编码保留冻结参数中的 `Decimal` 类型，旧格式记录依照对应 catalog 参数类型恢复，API 快照 JSON 仍以十进制字符串对外。页面启动时读取最近一次已保存运行；未完成作业经单条 `/api/v1/runs/{runId}/events` SSE 连接恢复进度，结束后只读取一次完整结果。断开页面订阅不会终止服务端运行。服务重启时，仍处于 `queued/loading/running` 的策略会转成带 `runs.interrupted_by_restart` 诊断的 `failed`，已经结束的策略和部分结果保留。
@@ -31,6 +33,8 @@
 停止调用 `POST /api/v1/runs/{runId}/stop`，结果为明确的 `cancelled` 终态；重复停止、结束后停止幂等，已完成策略/基准的指标和交易保留。账本逐日、搜索逐候选协作检查停止信号，锁保护进度和结果，迟到的计算不会覆盖停止终态。正在发送的供应商 HTTP 请求使用自身超时，不能被计算停止立即中断；提交尚未取得 runId 时，前端记住停止意图，在作业接受后立即发送停止。比较表实时显示等待图标、执行 spinner 和已完成指标；SSE 推送轻量完成摘要，最终只 GET 一次完整结果。
 
 搜索版本 `search-v2` 将候选完整结果保存在同一 RunStore；SQLite 的 `candidate_results` 保存压缩 JSON，主运行只包含排名摘要和最佳候选曲线。`GET /api/v1/runs/{runId}/candidates/{candidateId}` 按需读取保存曲线，重启后仍可查看；相同计算复用但候选身份独立。旧记录没有保存曲线时显示结果缺失诊断，保留原曲线并允许重试，不误报网络错误。候选的汇总/每日资产/交易 CSV 使用候选 ID，搜索 CSV 使用父搜索结果；所有读取与下载均不重算、不读当前草稿。
+
+结果详情右上角的「レポート.png / 报告.png」下载当前明细策略的汇总图片。在比较表点击策略后下载；搜索页先选择已保存候选，再下载该候选。图片包含实际完整区间、八项指标、价格与本金收益曲线、两个自动基准、回撤、保存条件及运行指纹。图表缩放、曲线显隐和设置弹窗中的修改不影响旧报告。零交易但指标完整时可以下载；运行中、候选读取中、失败或不可用时禁用。字体加载或 PNG 编码期间切换焦点/重新运行会取消旧下载，编码失败显示简短提示且可重试。原生 Canvas 在浏览器本地生成，不新增数据请求或服务端导出类型；已有四类 CSV 不变。
 
 备份时优先使用 SQLite 在线备份接口，例如：
 
@@ -58,11 +62,11 @@ with sqlite3.connect(".local/runs.sqlite3") as source:
 
 键盘/辅助激活删除条件或嵌套组后，父组在 React 更新结束时恢复新增入口焦点；删除释放的类型/节点已可使用，窄屏目标保持可见。鼠标删除不触发该焦点跳转。
 
-每日 `totalContributed` 是累计外部注资，包含未买入现金；`actualInvested` 是注资首次用于买入的累计本金。回收资金及收益优先用于再买，不重复计入，始终满足 `0 ≤ actualInvested ≤ totalContributed`。唯一指标模块同时保存每日与汇总值，CSV 读取保存值，不累加成交或重算。新结果 `investmentBasis=original_principal`；历史累计买入成交额标记 `buy_turnover`，前端「已投入本金」显示占位，旧每日缺值留空，历史 CSV 保留原口径并附该标记。成交额仍见交易 CSV。指标版本为 `metrics-v5`、账本为 `ledger-v4`，参与普通/搜索缓存指纹。净利润、注资本金收益率、XIRR 和剔除注资的单位净值回撤口径不变。真实 QQQ 重复买卖验证本金、资产分解、SQLite 重启和每日/汇总 CSV 一致。常驻读数按全部已选策略自然展开，仅结果区纵向滚动；读数不是滚轮缩放区域，不遮挡曲线。缺累计本金的历史结果保留价格和原始导出，重新运行后获得本金收益曲线。
+每日 `totalContributed` 是累计外部注资，包含未买入现金；`actualInvested` 是注资首次用于买入的累计本金。回收资金及收益优先用于再买，不重复计入，始终满足 `0 ≤ actualInvested ≤ totalContributed`。唯一指标模块同时保存每日与汇总值，CSV 读取保存值，不累加成交或重算。新结果 `investmentBasis=original_principal`；历史累计买入成交额标记 `buy_turnover`，前端「已投入本金」显示占位，旧每日缺值留空，历史 CSV 保留原口径并附该标记。成交额仍见交易 CSV。指标版本为 `metrics-v6`、账本为 `ledger-v4`，参与普通/搜索缓存指纹。净利润、注资本金收益率、XIRR 和剔除注资的单位净值回撤口径不变。真实 QQQ 重复买卖验证本金、资产分解、SQLite 重启和每日/汇总 CSV 一致。常驻读数按全部已选策略自然展开，仅结果区纵向滚动；读数不是滚轮缩放区域，不遮挡曲线。缺累计本金的历史结果保留价格和原始导出，重新运行后获得本金收益曲线。
 
 主图价格以首个有效价格为 100；资产曲线为 `totalAsset / totalContributed * 100`，单位净值与回撤算法保持原有定义。仅保留紧密联动图：买卖标记固定到资产累计本金收益线，只在查看对应图例时显示；细长等腰三角以向下实心表示买入、向上空心红边表示卖出，方向/填充不只依赖颜色。VIX/回撤以半高辅助图显示自然单位，不显示辅助标题/局部图例；所有辅助绘图区等高。日期刻度和定位日期标签在独立底部轴显示，不占最后一个图的高度；共享日期窗口与十字纵线，横线属于当前图。定位读取最近保存日，缺失值显示占位。Shift+左右键查看读数，Escape 收起；普通滚轮滚动结果区，显式放大镜模式或 Ctrl/Command+滚轮缩放，拖动跟随指针。放大镜取消后即使鼠标仍悬停也显示未选中，边界开关背景始终为页面底色、悬停仅加粗图标。交易页明确显示当前策略名称；网格候选追加保存候选序号，与交易/CSV 同源。直接显示保存交易表，无显隐状态或参数。结果 info 的入口、渲染、专用样式与翻译均已删除，领域 RunSnapshot 和导出来源信息保持。比较表多选只控制主图曲线，焦点独立控制明细/导出；行色/曲线/读数共用颜色映射，切换焦点保留日期窗口。所有选中资产线被取消时保留价格恢复入口，失败状态不画残留资产。VIX 无常态小点，主图图例可点击锁定高亮。指标开关有勾选符号；放大镜开启有图表聚焦边框和短状态，关闭即恢复普通滚动。
 
-目录版本为 `catalog-v11`：共享条件元数据、叶节点/嵌套分组、结构限制、固定模板、ETF 快捷选项及实例数量上限。`composite_dca` 为「自定义策略」，最多 10 个，名称使用稳定序号，删除不重排；其他固定类型各一个。同一侧买/卖树中条件种类不能重复。所有择时策略的月度买入上限置顶，MA 买卖/只买默认不限且不提供现金安全阀；条件与金额单位共享组件和真实报价币种。PE 阈值最小值与输入步长同为 0.000001，默认 25 不触发原生 stepMismatch；VIX 预设名为「波动率信号定投」，可选择 VIX/VXN/VXD。实例添加即运行，无启停 UI；买卖条件开关独立保留。固定模板只改参数，搜索也消费同一树。候选值在弹窗内编辑，列表元数据沿用普通字段的单位/边界，catalog 绑定值列表注册键；只有所选维度参与枚举，提交冻结列表及结果维度，恢复、候选曲线和 CSV 不重算。条件字段引用唯一 ParameterDefinition，SQLite 保留叶节点中的 Decimal。原七个稳定 ID 保留；旧平面请求在配置边界物化为同一树。数字字段编辑后仍以数值提交；局部无效策略快照也保存完整条件树用于复现。带类型标记的 SQLite 快照按原存储格式恢复；未带类型标记的 v4/v5 记录仍按注册表恢复十进制参数，保留旧快照版本，不修改已保存结果。
+目录版本为 `catalog-v12`：共享条件元数据、叶节点/嵌套分组、结构限制、固定模板、ETF 快捷选项及实例数量上限。`composite_dca` 为「自定义策略」，最多 10 个，名称使用稳定序号，删除不重排；其他固定类型各一个。同一侧买/卖树中条件种类不能重复。所有择时策略的月度买入上限置顶，MA 买卖/只买默认不限且不提供现金安全阀；条件与金额单位共享组件和真实报价币种。PE 阈值最小值与输入步长同为 0.000001，默认 25 不触发原生 stepMismatch；VIX 预设名为「波动率信号定投」，可选择 VIX/VXN/VXD。实例添加即运行，无启停 UI；买卖条件开关独立保留。固定模板只改参数，搜索也消费同一树。候选值在弹窗内编辑，列表元数据沿用普通字段的单位/边界，catalog 绑定值列表注册键；只有所选维度参与枚举，提交冻结列表及结果维度，恢复、候选曲线和 CSV 不重算。条件字段引用唯一 ParameterDefinition，SQLite 保留叶节点中的 Decimal。原七个稳定 ID 保留；旧平面请求在配置边界物化为同一树。数字字段编辑后仍以数值提交；局部无效策略快照也保存完整条件树用于复现。带类型标记的 SQLite 快照按原存储格式恢复；未带类型标记的 v4/v5 记录仍按注册表恢复十进制参数，保留旧快照版本，不修改已保存结果。
 
 新 runId 的比较多选默认零选择；明细焦点独立指向首个提交策略，未选中行不因焦点而高亮。新运行同时重置默认指标显隐、排序、候选、日期窗口、游标、图例锁定和滚轮模式；同一 runId 的进度/结果更新保留当前偏好。运行中锁定设置入口、策略增删/编辑和结果选择/排序/搜索/图表操作，停止仍可用，进度与指标继续更新。
 
@@ -81,7 +85,7 @@ cd backend
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e '.[dev]'
-python -m pytest -o addopts='' -q
+STOCK_ETF_BACKTESTER_RUN_STORE_PATH=:memory: python -m pytest -o addopts='' -q
 ruff check .
 ruff format --check .
 mypy app
@@ -104,6 +108,8 @@ E2E 包含隔离 Chromium 临时 profile 的原生 `tabs.setZoom/getZoom` 100%/1
 运行生命周期专项：`npm run test:e2e -- e2e/phase28-lifecycle.spec.mjs`。它用已计算的 fixture 结果及可控响应顺序，验证旧停止响应/错误不会覆盖重跑或重置、当前停止失败可以重试、合法 CRLF 进度流只读取一次完整终态结果。API 单测另覆盖逐字节 UTF-8/换行、响应体释放和异常 EOF；这些时序检查不替代后端真实行情门禁。
 
 后端全量 `pytest` 包含 `tests/runs/test_yahoo_data_live.py`，需要外网访问 Yahoo 和 Yahoo Finance 的交易所元数据。该回归检查真实 QQQ 和所选波动率指数的日期、来源、信号可用状态及完整 API 运行结果，不断言实时行情数值；网络或 Yahoo 服务不可用时全量 pytest 会失败。纯账本、信号边界和 fixture API 测试仍保持确定性。
+
+逐策略门禁：`STOCK_ETF_BACKTESTER_RUN_STORE_PATH=:memory: python -m pytest -o addopts='' -q tests/runs/test_single_strategy_live.py`。它请求真实 QQQ、波动率及利率，独立复算 12 类默认模板和 10 种变体，覆盖再投入、零交易、安全阀、嵌套条件、搜索候选与 CSV。金额误差上限为 `1e-20`，XIRR 用独立 ACT/365 净现值残差 `1e-18` 验证；测试不硬编码供应商历史报价。PE 不可用和未知单位属于明确的负面用例，不是正向绩效验收。报告浏览器专项：`npm run test:e2e -- e2e/phase32-report.spec.mjs`，检查实际原生 PNG 下载、双语/窄屏、快照隔离、候选、失败重试及取消。
 
 ## 显式 live smoke
 
@@ -158,6 +164,7 @@ SEC_USER_AGENT='Stock ETF Backtester contact@example.com' \
 - 免费来源无法保证所有标的和历史日期均有可用估值。个股非正 EPS、过期/未公开事实、价格口径或币种不一致都会导致 PE 不可用。
 - CompanyFacts 和 N-PORT 解析适配器当前接收已取得的数据，不承担 HTTP 获取；SEC live smoke 只验证 CompanyFacts 读取和 EPS 规范化覆盖，不验证完整 PE 或 ETF 持仓估值链路。
 - Yahoo 行情/指数/利率已接入回测运行；PE 仍依赖 SEC CompanyFacts/N-PORT 的获取、标识和公开时间链路，目前未接入普通回测 provider。启用 PE 的策略会显示专门的数据不可用诊断，其他策略照常运行。
+- 后续真实 SEC 接入需用户提供用于请求声明的联系人邮箱，再核对公开时间、证券类别、EPS/拆股/价格口径及 ETF 历史覆盖；不能从私人 Git 配置提取邮箱、虚构联系信息或用当前 PE 代替历史 PE。待办见 Task 135。
 
 官方参考：[SEC EDGAR API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)、[SEC Developer Resources / fair access](https://www.sec.gov/about/developer-resources)、[SEC N-PORT 数据集](https://www.sec.gov/data-research/sec-markets-data/form-n-port-data-sets)、[yfinance 1.7.0 history 实现与 timeout 参数](https://github.com/ranaroussi/yfinance/blob/1.7.0/yfinance/scrapers/history.py)。
 
