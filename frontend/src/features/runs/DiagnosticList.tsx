@@ -1,5 +1,6 @@
 import type { Diagnostic } from "../../api/generated";
 import { interpolate, translate, type Locale } from "../../i18n/messages";
+import { marketDateRecovery } from "./dateRecovery";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -15,6 +16,7 @@ const CALCULATION_STAGES = new Set([
 
 export interface DiagnosticFieldAction {
   label: string;
+  actionLabel?: string;
   activate(): void;
 }
 
@@ -32,8 +34,9 @@ export function DiagnosticList({ locale, diagnostics, fieldAction, fieldLabel }:
       {diagnostics.map((diagnostic, index) => {
         const action = fieldAction?.(diagnostic) ?? null;
         const label = fieldLabel?.(diagnostic);
+        const recovery = marketDateRecovery(diagnostic);
         const actionLabel = action
-          ? interpolate(translate(locale, "diagnostics.openField"), { field: action.label })
+          ? action.actionLabel ?? interpolate(translate(locale, "diagnostics.openField"), { field: action.label })
           : null;
         return (
           <li key={`${diagnostic.code}-${diagnostic.fieldPath ?? "run"}-${index}`}>
@@ -43,6 +46,7 @@ export function DiagnosticList({ locale, diagnostics, fieldAction, fieldLabel }:
             <div>
               {label && <strong className="diagnostic-field-name">{label}</strong>}
               <span>{translate(locale, diagnostic.messageKey)}</span>
+              {recovery && <small className="diagnostic-context">{translate(locale, "market.available_from", { symbol: recovery.symbol, date: recovery.availableFrom })}</small>}
               {diagnostic.messageKey === "diagnostics.calculation_failed" && (
                 <CalculationContext
                   locale={locale}

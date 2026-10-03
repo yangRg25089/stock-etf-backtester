@@ -10,7 +10,7 @@ from datetime import date as Date
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from threading import RLock
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 
 from app.calendar import ExchangeCalendar
 from app.catalog.service import Catalog, get_catalog
@@ -156,15 +156,13 @@ class YahooRunDataProvider:
             strategy.id: tuple(requirements.get(strategy.id, ()))
             for strategy in strategies
         }
-        lookback_sessions = max(
-            (
-                _indicator_lookback(
-                    strategy, strategy_requirements[strategy.id], self._catalog
-                )
-                for strategy in strategies
-            ),
-            default=0,
-        )
+        strategy_lookbacks = {
+            strategy.id: _indicator_lookback(
+                strategy, strategy_requirements[strategy.id], self._catalog
+            )
+            for strategy in strategies
+        }
+        lookback_sessions = max(strategy_lookbacks.values(), default=0)
         calendar_lookback = max(lookback_sessions, shared.data.macro_staleness_sessions)
         now = self._clock()
         if now.tzinfo is None or now.utcoffset() is None:
@@ -300,14 +298,33 @@ class YahooRunDataProvider:
                     details={"symbol": shared.run.symbol},
                 ),
             )
+            diagnostics = tuple(
+                Diagnostic.model_validate(
+                    {
+                        **diagnostic.model_dump(by_alias=True),
+                        "details": {
+                            **diagnostic.details,
+                            "requestedStartDate": shared.run.start_date.isoformat(),
+                            "requestedEndDate": shared.run.end_date.isoformat(),
+                            "suggestedStartDate": (
+                                market_result.available_from.isoformat()
+                            ),
+                            "suggestedEndDate": latest_closed_session.isoformat(),
+                        },
+                    }
+                )
+                if diagnostic.message_key == "market.period_before_listing"
+                and market_result.available_from is not None
+                else diagnostic
+                for diagnostic in diagnostics
+            )
             return {
                 strategy.id: StrategyDataLoad(diagnostics=diagnostics)
                 for strategy in strategies
             }
 
-        actual_latest_quote = max(
-            (bar.date for bar in base_snapshot.market.bars), default=None
-        )
+        quote_dates = {bar.date for bar in base_snapshot.market.bars}
+        actual_latest_quote = max(quote_dates, default=None)
         effective_calendar_dates, effective_market_diagnostics = (
             _apply_market_gap_policy(
                 calendar_dates,
@@ -341,13 +358,37 @@ class YahooRunDataProvider:
         resolved_start = max(
             shared.run.start_date, market_result.available_from or shared.run.start_date
         )
+        resolution_reason: Literal["market_available_from", "indicator_warmup"] = (
+            "market_available_from"
+        )
+        if (
+            lookback_sessions > 0
+            and market_result.available_from is not None
+            and request.data_start_date < market_result.available_from
+        ):
+            quoted_sessions = tuple(
+                day for day in effective_calendar_dates if day in quote_dates
+            )
+            ready_lookback = max(
+                (
+                    period
+                    for period in strategy_lookbacks.values()
+                    if period <= len(quoted_sessions)
+                ),
+                default=0,
+            )
+            if ready_lookback > 0:
+                first_ready = quoted_sessions[ready_lookback - 1]
+                if first_ready > resolved_start:
+                    resolved_start = first_ready
+                    resolution_reason = "indicator_warmup"
         date_adjustments = (
             (
                 RunDateAdjustment(
                     field="startDate",
                     requestedDate=shared.run.start_date,
                     effectiveDate=resolved_start,
-                    reason="market_available_from",
+                    reason=resolution_reason,
                 ),
             )
             if resolved_start != shared.run.start_date

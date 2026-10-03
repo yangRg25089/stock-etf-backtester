@@ -1,10 +1,10 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import type { RunResponse, StrategyRun } from "../../api/generated";
+import type { Diagnostic, RunResponse, StrategyRun } from "../../api/generated";
 import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
-import { DiagnosticList } from "../runs/DiagnosticList";
+import { DiagnosticList, type DiagnosticFieldAction } from "../runs/DiagnosticList";
 import { ExportControls } from "./ExportControls";
 import { ResultComparison } from "./ResultSummary";
 import { SearchResults } from "./SearchResults";
@@ -22,6 +22,7 @@ interface ResultDetailsProps {
   state: WorkspaceState;
   dispatch(action: WorkspaceAction): void;
   error: RunApiError | null;
+  fieldAction?(diagnostic: Diagnostic): DiagnosticFieldAction | null;
   comparisonSort?: ComparisonSort;
   onComparisonSortChange?(sort: ComparisonSort): void;
   candidateResult?: StrategyRun | null;
@@ -44,6 +45,7 @@ export function ResultDetails({
   state,
   dispatch,
   error,
+  fieldAction,
   comparisonSort = DEFAULT_COMPARISON_SORT,
   onComparisonSortChange,
   candidateResult = null,
@@ -116,7 +118,7 @@ export function ResultDetails({
             <p className="field-error" role="alert">{translate(locale, error.messageKey)}</p>
           )}
           {diagnostics.length > 0 && (
-            <div role="alert"><DiagnosticList locale={locale} diagnostics={diagnostics} /></div>
+            <div role="alert"><DiagnosticList locale={locale} diagnostics={diagnostics} fieldAction={busy ? undefined : fieldAction} /></div>
           )}
           {!run && !error && (
             <div className="empty-results" role="status">

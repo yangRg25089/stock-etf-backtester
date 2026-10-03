@@ -7,6 +7,7 @@ import { SHARED_FIELD_KEYS } from "./features/config/SharedSettingsForm";
 import { RunActions } from "./features/runs/RunActions";
 import { useRunController, validationDiagnostics } from "./features/runs/useRunController";
 import { DiagnosticList, type DiagnosticFieldAction } from "./features/runs/DiagnosticList";
+import { applyMarketDateRecovery, marketDateRecovery } from "./features/runs/dateRecovery";
 import { ResultViewer } from "./features/results/ResultViewer";
 import { useWorkspace } from "./features/strategies/useWorkspace";
 import { StrategyNavigator, type StrategyFieldNavigation } from "./features/strategies/StrategyWorkspace";
@@ -96,6 +97,19 @@ function App() {
   const fieldActionForDiagnostic = useCallback((diagnostic: Diagnostic): DiagnosticFieldAction | null => {
     const fieldPath = diagnostic.fieldPath;
     if (!fieldPath || !catalog || !workspace) return null;
+    const recovery = marketDateRecovery(diagnostic);
+    if (recovery?.range) {
+      const label = translate(locale, "market.adjust_period");
+      return { label, actionLabel: label, activate: () => {
+        if (isLocked()) return;
+        const shared = applyMarketDateRecovery(workspace.draft.shared, recovery);
+        if (shared !== workspace.draft.shared) dispatch({ type: "shared.change", value: shared });
+        else {
+          setSharedSettingsFocusKey("run.startDate");
+          setSharedSettingsDialogOpen(true);
+        }
+      } };
+    }
 
     const sharedKey = SHARED_FIELD_KEYS.find((key) => key === fieldPath);
     if (sharedKey) {
@@ -134,12 +148,13 @@ function App() {
     return {
       label: translate(locale, definition.translationKey),
       activate: () => {
+        if (isLocked()) return;
         setStrategyFieldNavigation({ strategyId: strategy.id, parameterKey, fieldIndex, conditionId });
         setConfigCollapsed(false);
         if (window.matchMedia("(max-width: 767px)").matches) setMobilePanel("config");
       },
     };
-  }, [catalog, locale, workspace, isLocked]);
+  }, [catalog, locale, workspace, isLocked, dispatch]);
 
 
   return (
@@ -293,7 +308,7 @@ function App() {
             >
               <div className="results">
                 <fieldset className="result-interactions" disabled={runBusy} aria-label={translate(locale, "section.results")}>
-                  <ResultViewer locale={locale} state={workspace} dispatch={dispatch} error={runError} busy={runBusy} />
+                  <ResultViewer locale={locale} state={workspace} dispatch={dispatch} error={runError} busy={runBusy} fieldAction={fieldActionForDiagnostic} />
                 </fieldset>
               </div>
             </section>

@@ -873,7 +873,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 
 - [x] Task 126：删除读数内部纵向滚动并自然展开全部策略行。
 - [x] Task 127：ETF 起始可用日期自动解析、画面同步及真实 SOXQ 验收。
-- [ ] Task 128：横展开可恢复日期/预热边界与准确诊断。
+- [x] Task 128：横展开可恢复日期/预热边界与准确诊断。
 - [ ] Task 129：真实复杂条件回测与 DQYDJ 计算结果对照。
 - [ ] Task 130：todo 核对、设计树自审与最终稳定化完整门禁。
 
@@ -898,3 +898,10 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 前端接受响应只修改本次请求仍匹配的日期并持久化；旧结果恢复不覆盖草稿。无调整/已编辑的响应保持原草稿引用，消除不必要的校验失效。前端 192 passed、typecheck/lint/build 通过；日期同步、日中简短提示、单次完整 GET、重开及编辑后恢复的完整浏览器路径通过（5.5 秒）。最后一轮明确等待弹窗异步校验并提交后才刷新，纠正测试提前导航的前提。
 - 完整 axe 发现重复结果区域、卡片内外及表格区域名称，以及隐藏主标题位于 landmark 外；保留唯一有名区域和现有 disclosure 控件，将主标题归入 banner，未跳过或缩窄新检查。当前规范/复用规范/开发说明同步；日志 `/tmp/backtester-phase31-normalized-slice.log`、`/tmp/backtester-phase31-soxq-green.log`、`/tmp/backtester-phase31-dates-browser.log`。
 - 最终扩大到 data/run/manager/SQLite/domain 135 passed（1.79 秒）；98 文件格式、Ruff check、mypy 60 文件通过，diff check 通过。补充 CSV 复验按实际 API 契约传 focusedResultId；旧快照、幂等及日期持久化保持。
+
+### 可恢复边界验收
+
+- 真实 SOXQ 三种新边界先失败后修复：MA3 从首个完整均线日 2021-06-15 开始；无法预热的 MA200 只使自身不可用；整个 2020 年区间保留结束日并返回首个可用日 2021-06-11 和可调整区间。不请求已知不存在的历史，不改变周期/注资/严格缺失判断；共享窗口与两个基准一致。四项真实来源验收通过（3.69 秒）。
+- 周末、尚未发布尾部、孤立/连续缺口沿用既有共享清洗规则；无有效注资保持可操作诊断。诊断操作复用字段导航，不另外建立提交管线；一键恢复只改匹配原请求的草稿，陈旧建议打开日期编辑器，结果/CSV 不变，需播放才执行。运行时禁止入口。诊断安全详情保持递归冻结。
+- data/run/manager/SQLite/domain 136 passed，前端 194 passed，typecheck/零警告 lint/build、Ruff check/98 文件格式和 mypy 60 文件通过；两项日期浏览器路径 2 passed（5.5 秒），完整 axe 无违规，覆盖显示可用日期、一键调整不发 POST、旧结果保留、陈旧建议不覆盖、新日期恢复。
+- 差异复审后将行情日期查找改为集合，按每条策略完整预热需求选可恢复共享日期；不引入第二套指标算法。日志 `/tmp/backtester-phase31-recovery-live-green.log`、`/tmp/backtester-phase31-recovery-unit-green.log`、`/tmp/backtester-phase31-recovery-ui-green.log`、`/tmp/backtester-phase31-recovery-browser-green.log`。未收到可选结束日期偏好回复时，保守保留原区间直到用户点击调整。

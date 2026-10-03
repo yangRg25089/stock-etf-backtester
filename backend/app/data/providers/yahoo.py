@@ -153,6 +153,32 @@ class YahooFinanceAdapter:
                 missing_sessions=request.data_sessions,
             )
 
+        available_from, metadata_error = _available_from(ticker, request.symbol)
+        if metadata_error is not None:
+            return _required_market_unavailable(
+                cache_key=cache_key,
+                diagnostic=metadata_error,
+                missing_sessions=request.data_sessions,
+            )
+        if available_from is not None and request.end_date < available_from:
+            return MarketDataResult(
+                cacheKey=cache_key,
+                availableFrom=available_from,
+                diagnostics=(
+                    Diagnostic(
+                        code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+                        messageKey="market.period_before_listing",
+                        fieldPath="run.startDate",
+                        source=self.provider,
+                        asOf=available_from,
+                        details={
+                            "symbol": request.symbol,
+                            "availableFrom": available_from.isoformat(),
+                        },
+                    ),
+                ),
+            )
+
         frame, history_error = _history_frame(
             ticker, request, timeout_seconds=self._request_timeout_seconds
         )
@@ -171,14 +197,6 @@ class YahooFinanceAdapter:
                 missing_sessions=request.data_sessions,
             )
         assert currency is not None
-        available_from, metadata_error = _available_from(ticker, request.symbol)
-        if metadata_error is not None:
-            return _required_market_unavailable(
-                cache_key=cache_key,
-                diagnostic=metadata_error,
-                missing_sessions=request.data_sessions,
-            )
-
         close_column = _resolve_column(frame, "Close", request.symbol)
         adjusted_column = _resolve_column(frame, "Adj Close", request.symbol)
         ohlc_columns = {

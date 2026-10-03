@@ -732,6 +732,27 @@ def test_yahoo_never_infers_listing_date_from_incomplete_metadata(metadata) -> N
     assert result.missing_market_sessions == (date(2024, 1, 30),)
 
 
+def test_yahoo_known_pre_listing_range_never_requests_nonexistent_history() -> None:
+    ticker = _Ticker(
+        _Frame(["Close", "Adj Close"], []),
+        metadata={"firstTradeDate": datetime(2024, 1, 31, 14, 30, tzinfo=UTC)},
+        history_error=RuntimeError("history must not be requested before listing"),
+    )
+    result = _yahoo_adapter(ticker).load(
+        _request(
+            _calendar(date(2024, 1, 29), date(2024, 1, 30)),
+            start=date(2024, 1, 29),
+            end=date(2024, 1, 30),
+            prewarm_start=None,
+        )
+    )
+    assert result.snapshot is None
+    assert result.available_from == date(2024, 1, 31)
+    assert result.diagnostics[0].message_key == "market.period_before_listing"
+    assert result.diagnostics[0].code is DiagnosticCode.REQUIRED_DATA_UNAVAILABLE
+    assert ticker.history_kwargs is None
+
+
 def test_yahoo_does_not_trust_listing_metadata_that_contradicts_real_bars() -> None:
     ticker = _Ticker(
         _Frame(

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchCandidate, RunApiError } from "../../api/runs";
-import type { RunResponse, StrategyRun } from "../../api/generated";
+import type { Diagnostic, RunResponse, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
@@ -10,6 +10,7 @@ import { ResultDetails } from "./ResultDetails";
 import { resultColor } from "./colors";
 import { savedTechnicalIndicators } from "./technicalIndicators";
 import { DEFAULT_COMPARISON_SORT, sortedComparisons } from "./comparisonModel";
+import type { DiagnosticFieldAction } from "../runs/DiagnosticList";
 
 interface ResultViewerProps {
   busy?: boolean;
@@ -17,9 +18,10 @@ interface ResultViewerProps {
   state: WorkspaceState;
   dispatch(action: WorkspaceAction): void;
   error: RunApiError | null;
+  fieldAction?(diagnostic: Diagnostic): DiagnosticFieldAction | null;
 }
 
-export function ResultViewer({ locale, state, dispatch, error, busy = false }: ResultViewerProps) {
+export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy = false }: ResultViewerProps) {
   const run: RunResponse | null = state.runResponse;
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const strategyRuns = run?.result?.strategyRuns ?? [];
@@ -83,6 +85,7 @@ export function ResultViewer({ locale, state, dispatch, error, busy = false }: R
         state={state}
         dispatch={dispatch}
         error={error}
+        fieldAction={fieldAction}
         comparisonSort={comparisonSort}
         onComparisonSortChange={sort => setComparisonView({ runId: run?.runId, sort })}
         candidateResult={candidateResult ?? null}

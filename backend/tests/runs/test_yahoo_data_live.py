@@ -144,6 +144,197 @@ def test_live_soxq_pre_listing_start_adjusts_shared_snapshot_and_exports(
             reopened.close()
 
 
+def test_live_soxq_warmup_moves_every_strategy_and_benchmark_to_first_ready_day(
+    tmp_path,
+) -> None:
+    previous_service = app.state.run_service
+    store = SQLiteRunStore(tmp_path / "soxq-warmup.sqlite3")
+    app.state.run_service = RunManager(
+        store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
+    )
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://soxq-warmup"
+        ) as client:
+            accepted = await client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "soxq-warmup"},
+                json={
+                    "draft": {
+                        "shared": {
+                            "run": {
+                                "symbol": "SOXQ",
+                                "startDate": "2020-01-01",
+                                "endDate": "2021-08-31",
+                            }
+                        },
+                        "strategies": [
+                            {"id": "volatility", "presetId": "vix_dca"},
+                            {
+                                "id": "ma",
+                                "presetId": "ma_buy_only",
+                                "params": {"ma.period": 3},
+                            },
+                        ],
+                    },
+                    "scope": "all_enabled",
+                },
+            )
+            assert accepted.status_code == 202, accepted.text
+            saved = (
+                await client.get(f"/api/v1/runs/{accepted.json()['runId']}")
+            ).json()
+            assert (
+                saved["snapshot"]["config"]["shared"]["run"]["startDate"]
+                == "2021-06-15"
+            )
+            assert (
+                saved["snapshot"]["dateAdjustments"][0]["reason"] == "indicator_warmup"
+            )
+            assert saved["status"] == "completed", saved["result"]["strategyRuns"]
+            for result in saved["result"]["strategyRuns"]:
+                assert result["dailyAssets"][0]["date"] == "2021-06-15"
+                assert Decimal(result["metrics"]["totalContributed"]) == 200
+            ma = next(
+                result
+                for result in saved["result"]["strategyRuns"]
+                if result["id"] == "ma"
+            )
+            assert ma["technicalIndicators"]
+            assert all(
+                row["value"] is not None
+                for row in ma["technicalIndicators"][0]["samples"]
+            )
+
+    try:
+        asyncio.run(run())
+    finally:
+        app.state.run_service = previous_service
+        store.close()
+
+
+def test_live_unreachable_long_warmup_does_not_block_ready_strategies(tmp_path) -> None:
+    previous_service = app.state.run_service
+    store = SQLiteRunStore(tmp_path / "soxq-partial-warmup.sqlite3")
+    app.state.run_service = RunManager(
+        store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
+    )
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://soxq-partial-warmup",
+        ) as client:
+            accepted = await client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "soxq-partial-warmup"},
+                json={
+                    "draft": {
+                        "shared": {
+                            "run": {
+                                "symbol": "SOXQ",
+                                "startDate": "2020-01-01",
+                                "endDate": "2021-08-31",
+                            }
+                        },
+                        "strategies": [
+                            {"id": "volatility", "presetId": "vix_dca"},
+                            {
+                                "id": "ready",
+                                "presetId": "ma_buy_only",
+                                "params": {"ma.period": 3},
+                            },
+                            {
+                                "id": "long",
+                                "presetId": "ma_trend",
+                                "params": {"ma.period": 200},
+                            },
+                        ],
+                    },
+                    "scope": "all_enabled",
+                },
+            )
+            assert accepted.status_code == 202, accepted.text
+            saved = (
+                await client.get(f"/api/v1/runs/{accepted.json()['runId']}")
+            ).json()
+            assert (
+                saved["snapshot"]["config"]["shared"]["run"]["startDate"]
+                == "2021-06-15"
+            )
+            assert saved["status"] == "completed_with_warning"
+            for result in saved["result"]["strategyRuns"]:
+                if result["id"] == "long":
+                    assert result["status"] == "unavailable"
+                    assert result["metrics"] is None
+                    assert result["diagnostics"]
+                else:
+                    assert result["status"] == "completed", result["diagnostics"]
+                    assert result["dailyAssets"][0]["date"] == "2021-06-15"
+                    assert Decimal(result["metrics"]["totalContributed"]) == 200
+
+    try:
+        asyncio.run(run())
+    finally:
+        app.state.run_service = previous_service
+        store.close()
+
+
+def test_live_soxq_fully_pre_listing_period_has_actionable_dates_without_mutation(
+    tmp_path,
+) -> None:
+    previous_service = app.state.run_service
+    store = SQLiteRunStore(tmp_path / "soxq-before.sqlite3")
+    app.state.run_service = RunManager(
+        store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
+    )
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://soxq-before"
+        ) as client:
+            accepted = await client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "soxq-before"},
+                json={
+                    "draft": {
+                        "shared": {
+                            "run": {
+                                "symbol": "SOXQ",
+                                "startDate": "2020-01-01",
+                                "endDate": "2020-12-31",
+                            }
+                        },
+                        "strategies": [{"id": "volatility", "presetId": "vix_dca"}],
+                    },
+                    "scope": "all_enabled",
+                },
+            )
+            assert accepted.status_code == 202, accepted.text
+            saved = (
+                await client.get(f"/api/v1/runs/{accepted.json()['runId']}")
+            ).json()
+            assert (
+                saved["snapshot"]["config"]["shared"]["run"]["endDate"] == "2020-12-31"
+            )
+            assert saved["snapshot"]["dateAdjustments"] == []
+            assert saved["status"] == "unavailable"
+            for result in saved["result"]["strategyRuns"]:
+                diagnostic = result["diagnostics"][0]
+                assert diagnostic["messageKey"] == "market.period_before_listing"
+                assert diagnostic["details"]["availableFrom"] == "2021-06-11"
+                assert diagnostic["details"]["suggestedStartDate"] == "2021-06-11"
+                assert diagnostic["details"]["suggestedEndDate"] >= "2021-06-11"
+                assert result["metrics"] is None
+
+    try:
+        asyncio.run(run())
+    finally:
+        app.state.run_service = previous_service
+        store.close()
+
+
 def test_live_reversed_volatility_exit_tiers_save_matching_trades_and_csv(tmp_path):
     previous_service = app.state.run_service
     path = tmp_path / "exit-tiers.sqlite3"
