@@ -737,7 +737,7 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
     _d(
         "rate.sourceUnit",
         ParameterType.ENUM,
-        "auto",
+        "percent_point",
         group_id="interest_rate",
         presets=_COMPOSITE_PRESETS,
         allowed_values=("auto", "percent_point", "decimal", "basis_points"),

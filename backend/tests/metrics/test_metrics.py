@@ -120,7 +120,7 @@ def test_return_on_contributions_is_distinct_from_capital_multiple() -> None:
 
 
 def test_metrics_method_version_is_stable() -> None:
-    assert METRIC_METHOD_VERSION == "metrics-v5"
+    assert METRIC_METHOD_VERSION == "metrics-v6"
 
 
 def test_xirr_uses_each_contribution_date_with_actual_365_day_count() -> None:
@@ -374,6 +374,53 @@ def test_inconsistent_buy_funding_is_rejected_instead_of_clipped() -> None:
     )
     with pytest.raises(ValueError, match="exceeds available"):
         calculate_metrics(source)
+
+
+@pytest.mark.parametrize(
+    "recycled", ["90.54736460204700667003236192", "941.7037062410063841948012856"]
+)
+def test_full_reinvestment_preserves_original_principal_at_decimal_precision(
+    recycled: str,
+) -> None:
+    dates = (date(2020, 1, 2), date(2020, 3, 2), date(2020, 6, 15))
+    proceeds = Decimal(recycled)
+    original = Decimal("200")
+    available = original + proceeds
+    source = _input(
+        _strategy("composite_dca", dates[0], dates[-1]),
+        dates,
+        ((dates[0], "200"), (dates[2], "200")),
+        ("200", recycled, str(available)),
+    )
+    trades = tuple(
+        Trade(
+            date=day,
+            side=side,
+            reason=reason,
+            quantity=Decimal("1"),
+            price=amount,
+            cashAmount=amount,
+            currency="USD",
+        )
+        for day, side, reason, amount in (
+            (dates[0], TradeSide.BUY, TradeReason.SIGNAL_BUY, original),
+            (dates[1], TradeSide.SELL, TradeReason.SIGNAL_SELL, proceeds),
+            (dates[2], TradeSide.BUY, TradeReason.SIGNAL_BUY, available),
+        )
+    )
+    source = MetricsInput(
+        strategy=source.strategy,
+        schedule=source.schedule,
+        ledger=source.ledger.model_copy(update={"trades": trades}),
+        data_fingerprint=source.data_fingerprint,
+    )
+    result = calculate_metrics(source)
+    assert (
+        result.summary.actual_invested
+        == result.summary.total_contributed
+        == Decimal("400")
+    )
+    assert result.daily_assets[-1].actual_invested == Decimal("400")
 
 
 def test_no_valid_xirr_is_reported_without_hiding_other_metrics() -> None:

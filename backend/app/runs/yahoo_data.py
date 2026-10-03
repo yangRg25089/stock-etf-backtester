@@ -33,6 +33,7 @@ from app.domain.contracts import (
     RunDateAdjustment,
     SharedSettings,
 )
+from app.domain.immutability import freeze_mapping
 from app.domain.status import Diagnostic, DiagnosticCode
 from app.runs.data import StrategyDataLoad
 
@@ -507,7 +508,29 @@ class YahooRunDataProvider:
                         diagnostics.append(_required_macro_diagnostic(requirement))
                         continue
                     macros.append(result)
-                    diagnostics.extend(result.diagnostics)
+                    for diagnostic in result.diagnostics:
+                        # Cached supplier diagnostics have no instance identity.
+                        # Bind the unit field to this immutable condition path so
+                        # the UI can open the correct buy/sell editor.
+                        if diagnostic.code is DiagnosticCode.UNKNOWN_SOURCE_UNIT:
+                            condition_path, separator, _ = (
+                                requirement.field_path.rpartition(".params.")
+                            )
+                            if separator:
+                                diagnostic = diagnostic.model_copy(
+                                    update={
+                                        "field_path": (
+                                            f"{condition_path}.params.rate.sourceUnit"
+                                        ),
+                                        "details": freeze_mapping(
+                                            {
+                                                **dict(diagnostic.details or {}),
+                                                "strategyId": strategy.id,
+                                            }
+                                        ),
+                                    }
+                                )
+                        diagnostics.append(diagnostic)
                     if not result.observations and not result.diagnostics:
                         diagnostics.append(_required_macro_diagnostic(requirement))
                 elif requirement.kind is DataKind.VALUATION:

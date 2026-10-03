@@ -1116,6 +1116,29 @@ def test_yahoo_rate_unit_auto_does_not_infer_from_ticker_symbol() -> None:
     )
 
 
+def test_unknown_rate_unit_has_one_actionable_diagnostic_not_one_per_date() -> None:
+    days = tuple(date(2024, 1, day) for day in (29, 30, 31))
+    ticker = _Ticker(
+        _Frame(
+            ["Close"],
+            [
+                (datetime(2024, 1, day.day, 20, tzinfo=UTC), {"Close": 4.2})
+                for day in days
+            ],
+        ),
+        metadata={"currency": "USD"},
+    )
+    result = _yahoo_adapter(ticker).load_macro(
+        _request(_calendar(*days), start=days[0], end=days[-1], prewarm_start=None),
+        series_type="rate",
+        source_unit="auto",
+    )
+    assert result.observations == ()
+    assert len(result.diagnostics) == 1
+    assert result.diagnostics[0].code is DiagnosticCode.UNKNOWN_SOURCE_UNIT
+    assert result.diagnostics[0].field_path == "rate.sourceUnit"
+
+
 def test_yahoo_rate_explicit_basis_points_are_normalized_and_aligned() -> None:
     calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
     ticker = _Ticker(

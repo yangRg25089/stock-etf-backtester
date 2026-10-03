@@ -457,6 +457,32 @@ class YahooFinanceAdapter:
                 )
             effective_unit = metadata_unit if isinstance(metadata_unit, str) else "auto"
 
+        if (
+            normalized_type is MacroSeriesType.RATE
+            and normalize_rate_value(Decimal("0"), effective_unit) is None
+        ):
+            return _macro_result(
+                symbol=request.symbol,
+                request=request,
+                series_type=normalized_type.value,
+                source_unit=effective_unit,
+                cache_source_unit=source_unit,
+                observations=(),
+                data_version=self.data_version,
+                diagnostics=(
+                    Diagnostic(
+                        code=DiagnosticCode.UNKNOWN_SOURCE_UNIT,
+                        messageKey="rate.unknown_source_unit",
+                        fieldPath="rate.sourceUnit",
+                        source=self.provider,
+                        details={
+                            "symbol": request.symbol,
+                            "sourceUnit": effective_unit,
+                        },
+                    ),
+                ),
+            )
+
         source_rows: list[MacroObservation] = []
         diagnostics: list[Diagnostic] = []
         trading_sessions = set(request.exchange_calendar.trading_dates)
@@ -499,21 +525,7 @@ class YahooFinanceAdapter:
 
             if normalized_type is MacroSeriesType.RATE:
                 converted = normalize_rate_value(raw_value, effective_unit)
-                if converted is None:
-                    diagnostics.append(
-                        Diagnostic(
-                            code=DiagnosticCode.UNKNOWN_SOURCE_UNIT,
-                            messageKey="rate.unknown_source_unit",
-                            fieldPath="rate.sourceUnit",
-                            asOf=observation_date,
-                            source=self.provider,
-                            details={
-                                "symbol": request.symbol,
-                                "sourceUnit": effective_unit,
-                            },
-                        )
-                    )
-                    continue
+                assert converted is not None
                 output_value = converted
                 output_unit = "percent_point"
                 row_source_unit = effective_unit

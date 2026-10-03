@@ -115,8 +115,8 @@ EXPECTED_PARAMETER_KEYS = {
 }
 
 
-def test_catalog_version_advances_when_the_run_scope_ui_parameter_is_retired() -> None:
-    assert CATALOG_VERSION == "catalog-v11"
+def test_catalog_version_tracks_retired_scope_and_explicit_default_rate_unit() -> None:
+    assert CATALOG_VERSION == "catalog-v12"
     assert "run.scope" not in PARAMETER_DEFINITIONS
 
 
@@ -247,7 +247,9 @@ def test_macro_staleness_is_a_registered_shared_data_setting() -> None:
     assert staleness.minimum == Decimal("0")
     assert staleness.step == Decimal("1")
     assert staleness.level is ParameterLevel.SHARED
-    assert get_parameter_definition("rate.sourceUnit").default == "auto"
+    # The default Yahoo TNX quote is a percentage yield; its unit is supplied
+    # explicitly by the catalog, not guessed from a symbol at normalization time.
+    assert get_parameter_definition("rate.sourceUnit").default == "percent_point"
 
 
 def test_valuation_staleness_policies_are_registered_shared_data_settings() -> None:

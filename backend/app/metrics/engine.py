@@ -16,7 +16,7 @@ from app.domain.status import (
 from .types import MetricsInput, MetricsResult
 
 _DAY_COUNT = Decimal("365")
-METRIC_METHOD_VERSION = "metrics-v5"
+METRIC_METHOD_VERSION = "metrics-v6"
 
 
 def calculate_xirr(
@@ -227,15 +227,19 @@ def _invested_principal_by_date(
             if trade.side is TradeSide.SELL:
                 recycled_cash += trade.cash_amount
             else:
-                reused = min(recycled_cash, trade.cash_amount)
-                new_principal = trade.cash_amount - reused
-                if new_principal > unspent_principal:
+                available_cash = unspent_principal + recycled_cash
+                if trade.cash_amount > available_cash:
                     raise ValueError(
                         "buy amount exceeds available original and recycled cash"
                     )
-                recycled_cash -= reused
-                unspent_principal -= new_principal
-                invested += new_principal
+                # Partition the remaining cash after validating the actual buy.
+                # Subtracting a large recycled balance from a rounded buy can
+                # otherwise exceed the original pool by a Decimal rounding unit.
+                remaining_cash = available_cash - trade.cash_amount
+                remaining_principal = min(unspent_principal, remaining_cash)
+                invested += unspent_principal - remaining_principal
+                unspent_principal = remaining_principal
+                recycled_cash = remaining_cash - remaining_principal
         result[asset.date] = invested
     return result
 
