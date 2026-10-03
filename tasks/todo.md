@@ -875,7 +875,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - [x] Task 127：ETF 起始可用日期自动解析、画面同步及真实 SOXQ 验收。
 - [x] Task 128：横展开可恢复日期/预热边界与准确诊断。
 - [x] Task 129：真实复杂条件回测与 DQYDJ 计算结果对照。
-- [ ] Task 130：todo 核对、设计树自审与最终稳定化完整门禁。
+- [x] Task 130：todo 核对、设计树自审与最终稳定化完整门禁。
 
 ### 当前依据
 
@@ -912,3 +912,13 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 本机真实一次投入 203.5734；月历定投 209.2312。按网站追加日期和开盘价复核得到 208.2762，分别与网站差 0.0134/0.0062，低于本次两分钱显示/报价预算。网站横幅日期与实际图表点不一致、仅用追加日收盘价仍差 0.3929，均明确记录，不改本机排程或放宽内部精确校验。价格口径对齐保留为数值推断。
 - 真实复杂 AND/OR 的 VIX、MA10、RSI14、布林20组合（含卖出两种比例），独立复算实际指标、真值和 t+1 交易，以及现金/持仓/资金来源/本金上限/净利润/资本倍数；总注资 600，含多次买卖。SQLite 重开响应完全相等，资产/交易/汇总 CSV 检查通过。网站不支持复杂择时，未宣称其网站执行。
 - 两项真实 Yahoo/API 回归 2 passed（2.62 秒、3 条既有 yfinance 提示），Ruff/99 文件格式通过；所有金额内部断言保留 `1e-20`。报告 `docs/design/external-calibration.md`、日志 `/tmp/backtester-phase31-external-complex-green.log`。首轮发现测试误以为聚焦汇总会导出全部策略，按实际 API 每个焦点分别导出复核，未修改正确产品契约。
+
+### 最终设计树与稳定化验收
+
+- 依用户指摘按「行情边界 → 恢复 → 冻结/草稿 → 多策略 → 滚动/图表/表格 → 策略弹窗 → 金额校验 → Git」逐分支自审，记录 `docs/design/phase31-boundary-review.md`。grill-me 未安装，使用已安装 grilling 的设计树方法自审；没有重新开启产品访谈或新增竞争计划。
+- 全画面发现扫查后重点检查十类策略弹窗的三块结构、参数适用性、AND/OR/嵌套/重复类型、百分比/币种、错误定位和退出、删除/关闭焦点、触控及背景锁定。实际截图核对桌面工作台、买卖比例与窄屏自定义弹窗；新增完整 axe 扫描双语整页/十类弹窗/1440和320px共通设置，控制台/pageerror为空。P31-01–08 均关闭，最终没有新增已确认中等及以上缺陷。
+- 最终后端完整 **473 passed**（27.51 秒、24 条既有 yfinance 弃用提示），含真实 QQQ/VIX/VXN/VXD/SOXQ、嵌套指标/交易、API/停止/重启/CSV。Ruff check、99 文件格式和 mypy 60 文件通过；前端完整 **194 passed**、typecheck、零警告 lint、production build 通过；OpenAPI 重生成 66 schemas 且无差异。
+- 最终完整 Playwright/axe **112 passed**（2.9 分钟），覆盖320/375/767/768/1024/1280/1440/1920px、日中切换、真实原生100%/125%/150%缩放、弹窗、生命周期和本轮恢复操作。测试均使用隔离运行库/临时浏览器，不修改用户结果与个人浏览器配置。
+- 简化及完整差异复审：删除读数内滚动、固定高度预算和专用焦点；日期建议解析保持一个纯函数入口，恢复操作复用字段导航；行情日期查找为集合，所有预热仍取唯一依赖解析。确认无新依赖、秘密、意外生成物或无关删除，`git diff --check` 通过。
+- 阶段31 Task126–130本地全部完成。全todo剩余仅 **Task102、检查点W、Task120** 的指定远端写入目标确认；本地仅main、agent相关文件不跟踪，保留既有恢复备份。此前自动审批拒绝的推送/删除不重试或绕过。
+- 最终日志：`/tmp/backtester-phase31-backend-final.log`、`/tmp/backtester-phase31-unit-final.log`、`/tmp/backtester-phase31-type-final.log`、`/tmp/backtester-phase31-lint-final.log`、`/tmp/backtester-phase31-build-final.log`、`/tmp/backtester-phase31-browser-final.log`、`/tmp/backtester-phase31-audit-final.log`。
