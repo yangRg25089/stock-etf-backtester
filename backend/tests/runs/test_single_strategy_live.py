@@ -175,6 +175,51 @@ class _SignalOracle:
         )
 
 
+def _verify_technical_series(result, oracle):
+    """Independent rolling-window values, dates and saved band parameters."""
+    for series in result.get("technicalIndicators", []):
+        assert [row["date"] for row in series["samples"]] == [
+            row["date"] for row in result["dailyAssets"]
+        ]
+        period = series["period"]
+        for sample in series["samples"]:
+            index = oracle.positions[sample["date"]]
+            values = [
+                bar.simulation_price
+                for bar in oracle.bars[max(0, index - period + 1) : index + 1]
+            ]
+            if len(values) < period or (series["kind"] == "rsi" and index < period):
+                assert sample["value"] is None
+                continue
+            if series["kind"] == "rsi":
+                changes = [
+                    oracle.bars[n].simulation_price
+                    - oracle.bars[n - 1].simulation_price
+                    for n in range(index - period + 1, index + 1)
+                ]
+                gain = sum((max(D(0), value) for value in changes), D(0))
+                loss = sum((max(D(0), -value) for value in changes), D(0))
+                if gain + loss == 0:
+                    assert sample["value"] is None
+                    continue
+                expected = 100 * gain / (gain + loss)
+            else:
+                expected = sum(values, D(0)) / period
+                if series["kind"] == "bollinger":
+                    spread = (
+                        D(series["deviations"])
+                        * (
+                            sum(((value - expected) ** 2 for value in values), D(0))
+                            / (period - 1)
+                        ).sqrt()
+                    )
+                    assert abs(D(sample["lower"]) - (expected - spread)) < TOLERANCE
+                    assert abs(D(sample["upper"]) - (expected + spread)) < TOLERANCE
+                else:
+                    assert series["kind"] == "ma"
+            assert abs(D(sample["value"]) - expected) < TOLERANCE
+
+
 def _verify_result(shared, config, result, observed):
     assert result["status"] == "completed", result["diagnostics"]
     assert result["metrics"]["investmentBasis"] == "original_principal"
@@ -188,6 +233,7 @@ def _verify_result(shared, config, result, observed):
     scheduled = config["presetId"] in {"monthly_dca", "lump_sum"}
     is_trend = config["presetId"] in {"ma_trend", "ma_buy_only"}
     oracle = _SignalOracle(observed.snapshot)
+    _verify_technical_series(result, oracle)
     truth = {}
     for asset in assets:
         day = asset["date"]
@@ -225,7 +271,7 @@ def _verify_result(shared, config, result, observed):
         else D(config["params"]["accumulation.cashSafetyLimit"])
     )
     month_buys = defaultdict(int)
-    cash = quantity = fixed = contributed = invested = recycled = D(0)
+    cash = quantity = fixed = contributed = invested = unused_principal = D(0)
     nav = peak = D(1)
     maximum_dd = previous_equity = D(0)
     previous_day = None
@@ -234,10 +280,11 @@ def _verify_result(shared, config, result, observed):
         deposit = funding.get(day, D(0))
         cash += deposit
         contributed += deposit
+        unused_principal += deposit
         expected = []
 
         def buy(reason, fixed_position=False, price=price, expected=expected):
-            nonlocal cash, quantity, fixed, invested, recycled
+            nonlocal cash, quantity, fixed, invested, unused_principal
             if cash <= 0:
                 return
             amount, shares = cash, cash / price
@@ -246,9 +293,10 @@ def _verify_result(shared, config, result, observed):
                 fixed += shares
             else:
                 quantity += shares
-            reused = min(recycled, amount)
-            recycled -= reused
-            invested += amount - reused
+            # All supported buys exhaust cash. Count each original deposit at
+            # its first buy; proceeds never become a new external deposit.
+            invested += unused_principal
+            unused_principal = D(0)
             cash = D(0)
 
         if scheduled and deposit:
@@ -263,7 +311,6 @@ def _verify_result(shared, config, result, observed):
             amount = shares * price
             quantity -= shares
             cash += amount
-            recycled += amount
             expected.append(("sell", "signal_sell", amount, shares))
         else:
             if should_buy and cash > 0 and (limit is None or month_buys[month] < limit):
@@ -295,6 +342,7 @@ def _verify_result(shared, config, result, observed):
         ):
             assert abs(D(asset[field]) - expected_value) < TOLERANCE, (day, field)
         assert 0 <= invested <= contributed
+        assert 0 <= D(asset["actualInvested"]) <= D(asset["totalContributed"])
         if previous_equity > 0:
             nav *= (equity - deposit) / previous_equity
         peak = max(peak, nav)
