@@ -120,7 +120,7 @@ def test_return_on_contributions_is_distinct_from_capital_multiple() -> None:
 
 
 def test_metrics_method_version_is_stable() -> None:
-    assert METRIC_METHOD_VERSION == "metrics-v6"
+    assert METRIC_METHOD_VERSION == "metrics-v7"
 
 
 def test_xirr_uses_each_contribution_date_with_actual_365_day_count() -> None:
@@ -352,7 +352,8 @@ def test_recycled_cash_is_used_before_unspent_new_contributions() -> None:
     assert result.summary.total_contributed == 200
 
 
-def test_inconsistent_buy_funding_is_rejected_instead_of_clipped() -> None:
+@pytest.mark.parametrize("amount", ["105", "100.0000000000000000000000001"])
+def test_inconsistent_buy_funding_is_rejected_instead_of_clipped(amount: str) -> None:
     dates = (date(2021, 1, 1), date(2021, 1, 2))
     source = _input(
         _strategy("composite_dca", *dates), dates, ((dates[0], "100"),), ("100", "100")
@@ -362,8 +363,8 @@ def test_inconsistent_buy_funding_is_rejected_instead_of_clipped() -> None:
         side=TradeSide.BUY,
         reason=TradeReason.SIGNAL_BUY,
         quantity=Decimal("1"),
-        price=Decimal("105"),
-        cashAmount=Decimal("105"),
+        price=Decimal(amount),
+        cashAmount=Decimal(amount),
         currency="USD",
     )
     source = MetricsInput(
@@ -421,6 +422,70 @@ def test_full_reinvestment_preserves_original_principal_at_decimal_precision(
         == Decimal("400")
     )
     assert result.daily_assets[-1].actual_invested == Decimal("400")
+
+
+def test_interleaved_deposit_and_sale_follow_the_ledger_addition_order() -> None:
+    dates = (date(2020, 1, 2), date(2020, 1, 3), date(2020, 2, 3))
+    first_sale = Decimal("725998.4020618556701030927835")
+    second_sale = Decimal("2851057.709677419354838709677")
+    deposit = Decimal("1000000")
+    available = (first_sale + deposit) + second_sale
+    assert available > deposit + (first_sale + second_sale)
+    source = _input(
+        _strategy("composite_dca", dates[0], dates[-1], amount="1000000"),
+        dates,
+        ((dates[0], str(deposit)), (dates[2], str(deposit))),
+        (str(deposit), str(first_sale * 2), str(available)),
+    )
+    trades = tuple(
+        Trade(
+            date=day,
+            side=side,
+            reason=reason,
+            quantity=Decimal("2") if day == dates[0] else Decimal("1"),
+            price=amount / 2 if day == dates[0] else amount,
+            cashAmount=amount,
+            currency="USD",
+        )
+        for day, side, reason, amount in (
+            (dates[0], TradeSide.BUY, TradeReason.SIGNAL_BUY, deposit),
+            (dates[1], TradeSide.SELL, TradeReason.SIGNAL_SELL, first_sale),
+            (dates[2], TradeSide.SELL, TradeReason.SIGNAL_SELL, second_sale),
+            (dates[2], TradeSide.BUY, TradeReason.SIGNAL_BUY, available),
+        )
+    )
+    daily_assets = tuple(
+        row.model_copy(
+            update={
+                "cash": cash,
+                "timing_quantity": quantity,
+                "simulation_price": price,
+            }
+        )
+        for row, cash, quantity, price in zip(
+            source.ledger.daily_assets,
+            (Decimal(0), first_sale, Decimal(0)),
+            (Decimal(2), Decimal(1), Decimal(1)),
+            (deposit / 2, first_sale, available),
+            strict=True,
+        )
+    )
+    result = calculate_metrics(
+        MetricsInput(
+            strategy=source.strategy,
+            schedule=source.schedule,
+            ledger=source.ledger.model_copy(
+                update={"trades": trades, "daily_assets": daily_assets}
+            ),
+            data_fingerprint=source.data_fingerprint,
+        )
+    )
+    assert [row.actual_invested for row in result.daily_assets] == [
+        deposit,
+        deposit,
+        deposit * 2,
+    ]
+    assert result.summary.actual_invested == result.summary.total_contributed
 
 
 def test_no_valid_xirr_is_reported_without_hiding_other_metrics() -> None:

@@ -16,7 +16,7 @@ from app.domain.status import (
 from .types import MetricsInput, MetricsResult
 
 _DAY_COUNT = Decimal("365")
-METRIC_METHOD_VERSION = "metrics-v6"
+METRIC_METHOD_VERSION = "metrics-v7"
 
 
 def calculate_xirr(
@@ -215,7 +215,7 @@ def _invested_principal_by_date(
     ):
         raise ValueError("funding and trade dates must belong to the saved ledger")
     unspent_principal = Decimal("0")
-    recycled_cash = Decimal("0")
+    cash = Decimal("0")
     invested = Decimal("0")
     result: dict[date, Decimal] = {}
     for asset in daily_assets:
@@ -223,23 +223,22 @@ def _invested_principal_by_date(
         if contribution < 0:
             raise ValueError("external contributions must be non-negative")
         unspent_principal += contribution
+        cash += contribution
         for trade in trades_by_date.get(asset.date, ()):
             if trade.side is TradeSide.SELL:
-                recycled_cash += trade.cash_amount
+                cash += trade.cash_amount
             else:
-                available_cash = unspent_principal + recycled_cash
-                if trade.cash_amount > available_cash:
+                if trade.cash_amount > cash:
                     raise ValueError(
                         "buy amount exceeds available original and recycled cash"
                     )
-                # Partition the remaining cash after validating the actual buy.
-                # Subtracting a large recycled balance from a rounded buy can
-                # otherwise exceed the original pool by a Decimal rounding unit.
-                remaining_cash = available_cash - trade.cash_amount
-                remaining_principal = min(unspent_principal, remaining_cash)
+                # Replay total cash in the ledger's transaction order. Adding
+                # separately rounded original/recycled pools is non-associative
+                # and can falsely reject a valid buy by one rounding unit.
+                cash -= trade.cash_amount
+                remaining_principal = min(unspent_principal, cash)
                 invested += unspent_principal - remaining_principal
                 unspent_principal = remaining_principal
-                recycled_cash = remaining_cash - remaining_principal
         result[asset.date] = invested
     return result
 
