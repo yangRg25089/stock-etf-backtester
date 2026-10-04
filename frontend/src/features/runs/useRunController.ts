@@ -62,7 +62,8 @@ export function useRunController(
     const stored = restoreWorkspaceState(catalog).state.draft.shared;
     const currency = fallbackCurrency ?? (stored.run.symbol === value.snapshot.config.shared.run.symbol ? stored.currency : undefined);
     const frozenDraft = draftFromRun(value, catalog, currency);
-    setBrowserSaveFailed(!frozenDraft || !saveLastRunStrategy(frozenDraft, catalog));
+    const failedIds = value.result?.strategyRuns?.filter(row => row.role === "strategy" && row.status === "failed").map(row => row.id) ?? [];
+    setBrowserSaveFailed(!frozenDraft || !saveLastRunStrategy(frozenDraft, catalog, undefined, failedIds));
   }, [catalog]);
 
   const preflightFailed = Boolean(validationState?.error || validationState?.response &&

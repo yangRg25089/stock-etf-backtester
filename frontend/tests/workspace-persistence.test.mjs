@@ -6,6 +6,7 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const { createInitialWorkspaceState, workspaceReducer } = require("../.test-output/features/strategies/model.js");
 const { restoreWorkspaceState, saveLastRunStrategy } = require("../.test-output/features/strategies/workspacePersistence.js");
+const { draftFromRun } = require("../.test-output/features/strategies/draftReader.js");
 const catalog = JSON.parse(readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"));
 
 class MemoryStorage {
@@ -14,6 +15,25 @@ class MemoryStorage {
   setItem(key, value) { this.values.set(key, String(value)); }
   removeItem(key) { this.values.delete(key); }
 }
+
+test("last partial run preserves bounded failed inputs until explicitly corrected and rerun", () => {
+  const file = JSON.parse(readFileSync(new URL("../.test-output/partial-fixture.json", import.meta.url), "utf8")).package;
+  const draft = draftFromRun(file.result, catalog);
+  const failedIds = file.result.result.strategyRuns.filter(row => row.role === "strategy" && row.status === "failed").map(row => row.id);
+  const storage = new MemoryStorage();
+  assert.equal(saveLastRunStrategy(draft, catalog, storage, failedIds), true);
+  assert.equal(restoreWorkspaceState(catalog, storage).state.draft.strategies[0].params["vix.buyThreshold"], "not-numeric");
+  const key = "stock-etf-backtester.last-run-strategy.v1";
+  const saved = JSON.parse(storage.getItem(key));
+  assert.deepEqual(saved.failedStrategyIds, failedIds);
+  for (const ids of [[...failedIds, "foreign-id"], [failedIds[0], failedIds[0]], "not-an-array"]) {
+    storage.setItem(key, JSON.stringify({ ...saved, failedStrategyIds: ids }));
+    assert.equal(restoreWorkspaceState(catalog, storage).state.draft.strategies[0].id, "strategy-vix_dca-1");
+  }
+  draft.strategies[0].params["vix.buyThreshold"] = 25;
+  assert.equal(saveLastRunStrategy(draft, catalog, storage), true);
+  assert.equal(Object.hasOwn(JSON.parse(storage.getItem(key)), "failedStrategyIds"), false);
+});
 
 test("last accepted configuration restores shared and multi-strategy inputs without editor or result state", () => {
   let state = createInitialWorkspaceState(catalog);

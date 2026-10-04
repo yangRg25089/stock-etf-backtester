@@ -26,6 +26,7 @@ test("partial failure JSON exports frozen values, imports offline and requires f
   await page.goto("/");
   await restored;
   await expect(page.locator(".run-submit-button")).toHaveAttribute("aria-busy", "false");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("stock-etf-backtester.last-run-strategy.v1")).failedStrategyIds)).toEqual(["file-vix"]);
   await page.locator(".package-menu summary").click();
   const waiting = page.waitForEvent("download");
   await page.getByRole("button", { name: /結果を保存/ }).click();
@@ -45,6 +46,14 @@ test("partial failure JSON exports frozen values, imports offline and requires f
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator(".comparison-table")).toHaveText(prior);
+  await page.reload();
+  await expect(page.locator(".strategy-card-open")).toHaveCount(2);
+  await page.locator(".strategy-card-open").first().click();
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog.locator('[data-parameter-key="vix.buyThreshold"]')).toHaveAttribute("aria-invalid", "true");
+  await dialog.locator('[data-parameter-key="vix.buyThreshold"]').fill("25");
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toHaveCount(0);
   expect(errors).toEqual([]);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
