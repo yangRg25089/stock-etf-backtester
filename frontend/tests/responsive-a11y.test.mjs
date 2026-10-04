@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { readStyles, readTranslationSources } from "./helpers/readSources.mjs";
+
+function chartSources() {
+  const folder = new URL("../src/features/results/chart/", import.meta.url);
+  return [readFileSync(new URL("../src/features/results/ResultsCharts.tsx", import.meta.url), "utf8"),
+    ...readdirSync(folder).filter(name => /\.tsx?$/.test(name)).sort().map(name => readFileSync(new URL(name, folder), "utf8"))].join("\n");
+}
 import test from "node:test";
 
-const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const css = readStyles();
 const prototype = readFileSync(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const settingsDialog = readFileSync(new URL("../src/features/config/SharedSettingsDialog.tsx", import.meta.url), "utf8");
@@ -144,6 +151,11 @@ test("wide data tables scroll inside their panels instead of widening the page",
   assert.match(blockFor(".search-table td:last-child"), /white-space:\s*normal/);
 });
 
+test("comparison and trade tables permit vertical scroll chaining without losing horizontal containment", () => {
+  const panel = blockFor(".comparison-table-scroll,\n.trade-table-scroll");
+  assert.match(panel, /overscroll-behavior:\s*contain auto/);
+});
+
 test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   const touch = mediaBlock("@media (pointer: coarse)");
   assert.match(touch, /button,[\s\S]*\.input,[\s\S]*min-height:\s*44px/);
@@ -240,9 +252,11 @@ test("shared settings use a modal and the sidebar toggle has one fixed location"
   assert.match(app, /className="shared-settings-summary-text"\s+id="shared-settings-summary-detail"/);
   assert.doesNotMatch(app, /className="button icon-only-button shared-settings-open-button"/);
   assert.match(app, /<SharedSettingsDialog/);
-  assert.match(settingsDialog, /aria-modal="true"/);
-  assert.match(settingsDialog, /dialog\.showModal\(\)/);
-  assert.match(settingsDialog, /onCancel=\{/);
+  assert.match(settingsDialog, /<ModalShell[\s\S]*onRequestClose=\{closeDialog\}/);
+  const shell = readFileSync(new URL("../src/shared/ui/ModalShell.tsx", import.meta.url), "utf8");
+  assert.match(shell, /aria-modal="true"/);
+  assert.match(shell, /dialog\.showModal\(\)/);
+  assert.match(shell, /onCancel=\{/);
   assert.match(app, /<aside[\s\S]*?<WorkbenchDivider[\s\S]*?id="workbench-results-panel"/);
   assert.match(dividerSource, /className="button workbench-config-toggle icon-only-button"/);
   assert.doesNotMatch(app, /className="workbench-config-header"[\s\S]*?workbench-config-toggle/);
@@ -316,7 +330,7 @@ test("SVG chart labels cannot be selected by drag gestures", () => {
 test("linked figures have no separator and keep one shared readout under the core heading", () => {
   const compact = blockFor(".workbench-results .chart-linked-stack .chart-panel.is-compact");
   assert.doesNotMatch(compact, /border-top|padding-top:\s*[1-9]/);
-  const charts = readFileSync(new URL("../src/features/results/ResultsCharts.tsx", import.meta.url), "utf8");
+  const charts = chartSources();
   assert.match(blockFor(".chart-core-readout-row"), /height:\s*auto/);
   assert.match(blockFor(".chart-core-readout-row"), /overflow:\s*visible/);
   assert.doesNotMatch(charts, /chart-readout-lines|chart-core-readout-row[^>]*tabIndex/);
@@ -329,7 +343,7 @@ test("linked figures have no separator and keep one shared readout under the cor
 test("removed result controls have no reducer, rendering, translation or style implementation", () => {
   const model = readFileSync(new URL("../src/features/strategies/model.ts", import.meta.url), "utf8");
   const details = readFileSync(new URL("../src/features/results/ResultDetails.tsx", import.meta.url), "utf8");
-  const messages = readFileSync(new URL("../src/i18n/messages.ts", import.meta.url), "utf8");
+  const messages = readTranslationSources();
   assert.doesNotMatch(model, /showTrades|display\.trades/);
   assert.doesNotMatch(details, /showTrades|display-toggle|result-display-heading|trade-display-icon|trade\.(hide|toggle|hidden)/);
   assert.doesNotMatch(messages, /display\.showTrades|trade\.(hide|toggle|hidden)/);
@@ -348,7 +362,7 @@ test("removed execution areas have no source, styles, prototype, or completion t
 
 
 test("split chart layout leaves no rendering branch, state, styles, or prototype control", () => {
-  const charts = readFileSync(new URL("../src/features/results/ResultsCharts.tsx", import.meta.url), "utf8");
+  const charts = chartSources();
   const model = readFileSync(new URL("../src/features/strategies/model.ts", import.meta.url), "utf8");
   for (const source of [charts, model, css, prototype]) {
     assert.doesNotMatch(source, /overlayMode|onOverlayModeChange|chart\.overlay\b|chart-layout-controls|charts-split|data-layout=|chart-aux-panel/);
@@ -356,7 +370,7 @@ test("split chart layout leaves no rendering branch, state, styles, or prototype
 });
 
 test("removed single-price trade legend has no orphan styles or translations", () => {
-  const messages = readFileSync(new URL("../src/i18n/messages.ts", import.meta.url), "utf8");
+  const messages = readTranslationSources();
   assert.doesNotMatch(css, /\.price-marker-legend\b|\n\.trade-marker-(?:buy|sell)\b/);
   assert.doesNotMatch(messages, /"chart\.tradeMarkers"/);
 });

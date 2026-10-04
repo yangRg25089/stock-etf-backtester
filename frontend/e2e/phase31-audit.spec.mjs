@@ -5,7 +5,7 @@ test("final whole-page and strategy dialog audit includes all accessibility rule
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   const catalog = await (await page.request.get("/api/v1/catalog")).json();
   const presets = catalog.presets.filter(preset => !["monthly_dca", "lump_sum"].includes(preset.id));
   await page.setViewportSize({ width: 1440, height: 900 });

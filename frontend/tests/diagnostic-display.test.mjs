@@ -52,7 +52,7 @@ test("backend diagnostic messages have readable Japanese and Chinese text", () =
       if (entry.isDirectory()) return diagnosticKeys(path);
       if (!entry.name.endsWith(".py")) return [];
       const source = readFileSync(path, "utf8");
-      return [...source.matchAll(/messageKey=["']([^"']+)["']/g), ...source.matchAll(/["'](api\.errors\.[^"']+)["']/g)].map(match => match[1]);
+      return [...source.matchAll(/messageKey=["']([^"']+)["']/g), ...source.matchAll(/["']((?:api\.errors|valuation|data\.sec)\.[^"']+)["']/g)].map(match => match[1]);
     });
   }
   const keys = [...new Set(diagnosticKeys(new URL("../../backend/app", import.meta.url).pathname))];

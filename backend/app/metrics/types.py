@@ -8,6 +8,7 @@ from app.domain.contracts import (
     FrozenStrategyInstance,
     MetricSummary,
 )
+from app.domain.performance import AnalysisSettings
 from app.domain.status import DomainModel
 from app.ledger import LedgerResult
 
@@ -20,6 +21,7 @@ class MetricsInput:
     schedule: ScheduleResult
     ledger: LedgerResult
     data_fingerprint: str
+    analysis_settings: AnalysisSettings | None = None
 
 
 class MetricsResult(DomainModel):

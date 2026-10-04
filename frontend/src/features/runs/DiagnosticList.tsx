@@ -1,10 +1,7 @@
+import { isRecord } from "../../shared/lib/record";
 import type { Diagnostic } from "../../api/generated";
 import { interpolate, translate, type Locale } from "../../i18n/messages";
 import { marketDateRecovery } from "./dateRecovery";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 const CALCULATION_STAGES = new Set([
   "queue",

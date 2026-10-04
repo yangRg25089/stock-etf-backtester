@@ -1,10 +1,9 @@
-import type { ExportKind, StrategyRun, StrategyStatus } from "../../api/generated";
+import type { ExportKind, StrategyRun } from "../../api/generated";
 import { fetchCsvExport } from "../../api/exports";
-
-const SUCCESS_STATUSES = new Set<StrategyStatus>(["completed", "completed_with_warning"]);
+import { isSuccessfulRunStatus } from "../../api/runStatus";
 
 export function isExportAvailable(result: StrategyRun | null, kind: ExportKind): boolean {
-  if (!result || !SUCCESS_STATUSES.has(result.status ?? "queued") || !result.metrics) return false;
+  if (!result || !isSuccessfulRunStatus(result.status) || !result.metrics) return false;
   return kind !== "search-results" || (result.presetId === "grid_search" && result.searchResult !== null && result.searchResult !== undefined);
 }
 

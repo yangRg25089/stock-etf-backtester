@@ -1,6 +1,8 @@
 import type { MetricSummary, RunResponse, SignalEvaluation, StrategyRun } from "../../api/generated";
+import { isSuccessfulRunStatus } from "../../api/runStatus";
 import { translate, type Locale } from "../../i18n/messages";
 import { conditionLeaves, conditionParameters } from "../strategies/conditions";
+import { savedResultConfiguration } from "./savedConfiguration";
 
 export function investedPrincipalValue(metrics: MetricSummary | null | undefined): string | null {
   return metrics?.investmentBasis === "original_principal" ? metrics.actualInvested ?? null : null;
@@ -23,10 +25,10 @@ export function selectedVolatilitySeries(run: RunResponse, results: StrategyRun[
   const selected = results.filter(result => selectedIds.includes(result.id) && result.id !== (candidate ? parent?.id : undefined));
   if (candidate) selected.push(candidate);
   for (const result of selected.filter(isCompletedResult)) {
-    const params = savedChartParameters(run, result, result === candidate ? parent : null);
     for (const signal of result.signals ?? []) {
       if (!isVolatilityObservation(signal)) continue;
       if (signal.observedValue === null || signal.observedValue === undefined || signal.observedValue === "" || !Number.isFinite(Number(signal.observedValue))) continue;
+      const params = savedChartParameters(run, result, result === candidate ? parent : null, signal.date);
       const symbol = signal.sourceSymbol ?? String(params["vix.symbol"] ?? "^VIX");
       const group = groups.get(symbol) ?? { signals: [], thresholds: new Set<string>() };
       group.signals.push(signal);
@@ -38,26 +40,18 @@ export function selectedVolatilitySeries(run: RunResponse, results: StrategyRun[
     threshold: group.thresholds.size === 1 ? [...group.thresholds][0] : undefined }));
 }
 
-export function savedChartParameters(run: RunResponse, result: StrategyRun, parent?: StrategyRun | null): Record<string, unknown> {
-  const strategy = run.snapshot.config.strategies?.find(item => item.id === (parent?.id ?? result.id));
-  const search = parent?.searchResult ?? result.searchResult;
-  const selected = search?.candidates.find(item => item.candidateId === (parent ? result.id : search.rankedCandidateIds[0]));
-  const values = selected?.parameterValues;
-  const overrides = values && typeof values === "object" && !Array.isArray(values)
-    ? values as Record<string, unknown> : {};
+export function savedChartParameters(run: RunResponse, result: StrategyRun, parent?: StrategyRun | null, asOf?: string): Record<string, unknown> {
+  const { strategy, parameters, overrides } = savedResultConfiguration(run, result, parent, asOf);
   if (strategy?.rules) {
     const volatility = conditionLeaves(strategy.rules.buy, true).find(node => node.kind === "vix")
       ?? conditionLeaves(strategy.rules.sell, true).find(node => node.kind === "vix" || node.kind === "bollinger");
-    const searched = Object.fromEntries((search?.dimensions ?? [])
-      .filter(dimension => Object.hasOwn(overrides, dimension.key)).map(dimension => [dimension.key, overrides[dimension.key]]));
-    return { ...conditionParameters(volatility), ...searched };
+    return { ...conditionParameters(volatility), ...overrides };
   }
-  const params = strategy?.params;
-  return { ...(typeof params === "object" && params !== null && !Array.isArray(params) ? params as Record<string, unknown> : {}), ...overrides };
+  return parameters;
 }
 
 export function isCompletedResult(result: StrategyRun): boolean {
-  return result.status === "completed" || result.status === "completed_with_warning";
+  return isSuccessfulRunStatus(result.status);
 }
 
 export function resultDisplayName(locale: Locale, result: StrategyRun, results: StrategyRun[]): string {

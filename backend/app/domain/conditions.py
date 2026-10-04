@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from app.domain.immutability import FrozenMap, freeze_mapping, thaw_value
+from app.domain.immutability import FrozenMap, freeze_mapping, thaw_mapping
 from app.domain.status import DomainModel
 
 
@@ -50,7 +50,7 @@ class ConditionLeaf(DomainModel):
 
     @field_serializer("params")
     def serialize_params(self, value: Mapping[str, object]) -> dict[str, object]:
-        return {key: thaw_value(item) for key, item in value.items()}
+        return thaw_mapping(value)
 
 
 class ConditionGroup(DomainModel):
@@ -78,19 +78,6 @@ def condition_signal_id(node: ConditionLeaf, side: Literal["buy", "sell"]) -> st
     }
     base = names[node.kind][0 if side == "buy" else 1]
     return base if node.id == f"{side}-{node.kind.value}" else f"{base}:{node.id}"
-
-
-def walk_conditions(
-    node: ConditionNode | None, *, enabled_only: bool = False
-) -> Iterator[ConditionLeaf]:
-    """Walk leaves, optionally excluding an entire disabled branch."""
-    if node is None or (enabled_only and not node.enabled):
-        return
-    if isinstance(node, ConditionLeaf):
-        yield node
-    else:
-        for child in node.children:
-            yield from walk_conditions(child, enabled_only=enabled_only)
 
 
 class StrategyRules(DomainModel):

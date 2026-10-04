@@ -1,0 +1,19 @@
+.chart-axes { pointer-events: none; }
+@media (max-width: 600px) {
+  .chart-x-tick[data-tick-index="1"],
+  .chart-x-tick[data-tick-index="2"],
+  .chart-x-tick[data-tick-index="4"],
+  .chart-x-tick[data-tick-index="5"] { visibility: hidden; }
+}
+
+.chart-date-axis-row { min-width: 680px; }
+.chart-date-axis {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+  max-width: 1360px;
+  height: auto;
+  margin-inline: auto;
+  user-select: none;
+  pointer-events: none;
+}

@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from datetime import date as Date
 from decimal import Decimal
 from enum import StrEnum
-from itertools import pairwise
+from itertools import combinations, pairwise
 from typing import Literal
 
 from pydantic import (
@@ -21,10 +21,13 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic.config import JsonDict
 
 from app.domain.conditions import ConditionKind, StrategyRules
 from app.domain.conditions import ConditionLogic as ConditionLogic
-from app.domain.immutability import FrozenMap, freeze_mapping, thaw_value
+from app.domain.execution import ExecutionSettings, TradingCosts
+from app.domain.immutability import FrozenMap, freeze_mapping, thaw_mapping
+from app.domain.performance import AnalysisSettings, PerformanceAnalysis
 from app.domain.status import (
     Diagnostic,
     DomainModel,
@@ -147,6 +150,8 @@ class SharedSettings(DomainModel):
     run: RunSettings
     contribution: ContributionSettings
     data: DataSettings
+    analysis: AnalysisSettings | None = None
+    execution: ExecutionSettings | None = None
 
 
 class InstrumentMetadata(DomainModel):
@@ -203,8 +208,8 @@ class FrozenStrategyInstance(DomainModel):
         return freeze_mapping(value)
 
     @field_serializer("params")
-    def serialize_params(self, value: Mapping[str, object]) -> object:
-        return thaw_value(value)
+    def serialize_params(self, value: Mapping[str, object]) -> dict[str, object]:
+        return thaw_mapping(value)
 
 
 class FrozenRunConfig(DomainModel):
@@ -252,7 +257,7 @@ class RunDataProvenance(DomainModel):
 
 
 class RunDateAdjustment(DomainModel):
-    """A verified date resolution applied before the run is frozen."""
+    """A verified date resolution recorded after the submitted config is frozen."""
 
     field: Literal["startDate", "endDate"]
     requested_date: Date = Field(alias="requestedDate")
@@ -266,23 +271,114 @@ class RunDateAdjustment(DomainModel):
         return self
 
 
+class RunDataContext(DomainModel):
+    """Data identity and resolved range, available only after the worker loads data."""
+
+    data_fingerprint: str = Field(alias="dataFingerprint", min_length=1)
+    data_provenance: RunDataProvenance = Field(
+        default_factory=RunDataProvenance, alias="dataProvenance"
+    )
+    effective_run: RunSettings = Field(alias="effectiveRun")
+    date_adjustments: tuple[RunDateAdjustment, ...] = Field(
+        default=(), alias="dateAdjustments"
+    )
+
+    @model_validator(mode="after")
+    def validate_adjustments(self) -> "RunDataContext":
+        dates = {
+            "startDate": self.effective_run.start_date,
+            "endDate": self.effective_run.end_date,
+        }
+        fields = [item.field for item in self.date_adjustments]
+        if len(set(fields)) != len(fields) or any(
+            dates[item.field] != item.effective_date for item in self.date_adjustments
+        ):
+            raise ValueError("date adjustments must uniquely match resolved dates")
+        return self
+
+
 class RunSnapshot(DomainModel):
     """The immutable input boundary for one submitted run."""
 
     run_id: str = Field(alias="runId", min_length=1)
     config: FrozenRunConfig
     catalog_version: str = Field(alias="catalogVersion", min_length=1)
-    data_fingerprint: str = Field(alias="dataFingerprint", min_length=1)
     engine_version: str = Field(alias="engineVersion", min_length=1)
+    submission_fingerprint: str | None = Field(
+        default=None, alias="submissionFingerprint", min_length=1
+    )
+    data_context: RunDataContext | None = Field(default=None, alias="dataContext")
+    # Compatibility projections are derived from data_context, like RunResult.status.
+    data_fingerprint: str | None = Field(
+        default=None,
+        alias="dataFingerprint",
+        min_length=1,
+        json_schema_extra={"readOnly": True},
+    )
     data_provenance: RunDataProvenance = Field(
-        default_factory=RunDataProvenance, alias="dataProvenance"
+        default_factory=RunDataProvenance,
+        alias="dataProvenance",
+        json_schema_extra={"readOnly": True},
     )
     date_adjustments: tuple[RunDateAdjustment, ...] = Field(
-        default=(), alias="dateAdjustments"
+        default=(), alias="dateAdjustments", json_schema_extra={"readOnly": True}
     )
     created_at: AwareTimestamp = Field(
         default_factory=lambda: datetime.now(UTC), alias="createdAt"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_data_projections(cls, value: object) -> object:
+        """Read schema-1 snapshots; projections never become a second data authority."""
+        if not isinstance(value, Mapping):
+            return value
+        values = dict(value)
+        projections: dict[str, object] = {}
+        for name, alias in (
+            ("data_fingerprint", "dataFingerprint"),
+            ("data_provenance", "dataProvenance"),
+            ("date_adjustments", "dateAdjustments"),
+        ):
+            present = [values.pop(key) for key in (name, alias) if key in values]
+            if present:
+                if any(item != present[0] for item in present):
+                    raise ValueError("conflicting snapshot data aliases")
+                projections[name] = present[0]
+        context_value = values.get("dataContext", values.get("data_context"))
+        if context_value is not None:
+            context = RunDataContext.model_validate(context_value)
+            for name, projected in projections.items():
+                if name == "data_provenance":
+                    projected = RunDataProvenance.model_validate(projected)
+                elif name == "date_adjustments":
+                    if not isinstance(projected, (list, tuple)):
+                        raise ValueError("invalid date adjustments projection")
+                    projected = tuple(
+                        RunDateAdjustment.model_validate(item) for item in projected
+                    )
+                if projected != getattr(context, name):
+                    raise ValueError("snapshot data projection does not match context")
+        elif projections.get("data_fingerprint") is not None:
+            config_value = values.get("config")
+            config = (
+                FrozenRunConfig.from_config(config_value)
+                if isinstance(config_value, RunConfig)
+                else FrozenRunConfig.model_validate(config_value)
+            )
+            context = RunDataContext.model_validate(
+                {"effectiveRun": config.shared.run, **projections}
+            )
+            values["dataContext"] = context
+        elif projections:
+            provenance = RunDataProvenance.model_validate(
+                projections.get("data_provenance", {})
+            )
+            if provenance != RunDataProvenance() or projections.get("date_adjustments"):
+                raise ValueError(
+                    "data provenance and date resolution require data identity"
+                )
+        return values
 
     @field_validator("config", mode="before")
     @classmethod
@@ -294,20 +390,62 @@ class RunSnapshot(DomainModel):
         return value
 
     @model_validator(mode="after")
-    def validate_date_adjustments(self) -> "RunSnapshot":
-        fields = {
-            "startDate": self.config.shared.run.start_date,
-            "endDate": self.config.shared.run.end_date,
-        }
-        seen: set[str] = set()
+    def validate_data_context(self) -> "RunSnapshot":
+        if self.data_context is None:
+            if self.submission_fingerprint is None:
+                raise ValueError(
+                    "a submission fingerprint is required before data is loaded"
+                )
+            return self
+        object.__setattr__(self, "data_fingerprint", self.data_context.data_fingerprint)
+        object.__setattr__(self, "data_provenance", self.data_context.data_provenance)
+        object.__setattr__(self, "date_adjustments", self.data_context.date_adjustments)
+        requested = self.config.shared.run
+        updates = {}
         for adjustment in self.date_adjustments:
-            if (
-                adjustment.field in seen
-                or fields[adjustment.field] != adjustment.effective_date
-            ):
-                raise ValueError("date adjustments must uniquely match frozen dates")
-            seen.add(adjustment.field)
+            field = "start_date" if adjustment.field == "startDate" else "end_date"
+            # Legacy snapshots already stored resolved dates in their config.
+            expected = (
+                {adjustment.requested_date}
+                if self.submission_fingerprint
+                else {adjustment.requested_date, adjustment.effective_date}
+            )
+            if getattr(requested, field) not in expected:
+                raise ValueError("date adjustment does not match submitted dates")
+            updates[field] = adjustment.effective_date
+        if requested.model_copy(update=updates) != self.data_context.effective_run:
+            raise ValueError(
+                "data context may only resolve documented date adjustments"
+            )
         return self
+
+    @property
+    def effective_config(self) -> FrozenRunConfig:
+        if (
+            self.data_context is None
+            or self.data_context.effective_run == self.config.shared.run
+        ):
+            return self.config
+        return self.config.model_copy(
+            update={
+                "shared": self.config.shared.model_copy(
+                    update={"run": self.data_context.effective_run}
+                )
+            }
+        )
+
+    def with_data_context(self, context: RunDataContext) -> "RunSnapshot":
+        if self.data_context is not None and self.data_context != context:
+            raise ValueError("the loaded data context is already frozen")
+        return RunSnapshot(
+            runId=self.run_id,
+            config=self.config,
+            catalogVersion=self.catalog_version,
+            engineVersion=self.engine_version,
+            submissionFingerprint=self.submission_fingerprint,
+            createdAt=self.created_at,
+            dataContext=context,
+        )
 
     @classmethod
     def from_config(
@@ -473,6 +611,22 @@ class Trade(DomainModel):
     cash_amount: Decimal = Field(alias="cashAmount", gt=0)
     currency: str = Field(min_length=1)
     signal_id: str | None = Field(default=None, alias="signalId")
+    cash_before: Decimal | None = Field(default=None, alias="cashBefore", ge=0)
+    cash_after: Decimal | None = Field(default=None, alias="cashAfter", ge=0)
+    quantity_before: Decimal | None = Field(default=None, alias="quantityBefore", ge=0)
+    quantity_after: Decimal | None = Field(default=None, alias="quantityAfter", ge=0)
+    execution_base_price: Decimal | None = Field(
+        default=None, alias="executionBasePrice", gt=0
+    )
+    execution_price: Decimal | None = Field(default=None, alias="executionPrice", gt=0)
+    gross_amount: Decimal | None = Field(default=None, alias="grossAmount", gt=0)
+    trading_costs: TradingCosts | None = Field(default=None, alias="tradingCosts")
+
+    @model_validator(mode="after")
+    def validate_execution_price(self) -> "Trade":
+        if self.execution_price is not None and self.execution_price != self.price:
+            raise ValueError("executionPrice must match the saved trade price")
+        return self
 
 
 class DailyAsset(DomainModel):
@@ -492,6 +646,7 @@ class DailyAsset(DomainModel):
     currency: str = Field(min_length=1)
     unit_nav: Decimal | None = Field(default=None, alias="unitNav", ge=0)
     drawdown: Decimal | None = Field(default=None, ge=-1, le=0)
+    trading_costs: TradingCosts | None = Field(default=None, alias="tradingCosts")
 
     @model_validator(mode="after")
     def validate_simulation_ohlc(self) -> "DailyAsset":
@@ -538,6 +693,8 @@ class MetricSummary(DomainModel):
     maximum_drawdown: Decimal | None = Field(default=None, alias="maximumDrawdown")
     currency: str | None = Field(default=None, min_length=1)
     diagnostics: tuple[Diagnostic, ...] = ()
+    analysis: PerformanceAnalysis | None = None
+    trading_costs: TradingCosts | None = Field(default=None, alias="tradingCosts")
 
     @model_validator(mode="before")
     @classmethod
@@ -583,6 +740,84 @@ class SearchResultDimension(DomainModel):
         return self
 
 
+class SearchPeriod(DomainModel):
+    """Saved independent evaluation window, including actual session coverage."""
+
+    phase: Literal["train", "test"]
+    start_date: Date = Field(alias="startDate")
+    end_date: Date = Field(alias="endDate")
+    effective_start_date: Date | None = Field(default=None, alias="effectiveStartDate")
+    effective_end_date: Date | None = Field(default=None, alias="effectiveEndDate")
+
+    @model_validator(mode="after")
+    def validate_period(self) -> "SearchPeriod":
+        if self.start_date > self.end_date:
+            raise ValueError("search period must be ordered")
+        if (self.effective_start_date is None) != (self.effective_end_date is None):
+            raise ValueError("search period session bounds must be saved together")
+        if self.effective_start_date is not None:
+            assert self.effective_end_date is not None
+            if (
+                not self.start_date
+                <= self.effective_start_date
+                <= self.effective_end_date
+                <= self.end_date
+            ):
+                raise ValueError("effective sessions must lie within the search period")
+        return self
+
+
+class SearchTestResult(DomainModel):
+    """Test summary references its own saved detail; never participates in ranking."""
+
+    result_id: str = Field(alias="resultId", min_length=1)
+    status: StrategyStatus
+    metrics: MetricSummary | None = None
+    diagnostics: tuple[Diagnostic, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_outcome(self) -> "SearchTestResult":
+        if (
+            self.status
+            in {StrategyStatus.COMPLETED, StrategyStatus.COMPLETED_WITH_WARNING}
+            and self.metrics is None
+        ):
+            raise ValueError("completed test outcomes require metrics")
+        if (
+            self.status in {StrategyStatus.FAILED, StrategyStatus.UNAVAILABLE}
+            and not self.diagnostics
+        ):
+            raise ValueError("unsuccessful test outcomes require diagnostics")
+        return self
+
+
+class WalkForwardWindow(DomainModel):
+    sequence: int = Field(ge=1)
+    train_period: SearchPeriod = Field(alias="trainPeriod")
+    test_period: SearchPeriod = Field(alias="testPeriod")
+    candidate_ids: tuple[str, ...] = Field(alias="candidateIds", min_length=1)
+    ranked_candidate_ids: tuple[str, ...] = Field(alias="rankedCandidateIds")
+    selected_candidate_id: str | None = Field(default=None, alias="selectedCandidateId")
+
+    @model_validator(mode="after")
+    def validate_window(self) -> "WalkForwardWindow":
+        if (
+            self.train_period.phase != "train"
+            or self.test_period.phase != "test"
+            or self.train_period.end_date >= self.test_period.start_date
+        ):
+            raise ValueError("walk-forward training must precede its testing")
+        if len(set(self.candidate_ids)) != len(self.candidate_ids) or not set(
+            self.ranked_candidate_ids
+        ) <= set(self.candidate_ids):
+            raise ValueError("walk-forward window identities must be distinct")
+        if self.selected_candidate_id != (
+            self.ranked_candidate_ids[0] if self.ranked_candidate_ids else None
+        ):
+            raise ValueError("walk-forward parameters must use the training winner")
+        return self
+
+
 class SearchCandidate(DomainModel):
     """One stable candidate result, including invalid or unavailable rows."""
 
@@ -597,6 +832,7 @@ class SearchCandidate(DomainModel):
     reused_calculation: bool = Field(default=False, alias="reusedCalculation")
     metrics: MetricSummary | None = None
     diagnostics: tuple[Diagnostic, ...] = ()
+    test_result: SearchTestResult | None = Field(default=None, alias="testResult")
 
     @field_validator("parameter_values", mode="after")
     @classmethod
@@ -604,8 +840,10 @@ class SearchCandidate(DomainModel):
         return freeze_mapping(value)
 
     @field_serializer("parameter_values")
-    def serialize_parameter_values(self, value: Mapping[str, object]) -> object:
-        return thaw_value(value)
+    def serialize_parameter_values(
+        self, value: Mapping[str, object]
+    ) -> dict[str, object]:
+        return thaw_mapping(value)
 
     @model_validator(mode="after")
     def validate_candidate_result(self) -> "SearchCandidate":
@@ -635,6 +873,34 @@ class SearchResult(DomainModel):
     total_candidate_count: int = Field(alias="totalCandidateCount", ge=1)
     candidates: tuple[SearchCandidate, ...]
     ranked_candidate_ids: tuple[str, ...] = Field(alias="rankedCandidateIds")
+    optimization_mode: Literal["full_period", "train_test", "walk_forward"] = Field(
+        default="full_period", alias="optimizationMode"
+    )
+    train_period: SearchPeriod | None = Field(default=None, alias="trainPeriod")
+    test_period: SearchPeriod | None = Field(default=None, alias="testPeriod")
+    period_benchmarks: tuple["StrategyRun", ...] = Field(
+        default=(), alias="periodBenchmarks"
+    )
+    walk_forward_windows: tuple[WalkForwardWindow, ...] = Field(
+        default=(), alias="walkForwardWindows"
+    )
+    out_of_sample: SearchTestResult | None = Field(default=None, alias="outOfSample")
+    out_of_sample_period: SearchPeriod | None = Field(
+        default=None, alias="outOfSamplePeriod"
+    )
+
+    def candidate_period(self, result_id: str) -> SearchPeriod | None:
+        if self.out_of_sample is not None and result_id == self.out_of_sample.result_id:
+            return self.out_of_sample_period
+        for window in self.walk_forward_windows:
+            if result_id in window.candidate_ids:
+                return window.train_period
+        if any(
+            row.test_result is not None and row.test_result.result_id == result_id
+            for row in self.candidates
+        ):
+            return self.test_period
+        return self.train_period
 
     @model_validator(mode="after")
     def validate_candidate_identity(self) -> "SearchResult":
@@ -660,6 +926,132 @@ class SearchResult(DomainModel):
         }
         if set(self.ranked_candidate_ids) != expected_ranked_ids:
             raise ValueError("ranking must include every completed candidate once")
+        if self.optimization_mode == "walk_forward":
+            windows = self.walk_forward_windows
+            if (
+                not windows
+                or self.out_of_sample is None
+                or self.out_of_sample_period is None
+                or self.train_period is not None
+                or self.test_period is not None
+            ):
+                raise ValueError(
+                    "walk-forward requires windows and a saved out-of-sample result"
+                )
+            window_ids = tuple(
+                identifier for window in windows for identifier in window.candidate_ids
+            )
+            if window_ids != candidate_ids or [
+                window.sequence for window in windows
+            ] != list(range(1, len(windows) + 1)):
+                raise ValueError(
+                    "walk-forward windows must partition ordered candidates"
+                )
+            if self.ranked_candidate_ids != tuple(
+                identifier
+                for window in windows
+                for identifier in window.ranked_candidate_ids
+            ) or any(row.test_result is not None for row in self.candidates):
+                raise ValueError("walk-forward keeps separate training rankings")
+            if (
+                self.out_of_sample.result_id in set(candidate_ids)
+                or self.out_of_sample_period.phase != "test"
+            ):
+                raise ValueError(
+                    "out-of-sample identity must be separate from training"
+                )
+            for index, window in enumerate(windows):
+                completed = expected_ranked_ids.intersection(window.candidate_ids)
+                if set(window.ranked_candidate_ids) != completed or len(
+                    set(window.ranked_candidate_ids)
+                ) != len(window.ranked_candidate_ids):
+                    raise ValueError(
+                        "every window must retain its complete training ranking"
+                    )
+                if (
+                    index
+                    and (
+                        window.test_period.start_date
+                        - windows[index - 1].test_period.end_date
+                    ).days
+                    != 1
+                ):
+                    raise ValueError("out-of-sample windows must be contiguous")
+            if (
+                self.out_of_sample_period.start_date
+                != windows[0].test_period.start_date
+                or self.out_of_sample_period.end_date
+                != windows[-1].test_period.end_date
+            ):
+                raise ValueError("out-of-sample period must cover every testing window")
+            if (
+                len(self.period_benchmarks) != 2
+                or len({row.id for row in self.period_benchmarks}) != 2
+                or {row.preset_id for row in self.period_benchmarks}
+                != {StrategyPresetId.MONTHLY_DCA, StrategyPresetId.LUMP_SUM}
+                or any(
+                    row.role != ResultRole.BENCHMARK
+                    or row.evaluation_period != self.out_of_sample_period
+                    for row in self.period_benchmarks
+                )
+            ):
+                raise ValueError(
+                    "walk-forward requires matching out-of-sample benchmarks"
+                )
+        elif (
+            self.walk_forward_windows
+            or self.out_of_sample is not None
+            or self.out_of_sample_period is not None
+        ):
+            raise ValueError("rolling results require walk-forward mode")
+        elif self.optimization_mode == "train_test":
+            if self.train_period is None or self.test_period is None:
+                raise ValueError("split search requires both saved periods")
+            if (
+                self.train_period.phase != "train"
+                or self.test_period.phase != "test"
+                or self.train_period.end_date >= self.test_period.start_date
+            ):
+                raise ValueError("train and test periods must be disjoint and ordered")
+            test_ids = tuple(
+                row.test_result.result_id
+                for row in self.candidates
+                if row.test_result is not None
+            )
+            if len(test_ids) != len(candidate_ids) or len(
+                set((*candidate_ids, *test_ids))
+            ) != 2 * len(candidate_ids):
+                raise ValueError(
+                    "every split candidate requires a distinct test identity"
+                )
+            if (
+                len(self.period_benchmarks) != 4
+                or len({row.id for row in self.period_benchmarks}) != 4
+            ):
+                raise ValueError("split search requires four distinct period baselines")
+            for period in (self.train_period, self.test_period):
+                baselines = [
+                    row
+                    for row in self.period_benchmarks
+                    if row.evaluation_period == period
+                    and row.role == ResultRole.BENCHMARK
+                ]
+                if {row.preset_id for row in baselines} != {
+                    StrategyPresetId.MONTHLY_DCA,
+                    StrategyPresetId.LUMP_SUM,
+                } or len(baselines) != 2:
+                    raise ValueError(
+                        "each period requires matching DCA and lump-sum baselines"
+                    )
+        elif (
+            self.train_period is not None
+            or self.test_period is not None
+            or self.period_benchmarks
+            or any(row.test_result is not None for row in self.candidates)
+        ):
+            raise ValueError(
+                "full-period search cannot contain split evaluation results"
+            )
         return self
 
 
@@ -679,8 +1071,8 @@ class SearchHeatmapSlice(DomainModel):
         return freeze_mapping(value)
 
     @field_serializer("fixed_values")
-    def serialize_fixed_values(self, value: Mapping[str, object]) -> object:
-        return thaw_value(value)
+    def serialize_fixed_values(self, value: Mapping[str, object]) -> dict[str, object]:
+        return thaw_mapping(value)
 
     @model_validator(mode="after")
     def require_distinct_axes(self) -> "SearchHeatmapSlice":
@@ -763,9 +1155,24 @@ class StrategyRun(DomainModel):
     daily_assets: tuple[DailyAsset, ...] = Field(default=(), alias="dailyAssets")
     metrics: MetricSummary | None = None
     search_result: SearchResult | None = Field(default=None, alias="searchResult")
+    evaluation_period: SearchPeriod | None = Field(
+        default=None, alias="evaluationPeriod"
+    )
 
     @model_validator(mode="after")
     def validate_terminal_result(self) -> "StrategyRun":
+        if self.evaluation_period is not None and any(
+            not self.evaluation_period.start_date
+            <= day
+            <= self.evaluation_period.end_date
+            for day in (
+                *[row.date for row in self.daily_assets],
+                *[row.date for row in self.trades],
+            )
+        ):
+            raise ValueError(
+                "saved trades and assets must belong to their evaluation period"
+            )
         if self.search_result is not None and self.search_result.strategy_id != self.id:
             raise ValueError("search result must belong to its strategy run")
         if (
@@ -773,6 +1180,17 @@ class StrategyRun(DomainModel):
             and self.preset_id is not StrategyPresetId.GRID_SEARCH
         ):
             raise ValueError("only grid-search runs can contain search results")
+        if (
+            self.search_result is not None
+            and self.search_result.out_of_sample is not None
+            and (
+                self.metrics != self.search_result.out_of_sample.metrics
+                or self.evaluation_period != self.search_result.out_of_sample_period
+            )
+        ):
+            raise ValueError(
+                "walk-forward parent must display its out-of-sample result"
+            )
         if (
             self.status
             in {
@@ -830,8 +1248,22 @@ class StrategyRun(DomainModel):
         )
 
 
+def _result_status_schema(schema: JsonDict) -> None:
+    """Readers check the domain's aggregation table instead of copying its rules."""
+    statuses = sorted(StrategyStatus, key=lambda status: status.value)
+    table: JsonDict = {"": StrategyStatus.QUEUED.value}
+    for count in range(1, len(statuses) + 1):
+        for group in combinations(statuses, count):
+            key = "|".join(status.value for status in group)
+            rows = tuple(StrategyRun.model_construct(status=status) for status in group)
+            table[key] = _aggregate_status(rows).value
+    schema["x-aggregate-status"] = table
+
+
 class RunResult(DomainModel):
     """Saved result collection, including partial success across strategies."""
+
+    model_config = ConfigDict(json_schema_extra=_result_status_schema)
 
     run_id: str = Field(alias="runId", min_length=1)
     strategy_runs: tuple[StrategyRun, ...] = Field(default=(), alias="strategyRuns")

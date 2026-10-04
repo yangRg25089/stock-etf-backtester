@@ -16,6 +16,7 @@ interface ConditionEditorProps {
   custom: boolean;
   fixedTrend?: boolean;
   buyContent?: ReactNode;
+  sellContent?: ReactNode;
   currency?: string;
   errors: Diagnostic[];
   onChange(value: StrategyRules): void;
@@ -177,7 +178,7 @@ export function ConditionEditor(props: ConditionEditorProps) {
   return <div className="strategy-rule-sections">
     {(["buy", "sell"] as const).map(side => {
       const node = rules[side];
-      const buyContent = side === "buy" ? props.buyContent : null;
+      const buyContent = side === "buy" ? props.buyContent : props.sellContent;
       const name = node && "kind" in node ? translate(locale, `conditions.${node.kind}`) : null;
       const headingId = `strategy-parameter-heading-${strategyId}-${side === "buy" && node && "kind" in node ? node.kind : side}`;
       return <section key={side} className={`strategy-rule-section${node?.enabled === false || (!node && !buyContent) ? " is-disabled" : ""}`}

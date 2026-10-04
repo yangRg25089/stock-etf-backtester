@@ -16,7 +16,7 @@ from fastapi.encoders import jsonable_encoder
 from app.engine_version import ENGINE_VERSION
 from app.main import app
 from app.runs.manager import RunManager
-from app.runs.sqlite_store import SQLiteRunStore
+from app.runs.store import InMemoryRunStore
 from app.runs.yahoo_data import YahooRunDataProvider
 from app.signals import SIGNAL_METHOD_VERSION
 
@@ -37,9 +37,7 @@ def test_live_soxq_pre_listing_start_adjusts_shared_snapshot_and_exports(
     tmp_path,
 ) -> None:
     previous_service = app.state.run_service
-    path = tmp_path / "soxq-listing.sqlite3"
-    store = SQLiteRunStore(path)
-    reopened = None
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -76,7 +74,20 @@ def test_live_soxq_pre_listing_start_adjusts_shared_snapshot_and_exports(
             assert accepted.status_code == 202, accepted.text
             saved = await client.get(f"/api/v1/runs/{accepted.json()['runId']}")
             data = saved.json()
-            run = data["snapshot"]["config"]["shared"]["run"]
+            assert (
+                data["snapshot"]["config"]["shared"]["run"]["startDate"] == "2020-01-01"
+            )
+            assert accepted.json()["snapshot"]["dataContext"] is None
+            assert accepted.json()["snapshot"]["dataFingerprint"] is None
+            assert (
+                accepted.json()["snapshot"]["submissionFingerprint"]
+                == data["snapshot"]["submissionFingerprint"]
+            )
+            assert (
+                accepted.json()["snapshot"]["createdAt"]
+                == data["snapshot"]["createdAt"]
+            )
+            run = data["snapshot"]["dataContext"]["effectiveRun"]
             assert run["startDate"] == "2021-06-11"
             assert run["endDate"] == "2021-08-31"
             assert data["snapshot"]["dateAdjustments"] == [
@@ -116,8 +127,7 @@ def test_live_soxq_pre_listing_start_adjusts_shared_snapshot_and_exports(
 
     try:
         saved = asyncio.run(run_and_export())
-        store.close()
-        reopened = SQLiteRunStore(path)
+        reopened = store
         app.state.run_service = RunManager(store=reopened, executor=_InlineExecutor())
 
         async def restored():
@@ -139,16 +149,13 @@ def test_live_soxq_pre_listing_start_adjusts_shared_snapshot_and_exports(
         asyncio.run(restored())
     finally:
         app.state.run_service = previous_service
-        store.close()
-        if reopened is not None:
-            reopened.close()
 
 
 def test_live_soxq_warmup_moves_every_strategy_and_benchmark_to_first_ready_day(
     tmp_path,
 ) -> None:
     previous_service = app.state.run_service
-    store = SQLiteRunStore(tmp_path / "soxq-warmup.sqlite3")
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -186,8 +193,12 @@ def test_live_soxq_warmup_moves_every_strategy_and_benchmark_to_first_ready_day(
                 await client.get(f"/api/v1/runs/{accepted.json()['runId']}")
             ).json()
             assert (
-                saved["snapshot"]["config"]["shared"]["run"]["startDate"]
+                saved["snapshot"]["dataContext"]["effectiveRun"]["startDate"]
                 == "2021-06-15"
+            )
+            assert (
+                saved["snapshot"]["config"]["shared"]["run"]["startDate"]
+                == "2020-01-01"
             )
             assert (
                 saved["snapshot"]["dateAdjustments"][0]["reason"] == "indicator_warmup"
@@ -211,12 +222,11 @@ def test_live_soxq_warmup_moves_every_strategy_and_benchmark_to_first_ready_day(
         asyncio.run(run())
     finally:
         app.state.run_service = previous_service
-        store.close()
 
 
 def test_live_unreachable_long_warmup_does_not_block_ready_strategies(tmp_path) -> None:
     previous_service = app.state.run_service
-    store = SQLiteRunStore(tmp_path / "soxq-partial-warmup.sqlite3")
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -260,8 +270,12 @@ def test_live_unreachable_long_warmup_does_not_block_ready_strategies(tmp_path) 
                 await client.get(f"/api/v1/runs/{accepted.json()['runId']}")
             ).json()
             assert (
-                saved["snapshot"]["config"]["shared"]["run"]["startDate"]
+                saved["snapshot"]["dataContext"]["effectiveRun"]["startDate"]
                 == "2021-06-15"
+            )
+            assert (
+                saved["snapshot"]["config"]["shared"]["run"]["startDate"]
+                == "2020-01-01"
             )
             assert saved["status"] == "completed_with_warning"
             for result in saved["result"]["strategyRuns"]:
@@ -278,14 +292,13 @@ def test_live_unreachable_long_warmup_does_not_block_ready_strategies(tmp_path) 
         asyncio.run(run())
     finally:
         app.state.run_service = previous_service
-        store.close()
 
 
 def test_live_soxq_fully_pre_listing_period_has_actionable_dates_without_mutation(
     tmp_path,
 ) -> None:
     previous_service = app.state.run_service
-    store = SQLiteRunStore(tmp_path / "soxq-before.sqlite3")
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -332,14 +345,11 @@ def test_live_soxq_fully_pre_listing_period_has_actionable_dates_without_mutatio
         asyncio.run(run())
     finally:
         app.state.run_service = previous_service
-        store.close()
 
 
 def test_live_reversed_volatility_exit_tiers_save_matching_trades_and_csv(tmp_path):
     previous_service = app.state.run_service
-    path = tmp_path / "exit-tiers.sqlite3"
-    store = SQLiteRunStore(path)
-    reopened = None
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -419,8 +429,7 @@ def test_live_reversed_volatility_exit_tiers_save_matching_trades_and_csv(tmp_pa
             Decimal(asset["actualInvested"]) <= Decimal(asset["totalContributed"])
             for asset in assets.values()
         )
-        store.close()
-        reopened = SQLiteRunStore(path)
+        reopened = store
         app.state.run_service = RunManager(store=reopened, executor=_InlineExecutor())
 
         async def restore_and_export():
@@ -445,16 +454,11 @@ def test_live_reversed_volatility_exit_tiers_save_matching_trades_and_csv(tmp_pa
         asyncio.run(restore_and_export())
     finally:
         app.state.run_service = previous_service
-        store.close()
-        if reopened is not None:
-            reopened.close()
 
 
 def test_live_repeated_trend_trades_save_first_use_principal_and_csv(tmp_path) -> None:
     previous_service = app.state.run_service
-    path = tmp_path / "principal.sqlite3"
-    store = SQLiteRunStore(path)
-    restored_store = None
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -520,8 +524,7 @@ def test_live_repeated_trend_trades_save_first_use_principal_and_csv(tmp_path) -
         assert Decimal(metrics["netProfit"]) == Decimal(
             metrics["endingEquity"]
         ) - Decimal(metrics["totalContributed"])
-        store.close()
-        restored_store = SQLiteRunStore(path)
+        restored_store = store
         app.state.run_service = RunManager(
             store=restored_store, executor=_InlineExecutor()
         )
@@ -552,17 +555,13 @@ def test_live_repeated_trend_trades_save_first_use_principal_and_csv(tmp_path) -
         assert exports["summary"][0]["investmentBasis"] == "original_principal"
     finally:
         app.state.run_service = previous_service
-        store.close()
-        if restored_store is not None:
-            restored_store.close()
 
 
 def test_live_fixed_custom_and_indicator_rules_share_results_and_restore(
     tmp_path,
 ) -> None:
     previous_service = app.state.run_service
-    path = tmp_path / "live-conditions.sqlite3"
-    store = SQLiteRunStore(path)
+    store = InMemoryRunStore()
     provider = YahooRunDataProvider()
     app.state.run_service = RunManager(
         store=store, data_provider=provider, executor=_InlineExecutor()
@@ -618,8 +617,7 @@ def test_live_fixed_custom_and_indicator_rules_share_results_and_restore(
 
     try:
         saved = asyncio.run(run_and_read())
-        store.close()
-        restored_store = SQLiteRunStore(path)
+        restored_store = store
         app.state.run_service = RunManager(
             store=restored_store, data_provider=provider, executor=_InlineExecutor()
         )
@@ -680,14 +678,11 @@ def test_live_fixed_custom_and_indicator_rules_share_results_and_restore(
         )
     finally:
         app.state.run_service = previous_service
-        store.close()
-        if "restored_store" in locals():
-            restored_store.close()
 
 
 def test_live_qqq_volatility_index_runs_use_real_yahoo_observations(tmp_path) -> None:
     previous_service = app.state.run_service
-    store = SQLiteRunStore(tmp_path / "live-yahoo-runs.sqlite3")
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store,
         data_provider=YahooRunDataProvider(),
@@ -735,7 +730,6 @@ def test_live_qqq_volatility_index_runs_use_real_yahoo_observations(tmp_path) ->
         ]
     finally:
         app.state.run_service = previous_service
-        store.close()
 
     for result in results:
         snapshot = result["snapshot"]
@@ -772,8 +766,7 @@ def test_live_qqq_volatility_index_runs_use_real_yahoo_observations(tmp_path) ->
 
 def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> None:
     previous_service = app.state.run_service
-    store_path = tmp_path / "live-yahoo-fixed-runs.sqlite3"
-    store = SQLiteRunStore(store_path)
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store,
         data_provider=YahooRunDataProvider(),
@@ -823,23 +816,22 @@ def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> Non
         result = asyncio.run(submit_and_read())
     finally:
         app.state.run_service = previous_service
-        store.close()
 
-    reopened_store = SQLiteRunStore(store_path)
+    reopened_store = store
     app.state.run_service = RunManager(
         store=reopened_store,
         data_provider=YahooRunDataProvider(),
         executor=_InlineExecutor(),
     )
 
-    async def restore_and_export() -> tuple[dict[str, Any], dict[str, Any], str, str]:
+    async def restore_and_export() -> tuple[dict[str, Any], None, str, str]:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app),
             base_url="http://live-yahoo-restored-test",
         ) as client:
             run_id = result["runId"]
             restored = await client.get(f"/api/v1/runs/{run_id}")
-            latest = await client.get("/api/v1/runs/latest")
+            active = await client.get("/api/v1/runs/active")
             summary = await client.get(
                 f"/api/v1/runs/{run_id}/export/summary",
                 params={"focusedResultId": "live-yahoo-qqq-vix-fixed"},
@@ -849,22 +841,21 @@ def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> Non
                 params={"focusedResultId": "live-yahoo-qqq-vix-fixed"},
             )
             assert restored.status_code == 200, restored.text
-            assert latest.status_code == 200, latest.text
+            assert active.status_code == 200, active.text
             assert summary.status_code == 200, summary.text
             assert daily_assets.status_code == 200, daily_assets.text
-            return restored.json(), latest.json(), summary.text, daily_assets.text
+            return restored.json(), active.json(), summary.text, daily_assets.text
 
     try:
-        restored, latest, summary_csv, daily_assets_csv = asyncio.run(
+        restored, active, summary_csv, daily_assets_csv = asyncio.run(
             restore_and_export()
         )
     finally:
         app.state.run_service = previous_service
-        reopened_store.close()
 
     assert result["snapshot"]["config"]["shared"]["run"]["endDate"] == "2026-09-28"
     assert restored == result
-    assert latest == result
+    assert active is None
     summary_row = next(csv.DictReader(io.StringIO(summary_csv)))
     assert summary_row["runId"] == result["runId"]
     assert summary_row["resultId"] == "live-yahoo-qqq-vix-fixed"
@@ -951,11 +942,9 @@ def test_live_instrument_metadata_resolves_real_usd_and_jpy_quotes():
         assert not metadata.diagnostics
 
 
-def test_live_user_grid_values_freeze_trades_curves_and_csv_after_reopen(tmp_path):
+def test_live_user_grid_values_freeze_trades_curves_and_csv_in_memory(tmp_path):
     previous_service = app.state.run_service
-    path = tmp_path / "user-grid.sqlite3"
-    store = SQLiteRunStore(path)
-    reopened = None
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -1024,9 +1013,8 @@ def test_live_user_grid_values_freeze_trades_curves_and_csv_after_reopen(tmp_pat
             Decimal(row["metrics"]["totalContributed"]) == 200
             for row in search["candidates"]
         )
-        store.close()
-        reopened = SQLiteRunStore(path)
-        # Reopening uses no supplier: the curves and CSV must come from saved results.
+        reopened = store
+        # Read frozen curves and CSV from the runtime store without a supplier.
         app.state.run_service = RunManager(store=reopened, executor=_InlineExecutor())
 
         async def read_saved():
@@ -1066,6 +1054,3 @@ def test_live_user_grid_values_freeze_trades_curves_and_csv_after_reopen(tmp_pat
         asyncio.run(read_saved())
     finally:
         app.state.run_service = previous_service
-        store.close()
-        if reopened is not None:
-            reopened.close()

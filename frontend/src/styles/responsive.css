@@ -1,0 +1,444 @@
+@media (min-width: 768px) and (max-width: 1279px) {
+  .app-frame {
+    min-height: 0;
+  }
+
+  .main-content.workbench-main {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: calc(100% - 32px);
+    max-width: none;
+    height: calc(100dvh - var(--app-topbar-height));
+    min-height: 0;
+    padding: 10px 0 14px;
+    overflow: hidden;
+  }
+
+  .workbench-layout {
+    display: grid;
+    grid-template-columns: 280px 24px minmax(0, 1fr);
+    overflow: hidden;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .workbench-layout.is-config-collapsed {
+    grid-template-columns: 0 24px minmax(0, 1fr);
+  }
+
+  .workbench-config {
+    position: relative;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    width: auto;
+    height: 100%;
+    padding-right: 10px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .workbench-config-fixed {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .workbench-divider {
+    display: grid;
+  }
+
+  .workbench-results {
+    overflow-x: hidden;
+    overflow-y: auto;
+      padding: 0 0 16px 10px;
+  }
+
+}
+
+@media (max-height: 720px) {
+  .workbench-config-fixed {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .app-frame {
+    min-height: 0;
+  }
+
+  .main-content.workbench-main {
+    display: block;
+    height: auto;
+    min-height: 0;
+    padding-bottom: 24px;
+    overflow: visible;
+  }
+
+  .workbench-context {
+    padding-top: 4px;
+  }
+
+  .workbench-layout {
+    position: relative;
+    display: block;
+    overflow: visible;
+    min-height: 0;
+  }
+
+  .workbench-divider {
+    display: none;
+  }
+
+  .shared-settings-dialog {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .shared-settings-dialog-shell {
+    max-height: calc(100dvh - 24px);
+  }
+
+  .shared-settings-dialog-heading,
+  .shared-settings-dialog-footer {
+    padding: 12px;
+  }
+
+  .shared-settings-dialog-content {
+    padding: 12px;
+  }
+
+  .strategy-dialog {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: min(85dvh, calc(100dvh - 24px));
+  }
+
+  .strategy-dialog-shell {
+    max-height: min(85dvh, calc(100dvh - 24px));
+  }
+
+  .strategy-dialog-heading,
+  .strategy-dialog-footer {
+    padding: 12px;
+  }
+
+  .strategy-dialog-content {
+    padding: 12px;
+  }
+
+  .strategy-dialog .strategy-parameter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --app-topbar-height: 108px;
+  }
+
+  .main-content {
+    width: min(100% - 30px, 1180px);
+    padding-top: 18px;
+  }
+
+  .main-content.workbench-main {
+    width: calc(100% - 24px);
+    padding-top: 10px;
+  }
+
+  .workbench-mobile-views {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    margin: 7px 0 10px;
+    padding: 4px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: 7px;
+  }
+
+  .workbench-mobile-view {
+    min-height: 40px;
+    color: var(--app-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .workbench-mobile-view[aria-pressed="true"] {
+    color: var(--app-accent-text);
+    background: var(--app-accent-soft);
+  }
+
+  .app-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "brand locale" "controls controls";
+    align-content: center;
+    min-height: var(--app-topbar-height);
+    gap: 8px 10px;
+    padding: 6px 15px;
+  }
+
+  .topbar-brand {
+    grid-area: brand;
+    min-width: 0;
+  }
+
+  .topbar-brand .brand {
+    min-width: 0;
+  }
+
+  .topbar-brand .brand-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .execution-actions {
+    grid-area: controls;
+    justify-content: flex-start;
+  }
+
+  .topbar-right {
+    grid-area: locale;
+  }
+
+  .workbench-config-toggle {
+    display: none;
+  }
+
+  .workbench-config {
+    position: relative;
+    width: 100%;
+    height: min(76dvh, 760px);
+    min-height: 460px;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .workbench-results {
+    padding: 10px 0 20px;
+    border: 0;
+    overflow: visible;
+  }
+
+  .chart-toolbar {
+    top: var(--app-topbar-height);
+  }
+
+  .result-tabs {
+    scroll-snap-type: x proximity;
+  }
+
+  .collapsible-panel-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .collapsible-panel-actions {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .result-context-actions {
+    justify-content: flex-start;
+  }
+
+  .result-context-actions .export-controls {
+    flex: 1 1 100%;
+  }
+
+  .result-tab {
+    scroll-snap-align: start;
+  }
+
+  .workbench-config-fixed {
+    gap: 7px;
+  }
+
+
+  .shared-settings-dialog .shared-settings-fields-range,
+  .shared-settings-dialog .shared-settings-fields-funding {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar-right {
+    justify-content: flex-end;
+  }
+
+  .main-content {
+    width: min(100% - 24px, 1180px);
+  }
+
+  h1 {
+    font-size: 19px;
+  }
+
+  .chart-range-label {
+    flex-basis: 100%;
+  }
+
+  .strategy-parameter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .button-primary {
+    width: 100%;
+  }
+
+  .execution-actions .run-submit-button {
+    width: 44px;
+    flex: 0 0 44px;
+  }
+
+  .catalog-error {
+    align-items: flex-start;
+  }
+
+}
+
+@media (min-width: 1280px) {
+
+  .workbench-results .result-content {
+    gap: 10px;
+    padding-top: 8px;
+  }
+
+  .workbench-results .result-content > section {
+    padding: 10px;
+  }
+
+  .workbench-results .result-content > .collapsible-panel {
+    padding: 0;
+  }
+
+  .workbench-results .chart-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .workbench-results .chart-controls { flex: 1 1 auto; }
+
+  .workbench-results .charts-content {
+    gap: 8px;
+  }
+
+  .workbench-results .legend-toggle,
+  .workbench-results .chart-range-controls button {
+    min-height: 32px;
+    padding: 4px 7px;
+    font-size: 11px;
+  }
+
+  .workbench-results .chart-panel {
+    padding: 8px 10px 6px;
+  }
+
+  .workbench-results .chart-overlay-description {
+    margin: -3px 0 4px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+}
+
+@media (min-width: 768px) and (max-height: 850px) and (pointer: fine) {
+  .workbench-results .collapsible-panel-header { padding: 0 8px; }
+  .workbench-results .collapsible-panel-body { gap: 4px; padding: 6px; }
+  .workbench-results .result-tab-panel { padding-top: 4px; }
+  .workbench-results .result-tab { min-height: 36px; padding: 5px 8px; }
+  .workbench-results .comparison-table th,
+  .workbench-results .comparison-table td { padding-block: 2px; }
+  .workbench-results .result-select { min-height: 28px; padding-block: 2px; }
+  .workbench-results .chart-toolbar { padding-block: 4px; }
+}
+
+@media (pointer: coarse) {
+  .comparison-table-scroll, .trade-table-scroll { --table-controls-height: 52px; }
+  .table-expand-button { min-width: 44px; min-height: 44px; }
+  .comparison-sort { min-height: 44px; }
+  .result-tab { min-height: 44px; }
+
+  button,
+  .input,
+  .checkbox-control {
+    min-height: 44px;
+  }
+
+  .input {
+    font-size: 16px;
+  }
+
+  .icon-button {
+    min-width: 44px;
+  }
+
+  .workbench-config-toggle,
+  .execution-actions .button-primary,
+  .shared-settings-open-button,
+  .workbench-results .diagnostic-field-link,
+  .workbench-results .chart-series-control,
+  .workbench-results .legend-toggle,
+  .workbench-results .chart-range-controls button,
+  .strategy-nav-card .strategy-remove,
+  .strategy-navigator .add-strategy-button {
+    min-height: 44px;
+  }
+
+  .workbench-layout {
+    grid-template-columns: 320px 44px minmax(0, 1fr);
+  }
+
+  .workbench-layout.is-config-collapsed {
+    grid-template-columns: 0 44px minmax(0, 1fr);
+  }
+
+  .workbench-divider { min-width: 44px; }
+  .workbench-config-toggle { width: 44px; min-width: 44px; }
+  .strategy-nav-card .strategy-card-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .strategy-nav-card .strategy-card-name { padding-right: 94px; }
+
+
+  .strategy-nav-card .strategy-remove {
+    min-width: 44px;
+  }
+
+}
+
+@media (pointer: coarse) and (min-width: 768px) and (max-width: 1279px) {
+  .workbench-layout {
+    grid-template-columns: 280px 44px minmax(0, 1fr);
+  }
+
+  .workbench-layout.is-config-collapsed {
+    grid-template-columns: 0 44px minmax(0, 1fr);
+  }
+
+  .workbench-divider {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .strategy-navigator .strategy-nav-card { transition: none; }
+  .comparison-table tbody tr { transition: none; }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

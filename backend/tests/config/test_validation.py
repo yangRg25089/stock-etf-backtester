@@ -305,7 +305,7 @@ def test_grid_limits_use_configured_values_and_ignore_unselected_value_buffers()
 
 
 def test_invalid_selected_grid_values_have_registered_error_paths() -> None:
-    for values in ([], [25, 25], [-1], ["25"], [True], [float("inf")]):
+    for values in ([], [25, 25], [-1], ["25 USD"], [True], [float("inf")]):
         result = validate_draft(
             _draft(
                 preset_id="grid_search",

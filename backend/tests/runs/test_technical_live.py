@@ -7,16 +7,14 @@ import httpx
 
 from app.main import app
 from app.runs.manager import RunManager
-from app.runs.sqlite_store import SQLiteRunStore
+from app.runs.store import InMemoryRunStore
 from app.runs.yahoo_data import YahooRunDataProvider
 from tests.runs.test_yahoo_data_live import _InlineExecutor
 
 
-def test_live_technical_values_and_grid_candidates_survive_sqlite_restart(tmp_path):
+def test_live_technical_values_and_grid_candidates_remain_in_current_runtime(tmp_path):
     previous = app.state.run_service
-    path = tmp_path / "technical.sqlite3"
-    store = SQLiteRunStore(path)
-    reopened = None
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -146,9 +144,8 @@ def test_live_technical_values_and_grid_candidates_survive_sqlite_restart(tmp_pa
 
     try:
         saved, details = asyncio.run(exercise())
-        store.close()
-        reopened = SQLiteRunStore(path)
-        # The reopened service has no provider; restore cannot recalculate.
+        reopened = store
+        # Read the same runtime store without a provider or recalculation.
         app.state.run_service = RunManager(store=reopened, executor=_InlineExecutor())
 
         async def restore():
@@ -167,6 +164,3 @@ def test_live_technical_values_and_grid_candidates_survive_sqlite_restart(tmp_pa
         asyncio.run(restore())
     finally:
         app.state.run_service = previous
-        store.close()
-        if reopened is not None:
-            reopened.close()

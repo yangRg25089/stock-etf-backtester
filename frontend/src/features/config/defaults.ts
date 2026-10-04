@@ -4,9 +4,11 @@ export interface SharedDraft {
   run: { symbol: string; startDate: string; endDate: string | null };
   contribution: { amount: string | null; day: number | null };
   currency?: string;
+  analysis?: { riskFreeAnnualRatePct: string | null };
+  execution?: { commission: string | null; slippagePct: string | null; spreadPct: string | null; fractionalShares: boolean };
 }
 
-type SharedFieldKey = "run.symbol" | "run.startDate" | "run.endDate" | "contribution.amount" | "contribution.day";
+import type { SharedFieldKey } from "./fieldKeys";
 
 function getDefinition(catalog: Catalog, key: SharedFieldKey): ParameterDefinition {
   const definition = catalog.parameters?.find((item) => item.key === key);
@@ -21,6 +23,13 @@ export function createDefaultSharedDraft(catalog: Catalog): SharedDraft {
   const endDate = defaultFor("run.endDate");
   const amount = defaultFor("contribution.amount");
   const day = defaultFor("contribution.day");
+  const riskFreeRate = defaultFor("analysis.riskFreeAnnualRatePct");
+  const decimalDefault = (key: SharedFieldKey) => {
+    const value = defaultFor(key);
+    return typeof value === "string" || typeof value === "number" ? String(value) : null;
+  };
+  const fractional = defaultFor("execution.fractionalShares");
+  if (typeof fractional !== "boolean") throw new Error("Catalog fractional shares default must be boolean");
   if (typeof symbol !== "string" || typeof startDate !== "string" || typeof endDate !== "string") {
     throw new Error("Catalog shared symbol and dates must be strings");
   }
@@ -31,5 +40,8 @@ export function createDefaultSharedDraft(catalog: Catalog): SharedDraft {
       day: typeof day === "number" ? day : null,
     },
     currency: catalog.symbolSuggestions?.find(item => item.symbol === symbol)?.currency,
+    analysis: { riskFreeAnnualRatePct: typeof riskFreeRate === "number" || typeof riskFreeRate === "string" ? String(riskFreeRate) : null },
+    execution: { commission: decimalDefault("execution.commission"), slippagePct: decimalDefault("execution.slippagePct"),
+      spreadPct: decimalDefault("execution.spreadPct"), fractionalShares: fractional },
   };
 }

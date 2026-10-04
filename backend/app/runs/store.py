@@ -9,6 +9,7 @@ from typing import Protocol
 from uuid import uuid4
 
 from app.domain.contracts import StrategyRun
+from app.domain.status import StrategyStatus
 from app.runs.types import RunResponse
 
 
@@ -53,7 +54,7 @@ class RunStore(Protocol):
 
     def get(self, run_id: str) -> RunResponse | None: ...
 
-    def get_latest(self) -> RunResponse | None: ...
+    def get_active(self) -> RunResponse | None: ...
 
     def save_candidate(self, run_id: str, candidate: StrategyRun) -> None: ...
 
@@ -82,7 +83,6 @@ class InMemoryRunStore:
         self._records: dict[str, RunResponse] = {}
         self._versions: dict[str, int] = {}
         self._candidates: dict[tuple[str, str], StrategyRun] = {}
-        self._latest_run_id: str | None = None
 
     def save_candidate(self, run_id: str, candidate: StrategyRun) -> None:
         with self._lock:
@@ -136,7 +136,6 @@ class InMemoryRunStore:
             self._versions[reservation.run_id] = (
                 self._versions.get(reservation.run_id, 0) + 1
             )
-            self._latest_run_id = reservation.run_id
             state.ready.set()
             self._changed.notify_all()
 
@@ -178,11 +177,22 @@ class InMemoryRunStore:
         with self._lock:
             return self._records.get(run_id)
 
-    def get_latest(self) -> RunResponse | None:
+    def get_active(self) -> RunResponse | None:
+        """Return the most recently accepted run that is still executing."""
         with self._lock:
-            if self._latest_run_id is None:
-                return None
-            return self._records.get(self._latest_run_id)
+            return next(
+                (
+                    record
+                    for record in reversed(tuple(self._records.values()))
+                    if record.status
+                    in {
+                        StrategyStatus.QUEUED,
+                        StrategyStatus.LOADING,
+                        StrategyStatus.RUNNING,
+                    }
+                ),
+                None,
+            )
 
     def wait_for_change(
         self, run_id: str, after_version: int, timeout_seconds: float

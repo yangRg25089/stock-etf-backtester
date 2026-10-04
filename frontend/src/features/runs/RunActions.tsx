@@ -1,11 +1,14 @@
 import type { RunResponse } from "../../api/generated";
+import { isActiveRunStatus } from "../../api/runStatus";
 import { translate, type Locale } from "../../i18n/messages";
 import type { RunAvailability } from "../strategies/model";
+import { useWorkbenchShortcut } from "../../shared/ui/useWorkbenchShortcut";
 
 interface RunActionsProps {
   locale: Locale;
   availability: RunAvailability;
   busy: boolean;
+  canStop?: boolean;
   stopping: boolean;
   onStop(): void;
   run?: RunResponse | null;
@@ -14,11 +17,12 @@ interface RunActionsProps {
   onRun(): void;
 }
 
-export function RunActions({ locale, availability, busy, stopping, onStop, run, canReset, onReset, onRun }: RunActionsProps) {
-  const progress = busy && run && ["queued", "loading", "running"].includes(run.status)
+export function RunActions({ locale, availability, busy, canStop = busy, stopping, onStop, run, canReset, onReset, onRun }: RunActionsProps) {
+  useWorkbenchShortcut("Enter", !busy && !availability.disabled, onRun);
+  const progress = busy && run && isActiveRunStatus(run.status)
     ? run.progress
     : null;
-  const actionLabel = translate(locale, busy ? "run.submitting" : "run.submit");
+  const actionLabel = translate(locale, busy ? run && isActiveRunStatus(run.status) ? `status.${run.status}` : "run.submitting" : "run.submit");
   const label = progress
     ? `${actionLabel} · ${progress.completedStrategies}/${progress.totalStrategies}`
     : actionLabel;
@@ -31,7 +35,8 @@ export function RunActions({ locale, availability, busy, stopping, onStop, run, 
         className="button button-primary run-submit-button"
         type="button"
         aria-label={label}
-        title={reason ?? label}
+        title={reason ?? `${label} · Ctrl/⌘ + Enter`}
+        aria-keyshortcuts="Control+Enter Meta+Enter"
         aria-describedby={reason ? "run-disabled-reason" : undefined}
         aria-busy={busy}
         disabled={busy || availability.disabled}
@@ -43,7 +48,7 @@ export function RunActions({ locale, availability, busy, stopping, onStop, run, 
           </svg>
         )}
       </button>
-      <span className="run-stop-slot">{busy && <button type="button" className="button icon-only-button run-stop-button" disabled={stopping}
+      <span className="run-stop-slot">{busy && canStop && <button type="button" className="button icon-only-button run-stop-button" disabled={stopping}
         onClick={onStop} aria-label={translate(locale, stopping ? "run.stopping" : "run.stop")}
         title={translate(locale, stopping ? "run.stopping" : "run.stop")}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>

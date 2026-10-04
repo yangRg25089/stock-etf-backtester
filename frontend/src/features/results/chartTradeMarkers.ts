@@ -11,7 +11,7 @@ export function tradeMarkerPoints(trades: Trade[], points: MarkerPoint[]) {
     const { x, y } = point;
     const direction = trade.side === "buy" ? 1 : -1;
     return [{
-      trade, index, price,
+      trade, index, price, x, y,
       coordinates: `${x},${y + direction * 7} ${x - 3},${y - direction * 4} ${x + 3},${y - direction * 4}`,
     }];
   });

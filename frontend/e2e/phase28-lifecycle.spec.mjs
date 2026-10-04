@@ -45,7 +45,7 @@ async function delayedStop(page, saved, finishOld = true) {
   const stopped = copyRun(saved, first.runId, "cancelled");
   const second = copyRun(saved, "audit-new-run", "completed");
   let submissions = 0;
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/runs", route => route.fulfill({ status: 202, json: submissions++ === 0 ? first : copyRun(second, second.runId, "running") }));
   for (const response of [stopped, second]) {
     await page.route(`**/api/v1/runs/${response.runId}`, route => route.fulfill({ json: response }));
@@ -173,7 +173,7 @@ test("CRLF progress streams finish with one full result read and no false connec
   let fullReads = 0;
   let subscriptions = 0;
   let submissions = 0;
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/runs", route => {
     submissions++;
     return route.fulfill({ status: 202, json: pending });

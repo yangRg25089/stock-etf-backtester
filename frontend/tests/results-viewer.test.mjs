@@ -168,7 +168,7 @@ test("grid curves retain the frozen volatility symbol and override only searched
 });
 
 test("legacy execution areas never return at any run lifecycle stage", () => {
-  for (const status of ["queued", "loading", "running", "completed", "completed_with_warning", "unavailable", "failed"]) {
+  for (const status of ["queued", "loading", "running", "completed", "completed_with_warning", "unavailable", "failed", "cancelled"]) {
     const state = workspaceWithRun();
     state.runResponse.status = status;
     state.runResponse.result.strategyRuns[0].status = status;
@@ -409,7 +409,7 @@ test("VIX chart settings come from the focused frozen strategy snapshot", () => 
     dispatch() {},
   }));
 
-  assert.match(html, /<button[^>]*overlay-legend-item[^>]*aria-pressed="false"[^>]*>.*标的收盘价 \(USD\)/);
+  assert.match(html, /<button[^>]*chart-series-control[^>]*aria-label="标的收盘价 \(USD\)"[^>]*aria-pressed="false"/);
   assert.doesNotMatch(html, /QQQ · 价格/);
   assert.match(html, /阈值 25/);
   assert.doesNotMatch(html, /阈值 99/);
@@ -472,7 +472,8 @@ test("an empty workspace keeps the details card first and every CSV kind visible
   }));
   assert.ok(html.indexOf('id="result-details"') >= 0);
   assert.match(html, /还没有结果/);
-  assert.equal((html.match(/<button[^>]*disabled/g) ?? []).length, 5);
+  assert.equal((html.match(/<button[^>]*disabled/g) ?? []).length, 6);
+  assert.match(html, /saved-data-button" disabled/);
   assert.match(html, /data-report-kind="png" disabled/);
   assert.match(html, /data-export-kind="summary" disabled/);
   assert.match(html, /data-export-kind="search-results" disabled/);

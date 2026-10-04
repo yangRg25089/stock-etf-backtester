@@ -95,7 +95,7 @@ test("rapid legend inspection preserves each selected strategy's own trade marke
   const names = ["ボラティリティ積立", "毎月定額積立", "一括投資"];
   for (const name of names) await page.locator(".comparison-table .result-select").filter({ hasText: name }).click();
   for (const name of [...names, ...[...names].reverse()]) {
-    const legend = page.locator(".chart-overlay figcaption button").filter({ hasText: name });
+    const legend = page.locator(".chart-core-readout-row button").filter({ hasText: name });
     await legend.hover();
     const markers = page.locator(".chart-overlay .chart-trade-marker");
     expect(await markers.count()).toBeGreaterThan(0);
@@ -105,12 +105,12 @@ test("rapid legend inspection preserves each selected strategy's own trade marke
     expect(hovering.every(row => row.owner === owner)).toBe(true);
     await legend.click();
     await page.locator("#result-details-toggle").focus();
-    await page.locator(".chart-core-readout-row").hover();
+    await page.locator(".chart-market-readout time").hover();
     await expect(legend).toHaveAttribute("aria-pressed", "true");
     expect(await markers.evaluateAll(nodes => nodes.map(node => ({ owner: node.dataset.resultId, points: node.getAttribute("points") })))).toEqual(hovering);
     await legend.click();
     await page.locator("#result-details-toggle").focus();
-    await page.locator(".chart-core-readout-row").hover();
+    await page.locator(".chart-market-readout time").hover();
     await expect(markers).toHaveCount(0);
   }
   await page.locator(".comparison-table .result-select").filter({ hasText: names[1] }).click();

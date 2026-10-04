@@ -69,7 +69,12 @@ def thaw_value(value: object) -> object:
     """Return JSON-serializable mutable containers for Pydantic serializers."""
 
     if isinstance(value, Mapping):
-        return {key: thaw_value(item) for key, item in value.items()}
+        return thaw_mapping(value)
     if isinstance(value, tuple):
         return [thaw_value(item) for item in value]
     return value
+
+
+def thaw_mapping(value: Mapping[str, object]) -> dict[str, object]:
+    """Keep object-shaped serialization visible to JSON Schema consumers."""
+    return {key: thaw_value(item) for key, item in value.items()}

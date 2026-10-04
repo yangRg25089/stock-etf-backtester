@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch } from "react";
 import type { Catalog, DraftValidationResponse, StrategyPresetId } from "../../api/generated";
-import { interpolate, translate, type Locale } from "../../i18n/messages";
+import { translate, type Locale } from "../../i18n/messages";
 import { StrategyEditorDialog } from "./StrategyEditorDialog";
-import { formatStrategySummary } from "./strategySummary";
+import { StrategyToolsDialog } from "./StrategyToolsDialog";
+import { StrategyCard } from "./StrategyCard";
 import type { WorkspaceAction, WorkspaceState } from "./model";
-import { strategyInstanceLimit } from "./model";
+import { StrategyAddMenu } from "./StrategyAddMenu";
 
 interface StrategyNavigatorProps {
   busy?: boolean;
@@ -14,6 +15,7 @@ interface StrategyNavigatorProps {
   validation: DraftValidationResponse | null;
   dispatch: Dispatch<WorkspaceAction>;
   onAdd(presetId: StrategyPresetId): void;
+  onDuplicate(sourceId: string): void;
   fieldNavigation?: StrategyFieldNavigation | null;
   onFieldNavigationHandled?(): void;
 }
@@ -35,10 +37,11 @@ export function StrategyNavigator({
   validation,
   dispatch,
   onAdd,
+  onDuplicate,
   fieldNavigation = null,
   onFieldNavigationHandled,
 }: StrategyNavigatorProps) {
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [toolsStrategyId, setToolsStrategyId] = useState<string | null>(null);
   const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
   const [focusFieldKey, setFocusFieldKey] = useState<string | null>(null);
   const [focusFieldIndex, setFocusFieldIndex] = useState<number | undefined>();
@@ -46,38 +49,17 @@ export function StrategyNavigator({
   const cardButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const editTriggerRef = useRef<HTMLButtonElement | null>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
-  const addContainerRef = useRef<HTMLDivElement>(null);
-  const addMenuRef = useRef<HTMLDivElement>(null);
-  const menuFocusRef = useRef<"first" | "last" | null>(null);
   const pendingFocusRef = useRef<PendingFocus | null>(null);
   const presets = catalog.presets ?? [];
-  const addablePresets = presets.filter((preset) => preset.id !== "monthly_dca" && preset.id !== "lump_sum");
 
   const editingStrategy = state.draft.strategies.find((item) => item.id === editingStrategyId);
+  const toolsStrategy = state.draft.strategies.find(item => item.id === toolsStrategyId);
   const handleFieldFocusHandled = useCallback(() => {
     setFocusFieldKey(null);
     setFocusFieldIndex(undefined);
     setFocusConditionId(undefined);
   }, []);
 
-  useEffect(() => {
-    if (!addMenuOpen) return;
-    const items = addMenuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
-    if (menuFocusRef.current) {
-      const index = menuFocusRef.current === "first" ? 0 : (items?.length ?? 1) - 1;
-      items?.[index]?.focus();
-      menuFocusRef.current = null;
-    }
-    const dismissOutside = (event: Event) => {
-      if (event.target instanceof Node && !addContainerRef.current?.contains(event.target)) setAddMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", dismissOutside);
-    document.addEventListener("focusin", dismissOutside);
-    return () => {
-      document.removeEventListener("pointerdown", dismissOutside);
-      document.removeEventListener("focusin", dismissOutside);
-    };
-  }, [addMenuOpen]);
 
   useEffect(() => {
     const pendingFocus = pendingFocusRef.current;
@@ -116,89 +98,13 @@ export function StrategyNavigator({
 
   return (
     <section className="strategy-navigator" aria-labelledby="strategy-list-heading">
-
-
       <div className="section-heading strategy-navigator-heading">
         <h2 id="strategy-list-heading">{translate(locale, "strategy.listTitle")}</h2>
         <span className="strategy-count" aria-label={`${state.draft.strategies.length}`}>
           {state.draft.strategies.length}
         </span>
-      <div ref={addContainerRef} className={`strategy-add${addMenuOpen ? " is-open" : ""}`}
-        onKeyDown={(event) => {
-          if (busy) return;
-          if (event.key === "Escape" && addMenuOpen) {
-            event.preventDefault();
-            setAddMenuOpen(false);
-            addButtonRef.current?.focus();
-            return;
-          }
-          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-          event.preventDefault();
-          const last = event.key === "ArrowUp" || event.key === "End";
-          if (!addMenuOpen) {
-            menuFocusRef.current = last ? "last" : "first";
-            setAddMenuOpen(true);
-            return;
-          }
-          const items = [...(addMenuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])];
-          if (!items.length) return;
-          const currentIndex = items.findIndex(item => item === document.activeElement);
-          const index = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
-            : (currentIndex + (last ? -1 : 1) + items.length) % items.length;
-          items[index]?.focus();
-        }}>
-        <button
-          ref={addButtonRef}
-          className="button button-primary icon-only-button add-strategy-button"
-          aria-label={translate(locale, "strategy.addLabel")}
-          title={translate(locale, "strategy.addLabel")}
-          aria-expanded={addMenuOpen}
-          aria-haspopup="menu"
-          aria-controls="strategy-add-menu"
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            menuFocusRef.current = addMenuOpen ? null : "first";
-            setAddMenuOpen((open) => !open);
-          }}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 3v14M3 10h14" /></svg>
-        </button>
-        <div
-          id="strategy-add-menu"
-          ref={addMenuRef}
-          className="strategy-add-menu"
-          role="menu"
-          aria-label={translate(locale, "strategy.choosePreset")}
-          hidden={!addMenuOpen}
-        >
-          <span className="strategy-add-menu-label">{translate(locale, "strategy.choosePreset")}</span>
-          {addablePresets.map((item) => {
-            const count = state.draft.strategies.filter(strategy => strategy.presetId === item.id).length;
-            const maximum = strategyInstanceLimit(catalog, item.id);
-            const alreadyAdded = maximum === undefined || count >= maximum;
-            return (
-              <button
-                key={item.id}
-                className="strategy-add-option"
-                type="button"
-                role="menuitem"
-                data-preset-id={item.id}
-                disabled={busy || alreadyAdded}
-                onClick={() => {
-                  if (busy || alreadyAdded) return;
-                  onAdd(item.id);
-                  setAddMenuOpen(false);
-                  addButtonRef.current?.focus();
-                }}
-              >
-                <span>{translate(locale, item.nameKey)}</span>
-                {alreadyAdded && <small>{translate(locale, "strategy.alreadyAdded")}</small>}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+        <StrategyAddMenu catalog={catalog} strategies={state.draft.strategies} locale={locale}
+          busy={busy} addButtonRef={addButtonRef} onAdd={onAdd} />
       </div>
 
       {state.draft.strategies.length === 0 ? (
@@ -222,54 +128,23 @@ export function StrategyNavigator({
             const summaryId = `strategy-summary-${strategy.id}`;
 
             return (
-              <article
-                className={`strategy-card strategy-nav-card${isRunTarget ? " is-active" : ""}`}
-                key={strategy.id}
-              >
-                <button
-                  ref={(element) => {
-                    if (element) cardButtonRefs.current.set(strategy.id, element);
-                    else cardButtonRefs.current.delete(strategy.id);
-                  }}
-                  className="strategy-card-open"
-                  type="button"
-                  disabled={busy}
-                  aria-label={interpolate(translate(locale, "strategy.edit"), { name })}
-                  aria-describedby={summaryId}
-                  aria-haspopup="dialog"
-                  aria-controls={`strategy-dialog-${strategy.id}`}
-                  aria-current={isRunTarget ? "true" : undefined}
-                  onClick={(event) => {
-                    if (busy) return;
-                    dispatch({ type: "strategy.select", id: strategy.id });
-                    editTriggerRef.current = event.currentTarget;
-                    setFocusFieldKey(null);
-                    setFocusFieldIndex(undefined);
-                    setFocusConditionId(undefined);
-                    setEditingStrategyId(strategy.id);
-                  }}
-                >
-                  <span className="strategy-card-name">{name}</span>
-                  <span className="strategy-card-summary" id={summaryId}>
-                    {formatStrategySummary(locale, strategy.presetId, strategy.params, strategy.rules)}
-                  </span>
-                </button>
-                <div className="strategy-card-actions">
-                  {hasError && <span className="strategy-nav-error">{translate(locale, "strategy.hasErrors")}</span>}
-                  <button
-                    className="icon-button strategy-remove"
-                    type="button"
-                    disabled={busy}
-                    aria-label={interpolate(translate(locale, "strategy.remove"), { name })}
-                    title={interpolate(translate(locale, "strategy.remove"), { name })}
-                    onClick={() => removeStrategy(strategy.id, index)}
-                  >
-                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                      <path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6" />
-                    </svg>
-                  </button>
-                </div>
-              </article>
+              <StrategyCard key={strategy.id} strategy={strategy} name={name} active={isRunTarget}
+                busy={busy} hasError={hasError} summaryId={summaryId} locale={locale}
+                buttonRef={element => {
+                  if (element) cardButtonRefs.current.set(strategy.id, element);
+                  else cardButtonRefs.current.delete(strategy.id);
+                }}
+                onOpen={event => {
+                  if (busy) return;
+                  dispatch({ type: "strategy.select", id: strategy.id });
+                  editTriggerRef.current = event.currentTarget;
+                  setFocusFieldKey(null);
+                  setFocusFieldIndex(undefined);
+                  setFocusConditionId(undefined);
+                  setEditingStrategyId(strategy.id);
+                }}
+                onRemove={() => removeStrategy(strategy.id, index)}
+                onTools={() => { if (!busy) setToolsStrategyId(strategy.id); }} />
             );
           })}
         </div>
@@ -296,6 +171,11 @@ export function StrategyNavigator({
           }}
         />
       )}
+      {toolsStrategy && <StrategyToolsDialog key={toolsStrategy.id} locale={locale} busy={busy}
+        name={translate(locale, presets.find(item => item.id === toolsStrategy.presetId)?.nameKey ?? "") + (toolsStrategy.instanceNumber ? ` ${toolsStrategy.instanceNumber}` : "")}
+        canDuplicate={toolsStrategy.presetId === "composite_dca" && state.draft.strategies.filter(item => item.presetId === "composite_dca").length < (catalog.strategyLimits?.maxCustomInstances ?? 0)}
+        onDuplicate={() => onDuplicate(toolsStrategy.id)} onReset={() => dispatch({ type: "strategy.reset", id: toolsStrategy.id })}
+        onClose={() => setToolsStrategyId(null)} />}
     </section>
   );
 }

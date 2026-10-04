@@ -9,8 +9,19 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 from io import StringIO
+from typing import get_args
 
-from app.domain.contracts import MetricSummary, SearchResult, StrategyRun
+from app.catalog.definitions import ParameterType
+from app.catalog.service import get_catalog
+from app.domain.contracts import (
+    DailyAsset,
+    MetricSummary,
+    SearchResult,
+    StrategyRun,
+    Trade,
+)
+from app.domain.execution import TradingCosts
+from app.domain.performance import PerformanceAnalysis
 from app.domain.status import Diagnostic, StrategyStatus
 from app.runs.types import RunResponse
 
@@ -32,6 +43,12 @@ class ExportError(ValueError):
         self.status_code = status_code
 
 
+_ANALYSIS_FIELDS = tuple(
+    field.alias or name for name, field in PerformanceAnalysis.model_fields.items()
+)
+_COST_FIELDS = tuple(
+    field.alias or name for name, field in TradingCosts.model_fields.items()
+)
 _SUMMARY_FIELDS = (
     "runId",
     "resultId",
@@ -55,6 +72,8 @@ _SUMMARY_FIELDS = (
     "calendarAsOf",
     "marketDataThrough",
     "investmentBasis",
+    *_ANALYSIS_FIELDS,
+    *_COST_FIELDS,
 )
 _DAILY_ASSET_FIELDS = (
     "runId",
@@ -74,6 +93,7 @@ _DAILY_ASSET_FIELDS = (
     "totalContributed",
     "actualInvested",
     "investmentBasis",
+    *_COST_FIELDS,
 )
 _TRADE_FIELDS = (
     "runId",
@@ -89,6 +109,14 @@ _TRADE_FIELDS = (
     "dataSources",
     "calendarAsOf",
     "marketDataThrough",
+    "cashBefore",
+    "cashAfter",
+    "quantityBefore",
+    "quantityAfter",
+    "executionBasePrice",
+    "executionPrice",
+    "grossAmount",
+    *_COST_FIELDS,
 )
 _SEARCH_FIELDS = (
     "runId",
@@ -113,7 +141,77 @@ _METRIC_FIELDS = (
     "maximumDrawdown",
     "currency",
     "investmentBasis",
+    *_ANALYSIS_FIELDS,
+    *_COST_FIELDS,
 )
+_TEST_METRIC_FIELDS = tuple(f"test{key[0].upper()}{key[1:]}" for key in _METRIC_FIELDS)
+_OOS_METRIC_FIELDS = tuple(
+    f"outOfSample{key[0].upper()}{key[1:]}" for key in _METRIC_FIELDS
+)
+_SEARCH_EVALUATION_FIELDS = (
+    "optimizationMode",
+    "trainStartDate",
+    "trainEndDate",
+    "testStartDate",
+    "testEndDate",
+    "testResultId",
+    "testStatus",
+    "testDiagnostics",
+    *_TEST_METRIC_FIELDS,
+    "walkForwardWindow",
+    "selectedForTesting",
+    "outOfSampleResultId",
+    "outOfSampleStatus",
+    "outOfSampleStartDate",
+    "outOfSampleEndDate",
+    "outOfSampleDiagnostics",
+    *_OOS_METRIC_FIELDS,
+)
+
+
+def csv_field_groups() -> dict[str, tuple[str, ...]]:
+    """Field order shared by the API exporter and offline file viewer."""
+    return {
+        "summary": _SUMMARY_FIELDS,
+        "daily-assets": _DAILY_ASSET_FIELDS,
+        "trades": _TRADE_FIELDS,
+        "search-results": _SEARCH_FIELDS,
+        "metrics": _METRIC_FIELDS,
+        "search-evaluation": _SEARCH_EVALUATION_FIELDS,
+        "test-metrics": _TEST_METRIC_FIELDS,
+        "out-of-sample-metrics": _OOS_METRIC_FIELDS,
+        "analysis": _ANALYSIS_FIELDS,
+        "trading-costs": _COST_FIELDS,
+        "provenance": _DATA_PROVENANCE_FIELDS,
+        "decimal": tuple(
+            sorted(
+                {
+                    field.alias or name
+                    for model in (
+                        MetricSummary,
+                        DailyAsset,
+                        Trade,
+                        PerformanceAnalysis,
+                        TradingCosts,
+                    )
+                    for name, field in model.model_fields.items()
+                    if field.annotation is Decimal
+                    or Decimal in get_args(field.annotation)
+                }
+            )
+        ),
+        "numeric-parameters": tuple(
+            definition.key
+            for definition in get_catalog().parameters
+            if definition.type
+            in {
+                ParameterType.INTEGER,
+                ParameterType.DECIMAL,
+                ParameterType.RATIO,
+                ParameterType.PERCENT_POINT,
+            }
+        ),
+    }
 
 
 def export_csv(
@@ -171,7 +269,7 @@ def export_csv(
 
 def _summary_csv(run: RunResponse, focused: StrategyRun) -> str:
     metrics = _require_metrics(focused)
-    config = run.snapshot.config
+    config = run.snapshot.effective_config
     row = {
         "runId": run.run_id,
         "resultId": focused.id,
@@ -179,8 +277,12 @@ def _summary_csv(run: RunResponse, focused: StrategyRun) -> str:
         "presetId": focused.preset_id,
         "status": focused.status,
         "symbol": config.shared.run.symbol,
-        "startDate": config.shared.run.start_date,
-        "endDate": config.shared.run.end_date,
+        "startDate": focused.evaluation_period.start_date
+        if focused.evaluation_period
+        else config.shared.run.start_date,
+        "endDate": focused.evaluation_period.end_date
+        if focused.evaluation_period
+        else config.shared.run.end_date,
         **_metric_values(metrics),
         "diagnostics": _diagnostic_json(focused.diagnostics),
         **_provenance_values(run),
@@ -209,6 +311,7 @@ def _daily_assets_csv(run: RunResponse, focused: StrategyRun) -> str:
                 "currency": asset.currency,
                 "unitNav": asset.unit_nav,
                 "drawdown": asset.drawdown,
+                **_cost_values(asset.trading_costs),
                 **_provenance_values(run),
             }
         )
@@ -228,6 +331,14 @@ def _trades_csv(run: RunResponse, focused: StrategyRun) -> str:
             "cashAmount": trade.cash_amount,
             "currency": trade.currency,
             "signalId": trade.signal_id,
+            "cashBefore": trade.cash_before,
+            "cashAfter": trade.cash_after,
+            "quantityBefore": trade.quantity_before,
+            "quantityAfter": trade.quantity_after,
+            "executionBasePrice": trade.execution_base_price,
+            "executionPrice": trade.execution_price,
+            "grossAmount": trade.gross_amount,
+            **_cost_values(trade.trading_costs),
             **_provenance_values(run),
         }
         for trade in focused.trades
@@ -257,10 +368,26 @@ def _search_csv(
         *_METRIC_FIELDS,
         "diagnostics",
         *_DATA_PROVENANCE_FIELDS,
+        *_SEARCH_EVALUATION_FIELDS,
     )
     rows: list[dict[str, object]] = []
     for candidate in search_result.candidates:
         metrics = candidate.metrics
+        window = next(
+            (
+                item
+                for item in search_result.walk_forward_windows
+                if candidate.candidate_id in item.candidate_ids
+            ),
+            None,
+        )
+        train_period = window.train_period if window else search_result.train_period
+        test_period = window.test_period if window else search_result.test_period
+        oos = search_result.out_of_sample
+        oos_metrics = _metric_values(oos.metrics if oos else None)
+        testing_metrics = _metric_values(
+            candidate.test_result.metrics if candidate.test_result else None
+        )
         row: dict[str, object] = {
             "runId": run.run_id,
             "resultId": focused.id,
@@ -274,6 +401,43 @@ def _search_csv(
             **_metric_values(metrics),
             "diagnostics": _diagnostic_json(candidate.diagnostics),
             **_provenance_values(run),
+            "optimizationMode": search_result.optimization_mode,
+            "trainStartDate": train_period.start_date if train_period else None,
+            "trainEndDate": train_period.end_date if train_period else None,
+            "testStartDate": test_period.start_date if test_period else None,
+            "testEndDate": test_period.end_date if test_period else None,
+            "testResultId": candidate.test_result.result_id
+            if candidate.test_result
+            else None,
+            "testStatus": candidate.test_result.status
+            if candidate.test_result
+            else None,
+            "testDiagnostics": _diagnostic_json(candidate.test_result.diagnostics)
+            if candidate.test_result
+            else None,
+            **{
+                target: testing_metrics[key]
+                for key, target in zip(_METRIC_FIELDS, _TEST_METRIC_FIELDS, strict=True)
+            },
+            "walkForwardWindow": window.sequence if window else None,
+            "selectedForTesting": candidate.candidate_id == window.selected_candidate_id
+            if window
+            else None,
+            "outOfSampleResultId": oos.result_id if oos else None,
+            "outOfSampleStatus": oos.status if oos else None,
+            "outOfSampleStartDate": search_result.out_of_sample_period.start_date
+            if search_result.out_of_sample_period
+            else None,
+            "outOfSampleEndDate": search_result.out_of_sample_period.end_date
+            if search_result.out_of_sample_period
+            else None,
+            "outOfSampleDiagnostics": _diagnostic_json(oos.diagnostics)
+            if oos
+            else None,
+            **{
+                target: oos_metrics[key]
+                for key, target in zip(_METRIC_FIELDS, _OOS_METRIC_FIELDS, strict=True)
+            },
         }
         row.update(
             {
@@ -298,11 +462,20 @@ def _provenance_values(run: RunResponse) -> dict[str, object]:
     }
 
 
+def _cost_values(costs: TradingCosts | None) -> dict[str, object]:
+    return (
+        costs.model_dump(by_alias=True)
+        if costs is not None
+        else dict.fromkeys(_COST_FIELDS)
+    )
+
+
 def _metric_values(metrics: MetricSummary | None) -> dict[str, object]:
     if metrics is None:
         return {field: None for field in _METRIC_FIELDS}
     return {
         "totalContributed": metrics.total_contributed,
+        **_cost_values(metrics.trading_costs),
         "actualInvested": metrics.actual_invested,
         "investmentBasis": metrics.investment_basis,
         "endingEquity": metrics.ending_equity,
@@ -312,6 +485,11 @@ def _metric_values(metrics: MetricSummary | None) -> dict[str, object]:
         "xirr": metrics.xirr,
         "maximumDrawdown": metrics.maximum_drawdown,
         "currency": metrics.currency,
+        **(
+            metrics.analysis.model_dump(by_alias=True)
+            if metrics.analysis
+            else dict.fromkeys(_ANALYSIS_FIELDS)
+        ),
     }
 
 
@@ -363,4 +541,22 @@ def _csv_value(value: object) -> str:
         return value.isoformat()
     if isinstance(value, (bool, StrEnum)):
         return str(value.value if isinstance(value, StrEnum) else value).lower()
+    if isinstance(value, (Mapping, tuple, list)):
+        return json.dumps(
+            _json_value(value),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
     return str(value)
+
+
+def _json_value(value: object) -> object:
+    """Match the saved JSON representation for structured parameter values."""
+    if isinstance(value, Mapping):
+        return {key: _json_value(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_json_value(item) for item in value]
+    if isinstance(value, (Decimal, date, StrEnum)):
+        return str(value.value) if isinstance(value, StrEnum) else str(value)
+    return value

@@ -1,9 +1,12 @@
 import asyncio
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 from json import dumps
+from threading import Event
 
 import httpx
+import pytest
 from fastapi.encoders import jsonable_encoder
 
 from app.api.runs import RunSubmission
@@ -13,8 +16,8 @@ from app.domain.contracts import RunScope, RunSnapshot
 from app.domain.immutability import thaw_value
 from app.domain.status import StrategyStatus
 from app.main import app
+from app.runs.data import StrategyDataLoad
 from app.runs.manager import RunManager
-from app.runs.sqlite_store import SQLiteRunStore
 from app.runs.store import IdempotencyConflict, InMemoryRunStore, RunChange
 
 
@@ -53,10 +56,20 @@ class _FakeRunService:
     def get_run(self, run_id: str) -> RunResponse | None:
         return self.responses.get(run_id)
 
-    def get_latest_run(self) -> RunResponse | None:
-        if not self.responses:
-            return None
-        return list(self.responses.values())[-1]
+    def get_active_run(self) -> RunResponse | None:
+        return next(
+            (
+                record
+                for record in reversed(tuple(self.responses.values()))
+                if record.status
+                in {
+                    StrategyStatus.QUEUED,
+                    StrategyStatus.LOADING,
+                    StrategyStatus.RUNNING,
+                }
+            ),
+            None,
+        )
 
 
 class _ConflictingRunService(_FakeRunService):
@@ -77,7 +90,18 @@ class _EventRunService(_FakeRunService):
             return None
         return RunChange(
             version=1,
-            response=response.model_copy(update={"status": StrategyStatus.COMPLETED}),
+            response=response.model_copy(
+                update={
+                    "status": StrategyStatus.COMPLETED,
+                    "progress": response.progress.model_copy(
+                        update={
+                            "completed_strategies": response.progress.total_strategies
+                        }
+                    )
+                    if response.progress is not None
+                    else None,
+                }
+            ),
         )
 
 
@@ -85,7 +109,7 @@ def _request(
     method: str,
     path: str,
     *,
-    service: _FakeRunService | None = None,
+    service: _FakeRunService | RunManager | None = None,
     clear_service: bool = False,
     headers: dict[str, str] | None = None,
     json_body: object | None = None,
@@ -188,6 +212,18 @@ def test_catalog_and_generated_contract_version_are_available() -> None:
     }
 
 
+def test_sse_payload_has_an_openapi_contract_from_the_same_run_statuses() -> None:
+    schema = app.openapi()
+    payload = schema["components"]["schemas"]["RunProgressEvent"]
+    assert (
+        payload["properties"]["status"]["$ref"] == "#/components/schemas/StrategyStatus"
+    )
+    content = schema["paths"]["/api/v1/runs/{run_id}/events"]["get"]["responses"][
+        "200"
+    ]["content"]
+    assert set(content) == {"text/event-stream"}
+
+
 def test_draft_validation_returns_registry_field_paths_and_data_needs() -> None:
     draft = _draft([_strategy("bad", threshold=999)])
 
@@ -229,18 +265,45 @@ def test_active_run_ignores_errors_from_unselected_instances() -> None:
     assert submission.strategy_validations[0].diagnostics == ()
     assert service.idempotency_keys == ["active-run-intent"]
     lookup = _request("GET", "/api/v1/runs/run-1", service=service)
-    latest = _request("GET", "/api/v1/runs/latest", service=service)
+    active = _request("GET", "/api/v1/runs/active", service=service)
     assert lookup.status_code == 200
     assert lookup.json()["runId"] == "run-1"
-    assert latest.status_code == 200
-    assert latest.json()["runId"] == "run-1"
+    assert active.status_code == 200
+    assert active.json()["runId"] == "run-1"
 
 
-def test_latest_run_is_null_when_no_run_has_been_saved() -> None:
-    response = _request("GET", "/api/v1/runs/latest", service=_FakeRunService())
+def test_active_run_is_null_when_no_run_has_been_submitted() -> None:
+    response = _request("GET", "/api/v1/runs/active", service=_FakeRunService())
 
     assert response.status_code == 200
     assert response.json() is None
+
+
+@pytest.mark.parametrize("status", tuple(StrategyStatus))
+def test_active_endpoint_returns_only_unfinished_runs(status: StrategyStatus) -> None:
+    service = _FakeRunService()
+    accepted = _request(
+        "POST",
+        "/api/v1/runs",
+        service=service,
+        headers={"Idempotency-Key": "active-query"},
+        json_body={"draft": _draft([_strategy("vix")]), "scope": "all_enabled"},
+    )
+    assert accepted.status_code == 202
+    original = service.responses["run-1"]
+    service.responses["run-1"] = original.model_copy(update={"status": status})
+    response = _request("GET", "/api/v1/runs/active", service=service)
+    assert response.status_code == 200
+    if status in {
+        StrategyStatus.QUEUED,
+        StrategyStatus.LOADING,
+        StrategyStatus.RUNNING,
+    }:
+        assert response.json()["status"] == status.value
+    else:
+        assert response.json() is None
+    retired = _request("GET", "/api/v1/runs/latest", service=service)
+    assert retired.status_code == 404
 
 
 def test_run_events_endpoint_emits_terminal_status_without_full_result() -> None:
@@ -277,7 +340,7 @@ def test_run_events_endpoint_returns_standard_not_found_for_unknown_run() -> Non
 def test_default_local_manager_accepts_and_exposes_a_run_record() -> None:
     default_service = app.state.run_service
     assert isinstance(default_service, RunManager)
-    assert isinstance(default_service._store, SQLiteRunStore)
+    assert isinstance(default_service._store, InMemoryRunStore)
     service = RunManager(store=InMemoryRunStore())
 
     accepted = _request(
@@ -295,9 +358,74 @@ def test_default_local_manager_accepts_and_exposes_a_run_record() -> None:
     run_id = accepted.json()["runId"]
     lookup = _request("GET", f"/api/v1/runs/{run_id}", service=service)
 
-    assert accepted.json()["snapshot"]["dataFingerprint"]
+    assert accepted.json()["snapshot"]["submissionFingerprint"]
+    assert accepted.json()["snapshot"]["dataFingerprint"] is None
     assert lookup.status_code == 200
     assert lookup.json()["runId"] == run_id
+
+
+def test_http_acceptance_and_stop_do_not_wait_for_market_data() -> None:
+    entered, release = Event(), Event()
+
+    class HeldProvider:
+        version = "held-http-fixture"
+
+        def load_for_strategy(self, **_kwargs: object) -> StrategyDataLoad:
+            entered.set()
+            assert release.wait(5), "test did not release the provider"
+            return StrategyDataLoad()
+
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        service = RunManager(
+            store=InMemoryRunStore(), data_provider=HeldProvider(), executor=worker
+        )
+        with ThreadPoolExecutor(max_workers=1) as caller:
+            request = caller.submit(
+                _request,
+                "POST",
+                "/api/v1/runs",
+                service=service,
+                headers={"Idempotency-Key": "held-http"},
+                json_body={
+                    "draft": _draft([_strategy("strategy-1")]),
+                    "scope": "all_enabled",
+                },
+            )
+            try:
+                accepted = request.result(timeout=1)
+                assert accepted.status_code == 202
+                body = accepted.json()
+                assert body["status"] == "queued"
+                assert body["snapshot"]["dataContext"] is None
+                assert body["snapshot"]["dataFingerprint"] is None
+                assert body["snapshot"]["submissionFingerprint"]
+                assert entered.wait(1)
+                run_id = body["runId"]
+                loading = _request("GET", f"/api/v1/runs/{run_id}", service=service)
+                assert loading.json()["status"] == "loading"
+                stopped = _request(
+                    "POST", f"/api/v1/runs/{run_id}/stop", service=service
+                )
+                assert (
+                    stopped.status_code == 200
+                    and stopped.json()["status"] == "cancelled"
+                )
+                terminal = _request(
+                    "GET", f"/api/v1/runs/{run_id}/events", service=service
+                )
+                assert terminal.status_code == 200
+                assert '"status":"cancelled"' in terminal.text
+                assert (
+                    _request("GET", "/api/v1/runs/active", service=service).json()
+                    is None
+                )
+            finally:
+                release.set()
+        worker.shutdown(wait=True)
+        assert (
+            _request("GET", f"/api/v1/runs/{run_id}", service=service).json()
+            == stopped.json()
+        )
 
 
 def test_all_enabled_submission_keeps_invalid_strategy_as_local_diagnostic() -> None:

@@ -1,0 +1,3837 @@
+{
+  "APIError": {
+    "properties": {
+      "code": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Code"
+      },
+      "messageKey": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Messagekey"
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "code",
+      "messageKey"
+    ],
+    "title": "APIError"
+  },
+  "APIErrorResponse": {
+    "properties": {
+      "error": {
+        "$ref": "#/components/schemas/APIError"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "error"
+    ],
+    "title": "APIErrorResponse"
+  },
+  "AnalysisSettings": {
+    "properties": {
+      "riskFreeAnnualRatePct": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Riskfreeannualratepct"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "riskFreeAnnualRatePct"
+    ],
+    "title": "AnalysisSettings"
+  },
+  "BacktestPackage": {
+    "properties": {
+      "format": {
+        "type": "string",
+        "const": "stock-etf-backtester",
+        "title": "Format",
+        "default": "stock-etf-backtester"
+      },
+      "schemaVersion": {
+        "type": "integer",
+        "const": 1,
+        "title": "Schemaversion",
+        "default": 1
+      },
+      "type": {
+        "type": "string",
+        "const": "backtest",
+        "title": "Type",
+        "default": "backtest"
+      },
+      "exportedAt": {
+        "type": "string",
+        "format": "date-time",
+        "title": "Exportedat"
+      },
+      "engineVersion": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Engineversion"
+      },
+      "catalogVersion": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Catalogversion"
+      },
+      "config": {
+        "$ref": "#/components/schemas/FrozenRunConfig"
+      },
+      "result": {
+        "$ref": "#/components/schemas/RunResponse"
+      },
+      "candidateDetails": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/StrategyRun"
+        },
+        "type": "object",
+        "title": "Candidatedetails"
+      },
+      "dataProvenance": {
+        "$ref": "#/components/schemas/RunDataProvenance"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "exportedAt",
+      "engineVersion",
+      "catalogVersion",
+      "config",
+      "result",
+      "candidateDetails",
+      "dataProvenance"
+    ],
+    "title": "BacktestPackage"
+  },
+  "Catalog": {
+    "properties": {
+      "version": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Version"
+      },
+      "parameters": {
+        "items": {
+          "$ref": "#/components/schemas/ParameterDefinition"
+        },
+        "type": "array",
+        "title": "Parameters",
+        "default": []
+      },
+      "parameterGroups": {
+        "items": {
+          "$ref": "#/components/schemas/ParameterGroupDefinition"
+        },
+        "type": "array",
+        "title": "Parametergroups",
+        "default": [
+          {
+            "id": "general",
+            "translationKey": "parameterGroups.general"
+          },
+          {
+            "id": "run",
+            "translationKey": "parameterGroups.run"
+          },
+          {
+            "id": "contribution",
+            "translationKey": "parameterGroups.contribution"
+          },
+          {
+            "id": "data",
+            "translationKey": "parameterGroups.data"
+          },
+          {
+            "id": "analysis",
+            "translationKey": "parameterGroups.analysis"
+          },
+          {
+            "id": "execution",
+            "translationKey": "parameterGroups.execution"
+          },
+          {
+            "id": "buy_limits",
+            "translationKey": "parameterGroups.buy_limits"
+          },
+          {
+            "id": "signal_combination",
+            "translationKey": "parameterGroups.signal_combination"
+          },
+          {
+            "id": "vix",
+            "translationKey": "parameterGroups.vix"
+          },
+          {
+            "id": "rsi",
+            "translationKey": "parameterGroups.rsi"
+          },
+          {
+            "id": "moving_average",
+            "translationKey": "parameterGroups.moving_average"
+          },
+          {
+            "id": "bollinger",
+            "translationKey": "parameterGroups.bollinger"
+          },
+          {
+            "id": "interest_rate",
+            "translationKey": "parameterGroups.interest_rate"
+          },
+          {
+            "id": "valuation",
+            "translationKey": "parameterGroups.valuation"
+          },
+          {
+            "id": "sell_signals",
+            "translationKey": "parameterGroups.sell_signals"
+          },
+          {
+            "id": "trend",
+            "translationKey": "parameterGroups.trend"
+          },
+          {
+            "id": "scheduled_funding",
+            "translationKey": "parameterGroups.scheduled_funding"
+          },
+          {
+            "id": "search",
+            "translationKey": "parameterGroups.search"
+          },
+          {
+            "id": "display",
+            "translationKey": "parameterGroups.display"
+          }
+        ]
+      },
+      "presets": {
+        "items": {
+          "$ref": "#/components/schemas/PresetDefinition"
+        },
+        "type": "array",
+        "title": "Presets",
+        "default": []
+      },
+      "conditions": {
+        "items": {
+          "$ref": "#/components/schemas/ConditionDefinition"
+        },
+        "type": "array",
+        "title": "Conditions",
+        "default": []
+      },
+      "conditionLimits": {
+        "$ref": "#/components/schemas/ConditionLimits",
+        "default": {
+          "maxDepth": 8,
+          "maxNodes": 96,
+          "maxInstancesPerKind": 1
+        }
+      },
+      "symbolSuggestions": {
+        "items": {
+          "$ref": "#/components/schemas/SymbolSuggestion"
+        },
+        "type": "array",
+        "title": "Symbolsuggestions",
+        "default": [
+          {
+            "symbol": "QQQ",
+            "name": "Nasdaq-100",
+            "currency": "USD",
+            "source": "https://www.invesco.com/qqq-etf/en/home.html"
+          },
+          {
+            "symbol": "SPY",
+            "name": "S&P 500",
+            "currency": "USD",
+            "source": "https://www.ssga.com/us/en/individual/etfs/state-street-spdr-sp-500-etf-trust-spy"
+          },
+          {
+            "symbol": "VOO",
+            "name": "S&P 500",
+            "currency": "USD",
+            "source": "https://investor.vanguard.com/investment-products/etfs/profile/voo"
+          },
+          {
+            "symbol": "VTI",
+            "name": "Total Stock Market",
+            "currency": "USD",
+            "source": "https://investor.vanguard.com/investment-products/etfs/profile/vti"
+          },
+          {
+            "symbol": "IVV",
+            "name": "S&P 500",
+            "currency": "USD",
+            "source": "https://www.ishares.com/us/products/239726/ishares-core-sp-500-etf-ivv"
+          }
+        ]
+      },
+      "strategyLimits": {
+        "$ref": "#/components/schemas/StrategyLimits"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "version"
+    ],
+    "title": "Catalog",
+    "description": "Serializable immutable catalog snapshot consumed by API/UI layers."
+  },
+  "ConditionDefinition": {
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/ConditionKind"
+      },
+      "nameKey": {
+        "type": "string",
+        "title": "Namekey"
+      },
+      "buyParameterKeys": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Buyparameterkeys"
+      },
+      "sellParameterKeys": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Sellparameterkeys"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "kind",
+      "nameKey",
+      "buyParameterKeys",
+      "sellParameterKeys"
+    ],
+    "title": "ConditionDefinition"
+  },
+  "ConditionGroup": {
+    "properties": {
+      "type": {
+        "type": "string",
+        "const": "group",
+        "title": "Type",
+        "default": "group"
+      },
+      "id": {
+        "type": "string",
+        "maxLength": 96,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9_-]+$",
+        "title": "Id"
+      },
+      "enabled": {
+        "type": "boolean",
+        "title": "Enabled",
+        "default": true
+      },
+      "operator": {
+        "$ref": "#/components/schemas/ConditionLogic",
+        "default": "AND"
+      },
+      "children": {
+        "items": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/ConditionLeaf"
+            },
+            {
+              "$ref": "#/components/schemas/ConditionGroup"
+            }
+          ],
+          "discriminator": {
+            "propertyName": "type",
+            "mapping": {
+              "condition": "#/components/schemas/ConditionLeaf",
+              "group": "#/components/schemas/ConditionGroup"
+            }
+          }
+        },
+        "type": "array",
+        "title": "Children",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "id"
+    ],
+    "title": "ConditionGroup"
+  },
+  "ConditionKind": {
+    "type": "string",
+    "enum": [
+      "vix",
+      "rsi",
+      "ma_deviation",
+      "ma_trend",
+      "bollinger",
+      "rate",
+      "pe"
+    ],
+    "title": "ConditionKind"
+  },
+  "ConditionLeaf": {
+    "properties": {
+      "type": {
+        "type": "string",
+        "const": "condition",
+        "title": "Type",
+        "default": "condition"
+      },
+      "id": {
+        "type": "string",
+        "maxLength": 96,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9_-]+$",
+        "title": "Id"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ConditionKind"
+      },
+      "enabled": {
+        "type": "boolean",
+        "title": "Enabled",
+        "default": true
+      },
+      "params": {
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Params"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "id",
+      "kind"
+    ],
+    "title": "ConditionLeaf"
+  },
+  "ConditionLimits": {
+    "properties": {
+      "maxDepth": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Maxdepth",
+        "default": 8
+      },
+      "maxNodes": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Maxnodes",
+        "default": 96
+      },
+      "maxInstancesPerKind": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Maxinstancesperkind",
+        "default": 1
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "ConditionLimits"
+  },
+  "ConditionLogic": {
+    "type": "string",
+    "enum": [
+      "AND",
+      "OR"
+    ],
+    "title": "ConditionLogic"
+  },
+  "ContractVersionResponse": {
+    "properties": {
+      "apiVersion": {
+        "type": "string",
+        "title": "Apiversion"
+      },
+      "contractVersion": {
+        "type": "string",
+        "title": "Contractversion"
+      },
+      "openapiUrl": {
+        "type": "string",
+        "title": "Openapiurl"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "apiVersion",
+      "contractVersion",
+      "openapiUrl"
+    ],
+    "title": "ContractVersionResponse"
+  },
+  "ContributionSettings": {
+    "properties": {
+      "day": {
+        "type": "integer",
+        "maximum": 31.0,
+        "minimum": 1.0,
+        "title": "Day"
+      },
+      "amount": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Amount"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "day",
+      "amount"
+    ],
+    "title": "ContributionSettings"
+  },
+  "DailyAsset": {
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "date",
+        "title": "Date"
+      },
+      "cash": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Cash"
+      },
+      "timingQuantity": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Timingquantity"
+      },
+      "fixedQuantity": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Fixedquantity"
+      },
+      "simulationOpen": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Simulationopen"
+      },
+      "simulationHigh": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Simulationhigh"
+      },
+      "simulationLow": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Simulationlow"
+      },
+      "simulationPrice": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Simulationprice"
+      },
+      "totalAsset": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Totalasset"
+      },
+      "totalContributed": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Totalcontributed"
+      },
+      "actualInvested": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Actualinvested"
+      },
+      "currency": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Currency"
+      },
+      "unitNav": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Unitnav"
+      },
+      "drawdown": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Drawdown"
+      },
+      "tradingCosts": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TradingCosts"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "date",
+      "cash",
+      "timingQuantity",
+      "fixedQuantity",
+      "simulationPrice",
+      "totalAsset",
+      "currency"
+    ],
+    "title": "DailyAsset"
+  },
+  "DataKind": {
+    "type": "string",
+    "enum": [
+      "market",
+      "macro",
+      "valuation"
+    ],
+    "title": "DataKind"
+  },
+  "DataRequirement": {
+    "properties": {
+      "strategyId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Strategyid"
+      },
+      "signalId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Signalid"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DataKind"
+      },
+      "symbol": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Symbol"
+      },
+      "fieldPath": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Fieldpath"
+      },
+      "conditionId": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Conditionid"
+      },
+      "lookbackSessions": {
+        "type": "integer",
+        "minimum": 0.0,
+        "title": "Lookbacksessions",
+        "default": 0
+      },
+      "periodKey": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Periodkey"
+      },
+      "sourceUnit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Sourceunit"
+      },
+      "minimumCoverage": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Minimumcoverage"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "strategyId",
+      "signalId",
+      "kind",
+      "symbol",
+      "fieldPath"
+    ],
+    "title": "DataRequirement",
+    "description": "One enabled signal dependency resolved to a normalized data source."
+  },
+  "DataSettings": {
+    "properties": {
+      "macroStalenessSessions": {
+        "type": "integer",
+        "minimum": 0.0,
+        "title": "Macrostalenesssessions"
+      },
+      "financialFactMaxAgeDays": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Financialfactmaxagedays"
+      },
+      "etfHoldingsMaxAgeDays": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Etfholdingsmaxagedays"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "macroStalenessSessions",
+      "financialFactMaxAgeDays",
+      "etfHoldingsMaxAgeDays"
+    ],
+    "title": "DataSettings",
+    "description": "Validated data policy frozen with each run's settings.\n\nDefaults and parameter-catalog range validation are materialized at the\ncatalog/config boundary; domain contracts do not depend on the catalog."
+  },
+  "Diagnostic": {
+    "properties": {
+      "code": {
+        "$ref": "#/components/schemas/DiagnosticCode"
+      },
+      "severity": {
+        "$ref": "#/components/schemas/DiagnosticSeverity",
+        "default": "error"
+      },
+      "messageKey": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Messagekey"
+      },
+      "fieldPath": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Fieldpath"
+      },
+      "asOf": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Asof"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Source"
+      },
+      "details": {
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Details"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "code",
+      "messageKey"
+    ],
+    "title": "Diagnostic",
+    "description": "A structured reason that can be rendered through a translation key."
+  },
+  "DiagnosticCode": {
+    "type": "string",
+    "enum": [
+      "invalid_parameter",
+      "required_data_unavailable",
+      "provider_request_failed",
+      "calculation_failed",
+      "source_quality_warning",
+      "stale_data",
+      "unknown_source_unit",
+      "price_basis_unavailable",
+      "no_valid_contribution",
+      "no_valid_xirr",
+      "comparison_unavailable",
+      "invalid_status_transition",
+      "run_interrupted",
+      "run_cancelled"
+    ],
+    "title": "DiagnosticCode",
+    "description": "Machine-readable diagnostics; localized text belongs to the UI dictionary."
+  },
+  "DiagnosticSeverity": {
+    "type": "string",
+    "enum": [
+      "info",
+      "warning",
+      "error"
+    ],
+    "title": "DiagnosticSeverity"
+  },
+  "DraftValidationRequest": {
+    "properties": {
+      "draft": {
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Draft"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "draft"
+    ],
+    "title": "DraftValidationRequest"
+  },
+  "DraftValidationResponse": {
+    "properties": {
+      "valid": {
+        "type": "boolean",
+        "title": "Valid"
+      },
+      "sharedSettings": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SharedSettings"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      },
+      "strategies": {
+        "items": {
+          "$ref": "#/components/schemas/StrategyValidationResult"
+        },
+        "type": "array",
+        "title": "Strategies",
+        "default": []
+      },
+      "dataRequirements": {
+        "items": {
+          "$ref": "#/components/schemas/DataRequirement"
+        },
+        "type": "array",
+        "title": "Datarequirements",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "valid"
+    ],
+    "title": "DraftValidationResponse"
+  },
+  "DrawdownEpisode": {
+    "properties": {
+      "peakDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Peakdate"
+      },
+      "bottomDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Bottomdate"
+      },
+      "recoveredDate": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Recovereddate"
+      },
+      "endDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Enddate"
+      },
+      "drawdown": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Drawdown"
+      },
+      "durationDays": {
+        "type": "integer",
+        "minimum": 0.0,
+        "title": "Durationdays"
+      },
+      "recoveryDays": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Recoverydays"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "recovered",
+          "ongoing"
+        ],
+        "title": "State"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "peakDate",
+      "bottomDate",
+      "recoveredDate",
+      "endDate",
+      "drawdown",
+      "durationDays",
+      "recoveryDays",
+      "state"
+    ],
+    "title": "DrawdownEpisode"
+  },
+  "EndMode": {
+    "type": "string",
+    "enum": [
+      "fixed",
+      "latest"
+    ],
+    "title": "EndMode"
+  },
+  "ExecutionModule": {
+    "type": "string",
+    "enum": [
+      "accumulation",
+      "trend",
+      "scheduled",
+      "search"
+    ],
+    "title": "ExecutionModule"
+  },
+  "ExecutionSettings": {
+    "properties": {
+      "commission": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Commission"
+      },
+      "slippagePct": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Slippagepct"
+      },
+      "spreadPct": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Spreadpct"
+      },
+      "fractionalShares": {
+        "type": "boolean",
+        "title": "Fractionalshares"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "commission",
+      "slippagePct",
+      "spreadPct",
+      "fractionalShares"
+    ],
+    "title": "ExecutionSettings"
+  },
+  "ExportKind": {
+    "type": "string",
+    "enum": [
+      "summary",
+      "daily-assets",
+      "trades",
+      "search-results"
+    ],
+    "title": "ExportKind"
+  },
+  "FrozenRunConfig": {
+    "properties": {
+      "shared": {
+        "$ref": "#/components/schemas/SharedSettings"
+      },
+      "strategies": {
+        "items": {
+          "$ref": "#/components/schemas/FrozenStrategyInstance"
+        },
+        "type": "array",
+        "title": "Strategies",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "shared"
+    ],
+    "title": "FrozenRunConfig",
+    "description": "Immutable copy of shared settings and all strategy drafts."
+  },
+  "FrozenStrategyInstance": {
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Id"
+      },
+      "presetId": {
+        "$ref": "#/components/schemas/StrategyPresetId"
+      },
+      "enabled": {
+        "type": "boolean",
+        "title": "Enabled",
+        "default": true
+      },
+      "instanceNumber": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "minimum": 1.0
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Instancenumber"
+      },
+      "params": {
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Params"
+      },
+      "rules": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/StrategyRules"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "id",
+      "presetId"
+    ],
+    "title": "FrozenStrategyInstance",
+    "description": "Immutable strategy copy stored inside a run snapshot."
+  },
+  "HTTPValidationError": {
+    "properties": {
+      "detail": {
+        "items": {
+          "$ref": "#/components/schemas/ValidationError"
+        },
+        "type": "array",
+        "title": "Detail"
+      }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+  },
+  "HealthResponse": {
+    "properties": {
+      "status": {
+        "type": "string",
+        "const": "ok",
+        "title": "Status"
+      }
+    },
+    "type": "object",
+    "required": [
+      "status"
+    ],
+    "title": "HealthResponse"
+  },
+  "InstrumentMetadata": {
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "title": "Symbol"
+      },
+      "currency": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Currency"
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "symbol"
+    ],
+    "title": "InstrumentMetadata"
+  },
+  "MetricSummary": {
+    "properties": {
+      "totalContributed": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Totalcontributed"
+      },
+      "actualInvested": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Actualinvested"
+      },
+      "investmentBasis": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "original_principal",
+              "buy_turnover"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Investmentbasis"
+      },
+      "endingEquity": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Endingequity"
+      },
+      "netProfit": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Netprofit"
+      },
+      "returnOnContributions": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Returnoncontributions"
+      },
+      "capitalMultiple": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Capitalmultiple"
+      },
+      "xirr": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Xirr"
+      },
+      "maximumDrawdown": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Maximumdrawdown"
+      },
+      "currency": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Currency"
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      },
+      "analysis": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PerformanceAnalysis"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "tradingCosts": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TradingCosts"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "totalContributed",
+      "endingEquity",
+      "netProfit"
+    ],
+    "title": "MetricSummary"
+  },
+  "ParameterDefinition": {
+    "properties": {
+      "key": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(?:\\.[A-Za-z0-9]+)+$",
+        "title": "Key"
+      },
+      "type": {
+        "$ref": "#/components/schemas/ParameterType"
+      },
+      "default": {
+        "title": "Default"
+      },
+      "unit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Unit"
+      },
+      "minimum": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Minimum"
+      },
+      "maximum": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Maximum"
+      },
+      "step": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Step"
+      },
+      "allowedValues": {
+        "items": {},
+        "type": "array",
+        "title": "Allowedvalues",
+        "default": []
+      },
+      "applicablePresets": {
+        "items": {
+          "$ref": "#/components/schemas/StrategyPresetId"
+        },
+        "type": "array",
+        "title": "Applicablepresets"
+      },
+      "searchable": {
+        "type": "boolean",
+        "title": "Searchable",
+        "default": false
+      },
+      "dependencies": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Dependencies",
+        "default": []
+      },
+      "translationKey": {
+        "type": "string",
+        "title": "Translationkey"
+      },
+      "level": {
+        "$ref": "#/components/schemas/ParameterLevel",
+        "default": "strategy"
+      },
+      "nullable": {
+        "type": "boolean",
+        "title": "Nullable",
+        "default": false
+      },
+      "pattern": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Pattern"
+      },
+      "groupId": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "title": "Groupid"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "key",
+      "type",
+      "applicablePresets",
+      "translationKey",
+      "groupId"
+    ],
+    "title": "ParameterDefinition",
+    "description": "Metadata and validation hints for one stable configuration key.\n\nThe catalog deliberately stores metadata, not executable strategy logic.  A\nconsumer can render an editor, validate a candidate, and enumerate search\ndimensions from this one object.  ``default`` is intentionally JSON-like so\nthat dates, decimals, and list defaults can be serialized without a second\nfrontend schema."
+  },
+  "ParameterGroupDefinition": {
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "title": "Id"
+      },
+      "translationKey": {
+        "type": "string",
+        "title": "Translationkey"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "id",
+      "translationKey"
+    ],
+    "title": "ParameterGroupDefinition",
+    "description": "Localized display metadata for one stable family of form fields."
+  },
+  "ParameterLevel": {
+    "type": "string",
+    "enum": [
+      "shared",
+      "strategy",
+      "preset",
+      "search",
+      "ui"
+    ],
+    "title": "ParameterLevel",
+    "description": "Where a parameter is edited in the run model."
+  },
+  "ParameterType": {
+    "type": "string",
+    "enum": [
+      "symbol",
+      "date",
+      "integer",
+      "decimal",
+      "ratio",
+      "percent_point",
+      "boolean",
+      "enum",
+      "enum_list",
+      "number_list"
+    ],
+    "title": "ParameterType",
+    "description": "Allowed input/value shapes exposed by the catalog contract."
+  },
+  "PerformanceAnalysis": {
+    "properties": {
+      "analysisMethod": {
+        "type": "string",
+        "const": "unit-nav-v1",
+        "title": "Analysismethod"
+      },
+      "tradingDaysPerYear": {
+        "type": "integer",
+        "const": 252,
+        "title": "Tradingdaysperyear"
+      },
+      "durationUnit": {
+        "type": "string",
+        "const": "calendar_days",
+        "title": "Durationunit"
+      },
+      "riskFreeAnnualRate": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Riskfreeannualrate"
+      },
+      "annualizedReturn": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Annualizedreturn"
+      },
+      "annualizedVolatility": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Annualizedvolatility"
+      },
+      "sharpeRatio": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Sharperatio"
+      },
+      "sortinoRatio": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Sortinoratio"
+      },
+      "calmarRatio": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Calmarratio"
+      },
+      "maximumDrawdownDuration": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Maximumdrawdownduration"
+      },
+      "recoveryDuration": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Recoveryduration"
+      },
+      "buyCount": {
+        "type": "integer",
+        "minimum": 0.0,
+        "title": "Buycount"
+      },
+      "sellCount": {
+        "type": "integer",
+        "minimum": 0.0,
+        "title": "Sellcount"
+      },
+      "turnover": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Turnover"
+      },
+      "averageCashRatio": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Averagecashratio"
+      },
+      "unavailableReasons": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object",
+        "title": "Unavailablereasons"
+      },
+      "annualReturns": {
+        "anyOf": [
+          {
+            "items": {
+              "$ref": "#/components/schemas/PeriodReturn"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Annualreturns"
+      },
+      "monthlyReturns": {
+        "anyOf": [
+          {
+            "items": {
+              "$ref": "#/components/schemas/PeriodReturn"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Monthlyreturns"
+      },
+      "drawdownEpisodes": {
+        "anyOf": [
+          {
+            "items": {
+              "$ref": "#/components/schemas/DrawdownEpisode"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Drawdownepisodes"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "analysisMethod",
+      "tradingDaysPerYear",
+      "durationUnit",
+      "riskFreeAnnualRate",
+      "buyCount",
+      "sellCount"
+    ],
+    "title": "PerformanceAnalysis"
+  },
+  "PeriodReturn": {
+    "properties": {
+      "year": {
+        "type": "integer",
+        "maximum": 9999.0,
+        "minimum": 1.0,
+        "title": "Year"
+      },
+      "month": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Month"
+      },
+      "startDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Startdate"
+      },
+      "endDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Enddate"
+      },
+      "navReturn": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Navreturn"
+      },
+      "priceReturn": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Pricereturn"
+      },
+      "unavailableReason": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "no_funding",
+              "missing_nav",
+              "undefined_nav"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Unavailablereason"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "year",
+      "startDate",
+      "endDate",
+      "navReturn",
+      "priceReturn"
+    ],
+    "title": "PeriodReturn"
+  },
+  "PresetDefinition": {
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/StrategyPresetId"
+      },
+      "nameKey": {
+        "type": "string",
+        "title": "Namekey"
+      },
+      "descriptionKey": {
+        "type": "string",
+        "title": "Descriptionkey"
+      },
+      "executionModule": {
+        "$ref": "#/components/schemas/ExecutionModule"
+      },
+      "parameterKeys": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Parameterkeys"
+      },
+      "defaultParams": {
+        "title": "Defaultparams"
+      },
+      "searchDimensions": {
+        "items": {
+          "$ref": "#/components/schemas/SearchDimension"
+        },
+        "type": "array",
+        "title": "Searchdimensions",
+        "default": []
+      },
+      "supportsBenchmark": {
+        "type": "boolean",
+        "title": "Supportsbenchmark",
+        "default": false
+      },
+      "editorMode": {
+        "type": "string",
+        "enum": [
+          "fixed",
+          "custom",
+          "search"
+        ],
+        "title": "Editormode",
+        "default": "fixed"
+      },
+      "defaultRules": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/StrategyRules"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "id",
+      "nameKey",
+      "descriptionKey",
+      "executionModule",
+      "parameterKeys"
+    ],
+    "title": "PresetDefinition",
+    "description": "Catalog metadata for one strategy type."
+  },
+  "ResultRole": {
+    "type": "string",
+    "enum": [
+      "benchmark",
+      "strategy"
+    ],
+    "title": "ResultRole",
+    "description": "Whether a result is an automatic benchmark or a user strategy."
+  },
+  "RunDataContext": {
+    "properties": {
+      "dataFingerprint": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Datafingerprint"
+      },
+      "dataProvenance": {
+        "$ref": "#/components/schemas/RunDataProvenance"
+      },
+      "effectiveRun": {
+        "$ref": "#/components/schemas/RunSettings"
+      },
+      "dateAdjustments": {
+        "items": {
+          "$ref": "#/components/schemas/RunDateAdjustment"
+        },
+        "type": "array",
+        "title": "Dateadjustments",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "dataFingerprint",
+      "effectiveRun"
+    ],
+    "title": "RunDataContext",
+    "description": "Data identity and resolved range, available only after the worker loads data."
+  },
+  "RunDataProvenance": {
+    "properties": {
+      "sources": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Sources",
+        "default": []
+      },
+      "calendarAsOf": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Calendarasof"
+      },
+      "marketDataThrough": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Marketdatathrough"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "RunDataProvenance",
+    "description": "Stable source and coverage markers frozen with a submitted run."
+  },
+  "RunDateAdjustment": {
+    "properties": {
+      "field": {
+        "type": "string",
+        "enum": [
+          "startDate",
+          "endDate"
+        ],
+        "title": "Field"
+      },
+      "requestedDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Requesteddate"
+      },
+      "effectiveDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Effectivedate"
+      },
+      "reason": {
+        "type": "string",
+        "enum": [
+          "market_available_from",
+          "indicator_warmup"
+        ],
+        "title": "Reason"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "field",
+      "requestedDate",
+      "effectiveDate",
+      "reason"
+    ],
+    "title": "RunDateAdjustment",
+    "description": "A verified date resolution recorded after the submitted config is frozen."
+  },
+  "RunProgress": {
+    "properties": {
+      "completedStrategies": {
+        "type": "integer",
+        "minimum": 0.0,
+        "title": "Completedstrategies"
+      },
+      "totalStrategies": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Totalstrategies"
+      },
+      "currentStrategyId": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Currentstrategyid"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "completedStrategies",
+      "totalStrategies"
+    ],
+    "title": "RunProgress"
+  },
+  "RunProgressEvent": {
+    "properties": {
+      "runId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Runid"
+      },
+      "status": {
+        "$ref": "#/components/schemas/StrategyStatus"
+      },
+      "progress": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RunProgress"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "strategyStatuses": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/StrategyStatus"
+        },
+        "type": "object",
+        "maxProperties": 34,
+        "title": "Strategystatuses"
+      },
+      "strategySummaries": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/RunStrategySummary"
+        },
+        "type": "object",
+        "maxProperties": 34,
+        "title": "Strategysummaries"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "runId",
+      "status",
+      "progress",
+      "strategyStatuses"
+    ],
+    "title": "RunProgressEvent",
+    "description": "JSON data inside an SSE frame; states are the same as full run responses."
+  },
+  "RunResponse": {
+    "properties": {
+      "runId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Runid"
+      },
+      "status": {
+        "$ref": "#/components/schemas/StrategyStatus"
+      },
+      "selectedStrategyIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Selectedstrategyids"
+      },
+      "progress": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RunProgress"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "snapshot": {
+        "$ref": "#/components/schemas/RunSnapshot"
+      },
+      "result": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RunResult"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "runId",
+      "status",
+      "selectedStrategyIds",
+      "snapshot"
+    ],
+    "title": "RunResponse",
+    "description": "Current status, progress, immutable inputs, and saved results."
+  },
+  "RunResult": {
+    "properties": {
+      "runId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Runid"
+      },
+      "strategyRuns": {
+        "items": {
+          "$ref": "#/components/schemas/StrategyRun"
+        },
+        "type": "array",
+        "title": "Strategyruns",
+        "default": []
+      },
+      "status": {
+        "$ref": "#/components/schemas/StrategyStatus",
+        "default": "queued"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "runId"
+    ],
+    "title": "RunResult",
+    "description": "Saved result collection, including partial success across strategies.",
+    "x-aggregate-status": {
+      "": "queued",
+      "cancelled": "cancelled",
+      "cancelled|completed": "cancelled",
+      "cancelled|completed_with_warning": "cancelled",
+      "cancelled|completed_with_warning|failed": "cancelled",
+      "cancelled|completed_with_warning|failed|loading": "loading",
+      "cancelled|completed_with_warning|failed|loading|queued": "loading",
+      "cancelled|completed_with_warning|failed|loading|queued|running": "running",
+      "cancelled|completed_with_warning|failed|loading|queued|running|unavailable": "running",
+      "cancelled|completed_with_warning|failed|loading|queued|unavailable": "loading",
+      "cancelled|completed_with_warning|failed|loading|running": "running",
+      "cancelled|completed_with_warning|failed|loading|running|unavailable": "running",
+      "cancelled|completed_with_warning|failed|loading|unavailable": "loading",
+      "cancelled|completed_with_warning|failed|queued": "queued",
+      "cancelled|completed_with_warning|failed|queued|running": "running",
+      "cancelled|completed_with_warning|failed|queued|running|unavailable": "running",
+      "cancelled|completed_with_warning|failed|queued|unavailable": "queued",
+      "cancelled|completed_with_warning|failed|running": "running",
+      "cancelled|completed_with_warning|failed|running|unavailable": "running",
+      "cancelled|completed_with_warning|failed|unavailable": "cancelled",
+      "cancelled|completed_with_warning|loading": "loading",
+      "cancelled|completed_with_warning|loading|queued": "loading",
+      "cancelled|completed_with_warning|loading|queued|running": "running",
+      "cancelled|completed_with_warning|loading|queued|running|unavailable": "running",
+      "cancelled|completed_with_warning|loading|queued|unavailable": "loading",
+      "cancelled|completed_with_warning|loading|running": "running",
+      "cancelled|completed_with_warning|loading|running|unavailable": "running",
+      "cancelled|completed_with_warning|loading|unavailable": "loading",
+      "cancelled|completed_with_warning|queued": "queued",
+      "cancelled|completed_with_warning|queued|running": "running",
+      "cancelled|completed_with_warning|queued|running|unavailable": "running",
+      "cancelled|completed_with_warning|queued|unavailable": "queued",
+      "cancelled|completed_with_warning|running": "running",
+      "cancelled|completed_with_warning|running|unavailable": "running",
+      "cancelled|completed_with_warning|unavailable": "cancelled",
+      "cancelled|completed|completed_with_warning": "cancelled",
+      "cancelled|completed|completed_with_warning|failed": "cancelled",
+      "cancelled|completed|completed_with_warning|failed|loading": "loading",
+      "cancelled|completed|completed_with_warning|failed|loading|queued": "loading",
+      "cancelled|completed|completed_with_warning|failed|loading|queued|running": "running",
+      "cancelled|completed|completed_with_warning|failed|loading|queued|running|unavailable": "running",
+      "cancelled|completed|completed_with_warning|failed|loading|queued|unavailable": "loading",
+      "cancelled|completed|completed_with_warning|failed|loading|running": "running",
+      "cancelled|completed|completed_with_warning|failed|loading|running|unavailable": "running",
+      "cancelled|completed|completed_with_warning|failed|loading|unavailable": "loading",
+      "cancelled|completed|completed_with_warning|failed|queued": "queued",
+      "cancelled|completed|completed_with_warning|failed|queued|running": "running",
+      "cancelled|completed|completed_with_warning|failed|queued|running|unavailable": "running",
+      "cancelled|completed|completed_with_warning|failed|queued|unavailable": "queued",
+      "cancelled|completed|completed_with_warning|failed|running": "running",
+      "cancelled|completed|completed_with_warning|failed|running|unavailable": "running",
+      "cancelled|completed|completed_with_warning|failed|unavailable": "cancelled",
+      "cancelled|completed|completed_with_warning|loading": "loading",
+      "cancelled|completed|completed_with_warning|loading|queued": "loading",
+      "cancelled|completed|completed_with_warning|loading|queued|running": "running",
+      "cancelled|completed|completed_with_warning|loading|queued|running|unavailable": "running",
+      "cancelled|completed|completed_with_warning|loading|queued|unavailable": "loading",
+      "cancelled|completed|completed_with_warning|loading|running": "running",
+      "cancelled|completed|completed_with_warning|loading|running|unavailable": "running",
+      "cancelled|completed|completed_with_warning|loading|unavailable": "loading",
+      "cancelled|completed|completed_with_warning|queued": "queued",
+      "cancelled|completed|completed_with_warning|queued|running": "running",
+      "cancelled|completed|completed_with_warning|queued|running|unavailable": "running",
+      "cancelled|completed|completed_with_warning|queued|unavailable": "queued",
+      "cancelled|completed|completed_with_warning|running": "running",
+      "cancelled|completed|completed_with_warning|running|unavailable": "running",
+      "cancelled|completed|completed_with_warning|unavailable": "cancelled",
+      "cancelled|completed|failed": "cancelled",
+      "cancelled|completed|failed|loading": "loading",
+      "cancelled|completed|failed|loading|queued": "loading",
+      "cancelled|completed|failed|loading|queued|running": "running",
+      "cancelled|completed|failed|loading|queued|running|unavailable": "running",
+      "cancelled|completed|failed|loading|queued|unavailable": "loading",
+      "cancelled|completed|failed|loading|running": "running",
+      "cancelled|completed|failed|loading|running|unavailable": "running",
+      "cancelled|completed|failed|loading|unavailable": "loading",
+      "cancelled|completed|failed|queued": "queued",
+      "cancelled|completed|failed|queued|running": "running",
+      "cancelled|completed|failed|queued|running|unavailable": "running",
+      "cancelled|completed|failed|queued|unavailable": "queued",
+      "cancelled|completed|failed|running": "running",
+      "cancelled|completed|failed|running|unavailable": "running",
+      "cancelled|completed|failed|unavailable": "cancelled",
+      "cancelled|completed|loading": "loading",
+      "cancelled|completed|loading|queued": "loading",
+      "cancelled|completed|loading|queued|running": "running",
+      "cancelled|completed|loading|queued|running|unavailable": "running",
+      "cancelled|completed|loading|queued|unavailable": "loading",
+      "cancelled|completed|loading|running": "running",
+      "cancelled|completed|loading|running|unavailable": "running",
+      "cancelled|completed|loading|unavailable": "loading",
+      "cancelled|completed|queued": "queued",
+      "cancelled|completed|queued|running": "running",
+      "cancelled|completed|queued|running|unavailable": "running",
+      "cancelled|completed|queued|unavailable": "queued",
+      "cancelled|completed|running": "running",
+      "cancelled|completed|running|unavailable": "running",
+      "cancelled|completed|unavailable": "cancelled",
+      "cancelled|failed": "cancelled",
+      "cancelled|failed|loading": "loading",
+      "cancelled|failed|loading|queued": "loading",
+      "cancelled|failed|loading|queued|running": "running",
+      "cancelled|failed|loading|queued|running|unavailable": "running",
+      "cancelled|failed|loading|queued|unavailable": "loading",
+      "cancelled|failed|loading|running": "running",
+      "cancelled|failed|loading|running|unavailable": "running",
+      "cancelled|failed|loading|unavailable": "loading",
+      "cancelled|failed|queued": "queued",
+      "cancelled|failed|queued|running": "running",
+      "cancelled|failed|queued|running|unavailable": "running",
+      "cancelled|failed|queued|unavailable": "queued",
+      "cancelled|failed|running": "running",
+      "cancelled|failed|running|unavailable": "running",
+      "cancelled|failed|unavailable": "cancelled",
+      "cancelled|loading": "loading",
+      "cancelled|loading|queued": "loading",
+      "cancelled|loading|queued|running": "running",
+      "cancelled|loading|queued|running|unavailable": "running",
+      "cancelled|loading|queued|unavailable": "loading",
+      "cancelled|loading|running": "running",
+      "cancelled|loading|running|unavailable": "running",
+      "cancelled|loading|unavailable": "loading",
+      "cancelled|queued": "queued",
+      "cancelled|queued|running": "running",
+      "cancelled|queued|running|unavailable": "running",
+      "cancelled|queued|unavailable": "queued",
+      "cancelled|running": "running",
+      "cancelled|running|unavailable": "running",
+      "cancelled|unavailable": "cancelled",
+      "completed": "completed",
+      "completed_with_warning": "completed_with_warning",
+      "completed_with_warning|failed": "completed_with_warning",
+      "completed_with_warning|failed|loading": "loading",
+      "completed_with_warning|failed|loading|queued": "loading",
+      "completed_with_warning|failed|loading|queued|running": "running",
+      "completed_with_warning|failed|loading|queued|running|unavailable": "running",
+      "completed_with_warning|failed|loading|queued|unavailable": "loading",
+      "completed_with_warning|failed|loading|running": "running",
+      "completed_with_warning|failed|loading|running|unavailable": "running",
+      "completed_with_warning|failed|loading|unavailable": "loading",
+      "completed_with_warning|failed|queued": "queued",
+      "completed_with_warning|failed|queued|running": "running",
+      "completed_with_warning|failed|queued|running|unavailable": "running",
+      "completed_with_warning|failed|queued|unavailable": "queued",
+      "completed_with_warning|failed|running": "running",
+      "completed_with_warning|failed|running|unavailable": "running",
+      "completed_with_warning|failed|unavailable": "completed_with_warning",
+      "completed_with_warning|loading": "loading",
+      "completed_with_warning|loading|queued": "loading",
+      "completed_with_warning|loading|queued|running": "running",
+      "completed_with_warning|loading|queued|running|unavailable": "running",
+      "completed_with_warning|loading|queued|unavailable": "loading",
+      "completed_with_warning|loading|running": "running",
+      "completed_with_warning|loading|running|unavailable": "running",
+      "completed_with_warning|loading|unavailable": "loading",
+      "completed_with_warning|queued": "queued",
+      "completed_with_warning|queued|running": "running",
+      "completed_with_warning|queued|running|unavailable": "running",
+      "completed_with_warning|queued|unavailable": "queued",
+      "completed_with_warning|running": "running",
+      "completed_with_warning|running|unavailable": "running",
+      "completed_with_warning|unavailable": "completed_with_warning",
+      "completed|completed_with_warning": "completed_with_warning",
+      "completed|completed_with_warning|failed": "completed_with_warning",
+      "completed|completed_with_warning|failed|loading": "loading",
+      "completed|completed_with_warning|failed|loading|queued": "loading",
+      "completed|completed_with_warning|failed|loading|queued|running": "running",
+      "completed|completed_with_warning|failed|loading|queued|running|unavailable": "running",
+      "completed|completed_with_warning|failed|loading|queued|unavailable": "loading",
+      "completed|completed_with_warning|failed|loading|running": "running",
+      "completed|completed_with_warning|failed|loading|running|unavailable": "running",
+      "completed|completed_with_warning|failed|loading|unavailable": "loading",
+      "completed|completed_with_warning|failed|queued": "queued",
+      "completed|completed_with_warning|failed|queued|running": "running",
+      "completed|completed_with_warning|failed|queued|running|unavailable": "running",
+      "completed|completed_with_warning|failed|queued|unavailable": "queued",
+      "completed|completed_with_warning|failed|running": "running",
+      "completed|completed_with_warning|failed|running|unavailable": "running",
+      "completed|completed_with_warning|failed|unavailable": "completed_with_warning",
+      "completed|completed_with_warning|loading": "loading",
+      "completed|completed_with_warning|loading|queued": "loading",
+      "completed|completed_with_warning|loading|queued|running": "running",
+      "completed|completed_with_warning|loading|queued|running|unavailable": "running",
+      "completed|completed_with_warning|loading|queued|unavailable": "loading",
+      "completed|completed_with_warning|loading|running": "running",
+      "completed|completed_with_warning|loading|running|unavailable": "running",
+      "completed|completed_with_warning|loading|unavailable": "loading",
+      "completed|completed_with_warning|queued": "queued",
+      "completed|completed_with_warning|queued|running": "running",
+      "completed|completed_with_warning|queued|running|unavailable": "running",
+      "completed|completed_with_warning|queued|unavailable": "queued",
+      "completed|completed_with_warning|running": "running",
+      "completed|completed_with_warning|running|unavailable": "running",
+      "completed|completed_with_warning|unavailable": "completed_with_warning",
+      "completed|failed": "completed_with_warning",
+      "completed|failed|loading": "loading",
+      "completed|failed|loading|queued": "loading",
+      "completed|failed|loading|queued|running": "running",
+      "completed|failed|loading|queued|running|unavailable": "running",
+      "completed|failed|loading|queued|unavailable": "loading",
+      "completed|failed|loading|running": "running",
+      "completed|failed|loading|running|unavailable": "running",
+      "completed|failed|loading|unavailable": "loading",
+      "completed|failed|queued": "queued",
+      "completed|failed|queued|running": "running",
+      "completed|failed|queued|running|unavailable": "running",
+      "completed|failed|queued|unavailable": "queued",
+      "completed|failed|running": "running",
+      "completed|failed|running|unavailable": "running",
+      "completed|failed|unavailable": "completed_with_warning",
+      "completed|loading": "loading",
+      "completed|loading|queued": "loading",
+      "completed|loading|queued|running": "running",
+      "completed|loading|queued|running|unavailable": "running",
+      "completed|loading|queued|unavailable": "loading",
+      "completed|loading|running": "running",
+      "completed|loading|running|unavailable": "running",
+      "completed|loading|unavailable": "loading",
+      "completed|queued": "queued",
+      "completed|queued|running": "running",
+      "completed|queued|running|unavailable": "running",
+      "completed|queued|unavailable": "queued",
+      "completed|running": "running",
+      "completed|running|unavailable": "running",
+      "completed|unavailable": "completed_with_warning",
+      "failed": "failed",
+      "failed|loading": "loading",
+      "failed|loading|queued": "loading",
+      "failed|loading|queued|running": "running",
+      "failed|loading|queued|running|unavailable": "running",
+      "failed|loading|queued|unavailable": "loading",
+      "failed|loading|running": "running",
+      "failed|loading|running|unavailable": "running",
+      "failed|loading|unavailable": "loading",
+      "failed|queued": "queued",
+      "failed|queued|running": "running",
+      "failed|queued|running|unavailable": "running",
+      "failed|queued|unavailable": "queued",
+      "failed|running": "running",
+      "failed|running|unavailable": "running",
+      "failed|unavailable": "failed",
+      "loading": "loading",
+      "loading|queued": "loading",
+      "loading|queued|running": "running",
+      "loading|queued|running|unavailable": "running",
+      "loading|queued|unavailable": "loading",
+      "loading|running": "running",
+      "loading|running|unavailable": "running",
+      "loading|unavailable": "loading",
+      "queued": "queued",
+      "queued|running": "running",
+      "queued|running|unavailable": "running",
+      "queued|unavailable": "queued",
+      "running": "running",
+      "running|unavailable": "running",
+      "unavailable": "unavailable"
+    }
+  },
+  "RunScope": {
+    "type": "string",
+    "enum": [
+      "active",
+      "all_enabled"
+    ],
+    "title": "RunScope"
+  },
+  "RunSettings": {
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9.^=_-]{1,32}$",
+        "title": "Symbol"
+      },
+      "startDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Startdate"
+      },
+      "endDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Enddate"
+      },
+      "endMode": {
+        "$ref": "#/components/schemas/EndMode",
+        "default": "fixed"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "symbol",
+      "startDate",
+      "endDate"
+    ],
+    "title": "RunSettings"
+  },
+  "RunSnapshot": {
+    "properties": {
+      "runId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Runid"
+      },
+      "config": {
+        "$ref": "#/components/schemas/FrozenRunConfig"
+      },
+      "catalogVersion": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Catalogversion"
+      },
+      "engineVersion": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Engineversion"
+      },
+      "submissionFingerprint": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Submissionfingerprint"
+      },
+      "dataContext": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RunDataContext"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "dataFingerprint": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Datafingerprint",
+        "readOnly": true
+      },
+      "dataProvenance": {
+        "$ref": "#/components/schemas/RunDataProvenance",
+        "readOnly": true
+      },
+      "dateAdjustments": {
+        "items": {
+          "$ref": "#/components/schemas/RunDateAdjustment"
+        },
+        "type": "array",
+        "title": "Dateadjustments",
+        "default": [],
+        "readOnly": true
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time",
+        "title": "Createdat"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "runId",
+      "config",
+      "catalogVersion",
+      "engineVersion"
+    ],
+    "title": "RunSnapshot",
+    "description": "The immutable input boundary for one submitted run."
+  },
+  "RunStrategySummary": {
+    "properties": {
+      "metrics": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MetricSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "RunStrategySummary",
+    "description": "A terminal strategy's saved metrics and diagnostics in a small event."
+  },
+  "RunSubmissionRequest": {
+    "properties": {
+      "draft": {
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Draft"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/RunScope"
+      },
+      "activeStrategyId": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Activestrategyid"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "draft",
+      "scope"
+    ],
+    "title": "RunSubmissionRequest"
+  },
+  "SearchCandidate": {
+    "properties": {
+      "candidateId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Candidateid"
+      },
+      "sequence": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Sequence"
+      },
+      "role": {
+        "$ref": "#/components/schemas/ResultRole",
+        "default": "strategy"
+      },
+      "status": {
+        "$ref": "#/components/schemas/StrategyStatus"
+      },
+      "calculationFingerprint": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Calculationfingerprint"
+      },
+      "parameterValues": {
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Parametervalues"
+      },
+      "reusedCalculation": {
+        "type": "boolean",
+        "title": "Reusedcalculation",
+        "default": false
+      },
+      "metrics": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MetricSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      },
+      "testResult": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SearchTestResult"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "candidateId",
+      "sequence",
+      "status",
+      "calculationFingerprint",
+      "parameterValues"
+    ],
+    "title": "SearchCandidate",
+    "description": "One stable candidate result, including invalid or unavailable rows."
+  },
+  "SearchDimension": {
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Key"
+      },
+      "values": {
+        "items": {},
+        "type": "array",
+        "minItems": 1,
+        "title": "Values"
+      },
+      "valuesParameterKey": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Valuesparameterkey"
+      },
+      "translationKey": {
+        "type": "string",
+        "title": "Translationkey",
+        "default": ""
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "key",
+      "values"
+    ],
+    "title": "SearchDimension",
+    "description": "A grid dimension whose key points to a normal parameter definition."
+  },
+  "SearchPeriod": {
+    "properties": {
+      "phase": {
+        "type": "string",
+        "enum": [
+          "train",
+          "test"
+        ],
+        "title": "Phase"
+      },
+      "startDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Startdate"
+      },
+      "endDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Enddate"
+      },
+      "effectiveStartDate": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Effectivestartdate"
+      },
+      "effectiveEndDate": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Effectiveenddate"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "phase",
+      "startDate",
+      "endDate"
+    ],
+    "title": "SearchPeriod",
+    "description": "Saved independent evaluation window, including actual session coverage."
+  },
+  "SearchResult": {
+    "properties": {
+      "strategyId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Strategyid"
+      },
+      "dimensions": {
+        "items": {
+          "$ref": "#/components/schemas/SearchResultDimension"
+        },
+        "type": "array",
+        "title": "Dimensions"
+      },
+      "totalCandidateCount": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Totalcandidatecount"
+      },
+      "candidates": {
+        "items": {
+          "$ref": "#/components/schemas/SearchCandidate"
+        },
+        "type": "array",
+        "title": "Candidates"
+      },
+      "rankedCandidateIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Rankedcandidateids"
+      },
+      "optimizationMode": {
+        "type": "string",
+        "enum": [
+          "full_period",
+          "train_test",
+          "walk_forward"
+        ],
+        "title": "Optimizationmode",
+        "default": "full_period"
+      },
+      "trainPeriod": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SearchPeriod"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "testPeriod": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SearchPeriod"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "periodBenchmarks": {
+        "items": {
+          "$ref": "#/components/schemas/StrategyRun"
+        },
+        "type": "array",
+        "title": "Periodbenchmarks",
+        "default": []
+      },
+      "walkForwardWindows": {
+        "items": {
+          "$ref": "#/components/schemas/WalkForwardWindow"
+        },
+        "type": "array",
+        "title": "Walkforwardwindows",
+        "default": []
+      },
+      "outOfSample": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SearchTestResult"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "outOfSamplePeriod": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SearchPeriod"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "strategyId",
+      "dimensions",
+      "totalCandidateCount",
+      "candidates",
+      "rankedCandidateIds"
+    ],
+    "title": "SearchResult",
+    "description": "Complete candidate set and stable ranking for one search strategy."
+  },
+  "SearchResultDimension": {
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Key"
+      },
+      "values": {
+        "items": {},
+        "type": "array",
+        "minItems": 1,
+        "title": "Values"
+      },
+      "translationKey": {
+        "type": "string",
+        "title": "Translationkey",
+        "default": ""
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "key",
+      "values"
+    ],
+    "title": "SearchResultDimension",
+    "description": "A stable search axis captured with its persisted candidate results."
+  },
+  "SearchTestResult": {
+    "properties": {
+      "resultId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Resultid"
+      },
+      "status": {
+        "$ref": "#/components/schemas/StrategyStatus"
+      },
+      "metrics": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MetricSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "resultId",
+      "status"
+    ],
+    "title": "SearchTestResult",
+    "description": "Test summary references its own saved detail; never participates in ranking."
+  },
+  "SharedSettings": {
+    "properties": {
+      "run": {
+        "$ref": "#/components/schemas/RunSettings"
+      },
+      "contribution": {
+        "$ref": "#/components/schemas/ContributionSettings"
+      },
+      "data": {
+        "$ref": "#/components/schemas/DataSettings"
+      },
+      "analysis": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AnalysisSettings"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "execution": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ExecutionSettings"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "run",
+      "contribution",
+      "data"
+    ],
+    "title": "SharedSettings",
+    "description": "Settings shared by every strategy and automatic benchmark."
+  },
+  "SignalEvaluation": {
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "date",
+        "title": "Date"
+      },
+      "signalId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Signalid"
+      },
+      "state": {
+        "$ref": "#/components/schemas/SignalState"
+      },
+      "observedValue": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Observedvalue"
+      },
+      "observedUnit": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Observedunit"
+      },
+      "conditionId": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Conditionid"
+      },
+      "conditionKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ConditionKind"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "sourceSymbol": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Sourcesymbol"
+      },
+      "sellRatio": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Sellratio"
+      },
+      "triggeredSignalIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Triggeredsignalids",
+        "default": []
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "date",
+      "signalId",
+      "state"
+    ],
+    "title": "SignalEvaluation"
+  },
+  "SignalState": {
+    "type": "string",
+    "enum": [
+      "true",
+      "false",
+      "unavailable"
+    ],
+    "title": "SignalState",
+    "description": "Three-valued state for every enabled daily signal dependency."
+  },
+  "StrategyLimits": {
+    "properties": {
+      "maxCustomInstances": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Maxcustominstances",
+        "default": 10
+      },
+      "maxFixedInstances": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Maxfixedinstances",
+        "default": 1
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "StrategyLimits"
+  },
+  "StrategyPresetId": {
+    "type": "string",
+    "enum": [
+      "vix_dca",
+      "composite_dca",
+      "ma_trend",
+      "ma_buy_only",
+      "monthly_dca",
+      "lump_sum",
+      "grid_search",
+      "rsi_dca",
+      "ma_deviation_dca",
+      "bollinger_dca",
+      "rate_dca",
+      "pe_dca"
+    ],
+    "title": "StrategyPresetId",
+    "description": "Stable strategy catalog identifiers, including fixed condition templates."
+  },
+  "StrategyRules": {
+    "properties": {
+      "buy": {
+        "anyOf": [
+          {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ConditionLeaf"
+              },
+              {
+                "$ref": "#/components/schemas/ConditionGroup"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "condition": "#/components/schemas/ConditionLeaf",
+                "group": "#/components/schemas/ConditionGroup"
+              }
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Buy"
+      },
+      "sell": {
+        "anyOf": [
+          {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ConditionLeaf"
+              },
+              {
+                "$ref": "#/components/schemas/ConditionGroup"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "condition": "#/components/schemas/ConditionLeaf",
+                "group": "#/components/schemas/ConditionGroup"
+              }
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Sell"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "StrategyRules"
+  },
+  "StrategyRun": {
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Id"
+      },
+      "presetId": {
+        "$ref": "#/components/schemas/StrategyPresetId"
+      },
+      "instanceNumber": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "minimum": 1.0
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Instancenumber"
+      },
+      "role": {
+        "$ref": "#/components/schemas/ResultRole"
+      },
+      "status": {
+        "$ref": "#/components/schemas/StrategyStatus",
+        "default": "queued"
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      },
+      "signals": {
+        "items": {
+          "$ref": "#/components/schemas/SignalEvaluation"
+        },
+        "type": "array",
+        "title": "Signals",
+        "default": []
+      },
+      "technicalIndicators": {
+        "items": {
+          "$ref": "#/components/schemas/TechnicalIndicatorSeries"
+        },
+        "type": "array",
+        "title": "Technicalindicators",
+        "default": []
+      },
+      "unexecutedSignals": {
+        "items": {
+          "$ref": "#/components/schemas/UnexecutedSignal"
+        },
+        "type": "array",
+        "title": "Unexecutedsignals",
+        "default": []
+      },
+      "trades": {
+        "items": {
+          "$ref": "#/components/schemas/Trade"
+        },
+        "type": "array",
+        "title": "Trades",
+        "default": []
+      },
+      "dailyAssets": {
+        "items": {
+          "$ref": "#/components/schemas/DailyAsset"
+        },
+        "type": "array",
+        "title": "Dailyassets",
+        "default": []
+      },
+      "metrics": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MetricSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "searchResult": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SearchResult"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "evaluationPeriod": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SearchPeriod"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "id",
+      "presetId",
+      "role"
+    ],
+    "title": "StrategyRun",
+    "description": "One strategy result; zero trades is valid when metrics are complete."
+  },
+  "StrategyStatus": {
+    "type": "string",
+    "enum": [
+      "queued",
+      "loading",
+      "running",
+      "completed",
+      "completed_with_warning",
+      "unavailable",
+      "failed",
+      "cancelled"
+    ],
+    "title": "StrategyStatus",
+    "description": "Statuses emitted for a job and for each strategy result."
+  },
+  "StrategyValidationResult": {
+    "properties": {
+      "strategyId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Strategyid"
+      },
+      "presetId": {
+        "$ref": "#/components/schemas/StrategyPresetId"
+      },
+      "enabled": {
+        "type": "boolean",
+        "title": "Enabled"
+      },
+      "normalized": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FrozenStrategyInstance"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "diagnostics": {
+        "items": {
+          "$ref": "#/components/schemas/Diagnostic"
+        },
+        "type": "array",
+        "title": "Diagnostics",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "strategyId",
+      "presetId",
+      "enabled"
+    ],
+    "title": "StrategyValidationResult",
+    "description": "Independent validation outcome so unused strategies cannot block a run."
+  },
+  "SymbolSuggestion": {
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "title": "Symbol"
+      },
+      "name": {
+        "type": "string",
+        "title": "Name"
+      },
+      "currency": {
+        "type": "string",
+        "title": "Currency"
+      },
+      "source": {
+        "type": "string",
+        "title": "Source"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "symbol",
+      "name",
+      "currency",
+      "source"
+    ],
+    "title": "SymbolSuggestion"
+  },
+  "TechnicalIndicatorSample": {
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "date",
+        "title": "Date"
+      },
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Value"
+      },
+      "lower": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Lower"
+      },
+      "upper": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Upper"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "date"
+    ],
+    "title": "TechnicalIndicatorSample"
+  },
+  "TechnicalIndicatorSeries": {
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "ma",
+          "bollinger",
+          "rsi"
+        ],
+        "title": "Kind"
+      },
+      "period": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Period"
+      },
+      "deviations": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Deviations"
+      },
+      "samples": {
+        "items": {
+          "$ref": "#/components/schemas/TechnicalIndicatorSample"
+        },
+        "type": "array",
+        "title": "Samples",
+        "default": []
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "kind",
+      "period"
+    ],
+    "title": "TechnicalIndicatorSeries",
+    "description": "Exact signal-cache values; null samples retain explicit warmup/gaps."
+  },
+  "Trade": {
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "date",
+        "title": "Date"
+      },
+      "side": {
+        "$ref": "#/components/schemas/TradeSide"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/TradeReason"
+      },
+      "quantity": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Quantity"
+      },
+      "price": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Price"
+      },
+      "cashAmount": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Cashamount"
+      },
+      "currency": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Currency"
+      },
+      "signalId": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Signalid"
+      },
+      "cashBefore": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Cashbefore"
+      },
+      "cashAfter": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Cashafter"
+      },
+      "quantityBefore": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Quantitybefore"
+      },
+      "quantityAfter": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Quantityafter"
+      },
+      "executionBasePrice": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Executionbaseprice"
+      },
+      "executionPrice": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Executionprice"
+      },
+      "grossAmount": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Grossamount"
+      },
+      "tradingCosts": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TradingCosts"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "date",
+      "side",
+      "reason",
+      "quantity",
+      "price",
+      "cashAmount",
+      "currency"
+    ],
+    "title": "Trade"
+  },
+  "TradeReason": {
+    "type": "string",
+    "enum": [
+      "fixed_dca",
+      "upfront",
+      "signal_buy",
+      "signal_sell",
+      "safety_valve"
+    ],
+    "title": "TradeReason"
+  },
+  "TradeSide": {
+    "type": "string",
+    "enum": [
+      "buy",
+      "sell"
+    ],
+    "title": "TradeSide"
+  },
+  "TradingCosts": {
+    "properties": {
+      "commission": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Commission"
+      },
+      "slippageCost": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Slippagecost"
+      },
+      "spreadCost": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Spreadcost"
+      },
+      "totalTradingCost": {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "title": "Totaltradingcost"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "commission",
+      "slippageCost",
+      "spreadCost",
+      "totalTradingCost"
+    ],
+    "title": "TradingCosts"
+  },
+  "UnexecutedSignal": {
+    "properties": {
+      "signalDate": {
+        "type": "string",
+        "format": "date",
+        "title": "Signaldate"
+      },
+      "signalId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "Signalid"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/UnexecutedSignalReason"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "signalDate",
+      "signalId",
+      "reason"
+    ],
+    "title": "UnexecutedSignal",
+    "description": "A true close signal with no later session inside the requested run."
+  },
+  "UnexecutedSignalReason": {
+    "type": "string",
+    "enum": [
+      "no_following_backtest_session"
+    ],
+    "title": "UnexecutedSignalReason"
+  },
+  "ValidationError": {
+    "properties": {
+      "loc": {
+        "items": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ]
+        },
+        "type": "array",
+        "title": "Location"
+      },
+      "msg": {
+        "type": "string",
+        "title": "Message"
+      },
+      "type": {
+        "type": "string",
+        "title": "Error Type"
+      },
+      "input": {
+        "title": "Input"
+      },
+      "ctx": {
+        "type": "object",
+        "title": "Context"
+      }
+    },
+    "type": "object",
+    "required": [
+      "loc",
+      "msg",
+      "type"
+    ],
+    "title": "ValidationError"
+  },
+  "WalkForwardWindow": {
+    "properties": {
+      "sequence": {
+        "type": "integer",
+        "minimum": 1.0,
+        "title": "Sequence"
+      },
+      "trainPeriod": {
+        "$ref": "#/components/schemas/SearchPeriod"
+      },
+      "testPeriod": {
+        "$ref": "#/components/schemas/SearchPeriod"
+      },
+      "candidateIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "minItems": 1,
+        "title": "Candidateids"
+      },
+      "rankedCandidateIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array",
+        "title": "Rankedcandidateids"
+      },
+      "selectedCandidateId": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Selectedcandidateid"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "sequence",
+      "trainPeriod",
+      "testPeriod",
+      "candidateIds",
+      "rankedCandidateIds"
+    ],
+    "title": "WalkForwardWindow"
+  }
+}

@@ -1,3 +1,4 @@
+import { isRecord } from "../shared/lib/record";
 import type { Catalog, ConditionGroup, ConditionLeaf, ParameterDefinition, ParameterGroupDefinition, PresetDefinition, StrategyRules } from "./generated";
 
 export class CatalogApiError extends Error {
@@ -8,10 +9,6 @@ export class CatalogApiError extends Error {
     this.name = "CatalogApiError";
     this.status = status;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isParameterDefinition(value: unknown): value is ParameterDefinition {

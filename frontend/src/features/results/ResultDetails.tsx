@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import type { Catalog, Diagnostic, RunResponse, StrategyRun } from "../../api/generated";
+import type { Catalog, Diagnostic, RunResponse, StrategyRun, UnexecutedSignal } from "../../api/generated";
 import type { RunApiError } from "../../api/runs";
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
@@ -12,8 +12,13 @@ import { SearchResults } from "./SearchResults";
 import { TradeTable } from "./TradeTable";
 import { resultDisplayName } from "./model";
 import { DEFAULT_COMPARISON_SORT, type ComparisonSort } from "./comparisonModel";
+import { DataInformationButton } from "./DataInformationButton";
+import { PerformancePanel } from "./PerformancePanel";
+import { PeriodPerformance } from "./PeriodPerformance";
+import { TradingCostsPanel } from "./TradingCostsPanel";
+import { savedCandidate, savedEvaluationPhase, savedPeriodBenchmarks } from "./savedConfiguration";
 
-type ResultTab = "comparison" | "trades" | "search";
+type ResultTab = "comparison" | "trades" | "performance" | "search";
 
 interface ResultDetailsProps {
   catalog?: Catalog | null;
@@ -31,12 +36,15 @@ interface ResultDetailsProps {
   candidatePending?: boolean;
   candidateErrorKey?: string | null;
   onSelectCandidate?(id: string): void;
+  onTradeSelect?(index: number): void;
+  onSignalSelect?(signal: UnexecutedSignal): void;
 }
 
 const TAB_KEYS: Record<ResultTab, string> = {
   comparison: "results.tab.comparison",
   trades: "results.tab.trades",
   search: "results.tab.search",
+  performance: "results.tab.performance",
 };
 
 export function ResultDetails({
@@ -55,6 +63,8 @@ export function ResultDetails({
   candidatePending = false,
   candidateErrorKey = null,
   onSelectCandidate,
+  onTradeSelect,
+  onSignalSelect,
 }: ResultDetailsProps) {
   const displayedResult = candidateResult ?? focusedResult;
   const strategyRuns = run?.result?.strategyRuns ?? [];
@@ -69,7 +79,7 @@ export function ResultDetails({
     return true;
   });
   const searchAvailable = focusedResult?.presetId === "grid_search" && Boolean(focusedResult.searchResult);
-  const tabs: ResultTab[] = run ? ["comparison", "trades"] : [];
+  const tabs: ResultTab[] = run ? ["comparison", "trades", "performance"] : [];
   if (searchAvailable) tabs.push("search");
   const [selectedTab, setSelectedTab] = useState<ResultTab>("comparison");
   const [expanded, setExpanded] = useState(true);
@@ -100,11 +110,14 @@ export function ResultDetails({
   const tabId = (tab: ResultTab) => `result-tab-${tab}`;
   const tradeOwner = focusedResult ?? displayedResult;
   const tradeOwnerName = tradeOwner ? resultDisplayName(locale, tradeOwner, strategyRuns) : translate(locale, "results.tab.trades");
-  const candidateNumber = candidateResult && focusedResult?.searchResult?.candidates.find(candidate => candidate.candidateId === candidateResult.id)?.sequence;
+  const candidateNumber = candidateResult && savedCandidate(focusedResult?.searchResult, candidateResult.id)?.sequence;
+  const phase = displayedResult?.evaluationPeriod;
+  const phaseLabel = phase && displayedResult ? ` · ${translate(locale, `search.phase.${savedEvaluationPhase(displayedResult, candidateResult ? focusedResult : null)}`)} · ${phase.startDate} → ${phase.endDate}` : "";
   const headerActions = (
     <div className="result-context-actions">
+      <DataInformationButton locale={locale} run={run} busy={busy || candidatePending} />
       <ExportControls locale={locale} runId={run?.runId ?? null} result={displayedResult} searchResult={focusedResult}
-        busy={busy || candidatePending} />
+        importedRun={state.importedBacktest?.result} busy={busy || candidatePending} />
       <ReportDownloadButton locale={locale} run={run} result={displayedResult} catalog={catalog}
         parent={candidateResult ? focusedResult : null} busy={busy || candidatePending} />
     </div>
@@ -190,16 +203,26 @@ export function ResultDetails({
               {tab === "trades" && (
                 <section aria-labelledby="result-trades-heading">
                   <h4 className="result-trades-context" id="result-trades-heading" aria-live="polite">
-                    {tradeOwnerName}{candidateNumber && <span> · #{candidateNumber}</span>}
+                    {tradeOwnerName}{candidateNumber && <span> · #{candidateNumber}</span>}{phaseLabel}
                   </h4>
                   <TradeTable
-                    busy={busy}
+                    busy={busy || candidatePending}
                     locale={locale}
                     status={displayedResult?.status}
                     trades={displayedResult?.trades ?? []}
+                    onTradeSelect={onTradeSelect}
+                    unexecutedSignals={displayedResult?.unexecutedSignals}
+                    onSignalSelect={onSignalSelect}
                   />
                 </section>
               )}
+
+              {tab === "performance" && <>
+                <h4 className="performance-owner">{tradeOwnerName}{candidateNumber && <span> · #{candidateNumber}</span>}{phaseLabel}</h4>
+                <PerformancePanel locale={locale} result={displayedResult} />
+                {displayedResult?.metrics && <TradingCostsPanel locale={locale} currency={displayedResult.metrics.currency} costs={displayedResult.metrics.tradingCosts} />}
+                <PeriodPerformance locale={locale} result={displayedResult} benchmark={run && displayedResult ? savedPeriodBenchmarks(run, displayedResult, focusedResult).find(row => row.presetId === "monthly_dca") : undefined} />
+              </>}
 
               {tab === "search" && searchAvailable && focusedResult?.searchResult && (
                 <SearchResults locale={locale} searchResult={focusedResult.searchResult} selectedCandidateId={candidateResult?.id}

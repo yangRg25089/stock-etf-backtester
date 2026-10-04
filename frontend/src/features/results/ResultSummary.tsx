@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
+import { savedEvaluationPhase } from "./savedConfiguration";
 import { formatCurrency, formatMultiple, formatPercent } from "./format";
 import { resultColor } from "./colors";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
@@ -114,6 +115,10 @@ export function ResultComparison({
                     >
                       <span>{displayName}</span>
                     </button>
+                    {result.evaluationPeriod && <small className="comparison-period"
+                      title={`${result.evaluationPeriod.startDate} → ${result.evaluationPeriod.endDate}`}>
+                      {translate(locale, `search.phase.${savedEvaluationPhase(result)}`)}
+                    </small>}
                   </div>
                 </th>
                 <td>{formatCurrency(investedPrincipalValue(metrics), metrics?.currency, locale)}</td>

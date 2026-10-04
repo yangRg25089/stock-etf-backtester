@@ -90,6 +90,31 @@ test("execution offers play reset and a stop button only while busy even while b
   }
 });
 
+test("all active phases announce their actual state with a spinner and enabled stop", () => {
+  for (const status of ["queued", "loading", "running"]) {
+    const html = renderToStaticMarkup(React.createElement(RunActions, {
+      locale: "zh", busy: true, canReset: true, stopping: false,
+      availability: { disabled: false, reasonKey: null }, onRun() {}, onReset() {}, onStop() {},
+      run: { status, progress: { completedStrategies: 0, totalStrategies: 3 } },
+    }));
+    assert.match(html, /run-button-spinner/);
+    assert.match(html, /class="button icon-only-button run-stop-button"[^>]*aria-label="停止计算"/);
+    assert.match(html, /aria-busy="true" disabled=""/);
+    assert.doesNotMatch(html, /run-status-panel|run-controls|run-complete-feedback/);
+  }
+});
+
+test("the final result read keeps edits locked without offering to stop a terminal job", () => {
+  const html = renderToStaticMarkup(React.createElement(RunActions, {
+    locale: "zh", busy: true, canStop: false, canReset: true, stopping: false,
+    availability: { disabled: false, reasonKey: null }, onRun() {}, onReset() {}, onStop() {},
+    run: { status: "completed", progress: { completedStrategies: 3, totalStrategies: 3 } },
+  }));
+  assert.match(html, /aria-busy="true" disabled=""/);
+  assert.doesNotMatch(html, /run-stop-button/);
+  assert.equal((html.match(/<button /g) ?? []).length, 2);
+});
+
 test("fixed strategy uses independent buy sell cards and header switches without composition", () => {
   const state = createInitialWorkspaceState(catalog);
   const html = renderEditor(state.draft.strategies[0]);

@@ -1,9 +1,14 @@
 import type { Catalog, ConditionGroup, ConditionLeaf, RunResponse, StrategyRun } from "../../api/generated";
+import { runDataContext } from "../../api/contractReader";
+import { searchOutcomes } from "../../api/searchResults";
+import { isSuccessfulRunStatus } from "../../api/runStatus";
 import { translate, unitLabel, type Locale } from "../../i18n/messages";
 import { normalizeSeriesToBase100, type IndexedSample } from "./chartModel";
 import { PRICE_COLOR, resultColor } from "./colors";
 import { formatCurrency, formatMultiple, formatPercent, formatPlainNumber } from "./format";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
+import { savedCandidate, savedEvaluationPhase, savedPeriodBenchmarks, savedResultConfiguration } from "./savedConfiguration";
+import { TRADING_COST_FIELDS } from "./tradingCosts";
 
 export interface ReportLine {
   id: string;
@@ -40,8 +45,8 @@ function savedParent(run: RunResponse, result: StrategyRun, parent?: StrategyRun
   const results = run.result?.strategyRuns ?? [];
   if (!parent) return results.find(item => item.id === result.id);
   const saved = results.find(item => item.id === parent.id && item.presetId === "grid_search");
-  return saved?.searchResult?.candidates.some(candidate => candidate.candidateId === result.id
-    && (candidate.status === "completed" || candidate.status === "completed_with_warning")) ? saved : undefined;
+  const outcome = saved?.searchResult && searchOutcomes(saved.searchResult).find(item => item.id === result.id)?.outcome;
+  return outcome && isSuccessfulRunStatus(outcome.status) ? saved : undefined;
 }
 
 export function isResultReportAvailable(run: RunResponse | null, result: StrategyRun | null, parent?: StrategyRun | null): boolean {
@@ -106,18 +111,15 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
   result = parent ? result : owner;
   if (!result.metrics) return null;
   const results = run.result?.strategyRuns ?? [];
-  const strategy = run.snapshot.config.strategies?.find(item => item.id === owner.id);
-  const search = owner.searchResult;
-  const candidate = search?.candidates.find(item => item.candidateId === (parent ? result.id : search.rankedCandidateIds[0]));
-  const candidateValues = objectValues(candidate?.parameterValues);
-  const overrides = Object.fromEntries((search?.dimensions ?? [])
-    .filter(item => Object.hasOwn(candidateValues, item.key)).map(item => [item.key, candidateValues[item.key]]));
+  const { strategy, candidate, overrides } = savedResultConfiguration(run, result, parent ? owner : null);
   const parameters = { ...objectValues(strategy?.params), ...overrides };
   const currency = result.metrics.currency ?? result.dailyAssets?.[0]?.currency;
   const shared = run.snapshot.config.shared;
   const rows = result.dailyAssets!;
   const period = `${rows[0].date} → ${rows[rows.length - 1].date}`;
-  const title = resultDisplayName(locale, owner, results) + (candidate ? ` · #${candidate.sequence}` : "");
+  const phase = savedEvaluationPhase(result, parent ? owner : null);
+  const title = resultDisplayName(locale, owner, results) + (candidate && phase !== "outOfSample" ? ` · #${candidate.sequence}` : "")
+    + (phase ? ` · ${translate(locale, `search.phase.${phase}`)}` : "");
   const amount = `${formatCurrency(shared.contribution.amount, currency, locale)}${currency ? ` ${currency}` : ""}`;
   const funding = translate(locale, "report.funding", { amount, day: String(shared.contribution.day) });
   const metricValues = [
@@ -131,18 +133,44 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
     ["maximumDrawdown", formatPercent(result.metrics.maximumDrawdown, locale)],
   ];
   const limits = Object.entries(parameters).filter(([key]) => key.startsWith("accumulation.") && key !== "accumulation.conditionLogic");
-  const sections = strategy ? [
+  const sections = strategy && phase !== "outOfSample" ? [
     { title: translate(locale, "parameterGroups.buy_limits"), lines: limits.map(([key, value]) => parameterText(key, value, catalog, locale, currency)) },
     { title: translate(locale, "strategy.buy"), lines: strategy.rules ? conditionLines(strategy.rules.buy, catalog, locale, overrides, currency)
       : Object.entries(parameters).filter(([key]) => !key.startsWith("accumulation.")).map(([key, value]) => parameterText(key, value, catalog, locale, currency)) },
     { title: translate(locale, "strategy.sell"), lines: conditionLines(strategy.rules?.sell, catalog, locale, overrides, currency) },
   ].filter(section => section.lines.length) : [];
+  if (phase === "outOfSample") {
+    for (const window of owner.searchResult?.walkForwardWindows ?? []) {
+      const chosen = savedCandidate(owner.searchResult, window.selectedCandidateId ?? "");
+      if (!chosen) continue;
+      const chosenParams = objectValues(chosen.parameterValues);
+      const chosenOverrides = Object.fromEntries((owner.searchResult?.dimensions ?? []).map(item => [item.key, chosenParams[item.key]]));
+      sections.push({ title: `${translate(locale, "search.walkWindow")} ${window.sequence} · ${window.testPeriod.startDate} → ${window.testPeriod.endDate}`,
+        lines: [
+          ...Object.entries(chosenParams).filter(([key]) => key.startsWith("accumulation.") && key !== "accumulation.conditionLogic")
+            .map(([key, value]) => parameterText(key, value, catalog, locale, currency)),
+          `${translate(locale, "strategy.buy")} · ${conditionLines(strategy?.rules?.buy, catalog, locale, chosenOverrides, currency).join(" · ")}`,
+          `${translate(locale, "strategy.sell")} · ${conditionLines(strategy?.rules?.sell, catalog, locale, chosenOverrides, currency).join(" · ")}`,
+        ],
+      });
+    }
+  }
+  if (shared.execution) sections.push({
+    title: translate(locale, "parameterGroups.execution"),
+    lines: Object.entries(shared.execution).map(([key, value]) => parameterText(`execution.${key}`, value, catalog, locale, currency)),
+  });
+  const costs = result.metrics.tradingCosts;
+  if (costs) sections.push({
+    title: translate(locale, "costs.heading"),
+    lines: TRADING_COST_FIELDS.map(key => `${translate(locale, `costs.${key}`)}: ${formatCurrency(costs[key], currency, locale)}${currency ? ` ${currency}` : ""}`),
+  });
   const price = normalizeSeriesToBase100("price", rows.map((row, index) => ({ date: row.date, index, value: Number(row.simulationPrice) })));
   const lines: ReportLine[] = price ? [{ id: "price", label: translate(locale, "chart.price"), color: PRICE_COLOR, points: price.points }] : [];
   const asset = reportAssetLine(result, title, resultColor(results.findIndex(item => item.id === owner.id)));
   if (asset) lines.push(asset);
-  for (const baseline of results.filter(item => item.role === "benchmark" && item.id !== owner.id && isCompletedResult(item))) {
-    const line = reportAssetLine(baseline, resultDisplayName(locale, baseline, results), resultColor(results.indexOf(baseline)));
+  for (const baseline of savedPeriodBenchmarks(run, result, owner).filter(item => item.id !== owner.id && isCompletedResult(item))) {
+    const index = results.findIndex(item => item.role === "benchmark" && item.presetId === baseline.presetId);
+    const line = reportAssetLine(baseline, resultDisplayName(locale, baseline, results), resultColor(index));
     if (line) lines.push(line);
   }
   const notes = [translate(locale, "report.method")];
@@ -152,7 +180,7 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
     const text = translate(locale, diagnostic.messageKey);
     if (!notes.includes(text)) notes.push(text);
   }
-  const requested = `${shared.run.startDate} → ${shared.run.endDate}`;
+  const requested = `${result.evaluationPeriod?.startDate ?? shared.run.startDate} → ${result.evaluationPeriod?.endDate ?? shared.run.endDate}`;
   if (requested !== period) notes.push(translate(locale, "report.requestedPeriod", { period: requested }));
   const symbol = shared.run.symbol;
   const identity = parent ? result.id : owner.presetId;
@@ -170,7 +198,7 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
     footer: [
       `Run: ${run.runId} · ${result.id}`,
       `${run.snapshot.engineVersion} · ${run.snapshot.catalogVersion}`,
-      `Data: ${run.snapshot.dataFingerprint}`,
+      `Data: ${runDataContext(run.snapshot)?.dataFingerprint}`,
       ...(run.snapshot.createdAt ? [translate(locale, "report.savedAt", { date: run.snapshot.createdAt })] : []),
     ],
   };

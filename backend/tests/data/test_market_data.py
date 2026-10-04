@@ -146,7 +146,6 @@ def test_yahoo_rate_limit_diagnostic_is_specific_and_omits_exception_text() -> N
     assert diagnostic.message_key == "market.provider_rate_limited"
     assert diagnostic.details == {
         "symbol": "QQQ",
-        "exceptionType": "YFRateLimitError",
         "failureKind": "rate_limited",
     }
     assert "token=must-not-escape" not in result.model_dump_json()
@@ -1545,7 +1544,10 @@ def test_yahoo_local_normalization_errors_are_not_provider_failures(
     def broken_normalizer(*_args, **_kwargs):
         raise ValueError("local-normalization-bug")
 
-    monkeypatch.setattr(f"app.data.providers.yahoo.{function}", broken_normalizer)
+    normalizer_module = "yahoo" if macro and stage == "columns" else "yahoo_frames"
+    monkeypatch.setattr(
+        f"app.data.providers.{normalizer_module}.{function}", broken_normalizer
+    )
     with pytest.raises(ValueError, match="local-normalization-bug"):
         if macro:
             adapter.load_macro(request, series_type="index")

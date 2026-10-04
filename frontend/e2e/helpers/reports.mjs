@@ -1,8 +1,8 @@
+import { installRunFixture } from "./runtime.mjs";
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
-export async function savedRun(page, presetId = "vix_dca", params = {}, editRules = () => {}) {
-  const catalog = await (await page.request.get("/api/v1/catalog")).json();
+export function strategyForRequest(catalog, presetId, params = {}, editRules = () => {}) {
   const preset = catalog.presets.find(item => item.id === presetId);
   const numericKeys = new Set(catalog.parameters.filter(item => ["decimal", "integer", "ratio", "percent_point"].includes(item.type)).map(item => item.key));
   const numericListKeys = new Set(catalog.parameters.filter(item => item.type === "number_list").map(item => item.key));
@@ -15,11 +15,16 @@ export async function savedRun(page, presetId = "vix_dca", params = {}, editRule
     else (node.children ?? []).forEach(wireRules);
   };
   wireRules(rules?.buy); wireRules(rules?.sell); editRules(rules);
+  return { presetId, params: numericParams({ ...preset.defaultParams, ...params }), rules };
+}
+
+export async function savedRun(page, presetId = "vix_dca", params = {}, editRules = () => {}, shared = {}) {
+  const catalog = await (await page.request.get("/api/v1/catalog")).json();
   const response = await page.request.post("/api/v1/runs", {
     headers: { "Idempotency-Key": `report-${presetId}-${Date.now()}` },
     data: { draft: {
-      shared: { run: { symbol: "QQQ", startDate: "2024-02-01", endDate: "2024-03-01" }, contribution: { amount: 100, day: 1 } },
-      strategies: [{ id: "report-strategy", presetId, params: numericParams({ ...preset.defaultParams, ...params }), rules }],
+      shared: { contribution: { amount: 100, day: 1 }, ...shared, run: { symbol: "QQQ", startDate: "2024-02-01", endDate: "2024-03-01", ...shared.run } },
+      strategies: [{ id: "report-strategy", ...strategyForRequest(catalog, presetId, params, editRules) }],
     }, scope: "all_enabled" },
   });
   expect(response.status()).toBe(202);
@@ -35,7 +40,7 @@ export async function savedRun(page, presetId = "vix_dca", params = {}, editRule
 }
 
 export async function openSaved(page, saved) {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await installRunFixture(page, saved);
   await page.addInitScript(() => {
     window.reportAudit = { text: [], bitmaps: [], downloads: 0, revoked: 0 };
     const fillText = CanvasRenderingContext2D.prototype.fillText;

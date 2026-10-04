@@ -1,7 +1,7 @@
 from datetime import date
 
+from app.data.run_planning import _apply_market_gap_policy
 from app.domain.status import Diagnostic, DiagnosticCode
-from app.runs.yahoo_data import _apply_market_gap_policy
 
 
 def test_listing_boundary_removes_only_verified_pre_listing_sessions() -> None:

@@ -5,7 +5,7 @@ const frontendPort = process.env.BACKTESTER_E2E_FRONTEND_PORT ?? "5174";
 
 export default defineConfig({
   testDir: "./e2e",
-  // Browser tests share the same in-memory fixture API and its latest-run slot.
+  // Browser tests share the same in-memory fixture API and active jobs.
   fullyParallel: false,
   workers: 1,
   reporter: "list",

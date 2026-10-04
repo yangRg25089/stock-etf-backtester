@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { Catalog, StrategyPresetId } from "../../api/generated";
 import type { WorkspaceState } from "./model";
-import { restoreWorkspaceState, saveWorkspaceDraft } from "./workspacePersistence";
+import { restoreWorkspaceState } from "./workspacePersistence";
 
 export function useWorkspace(catalog: Catalog | null) {
   const [workspace, setWorkspace] = useState<WorkspaceState | null>(null);
-  const [saveFailed, setSaveFailed] = useState(false);
   const nextSequence = useRef(2);
 
   useEffect(() => {
@@ -15,19 +14,12 @@ export function useWorkspace(catalog: Catalog | null) {
     setWorkspace(current => current ?? restored.state);
   }, [catalog]);
 
-  const draft = workspace?.draft;
-  const activeStrategyId = workspace?.activeStrategyId;
-  const nextCustomNumber = workspace?.nextCustomNumber;
-  useEffect(() => {
-    if (!draft || activeStrategyId === undefined || nextCustomNumber === undefined) return;
-    if (!saveWorkspaceDraft({ draft, activeStrategyId, nextCustomNumber }, nextSequence.current)) setSaveFailed(true);
-  }, [draft, activeStrategyId, nextCustomNumber]);
-
   const nextStrategyId = (presetId: StrategyPresetId) => {
-    const id = `strategy-${presetId}-${nextSequence.current}`;
-    nextSequence.current += 1;
+    let id: string;
+    do { id = `strategy-${presetId}-${nextSequence.current++}`; }
+    while (workspace?.draft.strategies.some(strategy => strategy.id === id));
     return id;
   };
 
-  return { workspace, setWorkspace, nextStrategyId, saveFailed };
+  return { workspace, setWorkspace, nextStrategyId };
 }

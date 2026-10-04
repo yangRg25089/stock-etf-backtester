@@ -23,9 +23,19 @@ export function SearchDimensionEditor({ catalog, preset, strategyId, params, err
   const count = active.length ? active.reduce((total, dimension) => total * valuesFor(dimension.valuesParameterKey).length, 1) : 0;
   const selectorErrors = errors.filter(item => item.fieldPath?.endsWith(".search.dimensions"));
   const maximum = catalog.parameters?.find(item => item.key === "search.maxCombinations");
+  const optimization = catalog.parameters?.find(item => item.key === "search.optimizationMode");
+  const cutoff = catalog.parameters?.find(item => item.key === "search.trainEndDate");
   const headingId = `search-dimensions-${strategyId}`;
   return <section className="search-dimension-editor" aria-labelledby={headingId}>
     <h4 id={headingId}>{translate(locale, "parameterGroups.search")}</h4>
+    <div className="search-optimization-settings">
+      {optimization && <ParameterField definition={optimization} value={params[optimization.key]} locale={locale}
+        id={parameterFieldId(optimization.key, strategyId)} errors={errors} onChange={value => onChange(optimization.key, value)} />}
+      {cutoff && params["search.optimizationMode"] === "train_test" && <ParameterField definition={cutoff}
+        value={params[cutoff.key]} locale={locale} required helperText={translate(locale, "search.splitHelp")}
+        id={parameterFieldId(cutoff.key, strategyId)} errors={errors} onChange={value => onChange(cutoff.key, value)} />}
+      {params["search.optimizationMode"] === "walk_forward" && <p className="field-hint">{translate(locale, "search.walkHelp")}</p>}
+    </div>
     <div className="search-dimension-toggles" role="group" aria-label={translate(locale, "parameters.search.dimensions")}>
       {dimensions.map(dimension => <button key={dimension.key} type="button" className="search-dimension-toggle"
         data-dimension-key={dimension.key} aria-pressed={selected.includes(dimension.key)}

@@ -1,6 +1,8 @@
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from threading import Event
 
 import pytest
 from pydantic import ValidationError
@@ -19,6 +21,7 @@ from app.domain.contracts import (
     SharedSettings,
     StrategyRun,
 )
+from app.domain.performance import AnalysisSettings
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
@@ -31,6 +34,75 @@ from app.runs.store import IdempotencyConflict, InMemoryRunStore
 from app.runs.types import RunResponse, RunSubmission
 
 _DATES = (date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4))
+
+
+def test_saved_nav_analysis_is_shared_by_benchmarks_candidates_and_frozen_inputs():
+    import csv
+    import io
+
+    from app.export.csv import ExportKind, export_csv
+
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(), data_provider=_FixtureProvider(), executor=executor
+    )
+    submission = _grid_submission("analysis-grid")
+    baseline = manager.submit_run(
+        submission=submission, idempotency_key="analysis-zero"
+    )
+    executor.run_next()
+    baseline = manager.get_run(baseline.run_id)
+    settings = AnalysisSettings(riskFreeAnnualRatePct=5)
+    changed = submission.model_copy(
+        update={
+            "config": submission.config.model_copy(
+                update={
+                    "shared": submission.config.shared.model_copy(
+                        update={"analysis": settings}
+                    )
+                }
+            )
+        }
+    )
+    accepted = manager.submit_run(submission=changed, idempotency_key="analysis-five")
+    executor.run_next()
+    saved = manager.get_run(accepted.run_id)
+    assert saved.snapshot.config.shared.analysis == settings
+    assert (
+        saved.snapshot.submission_fingerprint
+        != baseline.snapshot.submission_fingerprint
+    )
+    before = _runs(baseline)
+    for identity, result in _runs(saved).items():
+        assert result.metrics.analysis.risk_free_annual_rate == Decimal("0.05")
+        assert result.metrics.analysis.annual_returns
+        assert result.metrics.analysis.monthly_returns
+        assert result.metrics.analysis.drawdown_episodes is not None
+        assert result.daily_assets == before[identity].daily_assets
+        assert result.metrics.ending_equity == before[identity].metrics.ending_equity
+        assert result.metrics.xirr == before[identity].metrics.xirr
+        assert result.metrics.analysis.buy_count == sum(
+            trade.side.value == "buy" for trade in result.trades
+        )
+        rows = list(
+            csv.DictReader(
+                io.StringIO(
+                    export_csv(
+                        saved, kind=ExportKind.SUMMARY, focused_result_id=identity
+                    )
+                )
+            )
+        )
+        assert rows[0]["riskFreeAnnualRate"] == "0.05"
+        assert rows[0]["annualizedReturn"] == format(
+            result.metrics.analysis.annualized_return, "f"
+        )
+        for candidate in (
+            result.search_result.candidates if result.search_result else ()
+        ):
+            detail = manager.get_candidate(saved.run_id, candidate.candidate_id)
+            assert detail.metrics.analysis == candidate.metrics.analysis
+            assert candidate.metrics.analysis.risk_free_annual_rate == Decimal("0.05")
 
 
 def test_calculation_diagnostic_exposes_only_safe_stage_and_run_identity() -> None:
@@ -313,8 +385,9 @@ def test_resolved_listing_start_is_frozen_without_mutating_submission() -> None:
     accepted = manager.submit_run(
         submission=submission, idempotency_key="listing-adjustment"
     )
-    assert accepted.snapshot.config.shared.run.start_date == date(2024, 1, 2)
-    assert accepted.snapshot.date_adjustments[0].requested_date == date(2020, 1, 1)
+    assert accepted.snapshot.config.shared.run.start_date == date(2020, 1, 1)
+    assert accepted.snapshot.date_adjustments == ()
+    assert accepted.snapshot.data_fingerprint is None
     assert submission.config.shared.run.start_date == date(2020, 1, 1)
     assert (
         manager.submit_run(submission=submission, idempotency_key="listing-adjustment")
@@ -324,10 +397,147 @@ def test_resolved_listing_start_is_frozen_without_mutating_submission() -> None:
     executor.run_next()
     completed = manager.get_run(accepted.run_id)
     assert completed is not None
-    assert completed.snapshot == accepted.snapshot
+    assert completed.snapshot.config == accepted.snapshot.config
+    assert completed.snapshot.created_at == accepted.snapshot.created_at
+    assert (
+        completed.snapshot.submission_fingerprint
+        == accepted.snapshot.submission_fingerprint
+    )
+    assert completed.snapshot.effective_config.shared.run.start_date == date(2024, 1, 2)
+    assert completed.snapshot.date_adjustments[0].requested_date == date(2020, 1, 1)
+    assert completed.snapshot.data_fingerprint
     assert all(
         row.metrics and row.metrics.total_contributed == 100
         for row in _runs(completed).values()
+    )
+
+
+def test_acceptance_does_not_wait_for_market_data_and_loading_can_be_stopped() -> None:
+    entered = Event()
+    release = Event()
+
+    class HeldProvider(_FixtureProvider):
+        def load_for_strategy(self, **kwargs: object) -> StrategyDataLoad:
+            entered.set()
+            assert release.wait(5), "test failed to release the data provider"
+            return super().load_for_strategy(**kwargs)
+
+    store = InMemoryRunStore()
+    submission = _submission("held-loading")
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        manager = RunManager(store=store, data_provider=HeldProvider(), executor=worker)
+        with ThreadPoolExecutor(max_workers=2) as callers:
+            accepted_future = callers.submit(
+                manager.submit_run, submission, idempotency_key="held-run"
+            )
+            try:
+                accepted = accepted_future.result(timeout=1)
+                assert accepted.status is StrategyStatus.QUEUED
+                assert accepted.snapshot.config == submission.config
+                assert accepted.snapshot.submission_fingerprint
+                assert accepted.snapshot.data_fingerprint is None
+                assert accepted.snapshot.data_context is None
+                assert entered.wait(1)
+                loading = manager.get_run(accepted.run_id)
+                assert loading is not None and loading.status is StrategyStatus.LOADING
+                assert loading.snapshot == accepted.snapshot
+                retry = callers.submit(
+                    manager.submit_run, submission, idempotency_key="held-run"
+                ).result(timeout=1)
+                assert retry.run_id == accepted.run_id
+                stopped = manager.stop_run(accepted.run_id)
+                assert (
+                    stopped is not None and stopped.status is StrategyStatus.CANCELLED
+                )
+                assert all(
+                    row.status is StrategyStatus.CANCELLED
+                    for row in _runs(stopped).values()
+                )
+                assert store.get_active() is None
+            finally:
+                release.set()
+        worker.shutdown(wait=True)
+        assert manager.get_run(accepted.run_id) == stopped
+
+
+def test_queued_stop_never_downloads_market_data() -> None:
+    calls: list[str] = []
+
+    class ObservedProvider(_FixtureProvider):
+        def load_for_strategy(self, **kwargs: object) -> StrategyDataLoad:
+            calls.append("loaded")
+            return super().load_for_strategy(**kwargs)
+
+    provider = ObservedProvider()
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(), data_provider=provider, executor=executor
+    )
+    accepted = manager.submit_run(
+        _submission("queued-stop"), idempotency_key="queued-stop"
+    )
+    assert calls == []
+    stopped = manager.stop_run(accepted.run_id)
+    assert stopped is not None and stopped.status is StrategyStatus.CANCELLED
+    executor.run_next()
+    assert calls == []
+    assert manager.get_run(accepted.run_id) == stopped
+
+
+def test_cancelled_batch_data_never_attaches_context_or_results() -> None:
+    executor = _ManualExecutor()
+
+    class CancelledBatch(_FixtureProvider):
+        def load_for_run(self, *, strategies, **_kwargs):
+            stopped = manager.stop_run(accepted.run_id)
+            assert stopped is not None and stopped.status is StrategyStatus.CANCELLED
+            return {
+                strategy.id: StrategyDataLoad(
+                    calendar=self.calendar, snapshot=self.snapshot
+                )
+                for strategy in strategies
+            }
+
+    manager = RunManager(
+        store=InMemoryRunStore(), data_provider=CancelledBatch(), executor=executor
+    )
+    accepted = manager.submit_run(
+        _submission("batch-stop"), idempotency_key="batch-stop"
+    )
+    executor.run_next()
+    stopped = manager.get_run(accepted.run_id)
+    assert stopped is not None and stopped.status is StrategyStatus.CANCELLED
+    assert stopped.snapshot.data_context is None
+    assert all(
+        row.metrics is None and row.status is StrategyStatus.CANCELLED
+        for row in _runs(stopped).values()
+    )
+
+
+def test_stop_between_data_resolution_and_binding_keeps_submission_only(
+    monkeypatch,
+) -> None:
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(), data_provider=_FixtureProvider(), executor=executor
+    )
+    accepted = manager.submit_run(
+        _submission("binding-stop"), idempotency_key="binding-stop"
+    )
+    resolve = manager._make_data_context
+
+    def stop_before_binding(*args):
+        context = resolve(*args)
+        manager.stop_run(accepted.run_id)
+        return context
+
+    monkeypatch.setattr(manager, "_make_data_context", stop_before_binding)
+    executor.run_next()
+    stopped = manager.get_run(accepted.run_id)
+    assert stopped is not None and stopped.status is StrategyStatus.CANCELLED
+    assert stopped.snapshot == accepted.snapshot
+    assert all(
+        row.status is StrategyStatus.CANCELLED for row in _runs(stopped).values()
     )
 
 
@@ -346,7 +556,8 @@ def test_manager_freezes_inputs_and_completes_zero_trade_result_and_benchmarks()
     accepted = manager.submit_run(submission, idempotency_key="quiet-run")
 
     assert accepted.status is StrategyStatus.QUEUED
-    assert accepted.snapshot.data_fingerprint
+    assert accepted.snapshot.submission_fingerprint
+    assert accepted.snapshot.data_fingerprint is None
     assert accepted.snapshot.config == submission.config
     with pytest.raises(ValidationError):
         accepted.snapshot.config.shared.run.symbol = "SPY"
@@ -354,6 +565,9 @@ def test_manager_freezes_inputs_and_completes_zero_trade_result_and_benchmarks()
 
     completed = manager.get_run(accepted.run_id)
     assert completed is not None
+    assert completed.snapshot.data_fingerprint
+    assert completed.snapshot.config == accepted.snapshot.config
+    assert completed.snapshot.created_at == accepted.snapshot.created_at
     runs = _runs(completed)
     strategy_run = runs["quiet-vix"]
     assert strategy_run.status is StrategyStatus.COMPLETED
@@ -580,7 +794,7 @@ def test_calculation_failure_does_not_stop_later_strategy_results(
             raise ArithmeticError("fixture calculation error")
         return original_run_strategy(config, strategy, *args, **kwargs)
 
-    monkeypatch.setattr("app.runs.manager.run_strategy", fail_one_strategy)
+    monkeypatch.setattr("app.simulation.run_strategy", fail_one_strategy)
     submission = _submission("calculation-failure", "healthy-after-failure")
 
     accepted = manager.submit_run(submission, idempotency_key="calculation-run")
@@ -728,7 +942,7 @@ def test_stop_running_preserves_completed_benchmarks_and_true_queue_states(
             manager.stop_run(accepted.run_id)
         return original_run_strategy(config, strategy, *args, **kwargs)
 
-    monkeypatch.setattr("app.runs.manager.run_strategy", stop_inside_calculation)
+    monkeypatch.setattr("app.simulation.run_strategy", stop_inside_calculation)
     executor.run_next()
     assert observed
     stopped = manager.get_run(accepted.run_id)
@@ -784,18 +998,15 @@ def test_stop_between_search_candidates_preserves_completed_results(
     assert manager.get_candidate(accepted.run_id, "stop-grid:candidate:00002") is None
 
 
-def test_grid_best_and_every_candidate_curve_survive_restart_without_calculation(
+def test_grid_best_and_every_candidate_curve_remain_in_memory_without_calculation(
     tmp_path,
 ) -> None:
     from concurrent.futures import Executor
     from typing import cast
 
-    from app.runs.sqlite_store import SQLiteRunStore
-
     submission = _grid_submission("grid")
     executor = _ManualExecutor()
-    path = tmp_path / "candidates.sqlite3"
-    store = SQLiteRunStore(path)
+    store = InMemoryRunStore()
     manager = RunManager(
         store=store, data_provider=_FixtureProvider(), executor=cast(Executor, executor)
     )
@@ -815,15 +1026,91 @@ def test_grid_best_and_every_candidate_curve_survive_restart_without_calculation
         item.candidate_id: manager.get_candidate(accepted.run_id, item.candidate_id)
         for item in candidates
     }
-    store.close()
-    restored = SQLiteRunStore(path)
+    restored = store
     for candidate in candidates:
         detail = restored.get_candidate(accepted.run_id, candidate.candidate_id)
         assert detail == saved[candidate.candidate_id]
         assert detail is not None and detail.metrics == candidate.metrics
         assert len(detail.daily_assets) == len(_DATES)
     assert restored.get_candidate("other-run", candidates[0].candidate_id) is None
-    restored.close()
+
+
+def test_new_runtime_has_no_completed_run_or_candidate_from_previous_store():
+    from concurrent.futures import Executor
+    from typing import cast
+
+    store = InMemoryRunStore()
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=store, data_provider=_FixtureProvider(), executor=cast(Executor, executor)
+    )
+    accepted = manager.submit_run(_grid_submission("grid"), idempotency_key="runtime")
+    executor.run_next()
+    completed = manager.get_run(accepted.run_id)
+    assert completed is not None
+    grid = _runs(completed)["grid"]
+    assert grid.search_result is not None
+    candidate_id = grid.search_result.ranked_candidate_ids[0]
+    assert manager.get_candidate(accepted.run_id, candidate_id) is not None
+
+    fresh = RunManager(store=InMemoryRunStore())
+    assert fresh.get_run(accepted.run_id) is None
+    assert fresh.get_candidate(accepted.run_id, candidate_id) is None
+
+
+def test_backtest_package_freezes_full_search_candidates_without_loading_data():
+    from app.export.packages import BacktestPackage, build_backtest_package
+
+    store = InMemoryRunStore()
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=store, data_provider=_FixtureProvider(), executor=executor
+    )
+    queued = manager.submit_run(
+        _grid_submission("grid-package"), idempotency_key="package"
+    )
+    with pytest.raises(ValueError, match="unfinished"):
+        build_backtest_package(
+            queued, lambda key: manager.get_candidate(queued.run_id, key)
+        )
+    executor.run_next()
+    completed = manager.get_run(queued.run_id)
+    assert completed is not None and completed.result is not None
+    package = build_backtest_package(
+        completed, lambda key: manager.get_candidate(queued.run_id, key)
+    )
+    search = completed.result.strategy_runs[0].search_result
+    assert search is not None
+    assert set(package.candidate_details) == {
+        row.candidate_id for row in search.candidates
+    }
+    for key, detail in package.candidate_details.items():
+        assert detail == manager.get_candidate(queued.run_id, key)
+        assert detail.daily_assets and detail.metrics is not None
+    assert package.config is completed.snapshot.config
+    assert package.result is completed
+    restored = BacktestPackage.model_validate_json(
+        package.model_dump_json(by_alias=True)
+    )
+    assert restored.model_dump(mode="json", by_alias=True) == package.model_dump(
+        mode="json", by_alias=True
+    )
+
+
+def test_active_run_does_not_hide_earlier_job_when_latest_finishes():
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(), data_provider=_FixtureProvider(), executor=executor
+    )
+    first = manager.submit_run(_submission("vix-first"), idempotency_key="first-active")
+    second = manager.submit_run(
+        _submission("vix-second"), idempotency_key="second-active"
+    )
+    assert manager.get_active_run().run_id == second.run_id
+    manager.stop_run(second.run_id)
+    assert manager.get_active_run().run_id == first.run_id
+    executor.run_next()
+    assert manager.get_active_run() is None
 
 
 def test_stop_and_candidate_http_contracts_use_saved_results(monkeypatch) -> None:

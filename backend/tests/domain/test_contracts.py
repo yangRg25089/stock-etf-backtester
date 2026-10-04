@@ -51,6 +51,48 @@ def _shared_settings() -> SharedSettings:
     )
 
 
+def test_trade_explanation_is_optional_for_old_snapshots_and_exact_when_saved() -> None:
+    payload = {
+        "date": "2024-01-03",
+        "side": "buy",
+        "reason": "signal_buy",
+        "quantity": "1.25",
+        "price": "80",
+        "cashAmount": "100",
+        "currency": "USD",
+    }
+    legacy = Trade.model_validate(payload)
+    assert legacy.cash_before is None
+    assert legacy.execution_price is None
+    explained = Trade.model_validate(
+        {
+            **payload,
+            "cashBefore": "100",
+            "cashAfter": "0",
+            "quantityBefore": "2",
+            "quantityAfter": "3.25",
+            "executionBasePrice": "80",
+            "executionPrice": "80",
+        }
+    )
+    encoded = explained.model_dump(mode="json", by_alias=True)
+    assert encoded["cashBefore"] == "100"
+    assert encoded["quantityAfter"] == "3.25"
+    assert Trade.model_validate(encoded) == explained
+    for key in (
+        "cashBefore",
+        "cashAfter",
+        "quantityBefore",
+        "quantityAfter",
+        "executionBasePrice",
+        "executionPrice",
+    ):
+        with pytest.raises(ValidationError):
+            Trade.model_validate({**payload, key: "-1"})
+    with pytest.raises(ValidationError, match="executionPrice must match"):
+        Trade.model_validate({**payload, "executionPrice": "81"})
+
+
 def _draft_config() -> RunConfig:
     return RunConfig(
         shared=_shared_settings(),
@@ -96,6 +138,54 @@ def test_snapshot_copies_a_mutable_draft_and_freezes_config() -> None:
         saved_strategy.params["vix.buyThreshold"] = 30  # type: ignore[index]
     with pytest.raises(ValidationError):
         snapshot.catalog_version = "changed"
+
+
+def test_submission_snapshot_has_no_data_and_keeps_config_frozen() -> None:
+    snapshot = RunSnapshot(
+        runId="run-async",
+        config=_draft_config(),
+        catalogVersion="catalog-1",
+        engineVersion="engine-1",
+        submissionFingerprint="submission-1",
+    )
+    assert snapshot.data_context is None
+    assert snapshot.data_fingerprint is None
+    assert snapshot.data_provenance.sources == ()
+    assert snapshot.date_adjustments == ()
+    requested = snapshot.config.shared.run
+    resolved = requested.model_copy(update={"start_date": date(2024, 1, 3)})
+    completed = RunSnapshot(
+        runId=snapshot.run_id,
+        config=snapshot.config,
+        catalogVersion=snapshot.catalog_version,
+        engineVersion=snapshot.engine_version,
+        submissionFingerprint=snapshot.submission_fingerprint,
+        createdAt=snapshot.created_at,
+        dataContext={
+            "dataFingerprint": "actual-data-1",
+            "dataProvenance": {"sources": ["fixture"]},
+            "effectiveRun": resolved,
+            "dateAdjustments": [
+                {
+                    "field": "startDate",
+                    "requestedDate": requested.start_date,
+                    "effectiveDate": resolved.start_date,
+                    "reason": "indicator_warmup",
+                }
+            ],
+        },
+    )
+    assert completed.config is snapshot.config
+    assert completed.config.shared.run == requested
+    assert completed.effective_config.shared.run == resolved
+    assert completed.created_at == snapshot.created_at
+    assert completed.data_fingerprint == "actual-data-1"
+    assert completed.data_provenance.sources == ("fixture",)
+    dumped = completed.model_dump(mode="json", by_alias=True)
+    assert RunSnapshot.model_validate(dumped) == completed
+    dumped["dataFingerprint"] = "forged-projection"
+    with pytest.raises(ValidationError):
+        RunSnapshot.model_validate(dumped)
 
 
 def test_snapshot_freezes_and_serializes_data_provenance() -> None:

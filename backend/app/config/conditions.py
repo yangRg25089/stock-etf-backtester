@@ -1,14 +1,11 @@
 """Validate leaf parameters and fixed templates through catalog definitions."""
 
-from collections.abc import Callable
 from decimal import Decimal
 from typing import Literal
 
 from app.catalog.conditions import CONDITION_DEFINITIONS, condition_definition
 from app.catalog.definitions import (
-    ParameterType,
     ParameterValidationError,
-    validate_parameter_value,
 )
 from app.catalog.presets import PresetDefinition
 from app.catalog.service import Catalog
@@ -23,6 +20,8 @@ from app.domain.conditions import (
 )
 from app.domain.contracts import StrategyPresetId
 from app.domain.status import Diagnostic
+
+from .parameters import parse_parameter_value
 
 
 def materialize_legacy_rules(
@@ -104,7 +103,6 @@ def normalize_rules(
     preset: PresetDefinition,
     catalog: Catalog,
     field_path: str,
-    normalize_value: Callable[[ParameterType, object], object],
 ) -> tuple[StrategyRules, tuple[Diagnostic, ...]]:
     diagnostics: list[Diagnostic] = []
     seen: dict[str, set[ConditionKind]] = {"buy": set(), "sell": set()}
@@ -163,7 +161,7 @@ def normalize_rules(
             definition = catalog.parameter(key)
             value = node.params.get(key, definition.default)
             try:
-                validate_parameter_value(definition, value)
+                resolved[key] = parse_parameter_value(definition, value)
             except ParameterValidationError as error:
                 diagnostics.append(
                     invalid_parameter(
@@ -172,14 +170,16 @@ def normalize_rules(
                         details={"conditionId": node.id, "parameterKey": key},
                     )
                 )
-            else:
-                resolved[key] = normalize_value(definition.type, value)
         return ConditionLeaf(
             id=node.id, kind=node.kind, enabled=node.enabled, params=resolved
         )
 
+    normalized = StrategyRules(
+        buy=normalize_node(rules.buy, "buy", f"{field_path}.buy"),
+        sell=normalize_node(rules.sell, "sell", f"{field_path}.sell"),
+    )
     for side in ("buy", "sell"):
-        node = getattr(rules, side)
+        node = getattr(normalized, side)
         expected = getattr(preset.default_rules, side) if preset.default_rules else None
         if (
             preset.editor_mode == "fixed"
@@ -212,7 +212,4 @@ def normalize_rules(
                         details={"conditionId": node.id, "parameterKey": "exit.ratio"},
                     )
                 )
-    return StrategyRules(
-        buy=normalize_node(rules.buy, "buy", f"{field_path}.buy"),
-        sell=normalize_node(rules.sell, "sell", f"{field_path}.sell"),
-    ), tuple(diagnostics)
+    return normalized, tuple(diagnostics)

@@ -70,6 +70,11 @@ EXPECTED_PARAMETER_KEYS = {
     "data.macroStalenessSessions",
     "data.financialFactMaxAgeDays",
     "data.etfHoldingsMaxAgeDays",
+    "analysis.riskFreeAnnualRatePct",
+    "execution.commission",
+    "execution.slippagePct",
+    "execution.spreadPct",
+    "execution.fractionalShares",
     "accumulation.cashSafetyLimit",
     "accumulation.maxSignalBuysPerMonth",
     "accumulation.conditionLogic",
@@ -107,6 +112,8 @@ EXPECTED_PARAMETER_KEYS = {
     "trend.sellBelowOrEqualMa",
     "scheduled.fundingMode",
     "search.dimensions",
+    "search.optimizationMode",
+    "search.trainEndDate",
     "search.maxCombinations",
     "search.values.vix.buyThreshold",
     "search.values.rsi.buyThreshold",
@@ -116,8 +123,13 @@ EXPECTED_PARAMETER_KEYS = {
 
 
 def test_catalog_version_tracks_retired_scope_and_explicit_default_rate_unit() -> None:
-    assert CATALOG_VERSION == "catalog-v12"
+    assert CATALOG_VERSION == "catalog-v16"
     assert "run.scope" not in PARAMETER_DEFINITIONS
+    assert PARAMETER_DEFINITIONS["search.optimizationMode"].allowed_values == (
+        "full_period",
+        "train_test",
+        "walk_forward",
+    )
 
 
 def test_numeric_defaults_align_with_browser_minimum_and_step() -> None:

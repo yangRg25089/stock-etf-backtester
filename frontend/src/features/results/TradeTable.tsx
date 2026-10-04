@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
-import type { StrategyStatus, Trade } from "../../api/generated";
+import type { StrategyStatus, Trade, UnexecutedSignal } from "../../api/generated";
+import { isSuccessfulRunStatus } from "../../api/runStatus";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatCurrency, formatQuantity } from "./format";
 import { TableExpandButton } from "./TableExpandButton";
@@ -9,10 +10,9 @@ interface TradeTableProps {
   locale: Locale;
   status: StrategyStatus | undefined;
   trades: Trade[];
-}
-
-function tradeStatusIsComplete(status: StrategyStatus | undefined): boolean {
-  return status === "completed" || status === "completed_with_warning";
+  onTradeSelect?(index: number): void;
+  unexecutedSignals?: UnexecutedSignal[];
+  onSignalSelect?(signal: UnexecutedSignal): void;
 }
 
 function signalLabel(locale: Locale, signalId: string | null | undefined): string {
@@ -22,10 +22,10 @@ function signalLabel(locale: Locale, signalId: string | null | undefined): strin
   return label === key ? translate(locale, "trade.signalOther") : label;
 }
 
-export function TradeTable({ locale, status, trades, busy = false }: TradeTableProps) {
+export function TradeTable({ locale, status, trades, busy = false, onTradeSelect, unexecutedSignals = [], onSignalSelect }: TradeTableProps) {
   const [heightExpanded, setHeightExpanded] = useState(false);
   const scrollId = useId();
-  if (!tradeStatusIsComplete(status)) {
+  if (!isSuccessfulRunStatus(status)) {
     return <p className="metric-empty" role="status">{translate(locale, "trade.unavailable")}</p>;
   }
   return (
@@ -56,8 +56,11 @@ export function TradeTable({ locale, status, trades, busy = false }: TradeTableP
           </thead>
           <tbody>
             {trades.map((trade, index) => (
-              <tr key={`${trade.date}-${trade.side}-${index}`}>
-                <td>{trade.date}</td>
+              <tr key={`${trade.date}-${trade.side}-${index}`} className={onTradeSelect ? "is-inspectable" : undefined}
+                onClick={() => { if (!busy) onTradeSelect?.(index); }}>
+                <td>{onTradeSelect ? <button className="table-cell-action" type="button" disabled={busy}
+                  aria-label={translate(locale, "trade.explain.open", { date: trade.date, side: translate(locale, `trade.side.${trade.side}`) })}
+                  onClick={event => { event.stopPropagation(); onTradeSelect(index); }}>{trade.date}</button> : trade.date}</td>
                 <td>{translate(locale, `trade.side.${trade.side}`)}</td>
                 <td>{translate(locale, `trade.reason.${trade.reason}`)}</td>
                 <td>{formatQuantity(trade.quantity, locale)}</td>
@@ -72,6 +75,11 @@ export function TradeTable({ locale, status, trades, busy = false }: TradeTableP
       {trades.length === 0 && (
         <p className="trade-empty" role="status">{translate(locale, "trade.none")}</p>
       )}
+      {unexecutedSignals.length > 0 && <details className="unexecuted-signals">
+        <summary>{translate(locale, "trade.explain.unexecutedCount", { count: String(unexecutedSignals.length) })}</summary>
+        {unexecutedSignals.map(signal => <button key={`${signal.signalDate}-${signal.signalId}`} type="button" className="table-cell-action" disabled={busy || !onSignalSelect}
+          onClick={() => onSignalSelect?.(signal)}>{signal.signalDate} · {signalLabel(locale, signal.signalId)} <span aria-hidden="true">›</span></button>)}
+      </details>}
     </div>
   );
 }

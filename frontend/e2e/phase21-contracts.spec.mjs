@@ -22,7 +22,7 @@ async function period(page) {
   await done(page, ".shared-settings-dialog");
 }
 async function runSaved(page) {
-  const response = page.waitForResponse(r => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
+  const response = page.waitForResponse(r => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   return (await response).json();
 }
@@ -30,6 +30,7 @@ async function runSaved(page) {
 test("today, ETF choices and quote currency stay inside the validated dialog", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
   const runBefore = await page.locator(".run-submit-button").evaluate(node => node.outerHTML);
   await page.route("**/api/v1/instruments/7203.T", route => route.fulfill({ json: { symbol: "7203.T", currency: "JPY", diagnostics: [] } }));
   await shared(page);
@@ -45,6 +46,7 @@ test("today, ETF choices and quote currency stay inside the validated dialog", a
   expect(await page.locator(".run-submit-button").evaluate(node => node.outerHTML)).toBe(runBefore);
   await done(page, ".shared-settings-dialog");
   await expect(page.locator(".shared-settings-summary-funding")).toContainText("JPY");
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
   await page.locator(".strategy-card-open").first().click();
   await expect(page.locator(".strategy-parameter-group").first()).toContainText("買付上限");
   await expect(page.locator('span[id$="-accumulation-cashSafetyLimit-unit"]')).toHaveText("JPY");
@@ -92,17 +94,20 @@ test("custom strategy ordinals survive deletion, cap at ten, and prevent nested 
   await expect(page.locator(".strategy-card .status-tag, .strategy-enabled-control")).toHaveCount(0);
 });
 
-test("running without a strategy explains the error without submitting a job", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+test("no strategies disables execution with an accessible reason and submits no job", async ({ page }) => {
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".strategy-card").hover();
   await page.locator(".strategy-remove").click();
   await expect(page.locator(".strategy-card")).toHaveCount(0);
   const jobs = [];
   page.on("request", request => { if (request.method() === "POST" && request.url().endsWith("/api/v1/runs")) jobs.push(request); });
-  await page.locator(".run-submit-button").click();
-  await expect(page.locator(".result-details .field-error")).toContainText("戦略");
-  await expect(page.locator(".run-submit-button")).toBeEnabled();
+  await expect(page.locator(".run-submit-button")).toBeDisabled();
+  await expect(page.locator(".run-submit-button")).toHaveAttribute("title", /戦略/);
+  await expect(page.locator("#run-disabled-reason")).toContainText("戦略");
+  await page.keyboard.press("Meta+Enter");
+  await page.keyboard.press("Control+Enter");
+  await expect(page.locator(".result-details .field-error")).toHaveCount(0);
   expect(jobs).toEqual([]);
 });
 
@@ -177,16 +182,18 @@ test("stop action preserves completed rows and presents running and waiting indi
   await expect.poll(async () => { saved = await (await page.request.get(`/api/v1/runs/${accepted.runId}`)).json(); return saved.status; }).toMatch(/^completed/);
   const pending = structuredClone(saved);
   pending.status = "running";
+  pending.result.status = "running";
   pending.progress = { ...pending.progress, completedStrategies: 1, currentStrategyId: "benchmark:lump-sum" };
   for (const row of pending.result.strategyRuns) if (row.id !== "benchmark:monthly-dca") { row.status = row.id === "benchmark:lump-sum" ? "running" : "queued"; row.metrics = null; row.dailyAssets = []; row.trades = []; row.signals = []; }
   const stopped = structuredClone(pending);
   stopped.status = "cancelled";
+  stopped.result.status = "cancelled";
   stopped.progress = { ...stopped.progress, completedStrategies: 3, currentStrategyId: null };
   for (const row of stopped.result.strategyRuns) if (row.id !== "benchmark:monthly-dca") row.status = "cancelled";
   let release;
   const stopGate = new Promise(resolve => { release = resolve; });
   let stopRequests = 0;
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/runs", route => route.fulfill({ status: 202, json: pending }));
   await page.route(`**/api/v1/runs/${saved.runId}`, route => route.fulfill({ json: stopped }));
   await page.route(`**/api/v1/runs/${saved.runId}/events`, async route => { await stopGate; await route.fulfill({ contentType: "text/event-stream", body: `event: terminal\ndata: ${JSON.stringify({ runId: saved.runId, status: "cancelled", progress: stopped.progress, strategyStatuses: Object.fromEntries(stopped.result.strategyRuns.map(row => [row.id,row.status])) })}\n\n` }); });

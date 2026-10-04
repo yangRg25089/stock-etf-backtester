@@ -1,3 +1,4 @@
+import { installRunFixture } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -15,7 +16,7 @@ async function runWithIndicators(page, strategies) {
     return saved.status;
   }).toBe("completed");
   for (const result of saved.result.strategyRuns) expect(result.status, JSON.stringify(result.diagnostics)).toBe("completed");
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await installRunFixture(page, saved);
   return saved;
 }
 
@@ -105,8 +106,8 @@ test("grid candidates show their own saved MA and Bollinger parameters after swi
     await button.click();
     const detail = await (await response).json();
     const band = detail.technicalIndicators.find(indicator => indicator.kind === "bollinger");
-    await expect(page.locator(".chart-overlay .overlay-legend")).toContainText("MA2");
-    await expect(page.locator(".chart-overlay .overlay-legend")).toContainText(`BOLL(2, ${band.deviations}σ)`);
+    await expect(page.locator(".chart-overlay .chart-core-readout-row")).toContainText("MA2");
+    await expect(page.locator(".chart-overlay .chart-core-readout-row")).toContainText(`BOLL(2, ${band.deviations}σ)`);
     await expect(page.locator('.chart-overlay polyline[data-kind="ma"]')).toHaveCount(1);
     await expect(page.locator('.chart-overlay polyline[data-kind="bollinger"]')).toHaveCount(3);
   }
@@ -125,7 +126,7 @@ test("long histories retain all technical lines and responsive interactions with
   result.signals = [];
   result.technicalIndicators = ["ma", "rsi"].flatMap(kind => Array.from({ length: 18 }, (_, index) => ({ kind, period: index + 2,
     samples: history.map(asset => ({ date: asset.date, value: kind === "rsi" ? "50" : asset.simulationPrice })) })));
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await installRunFixture(page, saved);
   await page.goto("/");
   await page.locator("#result-panel-comparison").getByRole("button", { name: /移動平均トレンド（売買）/ }).click();
   const core = page.locator(".chart-overlay");

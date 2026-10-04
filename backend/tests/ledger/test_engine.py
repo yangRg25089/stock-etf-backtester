@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -35,6 +35,7 @@ def _config(
     contribution_day: int = 1,
     contribution_amount: str = "100",
     strategy_id: str = "strategy-1",
+    execution: dict[str, object] | None = None,
 ) -> FrozenRunConfig:
     result = validate_draft(
         {
@@ -49,6 +50,7 @@ def _config(
                     "day": contribution_day,
                     "amount": Decimal(contribution_amount),
                 },
+                **({"execution": execution} if execution is not None else {}),
             },
             "strategies": [
                 {
@@ -64,6 +66,287 @@ def _config(
     config = result.config_for((strategy_id,))
     assert config is not None
     return config
+
+
+@pytest.mark.parametrize("preset", ["monthly_dca", "lump_sum"])
+def test_execution_costs_are_budgeted_and_saved_for_planned_trades(preset: str) -> None:
+    days = (date(2024, 1, 2), date(2024, 1, 3))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        preset=preset,
+        contribution_amount="104",
+        execution={
+            "commission": 2,
+            "slippagePct": 1,
+            "spreadPct": 2,
+            "fractionalShares": True,
+        },
+    )
+    ledger = _run(config, days, ("10", "10"))
+    trade = ledger.trades[0]
+    assert trade.execution_base_price == 10
+    assert trade.price == trade.execution_price == Decimal("10.2")
+    assert trade.quantity == 10
+    assert trade.gross_amount == 102
+    assert trade.cash_amount == trade.cash_before == 104
+    assert trade.cash_after == 0
+    assert trade.trading_costs.commission == 2
+    assert trade.trading_costs.slippage_cost == 1
+    assert trade.trading_costs.spread_cost == 1
+    assert trade.trading_costs.total_trading_cost == 4
+    assert ledger.daily_assets[0].total_asset == 100
+    assert ledger.daily_assets[0].trading_costs == trade.trading_costs
+
+
+def test_same_day_contribution_does_not_erase_costs_from_unit_nav() -> None:
+    days = (date(2024, 1, 2), date(2024, 2, 1))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        preset="monthly_dca",
+        contribution_amount="104",
+        execution={
+            "commission": 2,
+            "slippagePct": 1,
+            "spreadPct": 2,
+            "fractionalShares": True,
+        },
+    )
+    ledger = _run(config, days, ("10", "10"))
+    output = calculate_metrics(
+        MetricsInput(
+            strategy=config.strategies[0],
+            schedule=schedule(config.shared, _calendar(days)),
+            ledger=ledger,
+            data_fingerprint="cost-fixture",
+            analysis_settings=config.shared.analysis,
+        )
+    )
+    assert output.summary.ending_equity == 200
+    assert output.summary.net_profit == -8
+    assert output.summary.trading_costs.total_trading_cost == 8
+    assert output.daily_assets[0].unit_nav == Decimal(100) / 104
+    expected_units = Decimal(104) + Decimal(104) / (Decimal(100) / 104)
+    assert abs(
+        output.daily_assets[1].unit_nav - Decimal(200) / expected_units
+    ) < Decimal("1e-25")
+    assert output.summary.analysis.monthly_returns[0].nav_return < 0
+    assert output.summary.analysis.monthly_returns[1].nav_return < 0
+
+
+def test_contribution_day_cost_can_exceed_preexisting_equity() -> None:
+    days = (date(2024, 1, 2), date(2024, 2, 1))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        preset="monthly_dca",
+        execution={"commission": 99},
+    )
+    ledger = _run(config, days, ("1", "1"))
+    output = calculate_metrics(
+        MetricsInput(
+            strategy=config.strategies[0],
+            schedule=schedule(config.shared, _calendar(days)),
+            ledger=ledger,
+            data_fingerprint="high-cost-fixture",
+        )
+    )
+    assert output.summary.ending_equity == 2
+    assert output.summary.trading_costs.commission == 198
+    assert output.daily_assets[0].unit_nav == Decimal("0.01")
+    assert output.daily_assets[1].unit_nav == Decimal(2) / 10100
+
+
+@pytest.mark.parametrize(
+    "fractional,commission,expected_quantity,expected_cash",
+    [
+        (True, 0, "0.5", "0"),
+        (False, 0, "0", "100"),
+        (True, 100, "0", "100"),
+        (False, 1, "0", "100"),
+    ],
+)
+def test_unaffordable_buys_do_not_charge_commission(
+    fractional: bool, commission: int, expected_quantity: str, expected_cash: str
+) -> None:
+    days = (date(2024, 1, 2), date(2024, 1, 3))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        preset="monthly_dca",
+        execution={"commission": commission, "fractionalShares": fractional},
+    )
+    ledger = _run(config, days, ("200", "200"))
+    assert ledger.daily_assets[-1].fixed_quantity == Decimal(expected_quantity)
+    assert ledger.daily_assets[-1].cash == Decimal(expected_cash)
+    assert len(ledger.trades) == (1 if Decimal(expected_quantity) else 0)
+
+
+def test_integer_partial_sells_and_rebuys_keep_principal_and_cash_consistent() -> None:
+    days = tuple(date(2024, 1, day) for day in (2, 3, 4, 5))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        contribution_amount="104",
+        params={"exit.enabled": True, "exit.vix.ratio2": Decimal("0.25")},
+        execution={
+            "commission": 2,
+            "slippagePct": 1,
+            "spreadPct": 2,
+            "fractionalShares": False,
+        },
+    )
+    signals = _signals(
+        config,
+        days,
+        {
+            days[0]: {"accumulation.buy": True},
+            days[1]: {"vix.exit.low2": True, "accumulation.buy": True},
+            days[2]: {"accumulation.buy": True},
+        },
+    )
+    # Two genuine buys need an unlimited monthly cap.
+    params = dict(config.strategies[0].params)
+    params["accumulation.maxSignalBuysPerMonth"] = None
+    strategy = config.strategies[0].model_copy(update={"params": params})
+    config = config.model_copy(update={"strategies": (strategy,)})
+    ledger = _run(config, days, ("10", "10", "10", "10"), signals=signals)
+    assert [trade.quantity for trade in ledger.trades] == [10, 2, 1]
+    assert [trade.cash_amount for trade in ledger.trades] == [
+        104,
+        Decimal("17.6"),
+        Decimal("12.2"),
+    ]
+    assert ledger.trades[1].price == Decimal("9.8")
+    assert ledger.daily_assets[-1].cash == Decimal("5.4")
+    assert ledger.daily_assets[-1].timing_quantity == 9
+    assert ledger.daily_assets[-1].total_asset == Decimal("95.4")
+    output = calculate_metrics(
+        MetricsInput(
+            strategy=strategy,
+            schedule=schedule(config.shared, _calendar(days)),
+            ledger=ledger,
+            data_fingerprint="cost-fixture",
+        )
+    )
+    assert output.summary.actual_invested == 104
+    assert output.summary.total_contributed == 104
+    assert output.summary.trading_costs.total_trading_cost == Decimal("8.6")
+
+
+def test_integer_zero_fill_does_not_consume_the_monthly_buy_limit() -> None:
+    days = tuple(date(2024, 1, day) for day in (2, 3, 4))
+    config = _config(
+        start=date(2024, 1, 1), end=days[-1], execution={"fractionalShares": False}
+    )
+    signals = _signals(config, days, {day: {"accumulation.buy": True} for day in days})
+    ledger = _run(config, days, ("200", "200", "50"), signals=signals)
+    assert len(ledger.trades) == 1
+    assert ledger.trades[0].date == days[2]
+    assert ledger.trades[0].quantity == 2
+
+
+def test_execution_cross_field_limit_has_a_precise_configuration_path() -> None:
+    result = validate_draft(
+        {
+            "shared": {
+                "run": {
+                    "symbol": "QQQ",
+                    "startDate": "2024-01-01",
+                    "endDate": "2024-02-01",
+                },
+                "contribution": {"amount": 100, "day": 1},
+                "execution": {"slippagePct": 60, "spreadPct": 80},
+            },
+            "strategies": [],
+        }
+    )
+    assert any(
+        item.field_path == "execution.spreadPct" for item in result.diagnostics_for()
+    )
+
+
+def test_exact_spread_boundary_keeps_a_positive_sell_price() -> None:
+    from app.domain.execution import ExecutionSettings
+    from app.ledger.execution import execute_trade
+
+    settings = ExecutionSettings(
+        commission=0,
+        slippagePct="59.999999999999999999999999999",
+        spreadPct=80,
+        fractionalShares=True,
+    )
+    trade = execute_trade(
+        day=date(2024, 1, 2),
+        side=TradeSide.SELL,
+        reason=TradeReason.SIGNAL_SELL,
+        signal_id="conditions.sell",
+        base_price=Decimal(1),
+        currency="USD",
+        cash=Decimal(0),
+        held_quantity=Decimal(1),
+        sell_quantity=Decimal(1),
+        settings=settings,
+    )
+    assert trade is not None
+    assert trade.price == Decimal("1e-29")
+    assert trade.cash_amount == trade.price
+
+
+@pytest.mark.parametrize(
+    "fractional,commission,quantity",
+    [(False, 0, "0.4"), (True, 1, "0.1"), (True, 2, "0.1")],
+)
+def test_unaffordable_sells_do_not_create_a_fill_or_charge(
+    fractional: bool, commission: int, quantity: str
+) -> None:
+    from app.domain.execution import ExecutionSettings
+    from app.ledger.execution import execute_trade
+
+    trade = execute_trade(
+        day=date(2024, 1, 2),
+        side=TradeSide.SELL,
+        reason=TradeReason.SIGNAL_SELL,
+        signal_id="conditions.sell",
+        base_price=Decimal(10),
+        currency="USD",
+        cash=Decimal(100),
+        held_quantity=Decimal(1),
+        sell_quantity=Decimal(quantity),
+        settings=ExecutionSettings(
+            commission=commission,
+            slippagePct=0,
+            spreadPct=0,
+            fractionalShares=fractional,
+        ),
+    )
+    assert trade is None
+
+
+def test_a_subshare_exit_does_not_suppress_a_genuine_buy_on_funding_day() -> None:
+    days = (date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 31), date(2024, 2, 1))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        params={"exit.enabled": True, "exit.vix.ratio2": Decimal("0.25")},
+        execution={"fractionalShares": False},
+    )
+    signals = _signals(
+        config,
+        days,
+        {
+            days[0]: {"accumulation.buy": True},
+            days[2]: {"vix.exit.low2": True, "accumulation.buy": True},
+        },
+    )
+    ledger = _run(config, days, ("100", "100", "100", "100"), signals=signals)
+    assert [(trade.date, trade.side, trade.quantity) for trade in ledger.trades] == [
+        (days[1], TradeSide.BUY, 1),
+        (days[3], TradeSide.BUY, 1),
+    ]
+    assert ledger.daily_assets[-1].timing_quantity == 2
+    assert ledger.daily_assets[-1].cash == 0
 
 
 def _calendar(
@@ -164,6 +447,270 @@ def _run(
         data,
         signal_series,
         exchange_calendar=exchange_calendar,
+    )
+
+
+def test_dated_rules_carry_account_and_execute_prior_sell_with_prior_ratio():
+    days = (
+        date(2024, 1, 2),
+        date(2024, 1, 3),
+        date(2024, 1, 4),
+        date(2024, 2, 1),
+        date(2024, 2, 2),
+    )
+    settings = {
+        "accumulation.cashSafetyLimit": 10000,
+        "exit.enabled": True,
+        "exit.vix.ratio1": Decimal("0.5"),
+    }
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        params=settings,
+        execution={"commission": 1},
+    )
+    current = config.strategies[0]
+    replacement = _config(
+        start=date(2024, 1, 1), end=days[-1], params={**settings, "exit.vix.ratio1": 1}
+    ).strategies[0]
+    policy = {day: current if day < days[3] else replacement for day in days}
+    calendar = _calendar(days)
+    contributions = schedule(config.shared, calendar)
+    result = run_strategy(
+        config,
+        current,
+        contributions,
+        _snapshot(days, ("10",) * 5),
+        _signals(
+            config,
+            days,
+            {
+                days[0]: {"accumulation.buy": True},
+                days[2]: {"vix.exit.low1": True},
+                days[3]: {"accumulation.buy": True},
+            },
+        ),
+        exchange_calendar=calendar,
+        strategy_by_date=policy,
+    )
+    assert result.available
+    assert [(trade.date, trade.side) for trade in result.trades] == [
+        (days[1], "buy"),
+        (days[3], "sell"),
+        (days[4], "buy"),
+    ]
+    assert result.trades[1].quantity == Decimal("4.95")
+    assert result.daily_assets[3].timing_quantity == Decimal("4.95")
+    assert result.daily_assets[-1].total_asset == 197
+    metrics = calculate_metrics(
+        MetricsInput(
+            strategy=current,
+            schedule=contributions,
+            ledger=result,
+            data_fingerprint="dated-policy",
+        )
+    )
+    assert metrics.summary.total_contributed == 200
+    assert metrics.summary.actual_invested <= 200
+    assert metrics.summary.trading_costs.total_trading_cost == 3
+
+
+@pytest.mark.parametrize("missing", [True, False])
+def test_dated_rules_require_full_coverage_and_stable_strategy_identity(missing):
+    days = (date(2024, 1, 2), date(2024, 1, 3))
+    config = _config(start=date(2024, 1, 1), end=days[-1])
+    current = config.strategies[0]
+    policy = (
+        {days[0]: current}
+        if missing
+        else {days[0]: current, days[1]: current.model_copy(update={"id": "other"})}
+    )
+    calendar = _calendar(days)
+    with pytest.raises(ValueError):
+        run_strategy(
+            config,
+            current,
+            schedule(config.shared, calendar),
+            _snapshot(days, ("10", "10")),
+            _signals(config, days),
+            exchange_calendar=calendar,
+            strategy_by_date=policy,
+        )
+
+
+def test_dated_simulation_keeps_prior_pending_buy_and_changes_new_signals():
+    from app.domain.contracts import MacroObservation
+    from app.simulation import simulate_strategy
+
+    days = (date(2024, 1, 2), date(2024, 1, 3), date(2024, 2, 1), date(2024, 2, 2))
+    params = {"vix.buyThreshold": 20, "accumulation.cashSafetyLimit": 10000}
+    config = _config(start=date(2024, 1, 1), end=days[-1], params=params)
+    current = config.strategies[0]
+    replacement = _config(
+        start=date(2024, 1, 1), end=days[-1], params={**params, "vix.buyThreshold": 30}
+    ).strategies[0]
+    data = _snapshot(days, ("10",) * 4).model_copy(
+        update={
+            "macro": tuple(
+                MacroObservation(
+                    date=day - timedelta(days=1),
+                    symbol="^VIX",
+                    value=25,
+                    unit="index_points",
+                    source="fixture",
+                    observedAt=datetime.combine(
+                        day - timedelta(days=1), datetime.min.time(), UTC
+                    ),
+                    alignedSessionDate=day,
+                )
+                for day in days
+            )
+        }
+    )
+    calendar = _calendar(days)
+    result = simulate_strategy(
+        config,
+        current,
+        schedule(config.shared, calendar),
+        data,
+        calendar,
+        strategy_by_date={
+            day: current if day < days[2] else replacement for day in days
+        },
+    )
+    assert result.metrics is not None
+    assert result.metrics.total_contributed == result.metrics.ending_equity == 200
+    assert [trade.date for trade in result.trades] == [days[1], days[2]]
+    signals = {
+        row.date: row.state
+        for row in result.signals
+        if row.signal_id == "accumulation.buy"
+    }
+    assert signals[days[1]] is SignalState.TRUE
+    assert signals[days[2]] is SignalState.FALSE
+
+
+@pytest.mark.parametrize("preset", ["monthly_dca", "lump_sum"])
+def test_planned_trades_capture_balances_after_funding(preset: str) -> None:
+    dates = (date(2024, 1, 2), date(2024, 1, 3), date(2024, 2, 1))
+    config = _config(start=date(2024, 1, 1), end=dates[-1], preset=preset)
+    result = _run(config, dates, ("10", "10", "20"))
+    assert len(result.trades) == (2 if preset == "monthly_dca" else 1)
+    previous_quantity = Decimal("0")
+    for trade in result.trades:
+        assert trade.cash_before == trade.cash_amount
+        assert trade.cash_after == 0
+        assert trade.quantity_before == previous_quantity
+        assert trade.quantity_after == previous_quantity + trade.quantity
+        assert trade.execution_base_price == trade.price
+        assert trade.execution_price == trade.price
+        previous_quantity = trade.quantity_after
+
+
+@pytest.mark.parametrize("with_funding_on_sell_day", [False, True])
+def test_signal_buy_partial_sell_and_rebuy_explain_each_transaction(
+    with_funding_on_sell_day: bool,
+) -> None:
+    dates = (
+        (date(2024, 1, 2), date(2024, 1, 3), date(2024, 2, 1), date(2024, 2, 2))
+        if with_funding_on_sell_day
+        else tuple(date(2024, 1, day) for day in (2, 3, 4, 5))
+    )
+    config = _config(
+        start=date(2024, 1, 1),
+        end=dates[-1],
+        preset="composite_dca",
+        params={
+            "accumulation.maxSignalBuysPerMonth": 3,
+            "exit.enabled": True,
+            "exit.rsi.enabled": True,
+            "exit.rsi.ratio": Decimal("0.5"),
+        },
+    )
+    signals = _signals(
+        config,
+        dates,
+        {
+            dates[0]: {"accumulation.buy": True},
+            dates[1]: {"rsi.exit": True},
+            dates[2]: {"accumulation.buy": True},
+        },
+    )
+    result = _run(config, dates, ("10", "10", "12", "10"), signals=signals)
+    assert tuple(trade.side for trade in result.trades) == (
+        TradeSide.BUY,
+        TradeSide.SELL,
+        TradeSide.BUY,
+    )
+    assert tuple(
+        (
+            trade.cash_before,
+            trade.cash_after,
+            trade.quantity_before,
+            trade.quantity_after,
+            trade.execution_base_price,
+            trade.execution_price,
+        )
+        for trade in result.trades
+    ) == (
+        (
+            Decimal("100"),
+            Decimal("0"),
+            Decimal("0"),
+            Decimal("10"),
+            Decimal("10"),
+            Decimal("10"),
+        ),
+        (
+            Decimal("100") if with_funding_on_sell_day else Decimal("0"),
+            Decimal("160") if with_funding_on_sell_day else Decimal("60"),
+            Decimal("10"),
+            Decimal("5"),
+            Decimal("12"),
+            Decimal("12"),
+        ),
+        (
+            Decimal("160") if with_funding_on_sell_day else Decimal("60"),
+            Decimal("0"),
+            Decimal("5"),
+            Decimal("21") if with_funding_on_sell_day else Decimal("11"),
+            Decimal("10"),
+            Decimal("10"),
+        ),
+    )
+    measured = calculate_metrics(
+        MetricsInput(
+            strategy=config.strategies[0],
+            ledger=result,
+            schedule=schedule(config.shared, _calendar(dates)),
+            data_fingerprint="trade-explain-fixture",
+        )
+    )
+    assert measured.summary is not None
+    assert measured.summary.actual_invested == (
+        Decimal("200") if with_funding_on_sell_day else Decimal("100")
+    )
+
+
+def test_month_end_safety_trade_has_saved_balances() -> None:
+    dates = (date(2024, 1, 2), date(2024, 1, 31))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=dates[-1],
+        params={"accumulation.cashSafetyLimit": 100},
+    )
+    trade = _run(config, dates, ("10", "20")).trades[0]
+    assert trade.reason is TradeReason.SAFETY_VALVE
+    assert (
+        trade.cash_before,
+        trade.cash_after,
+        trade.quantity_before,
+        trade.quantity_after,
+    ) == (
+        Decimal("100"),
+        Decimal("0"),
+        Decimal("0"),
+        Decimal("5"),
     )
 
 

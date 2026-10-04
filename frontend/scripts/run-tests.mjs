@@ -44,6 +44,22 @@ try {
     },
   );
   writeFileSync(path.join(outputPath, "catalog.json"), catalogJson);
+  const fileFixture = execFileSync(backendPython, ["tests/e2e/export_file_fixture.py"], {
+    cwd: backendRoot, env: { ...process.env, PYTHONPATH: backendRoot }, encoding: "utf8",
+  });
+  writeFileSync(path.join(outputPath, "portable-fixture.json"), fileFixture);
+  const partialFixture = execFileSync(backendPython, ["tests/e2e/export_file_fixture.py", "--partial"], {
+    cwd: backendRoot, env: { ...process.env, PYTHONPATH: backendRoot }, encoding: "utf8",
+  });
+  writeFileSync(path.join(outputPath, "partial-fixture.json"), partialFixture);
+  const splitFixture = execFileSync(backendPython, ["tests/e2e/export_file_fixture.py", "--train-test"], {
+    cwd: backendRoot, env: { ...process.env, PYTHONPATH: backendRoot }, encoding: "utf8",
+  });
+  writeFileSync(path.join(outputPath, "split-fixture.json"), splitFixture);
+  const walkFixture = execFileSync(backendPython, ["tests/e2e/export_file_fixture.py", "--walk-forward"], {
+    cwd: backendRoot, env: { ...process.env, PYTHONPATH: backendRoot }, encoding: "utf8",
+  });
+  writeFileSync(path.join(outputPath, "walk-fixture.json"), walkFixture);
   execFileSync(
     process.execPath,
     [

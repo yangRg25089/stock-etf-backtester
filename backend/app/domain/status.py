@@ -1,6 +1,6 @@
 """Stable execution, signal, and diagnostic values shared by domain consumers."""
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import date
 from enum import StrEnum
 from typing import Final
@@ -102,10 +102,10 @@ class Diagnostic(DomainModel):
         return freeze_mapping(value)
 
     @field_serializer("details")
-    def _serialize_details(self, value: Mapping[str, object]) -> object:
-        from app.domain.immutability import thaw_value
+    def _serialize_details(self, value: Mapping[str, object]) -> dict[str, object]:
+        from app.domain.immutability import thaw_mapping
 
-        return thaw_value(value)
+        return thaw_mapping(value)
 
 
 class StatusTransitionError(ValueError):
@@ -197,3 +197,12 @@ def is_success(status: StrategyStatus) -> bool:
         StrategyStatus.COMPLETED,
         StrategyStatus.COMPLETED_WITH_WARNING,
     }
+
+
+def unique_diagnostics(diagnostics: Iterable[Diagnostic]) -> tuple[Diagnostic, ...]:
+    """Stable equality-based merge; structured details need not be hashable."""
+    unique: list[Diagnostic] = []
+    for diagnostic in diagnostics:
+        if diagnostic not in unique:
+            unique.append(diagnostic)
+    return tuple(unique)

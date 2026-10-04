@@ -1,6 +1,6 @@
 """Grid candidate enumeration and execution through the shared core modules."""
 
-from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -17,6 +17,7 @@ from app.catalog.presets import ExecutionModule
 from app.catalog.service import Catalog, get_catalog
 from app.config.conditions import materialize_legacy_rules
 from app.config.validation import validate_draft
+from app.diagnostics import calculation_diagnostic
 from app.domain.cancellation import RunCancelled
 from app.domain.conditions import override_rule_parameters
 from app.domain.contracts import (
@@ -24,6 +25,7 @@ from app.domain.contracts import (
     FrozenRunConfig,
     FrozenStrategyInstance,
     ResultRole,
+    RunSettings,
     StrategyPresetId,
     StrategyRun,
 )
@@ -34,13 +36,10 @@ from app.domain.status import (
     DiagnosticSeverity,
     StrategyStatus,
 )
-from app.ledger import run_strategy
 from app.ledger.engine import LEDGER_METHOD_VERSION
 from app.metrics import (
     METRIC_METHOD_VERSION,
-    MetricsInput,
     MetricsResult,
-    calculate_metrics,
 )
 from app.search.types import (
     SearchCandidate,
@@ -51,10 +50,10 @@ from app.search.types import (
 from app.signals import (
     INDICATOR_METHOD_VERSION,
     SIGNAL_METHOD_VERSION,
-    evaluate_signals,
 )
+from app.simulation import simulate_strategy
 
-SEARCH_METHOD_VERSION = "search-v2"
+SEARCH_METHOD_VERSION = "search-v4"
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +66,7 @@ class GridSearchInput:
     exchange_calendar: ExchangeCalendar
     snapshot: DataSnapshot
     catalog: Catalog | None = None
+    evaluation_run: RunSettings | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +128,20 @@ def run_grid_search(
     if (save_candidate is None) != (load_candidate is None):
         raise ValueError("candidate persistence requires both save and load callbacks")
 
+    mode = base_strategy.params.get("search.optimizationMode")
+    if mode in {"train_test", "walk_forward"} and source.evaluation_run is None:
+        from app.search.optimization import run_train_test
+        from app.search.walk_forward import run_walk_forward
+
+        optimizer = run_train_test if mode == "train_test" else run_walk_forward
+        return optimizer(
+            source,
+            calculation_cache=calculation_cache,
+            check_cancelled=check_cancelled,
+            save_candidate=save_candidate,
+            load_candidate=load_candidate,
+        )
+
     cache = {} if calculation_cache is None else calculation_cache
     candidates: list[SearchCandidate] = []
     detail_ids: dict[str, str] = {}
@@ -183,6 +197,14 @@ def run_grid_search(
         assert validation.config is not None
         assert validation.strategy is not None
         candidate_config, candidate_strategy = validation.config, validation.strategy
+        if source.evaluation_run is not None:
+            candidate_config = candidate_config.model_copy(
+                update={
+                    "shared": candidate_config.shared.model_copy(
+                        update={"run": source.evaluation_run}
+                    ),
+                }
+            )
         fingerprint = calculation_fingerprint(
             source,
             strategy=candidate_strategy,
@@ -212,21 +234,15 @@ def run_grid_search(
             continue
 
         try:
-            batch = evaluate_signals(
-                candidate_config,
-                source.snapshot,
-                sessions=source.exchange_calendar.trading_dates,
-            )
-            ledger = run_strategy(
+            calculated = simulate_strategy(
                 candidate_config,
                 candidate_strategy,
                 source.schedule,
                 source.snapshot,
-                batch.strategy(candidate_id),
-                exchange_calendar=source.exchange_calendar,
+                source.exchange_calendar,
                 check_cancelled=check_cancelled,
             )
-            if not ledger.available:
+            if calculated.status is StrategyStatus.UNAVAILABLE:
                 candidates.append(
                     SearchCandidate(
                         candidateId=candidate_id,
@@ -235,48 +251,17 @@ def run_grid_search(
                         status=StrategyStatus.UNAVAILABLE,
                         calculationFingerprint=fingerprint,
                         parameterValues=candidate_strategy.params,
-                        diagnostics=ledger.diagnostics,
+                        diagnostics=calculated.diagnostics,
                     )
                 )
                 continue
-
-            metrics_result = calculate_metrics(
-                MetricsInput(
-                    strategy=candidate_strategy,
-                    schedule=source.schedule,
-                    ledger=ledger,
-                    data_fingerprint=source.snapshot.fingerprint,
-                ),
+            assert calculated.metrics is not None
+            metrics_result = MetricsResult(
+                summary=calculated.metrics, daily_assets=calculated.daily_assets
             )
-            diagnostics = _unique_diagnostics(
-                (*ledger.diagnostics, *metrics_result.summary.diagnostics)
-            )
+            diagnostics = calculated.diagnostics
             if save_candidate is not None:
-                candidate_status = (
-                    StrategyStatus.COMPLETED_WITH_WARNING
-                    if any(
-                        item.severity is DiagnosticSeverity.WARNING
-                        for item in diagnostics
-                    )
-                    else StrategyStatus.COMPLETED
-                )
-                save_candidate(
-                    StrategyRun(
-                        id=candidate_id,
-                        presetId=StrategyPresetId.GRID_SEARCH,
-                        role=ResultRole.STRATEGY,
-                        status=candidate_status,
-                        metrics=metrics_result.summary,
-                        dailyAssets=metrics_result.daily_assets,
-                        trades=ledger.trades,
-                        signals=ledger.signals,
-                        technicalIndicators=batch.strategy(
-                            candidate_id
-                        ).technical_indicators,
-                        unexecutedSignals=ledger.unexecuted_signals,
-                        diagnostics=diagnostics,
-                    )
-                )
+                save_candidate(calculated.as_run(candidate_strategy))
                 detail_ids[fingerprint] = candidate_id
             cache[fingerprint] = (metrics_result, diagnostics)
             candidates.append(
@@ -293,15 +278,11 @@ def run_grid_search(
         except RunCancelled:
             raise
         except Exception as error:
-            diagnostic = Diagnostic(
-                code=DiagnosticCode.CALCULATION_FAILED,
-                severity=DiagnosticSeverity.ERROR,
-                messageKey="diagnostics.calculation_failed",
-                fieldPath="strategies[0]",
-                details={
-                    "candidateId": candidate_id,
-                    "exceptionType": type(error).__name__,
-                },
+            diagnostic = calculation_diagnostic(
+                error,
+                stage="search_candidate",
+                strategy_id=source.strategy.id,
+                candidate_id=candidate_id,
             )
             candidates.append(
                 SearchCandidate(
@@ -344,7 +325,9 @@ def calculation_fingerprint(
     version = catalog.version if catalog_version is None else catalog_version
     payload = {
         "catalogVersion": version,
-        "shared": source.config.shared.model_dump(mode="json", by_alias=True),
+        "shared": source.config.shared.model_copy(
+            update={"run": source.evaluation_run or source.config.shared.run}
+        ).model_dump(mode="json", by_alias=True),
         "schedule": source.schedule.model_dump(mode="json", by_alias=True),
         "exchangeCalendar": source.exchange_calendar.model_dump(
             mode="json", by_alias=True
@@ -559,14 +542,6 @@ def _completed_candidate(
         metrics=result.summary,
         diagnostics=diagnostics,
     )
-
-
-def _unique_diagnostics(diagnostics: Iterable[Diagnostic]) -> tuple[Diagnostic, ...]:
-    output: list[Diagnostic] = []
-    for diagnostic in diagnostics:
-        if diagnostic not in output:
-            output.append(diagnostic)
-    return tuple(output)
 
 
 def _candidate_rank_key(candidate: SearchCandidate) -> tuple[Decimal, Decimal, int]:

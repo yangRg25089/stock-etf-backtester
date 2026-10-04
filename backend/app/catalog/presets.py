@@ -209,6 +209,8 @@ _SCHEDULED_KEYS: Final[tuple[str, ...]] = ("scheduled.fundingMode",)
 _GRID_KEYS: Final[tuple[str, ...]] = (
     *_COMPOSITE_KEYS,
     "search.dimensions",
+    "search.optimizationMode",
+    "search.trainEndDate",
     "search.maxCombinations",
     *(f"search.values.{key}" for key in SEARCH_DIMENSION_KEYS),
 )
@@ -431,6 +433,3 @@ def get_preset_definition(preset_id: StrategyPresetId | str) -> PresetDefinition
         return PRESET_DEFINITIONS[stable_id]
     except KeyError as error:
         raise KeyError(f"unknown strategy preset: {stable_id.value}") from error
-
-
-getPresetDefinition = get_preset_definition

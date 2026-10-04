@@ -1,0 +1,148 @@
+.strategy-card-list {
+  display: grid;
+  gap: 14px;
+}
+
+.strategy-card {
+  min-width: 0;
+  padding: 16px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  box-shadow: 0 2px 7px var(--app-shadow);
+}
+
+.strategy-card.is-active {
+  border-color: var(--app-border-strong);
+  box-shadow: 0 0 0 2px var(--app-accent-soft);
+}
+
+.strategy-card-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.strategy-card-summary {
+  color: var(--app-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.strategy-card-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.strategy-parameters {
+  min-width: 0;
+  margin: 15px 0 0;
+  padding: 13px 0 0;
+  border: 0;
+  border-top: 1px solid var(--app-border);
+}
+
+.strategy-parameters legend {
+  padding: 0 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.strategy-parameter-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.strategy-parameter-group {
+  min-width: 0;
+  padding: 12px;
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+}
+
+.strategy-parameter-group h3,
+.search-dimension-editor h4 {
+  margin: 0 0 11px;
+  color: var(--app-foreground);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.strategy-parameter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 18px;
+}
+
+.placeholder-mark {
+  display: grid;
+  flex: 0 0 34px;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--app-accent);
+  background: var(--app-accent-soft);
+  border-radius: 50%;
+  font-size: 18px;
+}
+
+.strategy-remove {
+  min-width: 40px;
+  min-height: 40px;
+  color: var(--app-red);
+}
+
+.add-strategy-button {
+  min-height: 40px;
+  width: 44px;
+  padding: 0;
+  color: var(--app-action-text);
+  background: var(--app-action);
+  border-color: var(--app-accent);
+  font-weight: 650;
+}
+
+.add-strategy-button:hover:not(:disabled) {
+  color: var(--app-action-text);
+  background: var(--app-action-hover);
+  border-color: var(--app-accent-strong);
+}
+
+.add-strategy-button:disabled {
+  color: var(--app-muted);
+  background: var(--app-control-muted-bg);
+  border-color: var(--app-border);
+}
+
+.button-primary {
+  min-height: 44px;
+  padding: 0 18px;
+  color: var(--app-action-text);
+  background: var(--app-action);
+  border-color: var(--app-accent);
+  font-weight: 600;
+}
+
+.button-primary:hover:not(:disabled) {
+  color: var(--app-action-text);
+  background: var(--app-action-hover);
+  border-color: var(--app-accent-selected);
+}
+
+.button-primary:disabled {
+  color: var(--app-muted);
+  background: var(--app-control-muted-bg);
+  border-color: var(--app-border);
+}
+.search-optimization-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  margin-block-end: 1rem;
+}

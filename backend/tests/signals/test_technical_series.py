@@ -11,7 +11,7 @@ from tests.signals.test_evaluate import _SESSIONS, _snapshot
 
 
 def test_ma_values_reuse_signal_cache_and_deduplicate_equal_periods(monkeypatch):
-    import app.signals.evaluate as module
+    import app.signals.leaf_evaluation as module
 
     calls = []
     original = module.simple_moving_average

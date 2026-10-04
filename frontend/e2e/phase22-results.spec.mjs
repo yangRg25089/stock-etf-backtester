@@ -1,3 +1,4 @@
+import { installRunFixture } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -12,7 +13,7 @@ async function computed(page, strategies = [{ id: "strategy-vix_dca-1", presetId
   return saved;
 }
 async function openSaved(page, saved) {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await installRunFixture(page, saved);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".chart-overlay")).toBeVisible();
@@ -29,9 +30,9 @@ test("selected volatility survives focus, column sorting preserves colors and as
   await ma.locator(".result-select").click();
   await expect(vix.locator(".result-select")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".chart-vix .chart-vix-line")).toHaveAttribute("points", originalPoints);
-  await expect(page.locator(".overlay-legend")).toContainText("ボラティリティ積立");
-  await expect(page.locator(".overlay-legend")).toContainText("移動平均トレンド");
-  await expect(page.locator(".overlay-legend")).not.toContainText("総資産");
+  await expect(page.locator(".chart-core-readout-row")).toContainText("ボラティリティ積立");
+  await expect(page.locator(".chart-core-readout-row")).toContainText("移動平均トレンド");
+  await expect(page.locator(".chart-core-readout-row")).not.toContainText("総資産");
   const color = await ma.evaluate(node => node.style.getPropertyValue("--result-color"));
   await expect(page.locator("polyline.overlay-totalAsset")).toHaveAttribute("stroke", color);
   const headers = page.locator(".comparison-table thead th");
@@ -96,7 +97,7 @@ test("fresh runs reset preferences, lock unsafe actions and progressively rank c
   await page.locator(".comparison-sort").first().click();
   const pending = structuredClone(saved);
   pending.runId = pending.snapshot.runId = pending.result.runId = "phase22-new-run";
-  pending.status = pending.result.status = "running";
+  pending.status = pending.result.status = "queued";
   pending.progress = { ...pending.progress, completedStrategies:0, currentStrategyId:null };
   for (const row of pending.result.strategyRuns) { row.status="queued"; row.metrics=null; row.dailyAssets=[]; row.trades=[]; row.signals=[]; }
   const final = structuredClone(saved);

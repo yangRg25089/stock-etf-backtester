@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { wireRun } from "./helpers/contracts.mjs";
 
 const require = createRequire(import.meta.url);
 const {
-  fetchLatestRun,
+  fetchActiveRun,
   fetchRun,
   RunApiError,
   submitRun,
@@ -22,20 +23,15 @@ function response(payload, status = 200) {
 test("run API sends all strategies without an editing identity and preserves idempotency and saved statuses", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
-  const accepted = {
-    runId: "run-local-1",
-    status: "running",
-    selectedStrategyIds: ["active-vix", "invalid-rsi"],
-    snapshot: { runId: "run-local-1", config: { shared: {}, strategies: [] } },
-    result: { runId: "run-local-1", strategyRuns: [] },
-  };
+  const accepted = wireRun("run-local-1", "running", ["active-vix", "invalid-rsi"]);
   const finished = {
     ...accepted,
     status: "completed_with_warning",
     result: {
       runId: "run-local-1",
       strategyRuns: [
-        { id: "active-vix", presetId: "vix_dca", role: "strategy", status: "completed", diagnostics: [] },
+        { id: "active-vix", presetId: "vix_dca", role: "strategy", status: "completed", diagnostics: [],
+          metrics: wireRun().result.strategyRuns[0].metrics },
         { id: "invalid-rsi", presetId: "composite_dca", role: "strategy", status: "unavailable", diagnostics: [
           { code: "required_data_unavailable", severity: "error", messageKey: "diagnostics.data.required_unavailable" },
         ] },
@@ -62,27 +58,21 @@ test("run API sends all strategies without an editing identity and preserves ide
   }
 });
 
-test("run API restores the latest saved response or an empty result", async () => {
+test("run API reconnects an active job or leaves an empty result", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
-  const saved = {
-    runId: "run-restored",
-    status: "completed",
-    selectedStrategyIds: ["strategy-vix_dca-1"],
-    snapshot: { runId: "run-restored", config: { shared: {}, strategies: [] } },
-    result: { runId: "run-restored", strategyRuns: [] },
-  };
+  const saved = wireRun("run-restored", "running");
   const payloads = [saved, null];
   globalThis.fetch = async (url, init) => {
     calls.push({ url: String(url), init });
     return response(payloads.shift());
   };
   try {
-    assert.deepEqual(await fetchLatestRun(), saved);
-    assert.equal(await fetchLatestRun(), null);
+    assert.deepEqual(await fetchActiveRun(), saved);
+    assert.equal(await fetchActiveRun(), null);
     assert.deepEqual(calls.map(({ url }) => url), [
-      "/api/v1/runs/latest",
-      "/api/v1/runs/latest",
+      "/api/v1/runs/active",
+      "/api/v1/runs/active",
     ]);
     assert.deepEqual(calls.map(({ init }) => init.method), ["GET", "GET"]);
   } finally {
@@ -264,13 +254,41 @@ test("invalid progress summaries are rejected before reaching result state", asy
   } finally { globalThis.fetch = original; }
 });
 
+test("event identity, phase, counts and summary contracts cannot fabricate a terminal result", async () => {
+  const original = globalThis.fetch;
+  const good = { runId: "lifecycle-guard", status: "completed", progress: { completedStrategies: 1, totalStrategies: 1 },
+    strategyStatuses: { one: "completed" }, strategySummaries: { one: { metrics: wireRun().result.strategyRuns[0].metrics, diagnostics: [] } } };
+  try {
+    for (const mutate of [
+      value => { value.runId = "another-job"; },
+      value => { value.status = "running"; },
+      value => { value.strategyStatuses.one = "running"; },
+      value => { value.progress.completedStrategies = 2; },
+      value => { value.progress.completedStrategies = 0; },
+      value => { value.progress.completedStrategies = -1; },
+      value => { value.progress.totalStrategies = 1.5; },
+      value => { value.strategySummaries.one.metrics.endingEquity = []; },
+      value => { value.strategySummaries.one.diagnostics = [{ messageKey: "broken" }]; },
+      value => { value.strategySummaries.unowned = value.strategySummaries.one; },
+    ]) {
+      const invalid = structuredClone(good);
+      mutate(invalid);
+      globalThis.fetch = async () => new Response(`event: terminal\ndata: ${JSON.stringify(invalid)}\n\n`, { headers: { "Content-Type": "text/event-stream" } });
+      const delivered = [];
+      await assert.rejects(subscribeToRunEvents(good.runId, value => delivered.push(value)), error => error instanceof RunApiError && error.code === "invalid_response");
+      assert.deepEqual(delivered, []);
+    }
+  } finally { globalThis.fetch = original; }
+});
+
 test("instrument metadata, stop and candidate reads use their own saved API endpoints", async () => {
   const { fetchInstrument, stopRun, fetchCandidate } = require("../.test-output/api/runs.js");
   const original = globalThis.fetch;
   const calls = [];
   const metadata = { symbol: "7203.T", currency: "JPY", diagnostics: [] };
-  const stopped = { runId: "one", status: "cancelled" };
-  const candidate = { id: "candidate:2", status: "completed", dailyAssets: [{ date: "2024-01-02", totalAsset: "111" }] };
+  const stopped = wireRun("one", "cancelled");
+  const candidate = wireRun().result.strategyRuns[0];
+  candidate.id = "candidate:2";
   const payloads = [metadata, stopped, candidate];
   globalThis.fetch = async (url, init) => { calls.push([url, init.method]); return response(payloads.shift()); };
   try {
@@ -283,7 +301,7 @@ test("instrument metadata, stop and candidate reads use their own saved API endp
 
 test("progress includes completed metrics while queued rows wait and cancellation is terminal", async () => {
   const original = globalThis.fetch;
-  const summary = { metrics: { currency: "USD", endingEquity: "101" }, diagnostics: [] };
+  const summary = { metrics: { ...wireRun().result.strategyRuns[0].metrics, endingEquity: "101" }, diagnostics: [] };
   const frames = [
     { runId: "progress", status: "running", progress: { completedStrategies: 1, totalStrategies: 3 }, strategyStatuses: { one: "completed", two: "running", three: "queued" }, strategySummaries: { one: summary } },
     { runId: "progress", status: "cancelled", progress: { completedStrategies: 3, totalStrategies: 3 }, strategyStatuses: { one: "completed", two: "cancelled", three: "cancelled" }, strategySummaries: { one: summary } },

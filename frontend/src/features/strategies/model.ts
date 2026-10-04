@@ -3,10 +3,12 @@ import type {
   DraftValidationResponse,
   RunResponse,
   StrategyPresetId,
-  StrategyStatus,
   StrategyRules,
+  BacktestPackage,
 } from "../../api/generated";
 import type { RunProgressEvent } from "../../api/runs";
+import { runDataContext, sameJson } from "../../api/contractReader";
+import { isSuccessfulRunStatus, isTerminalRunStatus } from "../../api/runStatus";
 import { createDefaultSharedDraft, type SharedDraft } from "../config/defaults";
 
 export interface StrategyDraft {
@@ -31,11 +33,15 @@ export interface WorkspaceState {
   showChart: boolean;
   visibleSeriesIds: string[];
   nextCustomNumber: number;
+  importedBacktest?: BacktestPackage | null;
+  resultRevision?: number;
 }
 
 export type WorkspaceAction =
   | { type: "strategy.select"; id: string }
   | { type: "strategy.add"; id: string; presetId: StrategyPresetId }
+  | { type: "strategy.duplicate"; sourceId: string; id: string }
+  | { type: "strategy.reset"; id: string }
   | { type: "strategy.remove"; id: string }
   | { type: "strategy.commit"; value: StrategyDraft }
   | { type: "strategy.param"; id: string; key: string; value: unknown }
@@ -156,7 +162,24 @@ export function workspaceReducer(
       if (strategies.length === state.draft.strategies.length) return state;
       return { ...state, draft: { ...state.draft, strategies }, activeStrategyId };
     }
+    case "strategy.duplicate": {
+      const source = state.draft.strategies.find(item => item.id === action.sourceId);
+      if (!catalog || !source || source.presetId !== "composite_dca") return state;
+      const maximum = strategyInstanceLimit(catalog, source.presetId);
+      if (maximum === undefined || state.draft.strategies.filter(item => item.presetId === source.presetId).length >= maximum
+        || state.draft.strategies.some(item => item.id === action.id)) return state;
+      const copied = { ...structuredClone(source), id: action.id, instanceNumber: state.nextCustomNumber };
+      return { ...state, draft: { ...state.draft, strategies: [...state.draft.strategies, copied] },
+        activeStrategyId: copied.id, nextCustomNumber: state.nextCustomNumber + 1 };
+    }
+    case "strategy.reset": {
+      const source = state.draft.strategies.find(item => item.id === action.id);
+      if (!catalog || !source) return state;
+      const restored = { ...createStrategyDraft(catalog, source.presetId, source.id), instanceNumber: source.instanceNumber };
+      return { ...state, draft: { ...state.draft, strategies: state.draft.strategies.map(item => item.id === source.id ? restored : item) } };
+    }
     case "strategy.commit":
+      if (!state.draft.strategies.some(item => item.id === action.value.id && !sameJson(item, action.value))) return state;
       return { ...state, draft: { ...state.draft, strategies: state.draft.strategies.map(item =>
         item.id === action.value.id ? action.value : item) } };
     case "strategy.param":
@@ -182,6 +205,7 @@ export function workspaceReducer(
         },
       };
     case "shared.change":
+      if (sameJson(state.draft.shared, { ...action.value, data: state.draft.shared.data })) return state;
       return {
         ...state,
         draft: {
@@ -195,12 +219,13 @@ export function workspaceReducer(
         runResponse: null,
         focusedResultId: null,
         selectedResultIds: [],
+        importedBacktest: null,
       };
     case "run.update": {
       let draft = state.draft;
       if (action.applyResolvedDates && action.value.snapshot.config.shared.run.symbol === draft.shared.run.symbol) {
         const run = { ...draft.shared.run };
-        for (const adjustment of action.value.snapshot.dateAdjustments ?? []) {
+        for (const adjustment of runDataContext(action.value.snapshot)?.dateAdjustments ?? []) {
           if (run[adjustment.field] === adjustment.requestedDate) run[adjustment.field] = adjustment.effectiveDate;
         }
         if (run.startDate !== draft.shared.run.startDate || run.endDate !== draft.shared.run.endDate) {
@@ -222,6 +247,7 @@ export function workspaceReducer(
         ...state,
         draft,
         runResponse: action.value,
+        importedBacktest: sameRun ? state.importedBacktest : null,
         focusedResultId,
         selectedResultIds,
         ...(!sameRun ? {
@@ -287,26 +313,24 @@ export function getRunAvailability(
   state: Pick<WorkspaceState, "draft">,
   validation: DraftValidationResponse | null,
 ): RunAvailability {
+  if (state.draft.strategies.length === 0) return { disabled: true, reasonKey: "run.noStrategies" };
   if (!validation) return { disabled: true, reasonKey: "run.validationPending" };
   if (hasBlockingDiagnostic(validation.diagnostics)) {
     return { disabled: true, reasonKey: "run.sharedInvalid" };
   }
 
-  return state.draft.strategies.length > 0
-    ? { disabled: false, reasonKey: null }
-    : { disabled: true, reasonKey: "run.noStrategies" };
+  return { disabled: false, reasonKey: null };
 }
 
 export function serializeDraftForApi(draft: BacktestDraft): Record<string, unknown> {
   const run = draft.shared.run;
   return {
     shared: {
-      run: {
-        ...run,
-        endDate: run.endDate,
-      },
+      run: { ...run },
       contribution: { ...draft.shared.contribution },
       data: { ...draft.shared.data },
+      ...(draft.shared.analysis ? { analysis: { ...draft.shared.analysis } } : {}),
+      ...(draft.shared.execution ? { execution: { ...draft.shared.execution } } : {}),
     },
     strategies: draft.strategies.map((strategy) => ({
       ...strategy,
@@ -316,26 +340,15 @@ export function serializeDraftForApi(draft: BacktestDraft): Record<string, unkno
   };
 }
 
-const SUCCESS_STATUSES = new Set<StrategyStatus>(["completed", "completed_with_warning"]);
-const FAILURE_STATUSES = new Set<StrategyStatus>(["unavailable", "failed", "cancelled"]);
-const TERMINAL_STATUSES = new Set<StrategyStatus>([
-  "completed",
-  "completed_with_warning",
-  "unavailable",
-  "failed",
-  "cancelled",
-]);
-
 export function isPartialSuccess(run: RunResponse | null): boolean {
   const outcomes = run?.result?.strategyRuns ?? [];
   const statuses = outcomes.map((item) => item.status);
   if (
     outcomes.length === 0 ||
     statuses.some((status) => status === undefined) ||
-    !statuses.every((status) => status !== undefined && TERMINAL_STATUSES.has(status))
+    !statuses.every(isTerminalRunStatus)
   ) {
     return false;
   }
-  return statuses.some((status) => status !== undefined && SUCCESS_STATUSES.has(status)) &&
-    statuses.some((status) => status !== undefined && FAILURE_STATUSES.has(status));
+  return statuses.some(isSuccessfulRunStatus) && statuses.some(status => !isSuccessfulRunStatus(status));
 }

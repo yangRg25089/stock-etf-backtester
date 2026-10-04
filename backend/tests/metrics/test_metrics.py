@@ -120,7 +120,7 @@ def test_return_on_contributions_is_distinct_from_capital_multiple() -> None:
 
 
 def test_metrics_method_version_is_stable() -> None:
-    assert METRIC_METHOD_VERSION == "metrics-v7"
+    assert METRIC_METHOD_VERSION == "metrics-v10"
 
 
 def test_xirr_uses_each_contribution_date_with_actual_365_day_count() -> None:

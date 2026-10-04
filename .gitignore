@@ -13,6 +13,7 @@ node_modules/
 dist/
 frontend/.test-output/
 .playwright-results/
+.playwright-live-results/
 
 # Local tooling
 .DS_Store

@@ -36,6 +36,117 @@ from app.signals import evaluate_signals
 _DATES = (date(2024, 1, 2), date(2024, 1, 3))
 
 
+def test_shared_simulation_preserves_the_full_signal_ledger_metric_chain() -> None:
+    from app.simulation import simulate_strategy
+
+    source = _input(_config(dimensions=["vix.buyThreshold"]))
+    expected_signals = evaluate_signals(
+        source.config, source.snapshot, sessions=source.exchange_calendar.trading_dates
+    ).strategy(source.strategy.id)
+    expected_ledger = run_strategy(
+        source.config,
+        source.strategy,
+        source.schedule,
+        source.snapshot,
+        expected_signals,
+        exchange_calendar=source.exchange_calendar,
+    )
+    expected_metrics = calculate_metrics(
+        MetricsInput(
+            strategy=source.strategy,
+            schedule=source.schedule,
+            ledger=expected_ledger,
+            data_fingerprint=source.snapshot.fingerprint,
+            analysis_settings=source.config.shared.analysis,
+        )
+    )
+    result = simulate_strategy(
+        source.config,
+        source.strategy,
+        source.schedule,
+        source.snapshot,
+        source.exchange_calendar,
+    )
+    assert result.status is StrategyStatus.COMPLETED
+    assert result.metrics == expected_metrics.summary
+    assert result.daily_assets == expected_metrics.daily_assets
+    assert result.trades == expected_ledger.trades
+    assert result.signals == expected_ledger.signals
+    assert result.technical_indicators == expected_signals.technical_indicators
+    assert result.unexecuted_signals == expected_ledger.unexecuted_signals
+    saved = result.as_run(source.strategy, role=ResultRole.BENCHMARK)
+    assert saved.id == source.strategy.id
+    assert saved.role is ResultRole.BENCHMARK
+    assert saved.metrics == expected_metrics.summary
+
+
+def test_shared_simulation_propagates_program_errors_and_cancellation(
+    monkeypatch,
+) -> None:
+    from app.domain.cancellation import RunCancelled
+    from app.simulation import simulate_strategy
+
+    source = _input(_config(dimensions=["vix.buyThreshold"]))
+
+    def cancelled() -> None:
+        raise RunCancelled
+
+    with pytest.raises(RunCancelled):
+        simulate_strategy(
+            source.config,
+            source.strategy,
+            source.schedule,
+            source.snapshot,
+            source.exchange_calendar,
+            check_cancelled=cancelled,
+        )
+
+    def failure(*args, **kwargs):
+        raise ValueError("confirmed-program-error")
+
+    monkeypatch.setattr("app.simulation.run_strategy", failure)
+    with pytest.raises(ValueError, match="confirmed-program-error"):
+        simulate_strategy(
+            source.config,
+            source.strategy,
+            source.schedule,
+            source.snapshot,
+            source.exchange_calendar,
+        )
+
+
+def test_shared_simulation_deduplicates_structured_diagnostics_in_original_order() -> (
+    None
+):
+    from app.domain.status import DiagnosticSeverity
+    from app.simulation import simulate_strategy
+
+    source = _input(_config(dimensions=["vix.buyThreshold"]))
+    first = Diagnostic(
+        code=DiagnosticCode.STALE_DATA,
+        severity=DiagnosticSeverity.WARNING,
+        messageKey="fixture.first",
+        details={"nested": {"dates": ["2024-01-02"]}},
+    )
+    second = Diagnostic(
+        code=DiagnosticCode.STALE_DATA,
+        severity=DiagnosticSeverity.WARNING,
+        messageKey="fixture.second",
+        details={"count": 2},
+    )
+    result = simulate_strategy(
+        source.config,
+        source.strategy,
+        source.schedule,
+        source.snapshot,
+        source.exchange_calendar,
+        diagnostics=(first, second, first),
+    )
+    assert result.diagnostics[:2] == (first, second)
+    assert result.diagnostics.count(first) == 1
+    assert result.status is StrategyStatus.COMPLETED_WITH_WARNING
+
+
 def _params(
     dimensions: list[str],
     *,
@@ -278,6 +389,7 @@ def test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark() 
             schedule=source.schedule,
             ledger=ordinary_ledger,
             data_fingerprint=source.snapshot.fingerprint,
+            analysis_settings=ordinary_config.shared.analysis,
         )
     )
 
@@ -317,6 +429,7 @@ def test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark() 
             schedule=source.schedule,
             ledger=benchmark_ledger,
             data_fingerprint=source.snapshot.fingerprint,
+            analysis_settings=benchmark_config.shared.analysis,
         )
     )
     ordinary_run = StrategyRun(
@@ -611,6 +724,38 @@ def test_calculation_fingerprint_includes_signal_method_version(monkeypatch) -> 
     )
     updated = calculation_fingerprint(source, strategy=config.strategies[0])
     assert updated != original
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("commission", "2"),
+        ("slippagePct", "0.1"),
+        ("spreadPct", "0.2"),
+        ("fractionalShares", False),
+    ],
+)
+def test_calculation_fingerprint_includes_each_execution_assumption(
+    field, value
+) -> None:
+    config = _config()
+    original = calculation_fingerprint(_input(config), strategy=config.strategies[0])
+    execution = config.shared.execution.model_copy(
+        update={
+            {
+                "slippagePct": "slippage_pct",
+                "spreadPct": "spread_pct",
+                "fractionalShares": "fractional_shares",
+            }.get(field, field): value if isinstance(value, bool) else Decimal(value)
+        }
+    )
+    changed = config.model_copy(
+        update={"shared": config.shared.model_copy(update={"execution": execution})}
+    )
+    assert (
+        calculation_fingerprint(_input(changed), strategy=changed.strategies[0])
+        != original
+    )
 
 
 def test_heatmap_slice_records_fixed_values_for_every_other_dimension() -> None:

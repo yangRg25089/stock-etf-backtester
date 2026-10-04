@@ -69,6 +69,10 @@ PARAMETER_GROUP_DEFINITIONS: Final[tuple[ParameterGroupDefinition, ...]] = (
         id="contribution", translationKey="parameterGroups.contribution"
     ),
     ParameterGroupDefinition(id="data", translationKey="parameterGroups.data"),
+    ParameterGroupDefinition(id="analysis", translationKey="parameterGroups.analysis"),
+    ParameterGroupDefinition(
+        id="execution", translationKey="parameterGroups.execution"
+    ),
     ParameterGroupDefinition(
         id="buy_limits", translationKey="parameterGroups.buy_limits"
     ),
@@ -355,20 +359,6 @@ class ParameterDefinition(DomainModel):
             raise ValueError("translationKey must use the parameters namespace")
         return self
 
-    @property
-    def default_value(self) -> object:
-        """Compatibility/readability alias for catalog consumers."""
-
-        return self.default
-
-    @property
-    def min_value(self) -> Decimal | None:
-        return self.minimum
-
-    @property
-    def max_value(self) -> Decimal | None:
-        return self.maximum
-
 
 _ALL_PRESETS: Final[tuple[StrategyPresetId, ...]] = tuple(StrategyPresetId)
 _ACCUMULATION_PRESETS: Final[tuple[StrategyPresetId, ...]] = (
@@ -553,6 +543,56 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         minimum=1,
         step=1,
         level=ParameterLevel.SHARED,
+    ),
+    _d(
+        "analysis.riskFreeAnnualRatePct",
+        ParameterType.PERCENT_POINT,
+        Decimal("0"),
+        group_id="analysis",
+        unit="percent_point",
+        minimum="-99.99",
+        maximum="100",
+        step="0.01",
+        level=ParameterLevel.SHARED,
+    ),
+    _d(
+        "execution.commission",
+        ParameterType.DECIMAL,
+        Decimal("0"),
+        unit="currency",
+        minimum=0,
+        step="0.01",
+        level=ParameterLevel.SHARED,
+        group_id="execution",
+    ),
+    _d(
+        "execution.slippagePct",
+        ParameterType.PERCENT_POINT,
+        Decimal("0"),
+        unit="percent_point",
+        minimum=0,
+        maximum="99.99",
+        step="0.01",
+        level=ParameterLevel.SHARED,
+        group_id="execution",
+    ),
+    _d(
+        "execution.spreadPct",
+        ParameterType.PERCENT_POINT,
+        Decimal("0"),
+        unit="percent_point",
+        minimum=0,
+        maximum="199.98",
+        step="0.01",
+        level=ParameterLevel.SHARED,
+        group_id="execution",
+    ),
+    _d(
+        "execution.fractionalShares",
+        ParameterType.BOOLEAN,
+        True,
+        level=ParameterLevel.SHARED,
+        group_id="execution",
     ),
     # Shared accumulation settings.
     _d(
@@ -930,6 +970,24 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
     ),
     # Search controls reference ordinary definitions; value lists are registered below.
     _d(
+        "search.optimizationMode",
+        ParameterType.ENUM,
+        "full_period",
+        group_id="search",
+        presets=_GRID_PRESET,
+        allowed_values=("full_period", "train_test", "walk_forward"),
+        level=ParameterLevel.SEARCH,
+    ),
+    _d(
+        "search.trainEndDate",
+        ParameterType.DATE,
+        None,
+        group_id="search",
+        presets=_GRID_PRESET,
+        nullable=True,
+        level=ParameterLevel.SEARCH,
+    ),
+    _d(
         "search.dimensions",
         ParameterType.ENUM_LIST,
         SEARCH_DIMENSION_KEYS,
@@ -1022,9 +1080,3 @@ def iter_parameter_definitions() -> tuple[ParameterDefinition, ...]:
     """Return definitions in their stable catalog order."""
 
     return ALL_PARAMETER_DEFINITIONS
-
-
-# Camel-case aliases are useful for generated/OpenAPI-adjacent callers while
-# Python consumers can use the snake-case names above.
-getParameterDefinition = get_parameter_definition
-iterParameterDefinitions = iter_parameter_definitions

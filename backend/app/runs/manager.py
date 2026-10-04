@@ -16,22 +16,18 @@ from app.catalog.service import Catalog, get_catalog
 from app.config.validation import DataRequirement
 from app.domain.cancellation import RunCancelled
 from app.domain.contracts import (
-    DailyAsset,
     FrozenRunConfig,
     FrozenStrategyInstance,
     InstrumentMetadata,
-    MetricSummary,
     ResultRole,
+    RunDataContext,
     RunDataProvenance,
     RunResult,
     RunSnapshot,
+    SearchPeriod,
     SearchResult,
-    SignalEvaluation,
     StrategyPresetId,
     StrategyRun,
-    TechnicalIndicatorSeries,
-    Trade,
-    UnexecutedSignal,
 )
 from app.domain.status import (
     Diagnostic,
@@ -39,14 +35,13 @@ from app.domain.status import (
     DiagnosticSeverity,
     StrategyStatus,
     is_terminal,
+    unique_diagnostics,
 )
-from app.ledger import run_strategy
-from app.metrics import MetricsInput, calculate_metrics
 from app.runs.data import RunDataProvider, StrategyDataLoad, UnconfiguredRunDataProvider
 from app.runs.store import RunChange, RunStore
 from app.runs.types import RunProgress, RunResponse, RunSubmission
 from app.search import GridSearchInput, run_grid_search
-from app.signals import evaluate_signals
+from app.simulation import SimulationResult, simulate_strategy
 
 _BENCHMARKS: tuple[tuple[str, StrategyPresetId], ...] = (
     ("benchmark:monthly-dca", StrategyPresetId.MONTHLY_DCA),
@@ -56,16 +51,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
-class _Outcome:
-    status: StrategyStatus
-    diagnostics: tuple[Diagnostic, ...] = ()
-    signals: tuple[SignalEvaluation, ...] = ()
-    technical_indicators: tuple[TechnicalIndicatorSeries, ...] = ()
-    unexecuted_signals: tuple[UnexecutedSignal, ...] = ()
-    trades: tuple[Trade, ...] = ()
-    daily_assets: tuple[DailyAsset, ...] = ()
-    metrics: MetricSummary | None = None
+class _Outcome(SimulationResult):
     search_result: SearchResult | None = None
+    evaluation_period: SearchPeriod | None = None
 
 
 class RunManager:
@@ -91,7 +79,7 @@ class RunManager:
     def submit_run(
         self, submission: RunSubmission, *, idempotency_key: str
     ) -> RunResponse:
-        """Atomically claim the retry key, freeze data identity, and queue work."""
+        """Freeze and publish the submission without waiting for the data provider."""
 
         request_fingerprint = _fingerprint(
             submission.model_dump(mode="json", by_alias=True)
@@ -103,8 +91,13 @@ class RunManager:
         with self._state_lock:
             self._cancellations[reservation.run_id] = Event()
         try:
-            data_loads = self._load_strategy_data(submission, reservation.run_id)
-            snapshot = self._make_snapshot(reservation.run_id, submission, data_loads)
+            snapshot = RunSnapshot(
+                runId=reservation.run_id,
+                config=submission.config,
+                catalogVersion=submission.catalog_version,
+                engineVersion=submission.engine_version,
+                submissionFingerprint=request_fingerprint,
+            )
             response = self._queued_response(snapshot, submission)
             self._store.publish(reservation, response)
             _LOGGER.info(
@@ -127,7 +120,6 @@ class RunManager:
                 self._execute_run,
                 reservation.run_id,
                 submission,
-                data_loads,
             )
         except Exception as error:
             _LOGGER.warning(
@@ -182,6 +174,11 @@ class RunManager:
         if event is not None and event.is_set():
             raise RunCancelled()
 
+    def _save_candidate(self, run_id: str, candidate: StrategyRun) -> None:
+        with self._state_lock:
+            self._check_cancelled(run_id)
+            self._store.save_candidate(run_id, candidate)
+
     def get_run(self, run_id: str) -> RunResponse | None:
         return self._store.get(run_id)
 
@@ -212,8 +209,8 @@ class RunManager:
             ),
         )
 
-    def get_latest_run(self) -> RunResponse | None:
-        return self._store.get_latest()
+    def get_active_run(self) -> RunResponse | None:
+        return self._store.get_active()
 
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float
@@ -223,6 +220,7 @@ class RunManager:
     def _load_strategy_data(
         self, submission: RunSubmission, run_id: str
     ) -> dict[str, StrategyDataLoad]:
+        self._check_cancelled(run_id)
         validations = {
             validation.strategy_id: validation
             for validation in submission.strategy_validations
@@ -247,6 +245,7 @@ class RunManager:
                     eligible_strategies.append(strategy)
             if eligible_strategies:
                 try:
+                    self._check_cancelled(run_id)
                     batch = batch_loader(
                         shared=submission.config.shared,
                         strategies=tuple(eligible_strategies),
@@ -287,9 +286,11 @@ class RunManager:
                                     ),
                                 )
                             )
+            self._check_cancelled(run_id)
             return self._mark_incompatible_contexts(loaded)
 
         for strategy in submission.config.strategies:
+            self._check_cancelled(run_id)
             validation = validations[strategy.id]
             if validation.diagnostics:
                 loaded[strategy.id] = StrategyDataLoad(
@@ -302,6 +303,8 @@ class RunManager:
                     strategy=strategy,
                     requirements=requirements[strategy.id],
                 )
+            except RunCancelled:
+                raise
             except Exception as error:
                 loaded[strategy.id] = StrategyDataLoad(
                     diagnostics=(
@@ -314,6 +317,7 @@ class RunManager:
                     )
                 )
 
+        self._check_cancelled(run_id)
         return self._mark_incompatible_contexts(loaded)
 
     def _mark_incompatible_contexts(
@@ -349,16 +353,19 @@ class RunManager:
                     details={"strategyId": strategy_id},
                 )
                 loaded[strategy_id] = item.model_copy(
-                    update={"diagnostics": _unique((*item.diagnostics, diagnostic))}
+                    update={
+                        "diagnostics": unique_diagnostics(
+                            (*item.diagnostics, diagnostic)
+                        )
+                    }
                 )
         return loaded
 
-    def _make_snapshot(
+    def _make_data_context(
         self,
-        run_id: str,
         submission: RunSubmission,
         data_loads: Mapping[str, StrategyDataLoad],
-    ) -> RunSnapshot:
+    ) -> RunDataContext:
         config = submission.config
         resolved = next(
             (
@@ -415,15 +422,38 @@ class RunManager:
                 for strategy_id, item in sorted(data_loads.items())
             ],
         }
-        return RunSnapshot(
-            runId=run_id,
-            config=config,
-            catalogVersion=submission.catalog_version,
+        return RunDataContext(
             dataFingerprint=_fingerprint(data_payload),
-            engineVersion=submission.engine_version,
             dataProvenance=_data_provenance(data_loads),
+            effectiveRun=config.shared.run,
             dateAdjustments=adjustments,
         )
+
+    def _start_data_loading(self, run_id: str, strategy_id: str) -> None:
+        with self._state_lock:
+            self._check_cancelled(run_id)
+            response = self._store.get(run_id)
+            if response is None or response.result is None:
+                raise RunCancelled()
+            self._save_result(
+                response,
+                tuple(
+                    item.with_status(StrategyStatus.LOADING)
+                    if item.id == strategy_id
+                    else item
+                    for item in response.result.strategy_runs
+                ),
+            )
+
+    def _freeze_data_context(self, run_id: str, context: RunDataContext) -> RunSnapshot:
+        with self._state_lock:
+            self._check_cancelled(run_id)
+            response = self._store.get(run_id)
+            if response is None or is_terminal(response.status):
+                raise RunCancelled()
+            snapshot = response.snapshot.with_data_context(context)
+            self._store.update(response.model_copy(update={"snapshot": snapshot}))
+            return snapshot
 
     def _queued_response(
         self, snapshot: RunSnapshot, submission: RunSubmission
@@ -463,22 +493,26 @@ class RunManager:
         self,
         run_id: str,
         submission: RunSubmission,
-        data_loads: Mapping[str, StrategyDataLoad],
     ) -> None:
         try:
+            self._start_data_loading(run_id, submission.selected_strategy_ids[0])
             _LOGGER.info(
                 "Run execution started",
                 extra={
                     "event": "run_started",
                     "run_id": run_id,
-                    "status": StrategyStatus.RUNNING.value,
+                    "status": StrategyStatus.LOADING.value,
                 },
             )
             self._check_cancelled(run_id)
+            data_loads = self._load_strategy_data(submission, run_id)
+            snapshot = self._freeze_data_context(
+                run_id, self._make_data_context(submission, data_loads)
+            )
             response = self._store.get(run_id)
             if response is None:
                 return
-            config = response.snapshot.config
+            config = snapshot.effective_config
             reference_load = _reference_load(data_loads)
 
             if reference_load is None:
@@ -665,14 +699,18 @@ class RunManager:
                     catalog=self._catalog,
                 ),
                 check_cancelled=lambda: self._check_cancelled(run_id),
-                save_candidate=lambda item: self._store.save_candidate(run_id, item),
+                save_candidate=lambda item: self._save_candidate(run_id, item),
                 load_candidate=lambda item_id: self._store.get_candidate(
                     run_id, item_id
                 ),
             )
             outcome = _search_outcome(result, data_load.diagnostics)
             best_id = (
-                result.ranked_candidate_ids[0] if result.ranked_candidate_ids else None
+                result.out_of_sample.result_id
+                if result.out_of_sample is not None
+                else result.ranked_candidate_ids[0]
+                if result.ranked_candidate_ids
+                else None
             )
             best = (
                 None if best_id is None else self._store.get_candidate(run_id, best_id)
@@ -688,6 +726,7 @@ class RunManager:
                     signals=best.signals,
                     technical_indicators=best.technical_indicators,
                     unexecuted_signals=best.unexecuted_signals,
+                    evaluation_period=best.evaluation_period,
                 )
             return outcome
 
@@ -708,68 +747,25 @@ class RunManager:
     ) -> _Outcome:
         assert data_load.snapshot is not None
         assert data_load.calendar is not None
-        strategy_config = FrozenRunConfig(
-            shared=config.shared,
-            strategies=(strategy,),
-        )
-        contribution_schedule = schedule(config.shared, data_load.calendar)
-        signal_batch = evaluate_signals(
-            strategy_config,
-            data_load.snapshot,
-            sessions=data_load.calendar.trading_dates,
-        )
-        signals = signal_batch.strategy(strategy.id)
-        ledger = run_strategy(
-            strategy_config,
+        calculated = simulate_strategy(
+            config,
             strategy,
-            contribution_schedule,
+            schedule(config.shared, data_load.calendar),
             data_load.snapshot,
-            signals,
-            exchange_calendar=data_load.calendar,
+            data_load.calendar,
+            diagnostics=data_load.diagnostics,
             check_cancelled=lambda: self._check_cancelled(run_id),
         )
-        diagnostics = _unique(
-            (
-                *data_load.diagnostics,
-                *contribution_schedule.diagnostics,
-                *ledger.diagnostics,
-            )
+        return _Outcome(
+            status=calculated.status,
+            diagnostics=calculated.diagnostics,
+            signals=calculated.signals,
+            technical_indicators=calculated.technical_indicators,
+            unexecuted_signals=calculated.unexecuted_signals,
+            trades=calculated.trades,
+            daily_assets=calculated.daily_assets,
+            metrics=calculated.metrics,
         )
-        if not ledger.available:
-            return _Outcome(
-                status=StrategyStatus.UNAVAILABLE,
-                diagnostics=diagnostics,
-                signals=ledger.signals,
-                technical_indicators=signals.technical_indicators,
-                unexecuted_signals=ledger.unexecuted_signals,
-            )
-
-        metrics_input = MetricsInput(
-            strategy=strategy,
-            schedule=contribution_schedule,
-            ledger=ledger,
-            data_fingerprint=data_load.snapshot.fingerprint,
-        )
-        metrics_result = calculate_metrics(metrics_input)
-        diagnostics = _unique((*diagnostics, *metrics_result.summary.diagnostics))
-        outcome = _Outcome(
-            status=(
-                StrategyStatus.COMPLETED_WITH_WARNING
-                if any(
-                    diagnostic.severity is DiagnosticSeverity.WARNING
-                    for diagnostic in diagnostics
-                )
-                else StrategyStatus.COMPLETED
-            ),
-            diagnostics=diagnostics,
-            signals=ledger.signals,
-            technical_indicators=signals.technical_indicators,
-            unexecuted_signals=ledger.unexecuted_signals,
-            trades=ledger.trades,
-            daily_assets=metrics_result.daily_assets,
-            metrics=metrics_result.summary,
-        )
-        return outcome
 
     def _set_current(self, run_id: str, strategy_id: str) -> None:
         with self._state_lock:
@@ -847,6 +843,7 @@ class RunManager:
                         "daily_assets": outcome.daily_assets,
                         "metrics": outcome.metrics,
                         "search_result": outcome.search_result,
+                        "evaluation_period": outcome.evaluation_period,
                     }
                 )
                 runs.append(
@@ -895,7 +892,7 @@ class RunManager:
             failed = tuple(
                 item.with_status(
                     StrategyStatus.FAILED,
-                    diagnostics=_unique((*item.diagnostics, diagnostic)),
+                    diagnostics=unique_diagnostics((*item.diagnostics, diagnostic)),
                 )
                 if not is_terminal(item.status)
                 else item
@@ -997,7 +994,7 @@ def _context_mismatch(reference: StrategyDataLoad, candidate: StrategyDataLoad) 
 
 
 def _context_failure(data_loads: Iterable[StrategyDataLoad]) -> tuple[Diagnostic, ...]:
-    diagnostics = _unique(
+    diagnostics = unique_diagnostics(
         diagnostic for data_load in data_loads for diagnostic in data_load.diagnostics
     )
     if diagnostics:
@@ -1013,7 +1010,7 @@ def _context_failure(data_loads: Iterable[StrategyDataLoad]) -> tuple[Diagnostic
 
 
 def _failure_outcome(diagnostics: Sequence[Diagnostic]) -> _Outcome:
-    normalized = _unique(diagnostics)
+    normalized = unique_diagnostics(diagnostics)
     if not normalized:
         normalized = _context_failure(())
     status = (
@@ -1040,7 +1037,7 @@ def _search_outcome(
             StrategyStatus.COMPLETED_WITH_WARNING,
         }
     )
-    diagnostics = _unique(
+    diagnostics = unique_diagnostics(
         (
             *context_diagnostics,
             *(
@@ -1048,8 +1045,45 @@ def _search_outcome(
                 for candidate in search_result.candidates
                 for diagnostic in candidate.diagnostics
             ),
+            *(
+                diagnostic
+                for candidate in search_result.candidates
+                if candidate.test_result is not None
+                for diagnostic in candidate.test_result.diagnostics
+            ),
+            *(
+                diagnostic
+                for baseline in search_result.period_benchmarks
+                for diagnostic in baseline.diagnostics
+            ),
+            *(
+                search_result.out_of_sample.diagnostics
+                if search_result.out_of_sample is not None
+                else ()
+            ),
         )
     )
+    if search_result.out_of_sample is not None:
+        oos = search_result.out_of_sample
+        status = oos.status
+        if status is StrategyStatus.COMPLETED and (
+            any(
+                row.status is not StrategyStatus.COMPLETED
+                for row in search_result.candidates
+            )
+            or any(
+                row.status is not StrategyStatus.COMPLETED
+                for row in search_result.period_benchmarks
+            )
+            or any(row.severity is DiagnosticSeverity.WARNING for row in diagnostics)
+        ):
+            status = StrategyStatus.COMPLETED_WITH_WARNING
+        return _Outcome(
+            status=status,
+            diagnostics=diagnostics,
+            metrics=oos.metrics,
+            search_result=search_result,
+        )
     if not successful:
         return _Outcome(
             status=(
@@ -1068,10 +1102,19 @@ def _search_outcome(
     best = next(
         candidate for candidate in successful if candidate.candidate_id == best_id
     )
-    has_warnings = any(
-        candidate.status is not StrategyStatus.COMPLETED
-        for candidate in search_result.candidates
-    ) or any(item.severity is DiagnosticSeverity.WARNING for item in diagnostics)
+    has_warnings = (
+        any(
+            candidate.status is not StrategyStatus.COMPLETED
+            or candidate.test_result is not None
+            and candidate.test_result.status is not StrategyStatus.COMPLETED
+            for candidate in search_result.candidates
+        )
+        or any(
+            baseline.status is not StrategyStatus.COMPLETED
+            for baseline in search_result.period_benchmarks
+        )
+        or any(item.severity is DiagnosticSeverity.WARNING for item in diagnostics)
+    )
     return _Outcome(
         status=(
             StrategyStatus.COMPLETED_WITH_WARNING
@@ -1114,14 +1157,6 @@ def _calculation_diagnostic(
 
 def _has_blocking_diagnostic(diagnostics: Sequence[Diagnostic]) -> bool:
     return any(item.severity is DiagnosticSeverity.ERROR for item in diagnostics)
-
-
-def _unique(diagnostics: Iterable[Diagnostic]) -> tuple[Diagnostic, ...]:
-    unique: list[Diagnostic] = []
-    for diagnostic in diagnostics:
-        if diagnostic not in unique:
-            unique.append(diagnostic)
-    return tuple(unique)
 
 
 def _fingerprint(value: object) -> str:

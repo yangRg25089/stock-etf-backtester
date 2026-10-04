@@ -1,0 +1,13 @@
+.dialog-fields { border: 0; margin: 0; min-width: 0; }
+.etf-quick-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.etf-choice { min-height: 36px; padding: 4px 12px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); cursor: pointer; font-weight: 600; }
+.etf-choice.is-selected { border-color: var(--app-accent); color: var(--app-accent); background: var(--app-accent-soft); }
+.strategy-navigator-heading h2 { margin-right: auto; }
+.strategy-navigator-heading .strategy-add { margin-left: 4px; }
+.run-stop-button { color: var(--app-red); border-color: var(--app-red); }
+.run-stop-button svg { fill: currentColor; stroke: none; }
+.comparison-table tr.is-running { background: var(--app-selection-bg); }
+.result-waiting, .result-stopped { color: var(--app-muted); font-size: 17px; }
+.search-table tr.is-selected { background: var(--app-accent-soft); }
+.search-table tbody tr:has(button:not(:disabled)) { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .run-button-spinner { animation: none; } }

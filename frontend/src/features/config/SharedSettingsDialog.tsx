@@ -1,3 +1,4 @@
+import { ModalShell } from "../../shared/ui/ModalShell";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Catalog } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
@@ -38,7 +39,7 @@ export function SharedSettingsDialog({
   const footerErrors = validation.errors.filter(item => !catalog.parameters?.some(parameter => item.fieldPath === parameter.key || item.fieldPath?.endsWith(`.${parameter.key}`)));
   const confirmedCurrency = useRef<string | undefined>(buffer.currency);
   const closeDialog = () => void validation.attemptClose(dialogRef.current, async signal => {
-    const response = await validateDraft({ shared: { run: buffer.run, contribution: buffer.contribution, data }, strategies: [] }, signal);
+    const response = await validateDraft({ shared: { run: buffer.run, contribution: buffer.contribution, data, analysis: buffer.analysis, execution: buffer.execution }, strategies: [] }, signal);
     const errors = [...(response.diagnostics ?? [])];
     if (errors.some(item => item.severity === "error")) return errors;
     const metadata = await fetchInstrument(buffer.run.symbol, signal);
@@ -66,15 +67,6 @@ export function SharedSettingsDialog({
   }, [buffer.run.symbol, buffer.currency]);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    dialog.showModal();
-    return () => {
-      if (dialog.open) dialog.close();
-    };
-  }, []);
-
-  useEffect(() => {
     if (!focusFieldKey) return;
     const frame = window.requestAnimationFrame(() => {
       const fieldId = parameterFieldId(focusFieldKey);
@@ -87,19 +79,8 @@ export function SharedSettingsDialog({
   }, [focusFieldKey, onFieldFocusHandled]);
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="shared-settings-dialog"
-      aria-modal="true"
-      aria-labelledby="shared-settings-dialog-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        closeDialog();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) closeDialog();
-      }}
-    >
+    <ModalShell dialogRef={dialogRef} className="shared-settings-dialog"
+      labelledBy="shared-settings-dialog-title" onRequestClose={closeDialog}>
       <div className="shared-settings-dialog-shell">
         <header className="shared-settings-dialog-heading">
           <h2 id="shared-settings-dialog-title">{translate(locale, "section.sharedSettings")}</h2>
@@ -132,6 +113,6 @@ export function SharedSettingsDialog({
           </button>
         </footer>
       </div>
-    </dialog>
+    </ModalShell>
   );
 }

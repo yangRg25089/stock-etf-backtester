@@ -1,0 +1,330 @@
+.app-frame {
+  min-height: 100vh;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 5;
+  top: 8px;
+  left: 8px;
+  transform: translateY(-150%);
+  padding: 10px 14px;
+  color: #fff;
+  background: var(--app-accent-strong);
+  border-radius: var(--app-radius);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.app-topbar {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  min-height: 55px;
+  padding: 5px 22px;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.topbar-brand,
+.brand,
+.topbar-right {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.topbar-brand {
+  flex: 0 0 auto;
+  gap: 12px;
+}
+
+.brand {
+  gap: 10px;
+}
+
+.brand-mark {
+  display: grid;
+  flex: 0 0 30px;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: #fff;
+  background: var(--app-accent);
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.brand-name {
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.topbar-right {
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.unit-label,
+.field-hint {
+  color: var(--app-muted);
+}
+
+
+.locale-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+}
+
+.locale-switch button {
+  min-width: 52px;
+  min-height: 32px;
+  padding: 4px 8px;
+  color: var(--app-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.locale-switch button[aria-pressed="true"] {
+  color: var(--app-foreground);
+  background: var(--app-accent-soft);
+  font-weight: 650;
+}
+
+.main-content {
+  width: min(100% - 48px, 1180px);
+  margin: 0 auto;
+  padding: 24px 0 36px;
+}
+
+.main-content.workbench-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  width: calc(100% - 32px);
+  max-width: 1920px;
+  height: calc(100dvh - var(--app-topbar-height));
+  min-height: 0;
+  margin: 0 auto;
+  padding: 10px 0 14px;
+  overflow: hidden;
+}
+
+.workbench-context {
+  min-width: 0;
+  background: var(--app-bg);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--app-foreground);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--app-muted);
+  background: var(--app-control-muted-bg);
+  cursor: not-allowed;
+}
+
+.workbench-config-toggle {
+  display: inline-grid;
+  width: 24px;
+  min-width: 24px;
+  min-height: 40px;
+  place-items: center;
+  padding: 0;
+  color: var(--app-accent);
+  background: var(--app-bg);
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.workbench-config-toggle:hover svg,
+.workbench-config-toggle:focus-visible svg {
+  stroke-width: 2.8;
+}
+
+.icon-only-button {
+  width: 38px;
+  min-width: 38px;
+  padding-inline: 0;
+}
+
+.workbench-divider .workbench-config-toggle {
+  width: 100%;
+  min-width: 0;
+}
+
+.workbench-mobile-views {
+  display: none;
+}
+
+.workbench-context .catalog-notice,
+.workbench-context .catalog-error {
+  margin-bottom: 8px;
+}
+
+.workbench-layout {
+  display: grid;
+  grid-template-columns: 320px 24px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workbench-layout.is-config-collapsed {
+  grid-template-columns: 0 24px minmax(0, 1fr);
+}
+
+.workbench-config {
+  grid-column: 1;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workbench-config[hidden] {
+  display: none;
+}
+
+.workbench-config-fixed {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workbench-results {
+  grid-column: 3;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.workbench-results {
+  position: relative;
+  padding: 0 0 16px 10px;
+}
+
+.workbench-divider {
+  position: relative;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  grid-column: 2;
+  min-width: 24px;
+  padding-top: 8px;
+  background: linear-gradient(90deg, transparent calc(50% - .5px), var(--app-border) calc(50% - .5px), var(--app-border) calc(50% + .5px), transparent calc(50% + .5px));
+}
+
+.workbench-config-toggle svg,
+.run-reset-button svg,
+.add-strategy-button svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.config-diagnostics {
+  max-height: 180px;
+  padding: 8px 0;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.config-diagnostics > summary { cursor: pointer; color: var(--app-red); }
+
+.shared-settings-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 68px;
+  padding: 9px 10px 9px 12px;
+  text-align: left;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  cursor: pointer;
+}
+
+.shared-settings-summary-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.shared-settings-summary-copy strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.shared-settings-summary-text {
+  display: grid;
+  gap: 3px;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.shared-date-adjustment {
+  margin: 6px 10px 0;
+  color: var(--app-muted);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.shared-settings-summary-symbol { color: var(--app-accent-strong); font-weight: 650; }
+.shared-settings-summary-period { font-variant-numeric: tabular-nums; }
+
+.shared-settings-open-button {
+  color: var(--app-accent-text);
+  border-color: var(--app-border-strong);
+}
+
+.shared-settings-open-button:hover:not(:disabled) {
+  background: var(--app-surface-muted);
+  border-color: var(--app-border-strong);
+}

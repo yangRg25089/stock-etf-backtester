@@ -1,0 +1,34 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  color: var(--app-foreground);
+  background: var(--app-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --app-bg: #f3f5f9;
+  --app-surface: #fff;
+  --app-surface-muted: #f5f7fb;
+  --app-foreground: #253c6d;
+  --app-muted: #455b8a;
+  --app-border: #d4dbea;
+  --app-border-strong: #8b9abb;
+  --app-accent: #30497d;
+  --app-accent-soft: #eaf0fa;
+  --app-selection-bg: #dde6f5;
+  --app-action: #f2842f;
+  --app-action-text: #192d52;
+  --app-action-hover: #f69a52;
+  --app-orange: #9c4b0d;
+  --app-red: #a7373a;
+  --app-focus: var(--app-muted);
+  --app-accent-strong: var(--app-foreground);
+  --app-control-muted-bg: #e8ecf3;
+  --app-accent-text: var(--app-foreground);
+  --app-accent-selected: var(--app-foreground);
+  --app-shadow: #253c6d20;
+  --app-shadow-deep: #253c6d80;
+  --app-error-bg: #fffafa;
+  --app-error-border: #dfb8b9;
+  --app-error-text: #67282b;
+  --app-radius: 6px;
+  --app-topbar-height: 55px;
+}

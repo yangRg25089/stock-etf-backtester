@@ -1,3 +1,4 @@
+import { installRunFixture, importPackage, backtestFile } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -70,7 +71,7 @@ test.describe("responsive product shell", () => {
         if (locale === "zh") await page.getByRole("button", { name: "中文" }).click();
         await openSharedSettings(page);
         await expect(page.locator(".shared-settings-group legend")).toHaveText(
-          locale === "ja" ? ["対象", "期間", "入金計画"] : ["标的", "区间", "投入计划"],
+          locale === "ja" ? ["対象", "期間", "入金計画", "分析", "約定"] : ["标的", "区间", "投入计划", "分析", "成交假设"],
         );
         const sharedSettingsLayout = await page.locator(".shared-settings-grid").evaluate((grid) => {
           const groups = [...grid.querySelectorAll(".shared-settings-group")];
@@ -87,7 +88,7 @@ test.describe("responsive product shell", () => {
               groups[index - 1].getBoundingClientRect().bottom <= group.getBoundingClientRect().top),
           };
         });
-        expect(sharedSettingsLayout.groupCount).toBe(3);
+        expect(sharedSettingsLayout.groupCount).toBe(5);
         expect(sharedSettingsLayout.columns).toBe(1);
         expect(sharedSettingsLayout.assetColumns).toBe(1);
         expect(sharedSettingsLayout.rangeColumns).toBe(width <= 767 ? 1 : 2);
@@ -272,7 +273,7 @@ test("one fixed topbar owns run and reset without a scope selector", async ({ pa
     request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
   );
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -290,7 +291,7 @@ test("one fixed topbar owns run and reset without a scope selector", async ({ pa
 
 test("legacy execution panels never mount during restored progress, failure, or warnings", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await openSharedSettings(page);
   await page.getByLabel("開始日").fill("2024-01-31");
@@ -298,7 +299,7 @@ test("legacy execution panels never mount during restored progress, failure, or 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const completedResponse = page.waitForResponse(async response => {
-    if (!/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()) || response.url().endsWith("/runs/latest") || !response.ok()) return false;
+    if (!/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()) || response.url().endsWith("/runs/active") || !response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"].includes((await response.json()).status);
   });
   await page.locator(".run-submit-button").click();
@@ -315,10 +316,11 @@ test("legacy execution panels never mount during restored progress, failure, or 
   for (const status of ["queued", "loading", "running"]) {
     const pending = structuredClone(saved);
     pending.status = status;
+    pending.result.status = status;
     pending.progress.completedStrategies = 1;
-    pending.result.strategyRuns.forEach(result => { result.status = status; });
-    await page.unroute("**/api/v1/runs/latest");
-    await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: pending }));
+    pending.result.strategyRuns.slice(1).forEach(result => { result.status = status; result.metrics = null; });
+    await page.unroute("**/api/v1/runs/active");
+    await page.route("**/api/v1/runs/active", route => route.fulfill({ json: pending }));
     const eventUrl = `**/api/v1/runs/${saved.runId}/events`;
     await page.route(eventUrl, async route => {
       await new Promise(resolve => setTimeout(resolve, 2500));
@@ -346,13 +348,17 @@ test("legacy execution panels never mount during restored progress, failure, or 
   for (const status of ["completed_with_warning", "unavailable", "failed"]) {
     const terminal = structuredClone(saved);
     terminal.status = status;
-    terminal.result.strategyRuns[0].status = status === "completed_with_warning" ? "failed" : status;
-    terminal.result.strategyRuns[0].diagnostics = [{
+    terminal.result.status = status;
+    for (const result of status === "completed_with_warning" ? terminal.result.strategyRuns.slice(0, 1) : terminal.result.strategyRuns) {
+    result.status = status === "completed_with_warning" ? "failed" : status;
+    result.metrics = null;
+    result.diagnostics = [{
       code: "calculation_failed", severity: "error", messageKey: "diagnostics.calculation_failed",
       details: { stage: "strategy", strategyId: terminal.result.strategyRuns[0].id, runId: saved.runId },
     }];
-    await page.unroute("**/api/v1/runs/latest");
-    await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: terminal }));
+    }
+    await page.unroute("**/api/v1/runs/active");
+    await installRunFixture(page, terminal);
     await page.reload();
     await expect(page.locator(".diagnostic-list")).toBeVisible();
     await expect(page.locator(removed)).toHaveCount(0);
@@ -594,7 +600,7 @@ test("shared summary follows the single form and strategy editing preserves inde
 
   await addStrategy(page, "ma_buy_only");
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -655,7 +661,7 @@ test("editing a strategy leaves the active run target and run scope unchanged", 
     request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
   );
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -706,6 +712,7 @@ test("invalid dialogs block every exit and focus errors without touching the run
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   const run = page.locator(".run-submit-button");
+  await expect(run).toBeEnabled();
   const before = await run.evaluate(node => node.outerHTML);
   let submissions = 0;
   page.on("request", request => { if (request.method() === "POST" && request.url().endsWith("/api/v1/runs")) submissions++; });
@@ -764,8 +771,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     }
     if (
       request.method() === "GET" &&
-      !request.url().endsWith("/api/v1/runs/latest") &&
-      /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(request.url())
+      !request.url().endsWith("/api/v1/runs/active") &&
+      /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(request.url())
     ) {
       runStatusRequests.push(request.url());
     }
@@ -781,7 +788,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await closeSharedSettings(page);
 
   const completedResponse = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) {
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) {
       return false;
     }
     if (!response.ok()) return false;
@@ -794,7 +801,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(runButton).toHaveCSS("color", await themeColor(page, "--app-action-text"));
   await expect(runButton).toHaveText("");
   await expect(runButton.locator("svg.run-play-icon")).toHaveCount(1);
-  await expect(runButton).toHaveAttribute("title", "バックテストを実行");
+  await expect(runButton).toHaveAttribute("title", "バックテストを実行 · Ctrl/⌘ + Enter");
+  await expect(runButton).toHaveAttribute("aria-keyshortcuts", "Control+Enter Meta+Enter");
   await runButton.click();
   const savedResponse = await completedResponse;
   const saved = await savedResponse.json();
@@ -1022,8 +1030,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     lines.map((line) => line.getAttribute("stroke-width")),
   )).toEqual(["1.2", "1.2"]);
   await expect(coreChart.locator(".chart-baseline-line")).toHaveAttribute("data-baseline", "100");
-  await expect(coreChart.locator(".overlay-legend")).toContainText("銘柄の終値 (USD)");
-  await expect(coreChart.locator(".overlay-legend")).toContainText("毎月定額積立");
+  await expect(coreChart.locator(".chart-core-readout-row")).toContainText("銘柄の終値");
+  await expect(coreChart.locator(".chart-core-readout-row")).toContainText("毎月定額積立");
   expect(await coreChart.locator(".chart-gridline").count()).toBeGreaterThan(7);
   await expect(coreChart.locator(".candlestick")).toHaveCount(0);
   const chartWindowBeforeCollapse = {
@@ -1233,6 +1241,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const tradeTab = page.getByRole("tab", { name: "取引明細" });
   await tradeTab.focus();
   await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "パフォーマンス" })).toBeFocused();
+  await expect(page.getByRole("tab", { name: "パフォーマンス" })).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("tab", { name: "戦略比較" })).toBeFocused();
   await page.keyboard.press("Home");
   await expect(page.getByRole("tab", { name: "戦略比較" })).toHaveAttribute("aria-selected", "true");
@@ -1301,35 +1312,21 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(staleExported.resultId).toBe(benchmark.id);
   expect(staleExported.endingEquity).toBe(exported.endingEquity);
 
-  const latestResponse = page.waitForResponse((response) =>
-    response.request().method() === "GET" && response.url().endsWith("/api/v1/runs/latest"),
-  );
   await page.reload();
-  const restoredResponse = await latestResponse;
-  const restored = await restoredResponse.json();
-  expect(restored.runId).toBe(saved.runId);
-  expect(restored.status).toBe("completed");
-  await expect(page.locator(".run-status-panel")).toHaveCount(0);
-  const restoredStrategy = restored.result.strategyRuns.find(
-    (item) => item.id === "strategy-vix_dca-1",
-  );
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
+  await importPackage(page, backtestFile(saved));
+  const restoredStrategy = saved.result.strategyRuns.find(item => item.id === "strategy-vix_dca-1");
   const restoredDownloadPromise = page.waitForEvent("download");
   await page.locator('[data-export-kind="summary"]').click();
-  const restoredDownload = await restoredDownloadPromise;
-  const restoredDownloadPath = await restoredDownload.path();
-  expect(restoredDownloadPath).toBeTruthy();
-  const restoredCsv = await readFile(restoredDownloadPath, "utf8");
+  const restoredCsv = await readFile(await (await restoredDownloadPromise).path(), "utf8");
   const [restoredHeader, restoredRow] = restoredCsv.trim().split(/\r?\n/);
-  const restoredHeaders = restoredHeader.split(",");
   const restoredValues = restoredRow.split(",");
-  const restoredExport = Object.fromEntries(
-    restoredHeaders.map((name, index) => [name, restoredValues[index]]),
-  );
+  const restoredExport = Object.fromEntries(restoredHeader.split(",").map((name, index) => [name, restoredValues[index]]));
   expect(restoredExport.resultId).toBe(restoredStrategy.id);
   expect(restoredExport.endingEquity).toBe(String(restoredStrategy.metrics.endingEquity));
 
   const nextSavedResponse = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()) || !response.ok()) {
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()) || !response.ok()) {
       return false;
     }
     return ["completed", "completed_with_warning", "unavailable", "failed"]
@@ -1348,6 +1345,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     currentStrategyId: "strategy-vix_dca-1",
   };
   pending.result.status = "running";
+  pending.result.strategyRuns[0].status = "running";
+  pending.progress.completedStrategies = pending.result.strategyRuns.length - 1;
   const strategyStatuses = Object.fromEntries(
     saved.result.strategyRuns.map(({ id, status }) => [id, status]),
   );
@@ -1357,7 +1356,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     progress: saved.progress,
     strategyStatuses,
   };
-  await page.route("**/api/v1/runs/latest", (route) =>
+  await page.route("**/api/v1/runs/active", (route) =>
     route.fulfill({ json: pending }),
   );
   await page.route(`**/api/v1/runs/${saved.runId}/events`, (route) =>
@@ -1444,8 +1443,8 @@ test("desktop workbench keeps the header, strategy list, and results in independ
   await expect(page.getByRole("button", { name: "バックテストを実行" })).toBeEnabled();
 
   const finalRun = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || response.url().endsWith("/latest") ||
-        !/\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || response.url().endsWith("/active") ||
+        !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -1509,7 +1508,7 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const resultResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await resultResponse).json();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
@@ -1540,12 +1539,12 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   await expect(page.locator(".empty-results")).toBeVisible();
   await expect(page.locator(".comparison-table")).toHaveCount(0);
   const nextResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const next = await (await nextResponse).json();
   expect(next.runId).not.toBe(saved.runId);
   await page.reload();
-  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
 });
 
 
@@ -1653,7 +1652,7 @@ test("multi-selected curves match row colors while focus, CSV and the shared win
 
   await page.locator("#field-run-endDate").fill("2024-03-01");
   await closeSharedSettings(page);
-  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
@@ -1693,7 +1692,7 @@ test("multi-selected curves match row colors while focus, CSV and the shared win
   await expect(page.locator("g.overlay-price")).toHaveCount(1);
   await expect(monthly.locator("button")).toHaveAttribute("aria-pressed", "false");
   await vix.locator("button").click();
-  const legend = chart.locator('.overlay-legend-item[data-series="totalAsset"]');
+  const legend = chart.locator('.chart-series-control[data-series="totalAsset"]');
   await legend.click();
   await page.mouse.move(1400, 850);
   await expect(legend).toHaveAttribute("aria-pressed", "true");
@@ -1759,7 +1758,7 @@ test("many selected strategies naturally expand readings and scroll the results 
 
   await page.locator("#field-run-endDate").fill("2024-03-01");
   await closeSharedSettings(page);
-  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const extended = structuredClone(saved);
@@ -1769,7 +1768,8 @@ test("many selected strategies naturally expand readings and scroll the results 
     extended.selectedStrategyIds.push(id);
     extended.snapshot.config.strategies.push({ ...structuredClone(saved.snapshot.config.strategies[0]), id, presetId: "composite_dca" });
   }
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: extended }));
+  extended.progress.totalStrategies = extended.progress.completedStrategies = extended.result.strategyRuns.length;
+  await installRunFixture(page, extended);
   await page.reload();
   const toggles = page.locator(".result-select");
   await expect(toggles).toHaveCount(12);
@@ -1816,14 +1816,14 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   const resultResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await resultResponse).json();
   // Exercise long-list rendering independently of the fixture provider's short history.
   const longList = structuredClone(saved);
   const monthly = longList.result.strategyRuns.find((result) => result.presetId === "monthly_dca");
   monthly.trades = Array.from({ length: 200 }, (_, index) => monthly.trades[index % monthly.trades.length]);
-  await page.route("**/api/v1/runs/latest", (route) => route.fulfill({ json: longList }));
+  await installRunFixture(page, longList);
   await page.reload();
   await expect(page.locator("#result-tab-comparison")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#result-focus-select, #result-tab-overview, #result-tab-metrics, .metric-card")).toHaveCount(0);
@@ -1867,7 +1867,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   await completed;
   await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
@@ -1896,7 +1896,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
   }
   const core = page.locator(".chart-overlay");
   await expect(core.locator(".chart-trade-marker")).toHaveCount(0);
-  await core.locator('.overlay-legend-item[data-series="totalAsset"]').hover();
+  await core.locator('.chart-series-control[data-series="totalAsset"]').hover();
   const tradeAnchors = await core.evaluate(figure => {
     const curve = figure.querySelector("polyline.overlay-totalAsset");
     const points = [...curve.points];
@@ -1929,7 +1929,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
       Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop))).toBe(mainPlotHeight);
   }
   const initialWindow = await core.getAttribute("data-window-start");
-  const priceLegend = core.locator('.overlay-legend-item[data-series="price"]');
+  const priceLegend = core.locator('.chart-series-control[data-series="price"]');
   await priceLegend.hover();
   await expect(core.locator(".overlay-price.is-highlighted")).toHaveAttribute("stroke-width", "2.4");
   await expect(core.locator(".overlay-series-line.overlay-totalAsset")).toHaveAttribute("stroke-width", "1.2");
@@ -1937,7 +1937,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await expect(core.locator("linearGradient stop").first()).toHaveAttribute("stop-color", await core.locator(".overlay-price.is-highlighted").getAttribute("stroke"));
   await page.mouse.move(0, 0);
   await expect(core.locator(".chart-highlight-area")).toHaveCount(0);
-  const assetLegend = core.locator('.overlay-legend-item[data-series="totalAsset"]');
+  const assetLegend = core.locator('.chart-series-control[data-series="totalAsset"]');
   await assetLegend.focus();
   await expect(core.locator(".overlay-totalAsset.is-highlighted")).toHaveAttribute("stroke-width", "2.4");
   await expect(core.locator("linearGradient stop").first()).toHaveAttribute("stop-color", await core.locator(".overlay-totalAsset.is-highlighted").getAttribute("stroke"));
@@ -1945,7 +1945,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
   await expect(core.locator(".chart-highlight-area")).toHaveCount(0);
   await expect(core).toHaveAttribute("data-window-start", initialWindow);
   await expect(page.locator(".chart-panel.is-compact figcaption")).toHaveCount(0);
-  await expect(page.locator(".chart-panel.is-compact .overlay-legend, .chart-panel.is-compact .chart-highlight-area")).toHaveCount(0);
+  await expect(page.locator(".chart-panel.is-compact .chart-series-control, .chart-panel.is-compact .chart-highlight-area")).toHaveCount(0);
   await priceLegend.click();
   await page.mouse.move(0, 0);
   await page.locator(".chart-range-controls button").first().focus();
@@ -1991,7 +1991,7 @@ test("context is concise and strategy dialogs show one combination label", async
   await expect(page.locator(".shared-settings-summary-text")).not.toContainText("最新");
   await expect(page.locator(".result-saved-range, .result-focused-name, .strategy-parameter-nav")).toHaveCount(0);
   await expect(page.locator(".result-snapshot-info, .result-saved-context")).toHaveCount(0);
-  await expect(page.locator(".chart-overlay figcaption, .overlay-legend").filter({ hasText: "QQQ" })).toHaveCount(0);
+  await expect(page.locator(".chart-core-readout-row").filter({ hasText: "QQQ" })).toHaveCount(0);
   await addStrategy(page, "composite_dca");
   await page.locator(".strategy-card-open").last().click();
   const dialog = page.locator(".strategy-dialog");
@@ -2007,7 +2007,7 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   await page.setViewportSize({ width: 1440, height: 700 });
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
-  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   await completed;
   await page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" }).locator("button").click();
@@ -2125,7 +2125,7 @@ test("fixed and custom dialogs reuse condition cards, nest independent groups an
   await page.screenshot({ path: test.info().outputPath("custom-condition-dialog.png") });
   await closeStrategyDialog(page);
   const submitted = page.waitForRequest(request => request.method() === "POST" && request.url().endsWith("/api/v1/runs"));
-  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await page.locator(".run-submit-button").click();
   const payload = (await submitted).postDataJSON();
@@ -2270,7 +2270,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
+  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const price = page.locator('.legend-toggle[data-series="price"]');
@@ -2282,7 +2282,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await expect(page.locator(".chart-overlay svg.result-chart")).toBeVisible();
   await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveCount(1);
   await expect(page.locator(".chart-overlay .chart-trade-marker")).toHaveCount(0);
-  await page.locator('.overlay-legend-item[data-series="totalAsset"]').hover();
+  await page.locator('.chart-series-control[data-series="totalAsset"]').hover();
   await expect(page.locator(".chart-overlay .chart-trade-marker").first()).toHaveAttribute("data-anchor-series", "totalAsset");
   await expect(asset).toBeEnabled();
   await asset.click();
@@ -2301,7 +2301,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   for (const result of legacy.result.strategyRuns) {
     for (const point of result.dailyAssets) delete point.totalContributed;
   }
-  await page.route("**/api/v1/runs/latest", (route) => route.fulfill({ json: legacy }));
+  await installRunFixture(page, legacy);
   await page.reload();
   await expect(page.locator(".chart-overlay svg.result-chart")).toBeVisible();
   await expect(page.locator(".chart-overlay polyline.overlay-price")).toHaveCount(1);
@@ -2321,7 +2321,7 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
+  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const result = saved.result.strategyRuns.find((r) => r.presetId === "vix_dca");
@@ -2420,9 +2420,9 @@ test("result info is absent and trade context remains readable in a narrow touch
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
   await closeSharedSettings(page);
-  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
-  await completed;
+  const saved = await (await completed).json();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await page.locator(".workbench-mobile-view").last().click();
@@ -2435,6 +2435,7 @@ test("result info is absent and trade context remains readable in a narrow touch
   const touch = await context.browser().newContext({ viewport: { width: 320, height: 700 }, hasTouch: true, isMobile: true });
   try {
     const touchPage = await touch.newPage();
+    await installRunFixture(touchPage, saved);
     await touchPage.goto(page.url());
     await expect(touchPage.locator(".comparison-table tbody tr")).toHaveCount(3);
     await touchPage.locator(".workbench-mobile-view").last().tap();

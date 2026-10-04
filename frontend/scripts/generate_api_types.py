@@ -15,6 +15,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = ROOT / "frontend"
 OUTPUT = FRONTEND / "src" / "api" / "generated.ts"
+SCHEMA_OUTPUT = FRONTEND / "src" / "api" / "generated.schema.json"
+EXPORT_OUTPUT = FRONTEND / "src" / "api" / "generated.exports.json"
 
 
 def _python_candidates() -> list[str]:
@@ -37,11 +39,11 @@ def _python_candidates() -> list[str]:
 def _load_schemas() -> dict[str, Any]:
     program = (
         "import json; from app.main import app; "
-        "print(json.dumps(app.openapi()['components']['schemas']))"
+        "from app.export.csv import csv_field_groups; "
+        "print(json.dumps({'schemas': app.openapi()['components']['schemas'], "
+        "'csvFields': csv_field_groups()}))"
     )
     env = os.environ.copy()
-    # OpenAPI generation is read-only and must not recover persisted user runs.
-    env["STOCK_ETF_BACKTESTER_RUN_STORE_PATH"] = ":memory:"
     backend_path = str(ROOT / "backend")
     env["PYTHONPATH"] = os.pathsep.join(
         part for part in (backend_path, env.get("PYTHONPATH", "")) if part
@@ -57,9 +59,11 @@ def _load_schemas() -> dict[str, Any]:
             check=False,
         )
         if result.returncode == 0:
-            openapi_schemas = json.loads(result.stdout)
+            generated = json.loads(result.stdout)
+            openapi_schemas = generated["schemas"]
             if not isinstance(openapi_schemas, dict):
                 raise RuntimeError("OpenAPI components.schemas is not an object")
+            EXPORT_OUTPUT.write_text(json.dumps(generated["csvFields"], indent=2) + "\n", encoding="utf-8")
             return openapi_schemas
         errors.append(f"{executable}: {result.stderr.strip().splitlines()[-1:]}")
     raise RuntimeError(
@@ -143,6 +147,9 @@ def main() -> None:
         lines.append("")
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text("\n".join(lines), encoding="utf-8")
+    SCHEMA_OUTPUT.write_text(
+        json.dumps(schemas, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     print(f"Generated {OUTPUT.relative_to(ROOT)} from {len(schemas)} OpenAPI schemas")
 
 

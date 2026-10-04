@@ -7,7 +7,7 @@ test("catalog failure and retry report actual initialization state before offeri
   const retryGate = new Promise(resolve => { releaseRetry = resolve; });
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/catalog", async route => {
     if (unavailable) {
       await route.fulfill({ status: 503, json: { detail: "catalog temporarily unavailable" } });

@@ -22,6 +22,7 @@ from app.domain.contracts import (
     UnexecutedSignal,
     UnexecutedSignalReason,
 )
+from app.domain.execution import ExecutionSettings, TradingCosts
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
@@ -30,9 +31,10 @@ from app.domain.status import (
 )
 from app.signals.evaluate import StrategySignalSeries
 
+from .execution import execute_trade
 from .types import LedgerResult
 
-LEDGER_METHOD_VERSION = "ledger-v4"
+LEDGER_METHOD_VERSION = "ledger-v5"
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +52,7 @@ def run_strategy(
     *,
     exchange_calendar: ExchangeCalendar,
     check_cancelled: Callable[[], None] | None = None,
+    strategy_by_date: Mapping[date, FrozenStrategyInstance] | None = None,
 ) -> LedgerResult:
     """Run one strategy over a frozen schedule and provider-neutral snapshot.
 
@@ -61,6 +64,14 @@ def run_strategy(
     _require_matching_inputs(
         config, strategy, contribution_schedule, signals, exchange_calendar
     )
+    if strategy_by_date is not None and (
+        set(strategy_by_date) != set(contribution_schedule.trading_dates)
+        or any(
+            policy.id != strategy.id or policy.preset_id != strategy.preset_id
+            for policy in strategy_by_date.values()
+        )
+    ):
+        raise ValueError("dated rules require complete sessions and stable identity")
     preset = get_preset_definition(strategy.preset_id)
     if not signals.available:
         return _unavailable_result(strategy.id, signals, contribution_schedule)
@@ -118,7 +129,6 @@ def run_strategy(
     }
     month_end_dates = _actual_exchange_month_ends(exchange_calendar)
     currency = snapshot.market.currency
-    params = strategy.params
     timing_cash = Decimal("0")
     timing_quantity = Decimal("0")
     fixed_quantity = Decimal("0")
@@ -131,6 +141,11 @@ def run_strategy(
         if check_cancelled is not None:
             check_cancelled()
         price = prices[day]
+        current_strategy = (
+            strategy if strategy_by_date is None else strategy_by_date[day]
+        )
+        params = current_strategy.params
+        trade_start = len(trades)
 
         planned_amount = contributions_by_date.get(day, Decimal("0"))
         if preset.execution_module in {
@@ -151,6 +166,7 @@ def run_strategy(
                     timing_cash,
                     timing_quantity,
                     trades,
+                    config.shared.execution,
                 )
             elif funding_mode == "monthly" and planned_amount > 0:
                 timing_cash += planned_amount
@@ -163,6 +179,7 @@ def run_strategy(
                     timing_cash,
                     fixed_quantity,
                     trades,
+                    config.shared.execution,
                 )
             elif funding_mode not in {"monthly", "upfront"}:
                 raise ValueError(f"unsupported scheduled funding mode: {funding_mode}")
@@ -173,8 +190,14 @@ def run_strategy(
 
         executed_sell = False
         if previous_day is not None:
+            previous_strategy = (
+                strategy if strategy_by_date is None else strategy_by_date[previous_day]
+            )
             sell_triggers = _sell_triggers(
-                strategy, preset.parameter_keys, previous_day, evaluation_by_key
+                previous_strategy,
+                preset.parameter_keys,
+                previous_day,
+                evaluation_by_key,
             )
             if sell_triggers and timing_quantity > 0:
                 maximum_ratio = max(trigger.ratio for trigger in sell_triggers)
@@ -184,23 +207,23 @@ def run_strategy(
                         for trigger in sell_triggers
                         if trigger.ratio == maximum_ratio
                     )
-                    quantity = timing_quantity * maximum_ratio
-                    proceeds = quantity * price
-                    timing_quantity -= quantity
-                    timing_cash += proceeds
-                    trades.append(
-                        Trade(
-                            date=day,
-                            side=TradeSide.SELL,
-                            reason=TradeReason.SIGNAL_SELL,
-                            quantity=quantity,
-                            price=price,
-                            cashAmount=proceeds,
-                            currency=currency,
-                            signalId=signal_id,
-                        )
+                    trade = execute_trade(
+                        day=day,
+                        side=TradeSide.SELL,
+                        reason=TradeReason.SIGNAL_SELL,
+                        signal_id=signal_id,
+                        base_price=price,
+                        currency=currency,
+                        cash=timing_cash,
+                        held_quantity=timing_quantity + fixed_quantity,
+                        sell_quantity=timing_quantity * maximum_ratio,
+                        settings=config.shared.execution,
                     )
-                    executed_sell = True
+                    if trade is not None:
+                        timing_quantity -= trade.quantity
+                        timing_cash += trade.cash_amount
+                        trades.append(trade)
+                        executed_sell = True
 
             if not executed_sell:
                 buy_signal_id = _buy_signal_id(preset.execution_module)
@@ -209,7 +232,7 @@ def run_strategy(
                 ):
                     month_key = (day.year, day.month)
                     monthly_limit = _optional_integer_parameter(
-                        params, "accumulation.maxSignalBuysPerMonth"
+                        previous_strategy.params, "accumulation.maxSignalBuysPerMonth"
                     )
                     if (
                         monthly_limit is None
@@ -225,6 +248,7 @@ def run_strategy(
                             timing_cash,
                             timing_quantity,
                             trades,
+                            config.shared.execution,
                         )
                         if len(trades) > before_trades:
                             signal_buy_count_by_month[month_key] += 1
@@ -246,6 +270,7 @@ def run_strategy(
                     timing_cash,
                     timing_quantity,
                     trades,
+                    config.shared.execution,
                 )
 
         daily_assets.append(
@@ -260,12 +285,17 @@ def run_strategy(
                 simulationPrice=price,
                 totalAsset=timing_cash + (timing_quantity + fixed_quantity) * price,
                 currency=currency,
+                tradingCosts=TradingCosts.aggregate(
+                    trade.trading_costs
+                    for trade in trades[trade_start:]
+                    if trade.trading_costs is not None
+                ),
             )
         )
         previous_day = day
 
     unexecuted = _last_day_unexecuted_signals(
-        strategy,
+        current_strategy,
         preset.parameter_keys,
         contribution_schedule.trading_dates[-1],
         evaluation_by_key,
@@ -355,23 +385,24 @@ def _buy_all(
     cash: Decimal,
     quantity_held: Decimal,
     trades: list[Trade],
+    settings: ExecutionSettings | None,
 ) -> tuple[Decimal, Decimal]:
-    if cash <= 0:
-        return cash, quantity_held
-    quantity = cash / price
-    trades.append(
-        Trade(
-            date=day,
-            side=TradeSide.BUY,
-            reason=reason,
-            quantity=quantity,
-            price=price,
-            cashAmount=cash,
-            currency=currency,
-            signalId=signal_id,
-        )
+    trade = execute_trade(
+        day=day,
+        side=TradeSide.BUY,
+        reason=reason,
+        signal_id=signal_id,
+        base_price=price,
+        currency=currency,
+        cash=cash,
+        held_quantity=quantity_held,
+        settings=settings,
     )
-    return Decimal("0"), quantity_held + quantity
+    if trade is None:
+        return cash, quantity_held
+    trades.append(trade)
+    assert trade.cash_after is not None and trade.quantity_after is not None
+    return trade.cash_after, trade.quantity_after
 
 
 def _sell_triggers(

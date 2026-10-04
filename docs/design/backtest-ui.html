@@ -121,6 +121,20 @@
     #backtest-ui-preview .export-controls button { min-height: 32px; padding: 0 8px; color: var(--muted); font-size: 12px; }
     #backtest-ui-preview .prototype-report-download { color: var(--action-text); background: var(--action); border-color: var(--accent); min-height: 36px; font-weight: 600; }
     #backtest-ui-preview .panel-body { padding: 0 10px 10px; }
+    #backtest-ui-preview .performance-basis { color: var(--muted); font-size: 12px; }
+    #backtest-ui-preview .performance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 8px; margin: 0 0 16px; }
+    #backtest-ui-preview :is(.performance-stat, .trading-cost-stat) { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+    #backtest-ui-preview :is(.performance-stat, .trading-cost-stat) dt { color: var(--muted); font-size: 12px; }
+    #backtest-ui-preview :is(.performance-stat, .trading-cost-stat) dd { margin: 4px 0 0; font-size: 18px; font-weight: 650; }
+    #backtest-ui-preview .period-table-scroll { max-height: 360px; overflow: auto; overscroll-behavior-y: auto; }
+    #backtest-ui-preview .period-table-scroll thead th { position: sticky; top: 0; }
+    #backtest-ui-preview .heatmap-table { min-width: 650px; table-layout: fixed; }
+    #backtest-ui-preview .heatmap-table td { padding: 3px; text-align: center; }
+    #backtest-ui-preview .heatmap-cell { width: 100%; padding: 4px 2px; font-size: 11px; min-height: 38px; border-color: transparent; }
+    #backtest-ui-preview .heatmap-cell.is-positive { color: var(--accent); background: #e9eef8; }
+    #backtest-ui-preview .heatmap-cell.is-negative { color: #7c3f12; background: #fff0e3; }
+    #backtest-ui-preview .heatmap-cell.is-inspected { outline: 2px solid var(--accent); outline-offset: -2px; }
+    #backtest-ui-preview .heatmap-detail { color: var(--muted); font-size: 12px; }
     #backtest-ui-preview .result-tabs { display: flex; gap: 4px; margin: 0; overflow-x: auto; border-bottom: 1px solid var(--border); }
     #backtest-ui-preview .result-tabs button { flex: 0 0 auto; padding: 7px 9px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); }
     #backtest-ui-preview .result-tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 650; }
@@ -143,7 +157,6 @@
     #backtest-ui-preview .is-wheel-zoom-active { outline: 2px solid #30497d80; outline-offset: 4px; }
     #backtest-ui-preview .chart-linked-stack { display: grid; gap: 0; overflow-x: auto; }
     #backtest-ui-preview .chart-figure { min-width: 680px; margin: 0; padding: 0; }
-    #backtest-ui-preview .chart-figure figcaption { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 2px; font-weight: 650; }
     #backtest-ui-preview .chart-figure svg { display: block; width: 100%; min-width: 680px; height: auto; user-select: none; -webkit-user-select: none; }
     #backtest-ui-preview .compact-indicator svg { height: auto; aspect-ratio: 800 / 90; }
     #backtest-ui-preview .chart-core-readout-row { min-height: 40px; height: auto; padding: 4px 6px; overflow: visible; color: var(--muted); font-size: 11px; }
@@ -155,13 +168,12 @@
     #backtest-ui-preview .price-line { vector-effect: non-scaling-stroke; fill: none; stroke: #9c4b0d; stroke-width: 1.2; }
     #backtest-ui-preview .asset-line { vector-effect: non-scaling-stroke; fill: none; stroke: #30497d; stroke-width: 1.2; }
     #backtest-ui-preview .base-line { stroke: #8b9abb; stroke-width: 1; stroke-dasharray: 4 4; }
-    #backtest-ui-preview .legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin: 0; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .comparison-table-wrap { overflow-x: auto; }
-    #backtest-ui-preview [data-panel="comparison"].comparison-table-wrap { max-height: min(300px, 30dvh); overflow: auto; overscroll-behavior: contain; }
+    #backtest-ui-preview [data-panel="comparison"].comparison-table-wrap { max-height: min(300px, 30dvh); overflow: auto; overscroll-behavior: contain auto; }
     #backtest-ui-preview .comparison-table thead { position: sticky; z-index: 2; top: 0; }
     #backtest-ui-preview .comparison-table tbody tr { position: relative; translate: 0 0; transition: translate 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out; }
     #backtest-ui-preview .comparison-table tbody tr:has(.result-select[aria-pressed="true"]) { z-index: 1; translate: 0 -1px; background: color-mix(in srgb, var(--row-color) 18%, var(--surface)); box-shadow: 0 3px 6px rgb(37 60 109 / 18%), inset 0 0 0 1px var(--row-color); }
-    #backtest-ui-preview [data-panel="trades"] .comparison-table-wrap { max-height: 420px; overflow: auto; }
+    #backtest-ui-preview [data-panel="trades"] .comparison-table-wrap { max-height: 420px; overflow: auto; overscroll-behavior: contain auto; }
     #backtest-ui-preview [data-panel="trades"] thead th { position: sticky; top: 0; }
     #backtest-ui-preview .signal-switch { width: 36px; height: 22px; min-height: 22px; background: var(--accent); border-radius: 12px; border: 0; padding: 3px; }
     #backtest-ui-preview .signal-switch span { display: block; width: 16px; height: 16px; background: #fff; border-radius: 50%; transform: translateX(14px); }
@@ -170,7 +182,6 @@
     #backtest-ui-preview .unit-field { position: relative; }
     #backtest-ui-preview .unit-field input { width: 100%; padding-right: 54px; }
     #backtest-ui-preview .unit { position: absolute; right: 10px; top: 11px; color: var(--muted); }
-    #backtest-ui-preview .legend span { cursor: default; }
     #backtest-ui-preview .chart-figure.highlight-price .price-line,
     #backtest-ui-preview .chart-figure.highlight-asset .asset-line { stroke-width: 2.4; }
     #backtest-ui-preview .chart-area { display: none; }
@@ -246,9 +257,12 @@
       #backtest-ui-preview .config-collapsed { grid-template-columns: 0 44px minmax(0, 1fr); }
     }
     @media (prefers-reduced-motion: reduce) { #backtest-ui-preview .strategy-card, #backtest-ui-preview .comparison-table tbody tr { transition: none; } }
-    #backtest-ui-preview .chart-market-readout { display: flex; align-items: center; min-height: 32px; }
-    #backtest-ui-preview .chart-strategy-readout { display: grid; grid-template-columns: 18px minmax(170px, 1.2fr) repeat(3, minmax(150px, 1fr)); gap: 8px; min-height: 24px; }
-    #backtest-ui-preview .legend button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 2px 4px #253c6d20; translate: 0 -1px; }
+    #backtest-ui-preview .chart-market-readout { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 32px; }
+    #backtest-ui-preview .chart-series-control { display: inline-flex; gap: 6px; align-items: center; padding: 3px 4px; border: 1px solid transparent; background: transparent; font: inherit; color: var(--text); text-align: left; }
+    #backtest-ui-preview .chart-series-control:hover, #backtest-ui-preview .chart-series-control:focus-visible { background: var(--accent-soft); }
+    #backtest-ui-preview .chart-strategy-readout { display: grid; width: 100%; grid-template-columns: 18px minmax(170px, 1.2fr) repeat(3, minmax(150px, 1fr)); gap: 8px; min-height: 24px; }
+    #backtest-ui-preview .chart-series-control[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 2px 4px #253c6d20; translate: 0 -1px; }
+    @media (pointer: coarse) { #backtest-ui-preview .chart-series-control { min-height: 44px; } }
     #backtest-ui-preview .dialog-done { background: var(--action); color: var(--action-text); border-color: var(--accent); }
     #backtest-ui-preview .comparison-table-wrap { --table-controls-height: 36px; }
     #backtest-ui-preview .table-height-controls { position: sticky; top: 0; left: 0; z-index: 3; display: flex; justify-content: flex-end; align-items: center; width: 100%; height: var(--table-controls-height); padding: 4px 6px; background: var(--surface); }
@@ -297,6 +311,15 @@
   #backtest-ui-preview .result-select[aria-pressed="true"] { color: #253c6d; font-weight: 650; }
   #backtest-ui-preview .etf-options { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   #backtest-ui-preview .etf-options button { padding: 8px 12px; }
+    #backtest-ui-preview .prototype-inspector-dialog { width: min(720px, calc(100vw - 24px)); }
+    #backtest-ui-preview .inspector-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    #backtest-ui-preview .inspector-values dt { color: var(--muted); }
+    #backtest-ui-preview .inspector-values dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+    #backtest-ui-preview .inspector-condition { padding: 12px; border-left: 2px solid var(--accent); background: var(--surface); }
+    #backtest-ui-preview .trade-date-button { border: 0; background: transparent; color: var(--accent); text-decoration: underline; }
+    #backtest-ui-preview .chart-trade-action { cursor: pointer; }
+    #backtest-ui-preview .chart-trade-action:focus { outline: 2px solid var(--accent); }
+    @media (max-width: 420px) { #backtest-ui-preview .inspector-values { grid-template-columns: 1fr; } }
 </style>
 
   <header class="app-topbar">
@@ -343,15 +366,27 @@
         <section class="result-card" id="prototype-result-details" aria-label="実行結果">
           <header class="panel-heading">
             <div class="panel-heading-main"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-result-body"><span class="chevron" aria-hidden="true">⌄</span>実行結果</button></div>
-            <div class="result-context-actions"><div class="export-controls" role="group" aria-label="CSV をエクスポート"><button type="button" title="サマリー CSV">↓ サマリー.csv</button><button type="button" title="日次資産 CSV">↓ 日次資産.csv</button><button type="button" title="取引 CSV">↓ 取引.csv</button><button type="button" disabled title="検索結果なし">↓ 検索結果.csv</button></div><button type="button" class="prototype-report-download" title="保存済み戦略の結果を PNG で保存">↓ レポート.png</button></div>
+            <div class="result-context-actions"><button type="button" class="icon-button" data-inspector="data" aria-label="保存データ" title="保存データ" aria-haspopup="dialog">ⓘ</button><div class="export-controls" role="group" aria-label="CSV をエクスポート"><button type="button" title="サマリー CSV">↓ サマリー.csv</button><button type="button" title="日次資産 CSV">↓ 日次資産.csv</button><button type="button" title="取引 CSV">↓ 取引.csv</button><button type="button" disabled title="検索結果なし">↓ 検索結果.csv</button></div><button type="button" class="prototype-report-download" title="保存済み戦略の結果を PNG で保存">↓ レポート.png</button></div>
           </header>
           <div id="prototype-result-body" class="panel-body">
-            <div class="result-tabs" role="tablist" aria-label="実行結果"><button type="button" role="tab" aria-selected="true" data-tab="comparison">戦略比較</button><button type="button" role="tab" aria-selected="false" data-tab="trades">取引明細</button></div>
+            <div class="result-tabs" role="tablist" aria-label="実行結果"><button type="button" role="tab" aria-selected="true" data-tab="comparison">戦略比較</button><button type="button" role="tab" aria-selected="false" data-tab="trades">取引明細</button><button type="button" role="tab" aria-selected="false" data-tab="performance">パフォーマンス</button></div>
             <section class="tab-panel comparison-table-wrap" role="tabpanel" data-panel="comparison" id="prototype-comparison-scroll">
               <div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="戦略比較" aria-label="戦略比較を全行表示" aria-expanded="false" aria-controls="prototype-comparison-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div>
               <table class="comparison-table"><caption class="sr-only">実行結果の比較</caption><thead><tr><th scope="col"><button class="comparison-sort" type="button" data-column="0">戦略<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="1">投入済み元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="2">注入元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="3">期末資産<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="4">純損益<span aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="descending"><button class="comparison-sort" type="button" data-column="5">投入利益率<span aria-hidden="true">↓</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="6">資産倍率<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="7">XIRR<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="8">最大ドローダウン<span aria-hidden="true">↕</span></button></th></tr></thead><tbody><tr style="--row-color:#7656a6"><th scope="row"><span class="result-rank" aria-hidden="true">1</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 一括投資</button></th><td>$8,100</td><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td></tr><tr style="--row-color:#a65b0f"><th scope="row"><span class="result-rank" aria-hidden="true">2</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 毎月定額積立</button></th><td>$8,100</td><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td></tr><tr style="--row-color:#30497d"><th scope="row"><span class="result-rank" aria-hidden="true">3</span> <button type="button" class="result-select" aria-pressed="true"><span aria-hidden="true" style="color:var(--row-color)">●</span> ボラティリティ積立</button></th><td>$7,800</td><td>$8,100</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td></tr></tbody></table>
             </section>
-            <section class="tab-panel" role="tabpanel" data-panel="trades" hidden><h4 class="trade-context">ボラティリティ積立</h4><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td>2026-08-03</td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td>2026-09-01</td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
+            <section class="tab-panel" role="tabpanel" data-panel="trades" hidden><h4 class="trade-context">ボラティリティ積立</h4><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
+            <section class="tab-panel" role="tabpanel" data-panel="performance" hidden>
+              <h4>ボラティリティ積立</h4><p class="performance-basis">単位純資産ベース · 年 252 取引日 · 無リスク年利率 0%</p>
+              <h4>リターン・リスク</h4><dl class="performance-grid">
+                <div class="performance-stat"><dt>NAV 年率リターン</dt><dd>12.4%</dd></div><div class="performance-stat"><dt>年率ボラティリティ</dt><dd>20.3%</dd></div><div class="performance-stat"><dt>Sharpe</dt><dd>0.67</dd></div><div class="performance-stat"><dt>Sortino</dt><dd>0.91</dd></div><div class="performance-stat"><dt>Calmar</dt><dd>0.35</dd></div>
+              </dl><h4>回復期間</h4><dl class="performance-grid"><div class="performance-stat"><dt>最長ドローダウン期間</dt><dd>500 日</dd></div><div class="performance-stat"><dt>最大下落からの回復</dt><dd>216 日</dd></div></dl>
+              <h4>売買・現金</h4><dl class="performance-grid"><div class="performance-stat"><dt>買付回数</dt><dd>42</dd></div><div class="performance-stat"><dt>売却回数</dt><dd>0</dd></div><div class="performance-stat"><dt>総売買回転率</dt><dd>96.2%</dd></div><div class="performance-stat"><dt>平均現金比率</dt><dd>8.4%</dd></div></dl>
+              <section class="trading-costs-panel"><h4>取引コスト</h4><dl class="performance-grid"><div class="trading-cost-stat"><dt>手数料</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>スリッページ損失</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>スプレッド損失</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>コスト合計</dt><dd>$0.00</dd></div></dl></section>
+              <h4>年次リターン</h4><p class="performance-basis">保存期間のNAVリターン。部分年・部分月を年率化しません。</p>
+              <div class="period-table-scroll" tabindex="0" role="region" aria-label="年次リターン"><table class="annual-performance-table"><caption class="sr-only">年次リターン</caption><thead><tr><th scope="col">年</th><th scope="col">戦略 NAV</th><th scope="col">銘柄終値</th><th scope="col">毎月定額積立</th></tr></thead><tbody><tr><th scope="row" title="2024-01-02 → 2024-12-31">2024</th><td>12.4%</td><td>14.5%</td><td>14.5%</td></tr></tbody></table></div>
+              <h4>月次リターン</h4><div class="period-table-scroll" tabindex="0" role="region" aria-label="月次リターン"><table class="heatmap-table"><caption class="sr-only">月次リターン</caption><thead><tr><th scope="col">年</th><th scope="col">1月</th><th scope="col">2月</th><th scope="col">3月</th><th scope="col">4月</th><th scope="col">5月</th><th scope="col">6月</th><th scope="col">7月</th><th scope="col">8月</th><th scope="col">9月</th><th scope="col">10月</th><th scope="col">11月</th><th scope="col">12月</th></tr></thead><tbody><tr><th scope="row">2024</th><td><button class="heatmap-cell is-positive" type="button" aria-label="2024-01 · 2.1234%">+2.12%</button></td><td><button class="heatmap-cell is-negative" type="button" aria-label="2024-02 · -1.2345%">-1.23%</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div><p class="heatmap-detail" role="status">セルを選ぶと保存値を表示します。</p>
+              <h4>ドローダウン区間</h4><div class="period-table-scroll" tabindex="0" role="region" aria-label="ドローダウン区間"><table class="drawdown-episodes-table"><caption class="sr-only">ドローダウン区間</caption><thead><tr><th scope="col">ピーク</th><th scope="col">底</th><th scope="col">下落率</th><th scope="col">回復日</th><th scope="col">期間</th><th scope="col">回復</th></tr></thead><tbody><tr><th scope="row">2024-07-01</th><td>2024-08-05</td><td>-12.3%</td><td>未回復</td><td title="2024-12-31">183 日</td><td>—</td></tr></tbody></table></div>
+            </section>
           </div>
         </section>
 
@@ -367,15 +402,17 @@
             <p class="chart-gesture-hint sr-only">通常スクロールは結果欄を移動 · Ctrl/Command＋スクロールは全図を同期して拡大・縮小</p>
             <div class="chart-linked-stack">
             <figure class="chart-figure">
-              <figcaption>価格・元本リターン<div class="legend"><button type="button" aria-pressed="false" data-highlight="price"><i class="swatch"></i>銘柄の終値 (USD)</button><button type="button" aria-pressed="false" data-highlight="asset"><i class="swatch asset"></i>ボラティリティ積立</button><span>基準100</span></div></figcaption>
-              <div class="chart-core-readout-row"><div class="chart-market-readout">2023-05-01 · 銘柄の終値 410.00 USD · ドローダウン −8% · VIX 25</div><div class="chart-strategy-readout"><span>3</span><strong>ボラティリティ積立</strong><span>資産 12,680.00 USD</span><span>元本 8,100.00 USD</span><span>元本リターン指数 156.5</span></div></div>
-              <svg viewBox="0 0 800 274" role="img" aria-label="価格の開始値と累計投入元本を基準100とした推移。横軸は日付">
+              <div class="chart-core-readout-row">
+                <div class="chart-market-readout"><time datetime="2023-05-01">2023-05-01</time><button type="button" class="chart-series-control" aria-label="銘柄の終値 (USD)" aria-pressed="false" data-highlight="price">銘柄の終値 <strong>410.00 USD · 相対指数 174.8</strong></button><span>ドローダウン −8%</span><span>VIX 25</span></div>
+                <button type="button" class="chart-series-control chart-strategy-readout" aria-label="ボラティリティ積立" aria-pressed="false" data-highlight="asset"><span aria-hidden="true">3</span><strong>ボラティリティ積立</strong><span>資産 12,680.00 USD</span><span>元本 8,100.00 USD</span><span>元本リターン指数 156.5</span></button>
+              </div>
+              <svg viewBox="0 0 800 274" role="group" aria-label="価格の開始値と累計投入元本を基準100とした推移。横軸は日付">
                 <g fill="none"><path class="grid-line" d="M92 20.0H774 M92 55.1H774 M92 90.3H774 M92 125.4H774 M92 160.6H774 M92 195.7H774 M92 230.9H774 M92 266.0H774 M92.0 20V266 M205.7 20V266 M319.3 20V266 M433.0 20V266 M546.7 20V266 M660.3 20V266 M774.0 20V266"/><line class="base-line" x1="92" y1="248.4" x2="774" y2="248.4"/></g>
                 <g class="tick"><text x="42" y="24.0">360</text><text x="42" y="59.1">320</text><text x="42" y="94.3">280</text><text x="42" y="129.4">240</text><text x="42" y="164.6">200</text><text x="42" y="199.7">160</text><text x="42" y="234.9">120</text><text x="42" y="270.0">80</text></g>
                 <defs><linearGradient id="prototype-price-gradient" x2="0" y2="1"><stop stop-color="#9c4b0d" stop-opacity=".3"/><stop offset="1" stop-color="#9c4b0d" stop-opacity="0"/></linearGradient><linearGradient id="prototype-asset-gradient" x2="0" y2="1"><stop stop-color="#30497d" stop-opacity=".3"/><stop offset="1" stop-color="#30497d" stop-opacity="0"/></linearGradient></defs>
                 <path class="chart-area area-price" d="M92 266L92 248.4L160 229.1L230 237.0L300 195.7L370 210.7L440 151.8L510 171.1L580 121.9L650 140.4L720 63.1L774 24.4L774 266Z" fill="url(#prototype-price-gradient)"/><path class="chart-area area-asset" d="M92 266L92 248.4L160 238.8L230 245.8L300 222.1L370 236.1L440 197.5L510 209.8L580 177.3L650 199.2L720 165.8L774 156.2L774 266Z" fill="url(#prototype-asset-gradient)"/>
                 <polyline class="price-line" points="92,248.4 160,229.1 230,237.0 300,195.7 370,210.7 440,151.8 510,171.1 580,121.9 650,140.4 720,63.1 774,24.4"/><polyline class="asset-line" points="92,248.4 160,238.8 230,245.8 300,222.1 370,236.1 440,197.5 510,209.8 580,177.3 650,199.2 720,165.8 774,156.2"/>
-                <polygon class="trade-marker" fill="#30497d" stroke="#fff" data-anchor-series="totalAsset" points="440,204.5 437,193.5 443,193.5"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="20" y2="266"/><line x1="92" x2="774" y1="197.5" y2="197.5"/><circle cx="440" cy="197.5" r="3.5" fill="#30497d"/></g><text class="axis-title" transform="translate(18 144) rotate(-90)" text-anchor="middle">指数（価格の開始値・元本 = 100）</text>
+                <g class="chart-trade-action" role="button" tabindex="0" data-inspector="trade" aria-label="2026-08-03 買いの約定詳細"><circle cx="440" cy="197.5" r="12" fill="transparent"/><polygon class="trade-marker" fill="#30497d" stroke="#fff" data-anchor-series="totalAsset" points="440,204.5 437,193.5 443,193.5"/></g><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="20" y2="266"/><line x1="92" x2="774" y1="197.5" y2="197.5"/><circle cx="440" cy="197.5" r="3.5" fill="#30497d"/></g><text class="axis-title" transform="translate(18 144) rotate(-90)" text-anchor="middle">指数（価格の開始値・元本 = 100）</text>
               </svg>
             </figure>
             <figure class="chart-figure compact-indicator"><svg viewBox="0 0 800 90" role="img" aria-label="ドローダウン (%)、主図と同期した期間"><path class="grid-line" fill="none" d="M92 8H774 M92 45.0H774 M92 82H774 M92.0 8V82 M205.7 8V82 M319.3 8V82 M433.0 8V82 M546.7 8V82 M660.3 8V82 M774.0 8V82"/><text class="tick" x="42" y="12">0</text><text class="tick" x="42" y="49.0">−15</text><text class="tick" x="42" y="86">−30</text><polyline fill="none" stroke="#a7373a" stroke-width="1.2" vector-effect="non-scaling-stroke" points="92,30.2 160,45.0 230,56.1 300,37.6 370,59.8 440,26.5 510,74.6 580,33.9 650,41.3 720,19.1 774,30.2"/><g class="cursor-example" aria-hidden="true"><line x1="440" x2="440" y1="8" y2="82"/></g></svg></figure>
@@ -393,6 +430,8 @@
         <fieldset><legend>対象</legend><div class="fields"><div class="field"><label for="prototype-symbol">銘柄コード</label><input id="prototype-symbol" value="QQQ"/><div class="etf-options"><button type="button">QQQ</button><button type="button">SPY</button><button type="button">VOO</button><button type="button">VTI</button><button type="button">IVV</button></div></div></div></fieldset>
         <fieldset><legend>期間</legend><div class="fields"><div class="field"><label for="prototype-start">開始日</label><input id="prototype-start" type="date" value="2020-01-01"/></div><div class="field"><label for="prototype-end">終了日</label><input id="prototype-end" type="date" value="2026-10-01"/></div></div></fieldset>
         <fieldset><legend>投入計画</legend><div class="fields"><div class="field"><label for="prototype-cash">毎月の投入額</label><div class="unit-field"><input id="prototype-cash" type="number" value="100"/><span class="unit">USD</span></div></div><div class="field"><label for="prototype-day">毎月の投入日</label><input id="prototype-day" type="number" min="1" max="31" value="1"/></div></div></fieldset>
+        <fieldset><legend>分析</legend><div class="fields"><div class="field"><label for="prototype-risk-free">無リスク年利率</label><div class="unit-field"><input id="prototype-risk-free" type="number" required min="-99.99" max="100" step="0.01" value="0"/><span class="unit">%</span></div><small>Sharpe / Sortino の比較基準。現金には加算しません。</small></div></div></fieldset>
+        <fieldset><legend>約定</legend><div class="fields"><div class="field"><label for="prototype-commission">1件あたりの手数料</label><div class="unit-field"><input id="prototype-commission" type="number" required min="0" step="0.01" value="0"/><span class="unit">USD / 件</span></div><small>約定時だけ課金します。</small></div><div class="field"><label for="prototype-slippage">スリッページ</label><div class="unit-field"><input id="prototype-slippage" type="number" required min="0" max="99.99" step="0.01" value="0"/><span class="unit">%</span></div></div><div class="field"><label for="prototype-spread">売買スプレッド</label><div class="unit-field"><input id="prototype-spread" type="number" required min="0" max="199.98" step="0.01" value="0"/><span class="unit">%</span></div></div><div class="field"><label>端株を許可</label><button id="prototype-fractional" type="button" role="switch" aria-label="端株を許可" aria-checked="true"><i class="signal-switch" aria-hidden="true"><span></span></i></button><small>OFF：整数株数。余りは現金。</small></div></div></fieldset>
       </div><footer class="dialog-footer"><button class="button-primary dialog-done" type="button">完了</button></footer>
     </div>
   </dialog>
@@ -416,6 +455,12 @@
       <footer class="dialog-footer"><button class="button-primary strategy-dialog-done" type="button">完了</button></footer>
     </div>
   </dialog>
+  <dialog class="prototype-inspector-dialog" aria-labelledby="prototype-inspector-title">
+    <div class="dialog-shell"><header class="dialog-header"><h2 id="prototype-inspector-title"></h2><button type="button" class="icon-button inspector-close" aria-label="閉じる">×</button></header><div class="dialog-content" tabindex="0" role="region" aria-labelledby="prototype-inspector-title"></div></div>
+  </dialog>
+  <template id="prototype-inspector-trade"><p><time>2026-08-03</time> · 買い $508.40 · シグナル買付</p><p>シグナル日 <time>2026-07-31</time></p><h3>判定条件</h3><p class="inspector-condition">VIX 25 ≥ 25 · ✓ TRUE</p><h3>約定</h3><dl class="inspector-values"><div><dt>基準価格</dt><dd>$410.00</dd></div><div><dt>約定価格</dt><dd>$410.00</dd></div><div><dt>数量</dt><dd>1.24</dd></div><div><dt>約定額</dt><dd>$508.40</dd></div></dl><h3>取引コスト</h3><dl class="inspector-values"><div><dt>手数料</dt><dd>$0.00</dd></div><div><dt>スリッページ損失</dt><dd>$0.00</dd></div><div><dt>スプレッド損失</dt><dd>$0.00</dd></div><div><dt>コスト合計</dt><dd>$0.00</dd></div></dl><h3>取引前後</h3><dl class="inspector-values"><div><dt>現金</dt><dd>$608.40 → $100.00</dd></div><div><dt>保有数量</dt><dd>0 → 1.24</dd></div></dl></template>
+  <template id="prototype-inspector-planned"><p><time>2026-09-01</time> · 買い $100.00 · 定額積立</p><h3>判定条件</h3><p>投入計画に基づく買付です。</p><h3>約定</h3><dl class="inspector-values"><div><dt>約定価格</dt><dd>$416.00</dd></div><div><dt>数量</dt><dd>0.24</dd></div></dl></template>
+  <template id="prototype-inspector-data"><dl class="inspector-values"><div><dt>データ提供元</dt><dd>Yahoo Finance</dd></div><div><dt>通貨</dt><dd>USD</dd></div><div><dt>指定期間</dt><dd>2020-01-01 → 2026-09-29</dd></div><div><dt>実際の期間</dt><dd>2020-01-02 → 2026-09-29</dd></div><div><dt>約定用価格</dt><dd>配当・分割調整済みの終値</dd></div><div><dt>評価用価格</dt><dd>配当調整なし。EPS の基準と合わせて評価</dd></div></dl><h3>保存された観測値</h3><p class="inspector-condition">^VIX · 100%</p></template>
   <template id="prototype-grid-template"><section class="prototype-grid-settings"><h3>検索設定</h3><p>候補値を組み合わせて比較します。</p><div class="prototype-grid-values">
 <fieldset class="prototype-grid-value-card"><legend>指数しきい値の候補</legend><div class="fields">
 <div class="field"><label class="sr-only" for="prototype-grid-vix-0">指数しきい値の候補 1</label><div class="unit-field"><input id="prototype-grid-vix-0" type="number" required min="0" step="0.01" value="25"/><span class="unit">pt</span></div></div>
@@ -442,6 +487,11 @@
       const toggle = root.querySelector("#prototype-config-toggle");
       const sharedDialog = root.querySelector(".shared-dialog");
       const strategyDialog = root.querySelector(".strategy-dialog");
+      const inspectorDialog = root.querySelector(".prototype-inspector-dialog");
+      root.querySelector("#prototype-fractional").addEventListener("click", event => {
+        const button = event.currentTarget;
+        button.setAttribute("aria-checked", String(button.getAttribute("aria-checked") !== "true"));
+      });
       let trigger = null;
       const setOpen = (dialog, opener, grid = false) => {
         if (dialog === strategyDialog) {
@@ -479,6 +529,19 @@
         }
         dialog.close(); trigger?.focus(); trigger = null;
       };
+      root.querySelectorAll("[data-inspector]").forEach(opener => {
+        const openInspector = event => {
+          event.preventDefault(); event.stopPropagation();
+          opener.focus();
+          inspectorDialog.querySelector("h2").textContent = opener.dataset.inspector === "data" ? "QQQ · 保存データ" : "ボラティリティ積立";
+          inspectorDialog.querySelector(".dialog-content").replaceChildren(root.querySelector(`#prototype-inspector-${opener.dataset.inspector}`).content.cloneNode(true));
+          setOpen(inspectorDialog, opener);
+        };
+        opener.addEventListener("click", openInspector);
+        if (opener.tagName.toLowerCase() === "g") opener.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) openInspector(event); });
+      });
+      inspectorDialog.querySelector(".inspector-close").addEventListener("click", () => closeDialog(inspectorDialog));
+      inspectorDialog.addEventListener("cancel", event => { event.preventDefault(); closeDialog(inspectorDialog); });
       [sharedDialog, strategyDialog].forEach(dialog => {
         const content = dialog.querySelector(".dialog-content");
         new ResizeObserver(() => {
@@ -515,6 +578,13 @@
         root.querySelectorAll(".result-tabs button").forEach((item) => item.setAttribute("aria-selected", String(item === button)));
         root.querySelectorAll(".tab-panel").forEach((panel) => { panel.hidden = panel.dataset.panel !== button.dataset.tab; });
       }));
+      root.querySelectorAll(".heatmap-cell").forEach(button => {
+        const inspect = () => {
+          root.querySelectorAll(".heatmap-cell").forEach(cell => cell.classList.toggle("is-inspected", cell === button));
+          root.querySelector(".heatmap-detail").textContent = button.getAttribute("aria-label");
+        };
+        ["mouseenter", "focus", "click"].forEach(event => button.addEventListener(event, inspect));
+      });
       root.querySelectorAll(".chart-legend button").forEach((button) => button.addEventListener("click", () => {
         const visible = button.getAttribute("aria-pressed") === "true";
         const core = [...root.querySelectorAll('.chart-legend button[data-series="price"], .chart-legend button[data-series="asset"]')];

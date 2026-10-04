@@ -1,5 +1,3 @@
-import os
-from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI
@@ -15,20 +13,12 @@ from app.api.errors import (
 from app.api.export import router as export_router
 from app.api.runs import router as runs_router
 from app.runs.manager import RunManager
-from app.runs.sqlite_store import SQLiteRunStore
+from app.runs.store import InMemoryRunStore
 from app.runs.yahoo_data import YahooRunDataProvider
 
 
 class HealthResponse(BaseModel):
     status: Literal["ok"]
-
-
-def _run_store_path() -> Path:
-    configured_path = os.environ.get("STOCK_ETF_BACKTESTER_RUN_STORE_PATH")
-    if configured_path:
-        return Path(configured_path).expanduser()
-    repository_root = Path(__file__).resolve().parents[2]
-    return repository_root / ".local" / "runs.sqlite3"
 
 
 app = FastAPI(
@@ -42,7 +32,7 @@ app.include_router(export_router)
 app.add_exception_handler(APIException, api_exception_handler)
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 app.state.run_service = RunManager(
-    store=SQLiteRunStore(_run_store_path()),
+    store=InMemoryRunStore(),
     data_provider=YahooRunDataProvider(),
 )
 

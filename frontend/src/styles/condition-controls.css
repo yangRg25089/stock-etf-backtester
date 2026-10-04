@@ -1,0 +1,87 @@
+.field-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  align-self: start;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 8px;
+  background: var(--app-surface-muted);
+  border-radius: 6px;
+}
+.field-switch .field-hint, .field-switch .field-error { flex-basis: 100%; }
+.parameter-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 2px;
+  color: var(--app-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+.parameter-switch .switch-thumb { transform: none; }
+.parameter-switch[aria-checked="true"] .switch-track { background: var(--app-accent); }
+.parameter-switch[aria-checked="true"] .switch-thumb { transform: translateX(14px); background: white; }
+.parameter-switch:disabled { opacity: .55; cursor: not-allowed; }
+.field-segments { display: inline-flex; padding: 3px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface-muted); }
+.field-segment { position: relative; cursor: pointer; }
+.field-segment input { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.field-segment > span { display: grid; place-items: center; min-width: 54px; min-height: 36px; border-radius: 4px; font-weight: 650; }
+.field-segment input:checked + span { color: white; background: var(--app-accent); }
+.field-segment input:focus-visible + span { outline: 3px solid var(--app-accent); outline-offset: 2px; }
+.field-segment input:disabled + span { opacity: .55; cursor: not-allowed; }
+.strategy-rule-sections { display: grid; gap: 16px; margin-bottom: 16px; }
+.strategy-rule-section { min-width: 0; padding: 12px; border: 1px solid var(--app-border); border-radius: 8px; background: var(--app-surface-muted); }
+.strategy-rule-section[data-rule-side="sell"] { border-color: #dbcdce; background: #faf6f6; }
+.condition-heading, .condition-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; margin-bottom: 8px; }
+.condition-heading h3, .condition-card-heading h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; margin: 0; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.condition-kind-name { color: var(--app-muted); font-size: 12px; font-weight: 500; }
+.condition-heading-actions { display: flex; align-items: center; flex-shrink: 0; gap: 4px; }
+.condition-collapsed-errors { margin: 0; padding: 6px; border: 1px solid #ebcaca; border-radius: 6px; background: #fff8f8; }
+.condition-collapsed-errors .diagnostic-list { margin: 0; }
+.diagnostic-field-name { display: block; margin-bottom: 2px; font-size: inherit; }
+.condition-enable-switch { flex: 0 0 44px; justify-content: center; width: 44px; min-height: 40px; }
+.condition-card { min-width: 0; padding: 10px; border: 1px solid var(--app-border); border-radius: 6px; background: white; }
+.search-dimension-editor { margin-top: 16px; }
+.search-dimension-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+.search-dimension-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); color: var(--app-muted); cursor: pointer; }
+.search-dimension-toggle[aria-pressed="true"] { background: var(--app-accent); border-color: var(--app-accent); color: white; font-weight: 650; }
+.search-dimension-toggle:disabled { opacity: .55; cursor: not-allowed; }
+.search-values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px; margin-top: 12px; }
+.search-value-card { min-width: 0; padding: 10px; background: white; border: 1px solid var(--app-border); border-radius: 6px; }
+.search-value-card .number-list-control { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.search-value-card .number-list-control > .text-button { min-height: 40px; }
+.search-combination-settings { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.search-combination-settings .field { flex: 0 1 240px; }
+.search-combination-count { font-weight: 650; color: var(--app-accent); }
+@media (pointer: coarse) { .search-dimension-toggle, .search-value-card .number-list-control > .text-button { min-height: 44px; } }
+.strategy-parameter-grid[hidden], .strategy-rule-content[hidden], .condition-group-content[hidden] { display: none; }
+.strategy-rule-section[data-rule-side="sell"] .condition-card[data-condition-kind="vix"] .field:has(select[data-parameter-key="vix.symbol"]) { grid-column: 1 / -1; }
+.condition-group { min-width: 0; padding: 8px 0 8px 8px; border-left: 2px solid var(--app-border-strong); }
+.condition-group.is-root { padding: 0; border: 0; }
+.condition-logic-connector { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 10px 0; }
+.condition-logic-line { flex: 1; height: 1px; background: var(--app-border-strong); }
+.condition-logic-connector .field-segments { flex-shrink: 0; padding: 2px; }
+.condition-logic-connector .field-segment > span { min-width: 46px; min-height: 32px; font-size: 12px; }
+.condition-add { display: grid; gap: 4px; margin-top: 10px; }
+.condition-add-select { max-width: 260px; }
+.condition-empty { margin: 4px 0; color: var(--app-muted); font-size: 12px; }
+.condition-remove { display: inline-grid; place-items: center; min-width: 32px; min-height: 32px; padding: 0; }
+.condition-remove:hover:not(:disabled) { color: var(--app-red); border-color: var(--app-red); background: #fff1f1; }
+.strategy-rule-section.is-disabled, .condition-card.is-disabled, .condition-group.is-disabled { border-color: var(--app-border); background: var(--app-bg); }
+@media (max-width: 767px) {
+  .strategy-rule-section { padding: 8px; }
+  .condition-card .strategy-parameter-grid { grid-template-columns: minmax(0, 1fr); }
+  .condition-heading, .condition-card-heading { gap: 6px; }
+}
+@media (pointer: coarse) {
+  .parameter-switch { min-height: 44px; }
+  .strategy-add-option { min-height: 44px; }
+  .condition-remove { min-width: 44px; min-height: 44px; }
+  .field-segment > span,
+  .condition-logic-connector .field-segment > span { min-width: 54px; min-height: 44px; }
+}

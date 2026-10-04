@@ -11,6 +11,25 @@ export type APIErrorResponse = {
   error: APIError;
 };
 
+export type AnalysisSettings = {
+  riskFreeAnnualRatePct: string;
+};
+
+export type BacktestPackage = {
+  format?: "stock-etf-backtester";
+  schemaVersion?: 1;
+  type?: "backtest";
+  exportedAt: string;
+  engineVersion: string;
+  catalogVersion: string;
+  config: FrozenRunConfig;
+  result: RunResponse;
+  candidateDetails: {
+  [key: string]: StrategyRun;
+};
+  dataProvenance: RunDataProvenance;
+};
+
 export type Catalog = {
   version: string;
   parameters?: Array<ParameterDefinition>;
@@ -83,6 +102,7 @@ export type DailyAsset = {
   currency: string;
   unitNav?: string | null;
   drawdown?: string | null;
+  tradingCosts?: TradingCosts | null;
 };
 
 export type DataKind = "market" | "macro" | "valuation";
@@ -113,7 +133,9 @@ export type Diagnostic = {
   fieldPath?: string | null;
   asOf?: string | null;
   source?: string | null;
-  details?: unknown;
+  details?: {
+  [key: string]: unknown;
+};
 };
 
 export type DiagnosticCode = "invalid_parameter" | "required_data_unavailable" | "provider_request_failed" | "calculation_failed" | "source_quality_warning" | "stale_data" | "unknown_source_unit" | "price_basis_unavailable" | "no_valid_contribution" | "no_valid_xirr" | "comparison_unavailable" | "invalid_status_transition" | "run_interrupted" | "run_cancelled";
@@ -134,9 +156,27 @@ export type DraftValidationResponse = {
   dataRequirements?: Array<DataRequirement>;
 };
 
+export type DrawdownEpisode = {
+  peakDate: string;
+  bottomDate: string;
+  recoveredDate: string | null;
+  endDate: string;
+  drawdown: string;
+  durationDays: number;
+  recoveryDays: number | null;
+  state: "recovered" | "ongoing";
+};
+
 export type EndMode = "fixed" | "latest";
 
 export type ExecutionModule = "accumulation" | "trend" | "scheduled" | "search";
+
+export type ExecutionSettings = {
+  commission: string;
+  slippagePct: string;
+  spreadPct: string;
+  fractionalShares: boolean;
+};
 
 export type ExportKind = "summary" | "daily-assets" | "trades" | "search-results";
 
@@ -150,7 +190,9 @@ export type FrozenStrategyInstance = {
   presetId: StrategyPresetId;
   enabled?: boolean;
   instanceNumber?: number | null;
-  params?: unknown;
+  params?: {
+  [key: string]: unknown;
+};
   rules?: StrategyRules | null;
 };
 
@@ -180,6 +222,8 @@ export type MetricSummary = {
   maximumDrawdown?: string | null;
   currency?: string | null;
   diagnostics?: Array<Diagnostic>;
+  analysis?: PerformanceAnalysis | null;
+  tradingCosts?: TradingCosts | null;
 };
 
 export type ParameterDefinition = {
@@ -210,6 +254,40 @@ export type ParameterLevel = "shared" | "strategy" | "preset" | "search" | "ui";
 
 export type ParameterType = "symbol" | "date" | "integer" | "decimal" | "ratio" | "percent_point" | "boolean" | "enum" | "enum_list" | "number_list";
 
+export type PerformanceAnalysis = {
+  analysisMethod: "unit-nav-v1";
+  tradingDaysPerYear: 252;
+  durationUnit: "calendar_days";
+  riskFreeAnnualRate: string;
+  annualizedReturn?: string | null;
+  annualizedVolatility?: string | null;
+  sharpeRatio?: string | null;
+  sortinoRatio?: string | null;
+  calmarRatio?: string | null;
+  maximumDrawdownDuration?: number | null;
+  recoveryDuration?: number | null;
+  buyCount: number;
+  sellCount: number;
+  turnover?: string | null;
+  averageCashRatio?: string | null;
+  unavailableReasons?: {
+  [key: string]: string;
+};
+  annualReturns?: Array<PeriodReturn> | null;
+  monthlyReturns?: Array<PeriodReturn> | null;
+  drawdownEpisodes?: Array<DrawdownEpisode> | null;
+};
+
+export type PeriodReturn = {
+  year: number;
+  month?: number | null;
+  startDate: string;
+  endDate: string;
+  navReturn: string | null;
+  priceReturn: string;
+  unavailableReason?: "no_funding" | "missing_nav" | "undefined_nav" | null;
+};
+
 export type PresetDefinition = {
   id: StrategyPresetId;
   nameKey: string;
@@ -224,6 +302,13 @@ export type PresetDefinition = {
 };
 
 export type ResultRole = "benchmark" | "strategy";
+
+export type RunDataContext = {
+  dataFingerprint: string;
+  dataProvenance?: RunDataProvenance;
+  effectiveRun: RunSettings;
+  dateAdjustments?: Array<RunDateAdjustment>;
+};
 
 export type RunDataProvenance = {
   sources?: Array<string>;
@@ -242,6 +327,18 @@ export type RunProgress = {
   completedStrategies: number;
   totalStrategies: number;
   currentStrategyId?: string | null;
+};
+
+export type RunProgressEvent = {
+  runId: string;
+  status: StrategyStatus;
+  progress: RunProgress | null;
+  strategyStatuses: {
+  [key: string]: StrategyStatus;
+};
+  strategySummaries?: {
+  [key: string]: RunStrategySummary;
+};
 };
 
 export type RunResponse = {
@@ -272,11 +369,18 @@ export type RunSnapshot = {
   runId: string;
   config: FrozenRunConfig;
   catalogVersion: string;
-  dataFingerprint: string;
   engineVersion: string;
+  submissionFingerprint?: string | null;
+  dataContext?: RunDataContext | null;
+  dataFingerprint?: string | null;
   dataProvenance?: RunDataProvenance;
   dateAdjustments?: Array<RunDateAdjustment>;
   createdAt?: string;
+};
+
+export type RunStrategySummary = {
+  metrics?: MetricSummary | null;
+  diagnostics?: Array<Diagnostic>;
 };
 
 export type RunSubmissionRequest = {
@@ -293,10 +397,13 @@ export type SearchCandidate = {
   role?: ResultRole;
   status: StrategyStatus;
   calculationFingerprint: string;
-  parameterValues: unknown;
+  parameterValues: {
+  [key: string]: unknown;
+};
   reusedCalculation?: boolean;
   metrics?: MetricSummary | null;
   diagnostics?: Array<Diagnostic>;
+  testResult?: SearchTestResult | null;
 };
 
 export type SearchDimension = {
@@ -306,12 +413,27 @@ export type SearchDimension = {
   translationKey?: string;
 };
 
+export type SearchPeriod = {
+  phase: "train" | "test";
+  startDate: string;
+  endDate: string;
+  effectiveStartDate?: string | null;
+  effectiveEndDate?: string | null;
+};
+
 export type SearchResult = {
   strategyId: string;
   dimensions: Array<SearchResultDimension>;
   totalCandidateCount: number;
   candidates: Array<SearchCandidate>;
   rankedCandidateIds: Array<string>;
+  optimizationMode?: "full_period" | "train_test" | "walk_forward";
+  trainPeriod?: SearchPeriod | null;
+  testPeriod?: SearchPeriod | null;
+  periodBenchmarks?: Array<StrategyRun>;
+  walkForwardWindows?: Array<WalkForwardWindow>;
+  outOfSample?: SearchTestResult | null;
+  outOfSamplePeriod?: SearchPeriod | null;
 };
 
 export type SearchResultDimension = {
@@ -320,10 +442,19 @@ export type SearchResultDimension = {
   translationKey?: string;
 };
 
+export type SearchTestResult = {
+  resultId: string;
+  status: StrategyStatus;
+  metrics?: MetricSummary | null;
+  diagnostics?: Array<Diagnostic>;
+};
+
 export type SharedSettings = {
   run: RunSettings;
   contribution: ContributionSettings;
   data: DataSettings;
+  analysis?: AnalysisSettings | null;
+  execution?: ExecutionSettings | null;
 };
 
 export type SignalEvaluation = {
@@ -368,6 +499,7 @@ export type StrategyRun = {
   dailyAssets?: Array<DailyAsset>;
   metrics?: MetricSummary | null;
   searchResult?: SearchResult | null;
+  evaluationPeriod?: SearchPeriod | null;
 };
 
 export type StrategyStatus = "queued" | "loading" | "running" | "completed" | "completed_with_warning" | "unavailable" | "failed" | "cancelled";
@@ -410,11 +542,26 @@ export type Trade = {
   cashAmount: string;
   currency: string;
   signalId?: string | null;
+  cashBefore?: string | null;
+  cashAfter?: string | null;
+  quantityBefore?: string | null;
+  quantityAfter?: string | null;
+  executionBasePrice?: string | null;
+  executionPrice?: string | null;
+  grossAmount?: string | null;
+  tradingCosts?: TradingCosts | null;
 };
 
 export type TradeReason = "fixed_dca" | "upfront" | "signal_buy" | "signal_sell" | "safety_valve";
 
 export type TradeSide = "buy" | "sell";
+
+export type TradingCosts = {
+  commission: string;
+  slippageCost: string;
+  spreadCost: string;
+  totalTradingCost: string;
+};
 
 export type UnexecutedSignal = {
   signalDate: string;
@@ -430,4 +577,13 @@ export type ValidationError = {
   type: string;
   input?: unknown;
   ctx?: Record<string, never>;
+};
+
+export type WalkForwardWindow = {
+  sequence: number;
+  trainPeriod: SearchPeriod;
+  testPeriod: SearchPeriod;
+  candidateIds: Array<string>;
+  rankedCandidateIds: Array<string>;
+  selectedCandidateId?: string | null;
 };

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { catalog as realCatalog } from "./helpers/contracts.mjs";
 
 const require = createRequire(import.meta.url);
 const React = require("react");
@@ -30,6 +31,8 @@ function parameter(key, type, defaultValue, extra = {}) {
 }
 
 const fields = [
+  ...realCatalog.parameters.filter(item => item.key.startsWith("execution.")),
+  realCatalog.parameters.find(item => item.key === "analysis.riskFreeAnnualRatePct"),
   parameter("run.symbol", "symbol", "QQQ", { unit: "symbol" }),
   parameter("run.startDate", "date", "2020-01-01", { unit: "date" }),
   parameter("run.endDate", "date", "2024-07-01", { unit: "date" }),
@@ -85,7 +88,10 @@ test("shared settings render selected dates once with no latest toggle", () => {
   );
 
   assert.equal((html.match(/id="field-run-symbol"/g) ?? []).length, 1);
-  assert.equal((html.match(/<fieldset class="shared-settings-group/g) ?? []).length, 3);
+  assert.equal((html.match(/<fieldset class="shared-settings-group/g) ?? []).length, 5);
+  assert.match(html, /<legend>約定<\/legend>/);
+  assert.match(html, /<legend>分析<\/legend>/);
+  assert.match(html, /id="field-analysis-riskFreeAnnualRatePct"/);
   assert.match(html, /<legend>対象<\/legend>/);
   assert.match(html, /<legend>期間<\/legend>/);
   assert.match(html, /<legend>入金計画<\/legend>/);

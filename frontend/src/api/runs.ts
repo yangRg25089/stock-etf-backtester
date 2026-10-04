@@ -1,35 +1,18 @@
+import { fallbackApiError, readApiError } from "./errors";
 import type {
-  APIErrorResponse,
   Diagnostic,
   DraftValidationRequest,
   DraftValidationResponse,
-  RunProgress,
+  RunProgressEvent,
   RunResponse,
   RunSubmissionRequest,
-  StrategyStatus,
   InstrumentMetadata,
-  MetricSummary,
   StrategyRun,
+  BacktestPackage,
 } from "./generated";
-
-const RUN_STATUSES: ReadonlySet<string> = new Set([
-  "queued",
-  "loading",
-  "running",
-  "completed",
-  "completed_with_warning",
-  "unavailable",
-  "failed",
-  "cancelled",
-]);
-
-export interface RunProgressEvent {
-  runId: string;
-  status: StrategyStatus;
-  progress: RunProgress | null;
-  strategyStatuses: Record<string, StrategyStatus>;
-  strategySummaries?: Record<string, { metrics: MetricSummary | null; diagnostics: Diagnostic[] }>;
-}
+import { isRunProgressEvent, isRunResponse, isStrategyRun, matchesContract } from "./contractReader";
+import { isActiveRunStatus, isTerminalRunStatus } from "./runStatus";
+export type { RunProgressEvent } from "./generated";
 
 export class RunApiError extends Error {
   readonly code: string;
@@ -53,30 +36,19 @@ export class RunApiError extends Error {
 }
 
 export function fetchInstrument(symbol: string, signal?: AbortSignal): Promise<InstrumentMetadata> {
-  return requestJson(`/api/v1/instruments/${encodeURIComponent(symbol)}`, { method: "GET" }, signal);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return requestJson(`/api/v1/instruments/${encodeURIComponent(symbol)}`, { method: "GET" }, signal, "InstrumentMetadata");
 }
 
 function fallbackError(status: number | null): RunApiError {
-  return new RunApiError(
-    "provider_request_failed",
-    status === null ? "api.errors.connection_failed" : "api.errors.invalid_request",
-    [{
-      code: "provider_request_failed",
-      messageKey: status === null ? "api.errors.connection_failed" : "api.errors.invalid_request",
-      severity: "error",
-    }],
-    status,
-  );
+  const error = fallbackApiError(status);
+  return new RunApiError(error.code, error.messageKey, error.diagnostics, status);
 }
 
 async function requestJson<T>(
   url: string,
   init: RequestInit,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  contract: "RunResponse" | "ActiveRun" | "StrategyRun" | "InstrumentMetadata" | "DraftValidationResponse" | "BacktestPackage",
 ): Promise<T> {
   let response: Response;
   try {
@@ -94,19 +66,21 @@ async function requestJson<T>(
     throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
   }
   if (!response.ok) {
-    const envelope = isRecord(payload) && isRecord(payload.error)
-      ? payload as unknown as APIErrorResponse
-      : null;
-    if (envelope) {
+    const error = readApiError(payload);
+    if (error) {
       throw new RunApiError(
-        envelope.error.code,
-        envelope.error.messageKey,
-        envelope.error.diagnostics ?? [],
+        error.code,
+        error.messageKey,
+        error.diagnostics ?? [],
         response.status,
       );
     }
     throw fallbackError(response.status);
   }
+  const valid = contract === "ActiveRun" ? payload === null || (isRunResponse(payload) && isActiveRunStatus(payload.status))
+    : contract === "RunResponse" ? isRunResponse(payload)
+      : contract === "StrategyRun" ? isStrategyRun(payload) : matchesContract(contract, payload);
+  if (!valid) throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
   return payload as T;
 }
 
@@ -123,6 +97,7 @@ export function validateDraft(
       body: JSON.stringify(body),
     },
     signal,
+    "DraftValidationResponse",
   );
 }
 
@@ -146,6 +121,7 @@ export function submitRun(
       body: JSON.stringify(body),
     },
     signal,
+    "RunResponse",
   );
 }
 
@@ -154,6 +130,7 @@ export function fetchRun(runId: string, signal?: AbortSignal): Promise<RunRespon
     `/api/v1/runs/${encodeURIComponent(runId)}`,
     { method: "GET" },
     signal,
+    "RunResponse",
   );
 }
 
@@ -180,14 +157,12 @@ export async function subscribeToRunEvents(
     } catch {
       throw fallbackError(response.status);
     }
-    const envelope = isRecord(payload) && isRecord(payload.error)
-      ? payload as unknown as APIErrorResponse
-      : null;
-    if (!envelope) throw fallbackError(response.status);
+    const error = readApiError(payload);
+    if (!error) throw fallbackError(response.status);
     throw new RunApiError(
-      envelope.error.code,
-      envelope.error.messageKey,
-      envelope.error.diagnostics ?? [],
+      error.code,
+      error.messageKey,
+      error.diagnostics ?? [],
       response.status,
     );
   }
@@ -234,7 +209,9 @@ export async function subscribeToRunEvents(
           } catch {
             throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
           }
-          if (!isRunProgressEvent(parsed)) {
+          if (!isRunProgressEvent(parsed) || parsed.runId !== runId
+            || (eventName !== "progress" && eventName !== "terminal")
+            || (eventName === "terminal") !== isTerminalRunStatus(parsed.status)) {
             throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
           }
           onEvent(parsed);
@@ -258,38 +235,12 @@ export async function subscribeToRunEvents(
   if (!terminalReceived && !signal?.aborted) throw fallbackError(null);
 }
 
-function isRunProgressEvent(value: unknown): value is RunProgressEvent {
-  if (
-    !isRecord(value) ||
-    typeof value.runId !== "string" ||
-    typeof value.status !== "string" ||
-    !RUN_STATUSES.has(value.status)
-  ) {
-    return false;
-  }
-  if (
-    value.progress !== null &&
-    (!isRecord(value.progress) ||
-      typeof value.progress.completedStrategies !== "number" ||
-      typeof value.progress.totalStrategies !== "number")
-  ) {
-    return false;
-  }
-  if (value.strategySummaries !== undefined && (
-    !isRecord(value.strategySummaries) || !Object.values(value.strategySummaries).every(
-      summary => isRecord(summary) && (summary.metrics === null || isRecord(summary.metrics)) && Array.isArray(summary.diagnostics),
-    )
-  )) return false;
-  return isRecord(value.strategyStatuses) && Object.values(value.strategyStatuses).every(
-    (status) => typeof status === "string" && RUN_STATUSES.has(status),
-  );
-}
-
-export function fetchLatestRun(signal?: AbortSignal): Promise<RunResponse | null> {
+export function fetchActiveRun(signal?: AbortSignal): Promise<RunResponse | null> {
   return requestJson<RunResponse | null>(
-    "/api/v1/runs/latest",
+    "/api/v1/runs/active",
     { method: "GET" },
     signal,
+    "ActiveRun",
   );
 }
 
@@ -299,9 +250,13 @@ export function createIdempotencyKey(): string {
 }
 
 export function stopRun(runId: string, signal?: AbortSignal): Promise<RunResponse> {
-  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" }, signal);
+  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" }, signal, "RunResponse");
 }
 
 export function fetchCandidate(runId: string, candidateId: string, signal?: AbortSignal): Promise<StrategyRun> {
-  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/candidates/${encodeURIComponent(candidateId)}`, { method: "GET" }, signal);
+  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/candidates/${encodeURIComponent(candidateId)}`, { method: "GET" }, signal, "StrategyRun");
+}
+
+export function fetchBacktestPackage(runId: string, signal?: AbortSignal): Promise<BacktestPackage> {
+  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/package`, { method: "GET" }, signal, "BacktestPackage");
 }

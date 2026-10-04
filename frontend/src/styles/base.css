@@ -1,0 +1,46 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-foreground);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+:root:has(dialog[open]),
+body:has(dialog[open]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+dialog {
+  overscroll-behavior: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button,
+input,
+select,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+#result-details:focus-visible,
+.workbench-divider:focus-visible {
+  outline: 3px solid var(--app-focus);
+  outline-offset: 2px;
+}

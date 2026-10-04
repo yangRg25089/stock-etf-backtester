@@ -30,6 +30,7 @@ from app.domain.status import (
 )
 from app.engine_version import ENGINE_VERSION
 from app.runs.store import IdempotencyConflict, RunChange
+from app.runs.types import RunProgressEvent, RunStrategySummary
 
 from .errors import APIException
 from .types import (
@@ -63,7 +64,7 @@ class RunService(Protocol):
 
     def instrument_metadata(self, symbol: str) -> InstrumentMetadata: ...
 
-    def get_latest_run(self) -> RunResponse | None: ...
+    def get_active_run(self) -> RunResponse | None: ...
 
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float
@@ -128,14 +129,14 @@ def read_instrument(symbol: str, request: Request) -> InstrumentMetadata:
 
 
 @router.get(
-    "/runs/latest",
+    "/runs/active",
     response_model=RunResponse | None,
     responses={503: {"model": APIErrorResponse}},
 )
-def read_latest_run(request: Request) -> RunResponse | None:
-    """Return the newest saved run, if this local installation has one."""
+def read_active_run(request: Request) -> RunResponse | None:
+    """Reconnect only a queued, loading or running job in this API process."""
 
-    return _run_service(request).get_latest_run()
+    return _run_service(request).get_active_run()
 
 
 @router.get(
@@ -174,7 +175,22 @@ def read_candidate(run_id: str, candidate_id: str, request: Request) -> Strategy
 
 @router.get(
     "/runs/{run_id}/events",
-    responses={404: {"model": APIErrorResponse}, 503: {"model": APIErrorResponse}},
+    response_class=StreamingResponse,
+    response_model=RunProgressEvent,
+    responses={
+        200: {
+            "content": {
+                "text/event-stream": {
+                    "schema": {
+                        "type": "string",
+                        "description": "SSE frames with RunProgressEvent JSON data.",
+                    }
+                }
+            }
+        },
+        404: {"model": APIErrorResponse},
+        503: {"model": APIErrorResponse},
+    },
 )
 async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
     """Stream small run status updates; fetch the full result once at terminal."""
@@ -220,31 +236,19 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
 def _run_event_payload(change: RunChange) -> dict[str, object]:
     response = change.response
     strategy_runs = () if response.result is None else response.result.strategy_runs
-    return {
-        "runId": response.run_id,
-        "status": response.status.value,
-        "progress": (
-            None
-            if response.progress is None
-            else response.progress.model_dump(mode="json", by_alias=True)
-        ),
-        "strategyStatuses": {
-            strategy_run.id: strategy_run.status.value for strategy_run in strategy_runs
-        },
-        "strategySummaries": {
-            item.id: {
-                "metrics": None
-                if item.metrics is None
-                else item.metrics.model_dump(mode="json", by_alias=True),
-                "diagnostics": [
-                    diagnostic.model_dump(mode="json", by_alias=True)
-                    for diagnostic in item.diagnostics
-                ],
-            }
+    return RunProgressEvent(
+        runId=response.run_id,
+        status=response.status,
+        progress=response.progress,
+        strategyStatuses={item.id: item.status for item in strategy_runs},
+        strategySummaries={
+            item.id: RunStrategySummary(
+                metrics=item.metrics, diagnostics=item.diagnostics
+            )
             for item in strategy_runs
             if is_terminal(item.status)
         },
-    }
+    ).model_dump(mode="json", by_alias=True)
 
 
 def _build_submission(

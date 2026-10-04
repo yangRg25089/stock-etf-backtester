@@ -65,6 +65,20 @@ test("shared chart details are visible before interaction and use the last saved
   assert.doesNotMatch(html, /class="chart-crosshair"/);
 });
 
+test("core series inspection is part of permanent readings with no separate caption or legend", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
+    locale: "zh", dailyAssets, trades, signals: [], visibleSeriesIds: ["price", "totalAsset"],
+    totalAssetResultId: "strategy-a", totalAssetLabel: "策略 A", onSeriesChange() {},
+  }));
+  const core = html.match(/<figure class="chart-panel chart-overlay"[\s\S]*?<\/figure>/)[0];
+  assert.doesNotMatch(core, /<figcaption|overlay-legend/);
+  const readout = core.slice(0, core.indexOf('<div class="chart-canvas">'));
+  assert.match(readout, /<button[^>]*chart-series-control[^>]*aria-label="标的收盘价 \(USD\)"[^>]*aria-pressed="false"/);
+  assert.match(readout, /<button[^>]*chart-strategy-readout[^>]*aria-label="策略 A"[^>]*aria-pressed="false"/);
+  assert.match(readout, /104\.00 USD/);
+  assert.match(readout, /100\.00 USD/);
+});
+
 test("chart readouts separate market data from strategy rows in comparison order", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "zh", dailyAssets, trades: [], signals: [], visibleSeriesIds: ["price", "totalAsset", "drawdown"],
@@ -76,7 +90,7 @@ test("chart readouts separate market data from strategy rows in comparison order
   assert.match(market, /标的收盘价/);
   assert.match(market, /回撤/);
   assert.doesNotMatch(market, /策略甲|策略乙|本金/);
-  const rows = [...html.matchAll(/<div class="chart-strategy-readout" data-result-id="([^"]+)"[^>]*>(.*?)<\/div>/g)];
+  const rows = [...html.matchAll(/<button[^>]*class="[^"]*chart-strategy-readout[^"]*"[^>]*data-result-id="([^"]+)"[^>]*>(.*?)<\/button>/g)];
   assert.deepEqual(rows.map(row => row[1]), ["second", "first"]);
   assert.match(rows[0][2], /140\.00 USD/);
   assert.match(rows[0][2], /120\.00 USD/);
@@ -270,7 +284,7 @@ test("linked view keeps a core comparison and natural-unit indicators underneath
   assert.match(html, /aria-label="标的收盘价 \(USD\) · 2024-01-04 · US\$80/);
 });
 
-test("core comparison starts at 100 and keeps original total-asset currency in the legend", () => {
+test("core comparison starts at 100 and keeps the original asset amount and currency in the readout", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "ja",
     dailyAssets: dailyAssets.map((asset, index) => ({
@@ -283,7 +297,7 @@ test("core comparison starts at 100 and keeps original total-asset currency in t
   }));
   assert.match(html, /chart-y-axis-title/);
   assert.match(html, /chart-baseline-label[^>]*>基準 100<\/text>/);
-  assert.match(html, /総資産 \(USD\)/);
+  assert.match(html, /<strong>104\.00 USD<\/strong>/);
   assert.match(html, /\$104/);
 });
 
@@ -449,12 +463,12 @@ test("trade height expansion is disabled for empty trades and while calculations
   assert.match(render(trades, true), /table-expand-button[^>]*disabled=""/);
 });
 
-test("comparison curves default to thin strokes and legends support keyboard highlight", () => {
+test("comparison curves default to thin strokes and reading controls support keyboard highlight", () => {
   const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "zh", dailyAssets, trades: [], visibleSeriesIds: ["price", "totalAsset"], onSeriesChange() {},
   }));
   assert.match(html, /stroke-width="1.2"/);
-  assert.match(html, /<button type="button" class="overlay-legend-item" aria-pressed="false"/);
+  assert.match(html, /<button type="button" class="chart-series-control" aria-label="标的收盘价 \(USD\)" aria-pressed="false"/);
   assert.doesNotMatch(html, /class="chart-highlight-area"/);
 });
 

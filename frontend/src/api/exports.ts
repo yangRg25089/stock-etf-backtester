@@ -1,4 +1,5 @@
-import type { APIErrorResponse, Diagnostic, ExportKind } from "./generated";
+import { fallbackApiError, readApiError } from "./errors";
+import type { Diagnostic, ExportKind } from "./generated";
 
 export interface CsvExport {
   blob: Blob;
@@ -26,17 +27,9 @@ export class ExportApiError extends Error {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function fallbackError(status: number | null): ExportApiError {
-  const messageKey = status === null ? "api.errors.connection_failed" : "api.errors.invalid_request";
-  return new ExportApiError("provider_request_failed", messageKey, [{
-    code: "provider_request_failed",
-    messageKey,
-    severity: "error",
-  }], status);
+  const error = fallbackApiError(status);
+  return new ExportApiError(error.code, error.messageKey, error.diagnostics, status);
 }
 
 function filenameFromDisposition(disposition: string | null, fallback: string): string {
@@ -62,8 +55,8 @@ async function responseError(response: Response): Promise<ExportApiError> {
   } catch {
     return fallbackError(response.status);
   }
-  if (isRecord(payload) && isRecord(payload.error)) {
-    const error = (payload as unknown as APIErrorResponse).error;
+  const error = readApiError(payload);
+  if (error) {
     return new ExportApiError(
       error.code,
       error.messageKey,

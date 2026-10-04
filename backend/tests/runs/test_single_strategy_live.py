@@ -12,7 +12,7 @@ import json
 from calendar import monthrange
 from collections import defaultdict
 from datetime import date
-from decimal import Decimal, localcontext
+from decimal import ROUND_FLOOR, Decimal, localcontext
 
 import httpx
 import pytest
@@ -25,7 +25,7 @@ from app.domain.contracts import StrategyPresetId
 from app.domain.immutability import thaw_value
 from app.main import app
 from app.runs.manager import RunManager
-from app.runs.sqlite_store import SQLiteRunStore
+from app.runs.store import InMemoryRunStore
 from app.runs.yahoo_data import YahooRunDataProvider
 from tests.runs.test_yahoo_data_live import _InlineExecutor
 
@@ -79,6 +79,11 @@ class _SignalOracle:
             for row in snapshot.macro
         }
         self.values = {}
+        self.valuation = (
+            {row.date.isoformat(): row for row in snapshot.valuation.observations}
+            if snapshot.valuation is not None
+            else {}
+        )
 
     def leaf(self, node, side, day):
         params, kind = node["params"], node["kind"]
@@ -115,6 +120,22 @@ class _SignalOracle:
                 assert source.source_unit == "percent_point"
                 threshold = D(params["rate.thresholdPct"])
                 triggered = value <= threshold if buy else value >= threshold
+        elif kind == "pe":
+            observation = self.valuation[day]
+            assert observation.source == "sec:companyfacts"
+            assert observation.eps > 0 and observation.valuation_price > 0
+            assert all(
+                fact.filed.isoformat() <= day
+                and fact.stock_class_id
+                and fact.split_basis
+                for fact in observation.fact_references
+            )
+            eps = sum((fact.value for fact in observation.fact_references), D(0))
+            assert abs(observation.eps - eps) < TOLERANCE
+            value = observation.valuation_price / eps
+            assert abs(value - observation.pe) < TOLERANCE
+            threshold = D(params["pe.threshold"])
+            triggered = value <= threshold if buy else value >= threshold
         elif kind == "rsi":
             period = int(params["rsi.period"])
             changes = [
@@ -220,7 +241,7 @@ def _verify_technical_series(result, oracle):
             assert abs(D(sample["value"]) - expected) < TOLERANCE
 
 
-def _verify_result(shared, config, result, observed):
+def _verify_result(shared, config, result, observed, *, rules_by_date=None):
     assert result["status"] == "completed", result["diagnostics"]
     assert result["metrics"]["investmentBasis"] == "original_principal"
     funding = _funding(shared, observed.calendar)
@@ -237,7 +258,7 @@ def _verify_result(shared, config, result, observed):
     truth = {}
     for asset in assets:
         day = asset["date"]
-        rules = config.get("rules") or {}
+        rules = (rules_by_date or {}).get(day, config.get("rules") or {})
         buy = oracle.evaluate(rules.get("buy"), "buy", day)
         sell = oracle.evaluate(rules.get("sell"), "sell", day)
         truth[day] = (
@@ -271,13 +292,26 @@ def _verify_result(shared, config, result, observed):
         else D(config["params"]["accumulation.cashSafetyLimit"])
     )
     month_buys = defaultdict(int)
+    execution = shared.get("execution") or {}
+    commission = D(str(execution.get("commission", 0)))
+    slip = D(str(execution.get("slippagePct", 0))) / 100
+    spread = D(str(execution.get("spreadPct", 0))) / 200
+    fractional = execution.get("fractionalShares", True)
+    total_costs = {key: D(0) for key in ("commission", "slippageCost", "spreadCost")}
     cash = quantity = fixed = contributed = invested = unused_principal = D(0)
     nav = peak = D(1)
-    maximum_dd = previous_equity = D(0)
+    maximum_dd = units = D(0)
     previous_day = None
     for asset in assets:
         day, price = asset["date"], D(asset["simulationPrice"])
         deposit = funding.get(day, D(0))
+        marked_equity = cash + (quantity + fixed) * price
+        if deposit:
+            if not units:
+                units = deposit
+            else:
+                issue_nav = marked_equity / units if marked_equity else nav or D(1)
+                units += deposit / issue_nav
         cash += deposit
         contributed += deposit
         unused_principal += deposit
@@ -285,19 +319,44 @@ def _verify_result(shared, config, result, observed):
 
         def buy(reason, fixed_position=False, price=price, expected=expected):
             nonlocal cash, quantity, fixed, invested, unused_principal
-            if cash <= 0:
-                return
-            amount, shares = cash, cash / price
-            expected.append(("buy", reason, amount, shares))
+            if cash <= commission:
+                return False
+            execution_price = price * (1 + slip + spread)
+            shares = (cash - commission) / execution_price
+            if not fractional:
+                shares = shares.to_integral_value(rounding=ROUND_FLOOR)
+            if not shares:
+                return False
+            gross = cash - commission if fractional else shares * execution_price
+            amount = gross + commission
+            before = cash, quantity + fixed
             if fixed_position:
                 fixed += shares
             else:
                 quantity += shares
-            # All supported buys exhaust cash. Count each original deposit at
-            # its first buy; proceeds never become a new external deposit.
-            invested += unused_principal
-            unused_principal = D(0)
-            cash = D(0)
+            cash -= amount
+            remaining = min(unused_principal, cash)
+            invested += unused_principal - remaining
+            unused_principal = remaining
+            costs = {
+                "commission": commission,
+                "slippageCost": shares * price * slip,
+                "spreadCost": shares * price * spread,
+            }
+            expected.append(
+                (
+                    "buy",
+                    reason,
+                    amount,
+                    shares,
+                    execution_price,
+                    gross,
+                    costs,
+                    before,
+                    (cash, quantity + fixed),
+                )
+            )
+            return True
 
         if scheduled and deposit:
             buy(
@@ -306,16 +365,41 @@ def _verify_result(shared, config, result, observed):
             )
         should_buy, sell_ratio = truth.get(previous_day, (False, D(0)))
         month = day[:7]
+        sold = False
         if sell_ratio and quantity:
             shares = quantity * sell_ratio
-            amount = shares * price
-            quantity -= shares
-            cash += amount
-            expected.append(("sell", "signal_sell", amount, shares))
-        else:
+            if not fractional:
+                shares = shares.to_integral_value(rounding=ROUND_FLOOR)
+            execution_price = price * (1 - slip - spread)
+            gross = shares * execution_price
+            amount = gross - commission
+            if shares and amount > 0:
+                before = cash, quantity + fixed
+                quantity -= shares
+                cash += amount
+                costs = {
+                    "commission": commission,
+                    "slippageCost": shares * price * slip,
+                    "spreadCost": shares * price * spread,
+                }
+                expected.append(
+                    (
+                        "sell",
+                        "signal_sell",
+                        amount,
+                        shares,
+                        execution_price,
+                        gross,
+                        costs,
+                        before,
+                        (cash, quantity + fixed),
+                    )
+                )
+                sold = True
+        if not sold:
             if should_buy and cash > 0 and (limit is None or month_buys[month] < limit):
-                buy("signal_buy")
-                month_buys[month] += 1
+                if buy("signal_buy"):
+                    month_buys[month] += 1
             if safety is not None and day in month_ends and cash > 0 and cash >= safety:
                 buy("safety_valve")
         assert len(transactions[day]) == len(expected), (
@@ -324,13 +408,51 @@ def _verify_result(shared, config, result, observed):
             transactions[day],
             expected,
         )
-        for trade, (side, reason, amount, shares) in zip(
-            transactions[day], expected, strict=True
-        ):
+        daily_costs = {key: D(0) for key in total_costs}
+        for trade, (
+            side,
+            reason,
+            amount,
+            shares,
+            execution_price,
+            gross,
+            costs,
+            before,
+            after,
+        ) in zip(transactions[day], expected, strict=True):
             assert (trade["side"], trade["reason"]) == (side, reason)
-            assert D(trade["price"]) == price
+            assert D(trade["price"]) == execution_price
+            assert D(trade["executionPrice"]) == execution_price
+            assert D(trade["executionBasePrice"]) == price
+            assert abs(D(trade["grossAmount"]) - gross) < TOLERANCE
             assert abs(D(trade["quantity"]) - shares) < TOLERANCE
             assert abs(D(trade["cashAmount"]) - amount) < TOLERANCE
+            for key, value in costs.items():
+                assert abs(D(trade["tradingCosts"][key]) - value) < TOLERANCE
+                daily_costs[key] += value
+                total_costs[key] += value
+            assert (
+                abs(
+                    D(trade["tradingCosts"]["totalTradingCost"])
+                    - sum(costs.values(), D(0))
+                )
+                < TOLERANCE
+            )
+            for key, value in zip(
+                ("cashBefore", "quantityBefore", "cashAfter", "quantityAfter"),
+                (*before, *after),
+                strict=True,
+            ):
+                assert abs(D(trade[key]) - value) < TOLERANCE
+        for key, value in daily_costs.items():
+            assert abs(D(asset["tradingCosts"][key]) - value) < TOLERANCE
+        assert (
+            abs(
+                D(asset["tradingCosts"]["totalTradingCost"])
+                - sum(daily_costs.values(), D(0))
+            )
+            < TOLERANCE
+        )
         equity = cash + (quantity + fixed) * price
         for field, expected_value in (
             ("cash", cash),
@@ -343,15 +465,23 @@ def _verify_result(shared, config, result, observed):
             assert abs(D(asset[field]) - expected_value) < TOLERANCE, (day, field)
         assert 0 <= invested <= contributed
         assert 0 <= D(asset["actualInvested"]) <= D(asset["totalContributed"])
-        if previous_equity > 0:
-            nav *= (equity - deposit) / previous_equity
+        nav = equity / units if units else D(1)
         peak = max(peak, nav)
         dd = nav / peak - 1
         maximum_dd = max(maximum_dd, -dd)
         assert abs(D(asset["unitNav"]) - nav) < TOLERANCE
         assert abs(D(asset["drawdown"]) - dd) < TOLERANCE
-        previous_day, previous_equity = day, equity
+        previous_day = day
     metrics = result["metrics"]
+    for key, value in total_costs.items():
+        assert abs(D(metrics["tradingCosts"][key]) - value) < TOLERANCE
+    assert (
+        abs(
+            D(metrics["tradingCosts"]["totalTradingCost"])
+            - sum(total_costs.values(), D(0))
+        )
+        < TOLERANCE
+    )
     for field, value in (
         ("endingEquity", equity),
         ("totalContributed", total),
@@ -380,6 +510,81 @@ def _verify_result(shared, config, result, observed):
             D((date.fromisoformat(assets[-1]["date"]) - first).days) / 365
         )
         assert abs(residual) < D("1e-18"), residual
+    _verify_saved_periods(result)
+
+
+def _verify_saved_periods(result):
+    """Audit saved analysis against the independently checked real daily trace."""
+    assets = result["dailyAssets"]
+    analysis = result["metrics"]["analysis"]
+    with localcontext() as context:
+        context.prec = 60
+        for field, length in (("annualReturns", 4), ("monthlyReturns", 7)):
+            periods = defaultdict(list)
+            for asset in assets:
+                periods[asset["date"][:length]].append(asset)
+            assert len(analysis[field]) == len(periods)
+            previous_nav, previous_price = D(1), D(assets[0]["simulationPrice"])
+            for saved, observations in zip(
+                analysis[field], periods.values(), strict=True
+            ):
+                assert saved["startDate"] == observations[0]["date"]
+                assert saved["endDate"] == observations[-1]["date"]
+                if any(D(row["totalContributed"]) > 0 for row in observations):
+                    expected = D(observations[-1]["unitNav"]) / previous_nav - 1
+                    assert abs(D(saved["navReturn"]) - expected) < D("1e-30")
+                else:
+                    assert saved["navReturn"] is None
+                    assert saved["unavailableReason"] == "no_funding"
+                price = D(observations[-1]["simulationPrice"])
+                assert abs(D(saved["priceReturn"]) - (price / previous_price - 1)) < D(
+                    "1e-30"
+                )
+                previous_nav, previous_price = D(observations[-1]["unitNav"]), price
+        episodes = analysis["drawdownEpisodes"]
+        assert episodes is not None
+        covered = defaultdict(int)
+        for episode in episodes:
+            segment = [
+                row
+                for row in assets
+                if episode["peakDate"] <= row["date"] <= episode["endDate"]
+            ]
+            lowest = min(D(row["drawdown"]) for row in segment)
+            assert D(episode["drawdown"]) == lowest
+            assert episode["bottomDate"] == next(
+                row["date"] for row in segment if D(row["drawdown"]) == lowest
+            )
+            assert (
+                episode["durationDays"]
+                == (
+                    date.fromisoformat(episode["endDate"])
+                    - date.fromisoformat(episode["peakDate"])
+                ).days
+            )
+            if episode["state"] == "recovered":
+                assert episode["recoveredDate"] == segment[-1]["date"]
+                assert D(segment[-1]["drawdown"]) == 0
+                assert (
+                    episode["recoveryDays"]
+                    == (
+                        date.fromisoformat(episode["recoveredDate"])
+                        - date.fromisoformat(episode["bottomDate"])
+                    ).days
+                )
+            else:
+                assert episode["endDate"] == assets[-1]["date"]
+                assert episode["recoveredDate"] is episode["recoveryDays"] is None
+            for row in segment:
+                if D(row["drawdown"]) < 0:
+                    covered[row["date"]] += 1
+        assert covered == {row["date"]: 1 for row in assets if D(row["drawdown"]) < 0}
+        assert analysis["maximumDrawdownDuration"] == max(
+            (row["durationDays"] for row in episodes), default=0
+        )
+        assert analysis["recoveryDuration"] == (
+            episodes[0]["recoveryDays"] if episodes else 0
+        )
 
 
 def _months(days):
@@ -417,7 +622,39 @@ def test_signal_variants_real_data_independent_replay_and_csv(
     _verify_single_run(preset_id, supplier, tmp_path, variant)
 
 
-def _verify_single_run(preset_id, supplier, tmp_path, variant="default"):
+@pytest.mark.parametrize(
+    "preset_id,variant,fractional",
+    [
+        (StrategyPresetId.MONTHLY_DCA, "default", True),
+        (StrategyPresetId.MONTHLY_DCA, "default", False),
+        (StrategyPresetId.LUMP_SUM, "default", False),
+        (StrategyPresetId.VIX_DCA, "vxn_recycle", True),
+        (StrategyPresetId.VIX_DCA, "vxn_recycle", False),
+        (StrategyPresetId.MA_TREND, "default", False),
+        (StrategyPresetId.COMPOSITE_DCA, "nested_and_or", True),
+        (StrategyPresetId.GRID_SEARCH, "default", False),
+    ],
+)
+def test_real_execution_costs_and_share_policy_have_independent_replay(
+    preset_id, variant, fractional, supplier, tmp_path
+):
+    _verify_single_run(
+        preset_id,
+        supplier,
+        tmp_path,
+        variant,
+        {
+            "commission": 1.25,
+            "slippagePct": 0.12,
+            "spreadPct": 0.18,
+            "fractionalShares": fractional,
+        },
+    )
+
+
+def _verify_single_run(
+    preset_id, supplier, tmp_path, variant="default", execution=None
+):
     preset = PRESET_DEFINITIONS[preset_id]
     params = jsonable_encoder(thaw_value(preset.default_params))
     rules = (
@@ -489,6 +726,14 @@ def _verify_single_run(preset_id, supplier, tmp_path, variant="default"):
                     ],
                 },
             }
+    if (
+        execution
+        and execution.get("fractionalShares") is False
+        and variant.endswith("recycle")
+    ):
+        # Partial exits below one whole share cannot execute. Exercise a
+        # genuine whole-share sell/rebuy by explicitly selecting full exits.
+        rules["sell"]["params"].update({"exit.vix.ratio1": 1, "exit.vix.ratio2": 1})
     draft = {
         "shared": {
             "run": {
@@ -497,6 +742,7 @@ def _verify_single_run(preset_id, supplier, tmp_path, variant="default"):
                 "endDate": "2020-06-30",
             },
             "contribution": {"amount": 100, "day": 1},
+            **({"execution": execution} if execution is not None else {}),
         },
         "strategies": [
             {
@@ -508,7 +754,7 @@ def _verify_single_run(preset_id, supplier, tmp_path, variant="default"):
         ],
     }
     old_service = app.state.run_service
-    store = SQLiteRunStore(tmp_path / "single.sqlite3")
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=supplier, executor=_InlineExecutor()
     )
@@ -689,7 +935,6 @@ def _verify_single_run(preset_id, supplier, tmp_path, variant="default"):
         asyncio.run(run())
     finally:
         app.state.run_service = old_service
-        store.close()
 
 
 def _override_search(node, key, value):

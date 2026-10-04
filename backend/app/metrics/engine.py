@@ -7,16 +7,18 @@ from decimal import Decimal, DecimalException, localcontext
 
 from app.catalog.presets import ExecutionModule, get_preset_definition
 from app.domain.contracts import DailyAsset, MetricSummary, Trade, TradeSide
+from app.domain.execution import TradingCosts
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
     DiagnosticSeverity,
 )
 
+from .analysis import calculate_analysis
 from .types import MetricsInput, MetricsResult
 
 _DAY_COUNT = Decimal("365")
-METRIC_METHOD_VERSION = "metrics-v7"
+METRIC_METHOD_VERSION = "metrics-v10"
 
 
 def calculate_xirr(
@@ -152,7 +154,28 @@ def calculate_metrics(source: MetricsInput) -> MetricsResult:
         xirr=xirr_value,
         maximumDrawdown=maximum_drawdown,
         currency=source.ledger.daily_assets[-1].currency,
+        tradingCosts=(
+            TradingCosts.aggregate(
+                trade.trading_costs
+                for trade in source.ledger.trades
+                if trade.trading_costs is not None
+            )
+            if all(
+                asset.trading_costs is not None for asset in source.ledger.daily_assets
+            )
+            and all(trade.trading_costs is not None for trade in source.ledger.trades)
+            else None
+        ),
         diagnostics=diagnostics,
+        analysis=(
+            calculate_analysis(
+                daily_assets,
+                source.ledger.trades,
+                source.analysis_settings.risk_free_annual_rate_pct / 100,
+            )
+            if source.analysis_settings
+            else None
+        ),
     )
     return MetricsResult(summary=summary, daily_assets=daily_assets)
 
@@ -270,13 +293,20 @@ def _with_unit_nav(
                 raise ValueError("non-zero assets require a contribution history")
         else:
             value_before_contribution = asset.total_asset - contribution
-            if value_before_contribution < 0:
+            cost = (
+                asset.trading_costs.total_trading_cost
+                if asset.trading_costs
+                else Decimal(0)
+            )
+            if value_before_contribution + cost < 0:
                 raise ValueError("assets cannot be lower than same-day contributions")
             if contribution > 0:
-                existing_nav = value_before_contribution / units
+                # Issue new units at today's mark before paying transaction
+                # costs; the subsequent valuation must retain those costs.
+                existing_nav = (value_before_contribution + cost) / units
                 if existing_nav > 0:
                     units += contribution / existing_nav
-                    nav = existing_nav
+                    nav = asset.total_asset / units if cost else existing_nav
                 else:
                     issue_price = previous_nav if previous_nav > 0 else Decimal("1")
                     units += contribution / issue_price

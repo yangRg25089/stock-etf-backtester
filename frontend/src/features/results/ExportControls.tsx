@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { ExportKind, StrategyRun } from "../../api/generated";
+import type { ExportKind, RunResponse, StrategyRun } from "../../api/generated";
 import { ExportApiError } from "../../api/exports";
 import { translate, type Locale } from "../../i18n/messages";
 import { DiagnosticList } from "../runs/DiagnosticList";
-import { isExportAvailable, performCsvExport } from "./exportModel";
+import { isExportAvailable, performCsvExport, triggerFileDownload } from "./exportModel";
+import { importedCsv } from "./importedCsv";
 
 const EXPORT_KINDS: ExportKind[] = ["summary", "daily-assets", "trades", "search-results"];
 
@@ -13,9 +14,10 @@ interface ExportControlsProps {
   result: StrategyRun | null;
   searchResult?: StrategyRun | null;
   busy?: boolean;
+  importedRun?: RunResponse | null;
 }
 
-export function ExportControls({ locale, runId, result, searchResult, busy = false }: ExportControlsProps) {
+export function ExportControls({ locale, runId, result, searchResult, importedRun, busy = false }: ExportControlsProps) {
   const [pendingKind, setPendingKind] = useState<ExportKind | null>(null);
   const [error, setError] = useState<ExportApiError | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -34,7 +36,8 @@ export function ExportControls({ locale, runId, result, searchResult, busy = fal
     setPendingKind(kind);
     setError(null);
     try {
-      await performCsvExport(runId, target.id, kind, request.signal);
+      if (importedRun) triggerFileDownload(new Blob([importedCsv(importedRun, target, kind)], { type: "text/csv;charset=utf-8" }), `${runId}-${target.id}-${kind}.csv`);
+      else await performCsvExport(runId, target.id, kind, request.signal);
     } catch (caught) {
       if (request.signal.aborted) return;
       if (caught instanceof ExportApiError) {

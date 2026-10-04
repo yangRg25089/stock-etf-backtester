@@ -1,0 +1,10 @@
+.chart-linked-stack { display: grid; gap: 0; min-width: 0; overflow-x: auto; }
+.workbench-results .chart-linked-stack .chart-panel { min-width: 680px; padding: 0; border: 0; border-radius: 0; overflow: visible; }
+.workbench-results .chart-linked-stack .chart-panel.is-compact {
+  margin-top: 0;
+  padding-top: 0;
+}
+.chart-linked-stack .chart-panel.is-compact .result-chart {
+  aspect-ratio: 800 / 90;
+  height: auto;
+}

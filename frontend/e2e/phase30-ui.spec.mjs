@@ -1,3 +1,4 @@
+import { installRunFixture, openSaved } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -21,15 +22,8 @@ async function computed(page, extraStrategies = []) {
   return saved;
 }
 
-async function openSaved(page, saved) {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(saved.result.strategyRuns.length);
-}
-
 const selectResult = (page, name) => page.locator(".comparison-table").getByRole("button", { name, exact: true }).click();
-const legend = (page, id) => page.locator(`.overlay-legend-item[data-result-id="${id}"]`);
+const legend = (page, id) => page.locator(`.chart-series-control[data-result-id="${id}"]`);
 
 async function leaveLegend(page) {
   await page.mouse.move(0, 0);
@@ -46,10 +40,10 @@ async function appearance(page) {
 
 test("legend identifies the underlying closing price in both languages", async ({ page }) => {
   await openSaved(page, await computed(page));
-  const price = page.locator('.overlay-legend-item[data-series="price"]');
-  await expect(price).toHaveText("銘柄の終値 (USD)");
+  const price = page.locator('.chart-series-control[data-series="price"]');
+  await expect(price).toHaveAccessibleName("銘柄の終値 (USD)");
   await page.getByRole("button", { name: "中文", exact: true }).click();
-  await expect(price).toHaveText("标的收盘价 (USD)");
+  await expect(price).toHaveAccessibleName("标的收盘价 (USD)");
 });
 
 test("legend hover and click use identical curves, fills and trade points with clear pinned styling", async ({ page }) => {
@@ -73,7 +67,7 @@ test("legend hover and click use identical curves, fills and trade points with c
   await expect(pinned).toHaveAttribute("aria-pressed", "true");
   expect(await appearance(page)).toEqual(hovering);
   await expect(pinned).toHaveClass(/is-selected/);
-  const price = page.locator('.overlay-legend-item[data-series="price"]');
+  const price = page.locator('.chart-series-control[data-series="price"]');
   await price.hover();
   expect((await appearance(page)).markers).toHaveLength(0);
   await leaveLegend(page);
@@ -105,7 +99,7 @@ test("legend pin cannot return after its strategy or core series is hidden", asy
   await selectResult(page, "ボラティリティ積立");
   await expect(primary).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".chart-highlight-area, .chart-trade-marker")).toHaveCount(0);
-  const price = page.locator('.overlay-legend-item[data-series="price"]');
+  const price = page.locator('.chart-series-control[data-series="price"]');
   await price.click();
   await page.locator('.chart-legend button[data-series="price"]').click();
   await expect(price).toHaveCount(0);
@@ -212,7 +206,7 @@ test("touch legend selection and release never leave a synthetic hover behind", 
   try {
     const page = await context.newPage();
     const saved = await computed(page);
-    await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+    await installRunFixture(page, saved);
     await page.goto("/");
     await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).tap();
     const control = legend(page, saved.result.strategyRuns[0].id);
@@ -234,8 +228,7 @@ test("table height controls stay visible through horizontal scroll and saved-run
   const saved = await computed(page);
   const replacement = structuredClone(saved);
   replacement.runId = replacement.snapshot.runId = replacement.result.runId = "phase30-replacement";
-  let latest = saved;
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: latest }));
+  await installRunFixture(page, saved);
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/");
   const comparison = page.locator(".comparison-table-scroll");
@@ -253,11 +246,11 @@ test("table height controls stay visible through horizontal scroll and saved-run
   await selectResult(page, "ボラティリティ積立");
   await legend(page, saved.result.strategyRuns[0].id).click();
   await page.locator(".comparison-sort").first().click();
-  latest = replacement;
+  await installRunFixture(page, replacement);
   await page.reload();
   await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
   await expect(page.locator(".comparison-table-scroll .table-expand-button")).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator(".comparison-table th[aria-sort]")).toContainText("投入額に対する利益率");
-  await expect(page.locator('.overlay-legend-item[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('.chart-series-control[aria-pressed="true"]')).toHaveCount(0);
   await expect(page.locator(".chart-highlight-area, .chart-trade-marker, .chart-strategy-readout")).toHaveCount(0);
 });

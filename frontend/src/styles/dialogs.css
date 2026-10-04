@@ -1,0 +1,181 @@
+.shared-settings-dialog {
+  width: min(840px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  color: var(--app-text);
+  background: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 64px var(--app-shadow-deep);
+}
+
+.shared-settings-dialog::backdrop {
+  background: var(--app-shadow-deep);
+  backdrop-filter: blur(1px);
+}
+
+.shared-settings-dialog-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: calc(100dvh - 32px);
+}
+
+.shared-settings-dialog-heading,
+.shared-settings-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--app-surface);
+}
+
+.shared-settings-dialog-heading {
+  border-bottom: 1px solid var(--app-border);
+}
+
+.shared-settings-dialog-heading h2 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.shared-settings-dialog-close {
+  color: var(--app-muted);
+  background: var(--app-surface);
+}
+
+.shared-settings-dialog-content {
+  min-height: 0;
+  padding: 16px 18px;
+  overflow: auto;
+  overscroll-behavior: none;
+}
+
+.shared-settings-dialog .shared-settings {
+  padding: 0;
+  border: 0;
+}
+
+.shared-settings-dialog-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--app-border);
+}
+
+.shared-settings-dialog-footer .button {
+  min-width: 112px;
+}
+
+.strategy-dialog {
+  width: min(960px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: min(85dvh, calc(100dvh - 32px));
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  color: var(--app-text);
+  background: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 64px var(--app-shadow-deep);
+}
+
+.strategy-dialog::backdrop {
+  background: var(--app-shadow-deep);
+  backdrop-filter: blur(1px);
+}
+
+.strategy-dialog-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: min(85dvh, calc(100dvh - 32px));
+}
+
+.strategy-dialog-heading,
+.strategy-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--app-surface);
+}
+
+.strategy-dialog-heading {
+  border-bottom: 1px solid var(--app-border);
+}
+
+.strategy-dialog-heading-copy {
+  min-width: 0;
+}
+
+.strategy-dialog-heading h2 {
+  font-size: 16px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.strategy-dialog-heading p {
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.strategy-dialog-heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.strategy-dialog-close {
+  color: var(--app-muted);
+  background: var(--app-surface);
+}
+
+.strategy-dialog-content {
+  min-height: 0;
+  padding: 16px 18px;
+  overflow: auto;
+  overscroll-behavior: none;
+}
+
+.strategy-dialog-content .strategy-editor {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.strategy-dialog-content .strategy-parameters {
+  margin-top: 0;
+}
+
+.strategy-parameter-group {
+  scroll-margin-top: 64px;
+}
+
+.strategy-dialog-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--app-border);
+}
+
+.strategy-dialog-footer .button {
+  min-width: 112px;
+}
+
+.dialog-diagnostics {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-height: min(160px, 22dvh);
+  overflow: auto;
+  overscroll-behavior: none;
+}
+
+.dialog-diagnostics:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.dialog-done[aria-busy="true"] { color: var(--app-accent); }

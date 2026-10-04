@@ -1,3 +1,4 @@
+import { ModalShell } from "../../shared/ui/ModalShell";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Catalog, Diagnostic, PresetDefinition, StrategyRules } from "../../api/generated";
@@ -45,6 +46,14 @@ export function StrategyEditorForm({ catalog, strategy, preset, locale, errors, 
   const fields = (catalog.parameters ?? []).filter(definition => preset.parameterKeys.includes(definition.key));
   const limitFields = fields.filter(definition => definition.groupId === "buy_limits");
   const fundingFields = fields.filter(definition => definition.groupId === "scheduled_funding");
+  const legacyFields = strategy.rules == null ? fields.filter(definition => !limitFields.includes(definition) && !fundingFields.includes(definition)) : [];
+  const legacySellFields = legacyFields.filter(definition => definition.key.startsWith("exit.") || definition.key === "trend.sellBelowOrEqualMa");
+  const legacyBuyFields = legacyFields.filter(definition => !legacySellFields.includes(definition));
+  const parameterFields = (items: typeof fields) => items.length > 0 ? <div className="strategy-parameter-grid">{items.map(definition =>
+    <ParameterField key={definition.key} definition={definition} id={parameterFieldId(definition.key, strategy.id)}
+      value={strategy.params[definition.key]} locale={locale} errors={errors} currency={currency}
+      dependencyValues={dependencyValues} appearance={definition.type === "boolean" ? "switch" : "default"}
+      onChange={value => onChange(definition.key, value)} />)}</div> : undefined;
   const limitHeadingId = `strategy-parameter-heading-${strategy.id}-buy_limits`;
   const limitHeadingKey = catalog.parameterGroups?.find(group => group.id === "buy_limits")?.translationKey ?? "parameterGroups.buy_limits";
   return <section className="strategy-editor" aria-label={translate(locale, preset.nameKey)}>
@@ -69,9 +78,8 @@ export function StrategyEditorForm({ catalog, strategy, preset, locale, errors, 
     </fieldset>
     <ConditionEditor catalog={catalog} strategyId={strategy.id} locale={locale} rules={strategy.rules ?? { buy: null, sell: null }}
       custom={preset.editorMode === "custom" || preset.editorMode === "search"} fixedTrend={preset.id === "ma_trend"}
-      buyContent={fundingFields.length > 0 ? <div className="strategy-parameter-grid">{fundingFields.map(definition =>
-        <ParameterField key={definition.key} definition={definition} id={parameterFieldId(definition.key, strategy.id)}
-          value={strategy.params[definition.key]} locale={locale} errors={errors} currency={currency} onChange={value => onChange(definition.key, value)} />)}</div> : undefined}
+      buyContent={parameterFields([...fundingFields, ...legacyBuyFields])}
+      sellContent={parameterFields(legacySellFields)}
       currency={currency} errors={errors} onChange={onRulesChange} />
   </section>;
 }
@@ -107,15 +115,6 @@ export function StrategyEditorDialog({
   });
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    dialog.showModal();
-    return () => {
-      if (dialog.open) dialog.close();
-    };
-  }, []);
-
-  useEffect(() => {
     if (!focusFieldKey) return;
     const frame = window.requestAnimationFrame(() => {
       const condition = [...conditionLeaves(strategy.rules?.buy), ...conditionLeaves(strategy.rules?.sell)].find(node => node.id === focusConditionId);
@@ -137,21 +136,8 @@ export function StrategyEditorDialog({
   const hasError = errors.some((diagnostic) => diagnostic.severity === "error");
 
   const content = (
-    <dialog
-      ref={dialogRef}
-      className="strategy-dialog"
-      id={`strategy-dialog-${strategy.id}`}
-      aria-modal="true"
-      aria-labelledby="strategy-editor-heading"
-      aria-describedby="strategy-editor-description"
-      onCancel={(event) => {
-        event.preventDefault();
-        closeDialog();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) closeDialog();
-      }}
-    >
+    <ModalShell dialogRef={dialogRef} className="strategy-dialog" id={`strategy-dialog-${strategy.id}`}
+      labelledBy="strategy-editor-heading" describedBy="strategy-editor-description" onRequestClose={closeDialog}>
       <div className="strategy-dialog-shell">
         <header className="strategy-dialog-heading">
           <div className="strategy-dialog-heading-copy">
@@ -192,7 +178,7 @@ export function StrategyEditorDialog({
           </button>
         </footer>
       </div>
-    </dialog>
+    </ModalShell>
   );
   return typeof document === "undefined" ? content : createPortal(content, document.body);
 }

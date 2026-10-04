@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Catalog, Diagnostic, RunDateAdjustment, RunResponse } from "../../api/generated";
+import { runDataContext } from "../../api/contractReader";
+import { isActiveRunStatus } from "../../api/runStatus";
 import {
-  createIdempotencyKey, fetchRun, fetchLatestRun, subscribeToRunEvents,
+  createIdempotencyKey, fetchRun, fetchActiveRun, subscribeToRunEvents,
   RunApiError, submitRun, validateDraft, stopRun, type RunProgressEvent,
 } from "../../api/runs";
 import {
   createInitialWorkspaceState, getRunAvailability, serializeDraftForApi, workspaceReducer,
   type BacktestDraft, type WorkspaceAction, type WorkspaceState,
 } from "../strategies/model";
-import { readDismissedRunId, rememberDismissedRun } from "./resultVisibility";
-import { isTerminalRunStatus, readCachedRun, saveCachedRun } from "./runPersistence";
+import { draftFromRun, workspaceForDraft } from "../strategies/draftReader";
+import { restoreWorkspaceState, saveLastRunStrategy } from "../strategies/workspacePersistence";
+import { packageDraft, type PackageFile } from "../files/packageModel";
 
 interface ValidationState {
   draft: BacktestDraft;
   response: Awaited<ReturnType<typeof validateDraft>> | null;
+  error?: RunApiError;
 }
 
 function asRunApiError(error: unknown): RunApiError {
@@ -40,6 +44,7 @@ export function useRunController(
   setWorkspace: Dispatch<SetStateAction<WorkspaceState | null>>,
 ) {
   const [validationState, setValidationState] = useState<ValidationState | null>(null);
+  const [validationRetry, setValidationRetry] = useState(0);
   const [runError, setRunError] = useState<RunApiError | null>(null);
   const [dateAdjustments, setDateAdjustments] = useState<RunDateAdjustment[]>([]);
   const [runBusy, setRunBusy] = useState(false);
@@ -52,40 +57,50 @@ export function useRunController(
   const submittedRunRef = useRef(false);
   const isLocked = useCallback(() => runSubmissionLocked.current, []);
 
+  const rememberRun = useCallback((value: RunResponse, fallbackCurrency?: string) => {
+    if (!catalog) return;
+    const stored = restoreWorkspaceState(catalog).state.draft.shared;
+    const currency = fallbackCurrency ?? (stored.run.symbol === value.snapshot.config.shared.run.symbol ? stored.currency : undefined);
+    const frozenDraft = draftFromRun(value, catalog, currency);
+    setBrowserSaveFailed(!frozenDraft || !saveLastRunStrategy(frozenDraft, catalog));
+  }, [catalog]);
+
+  const preflightFailed = Boolean(validationState?.error || validationState?.response &&
+    validationDiagnostics(validationState.response).some(item => item.severity === "error"));
   const dispatch = useCallback((action: WorkspaceAction) => {
     if (!catalog) return;
     if (runSubmissionLocked.current && action.type !== "run.update" && action.type !== "run.progress") return;
+    // A successful dialog confirmation may recover a transient preflight error
+    // even when its configuration has not changed.
+    if (preflightFailed && (action.type === "shared.change" || action.type === "strategy.commit")) {
+      setValidationRetry(value => value + 1);
+    }
     setWorkspace((current) => current
       ? workspaceReducer(current, action, catalog)
       : current);
-  }, [catalog, setWorkspace]);
-
-  const persistRun = useCallback((response: RunResponse, signal: AbortSignal) => {
-    void saveCachedRun(response).then(saved => {
-      if (!signal.aborted && !saved) setBrowserSaveFailed(true);
-    });
-  }, []);
+  }, [catalog, setWorkspace, preflightFailed]);
 
   useEffect(() => {
     if (!catalog) return;
     const controller = new AbortController();
     activeRunController.current = controller;
 
-    const restoreLatestRun = async () => {
+    const reconnectActiveRun = async () => {
       try {
-        const restore = (value: Awaited<ReturnType<typeof fetchLatestRun>>) => {
-          if (!value || controller.signal.aborted || submittedRunRef.current || value.runId === readDismissedRunId()) return;
+        const restore = (value: Awaited<ReturnType<typeof fetchActiveRun>>) => {
+          if (!value || controller.signal.aborted || submittedRunRef.current) return;
+          rememberRun(value);
+          setDateAdjustments(runDataContext(value.snapshot)?.dateAdjustments ?? []);
           setWorkspace((current) => {
-            if (submittedRunRef.current) return current;
+            if (controller.signal.aborted || submittedRunRef.current) return current;
             const base = current ?? createInitialWorkspaceState(catalog);
-            return workspaceReducer(base, { type: "run.update", value }, catalog);
+            return workspaceReducer(base, { type: "run.update", value, applyResolvedDates: true }, catalog);
           });
         };
 
-        restore(await readCachedRun());
         if (controller.signal.aborted || submittedRunRef.current) return;
-        let response = await fetchLatestRun(controller.signal);
-        if (!response || submittedRunRef.current || response.runId === readDismissedRunId()) return;
+        let response = await fetchActiveRun(controller.signal);
+        if (!response || submittedRunRef.current) return;
 
         const restoreProgress = (value: RunProgressEvent) => {
           if (submittedRunRef.current) return;
@@ -96,7 +111,7 @@ export function useRunController(
         };
 
         restore(response);
-        if (isTerminalRunStatus(response.status)) { persistRun(response, controller.signal); return; }
+        if (!isActiveRunStatus(response.status)) return;
 
         activeRunId.current = response.runId;
         runSubmissionLocked.current = true;
@@ -105,7 +120,6 @@ export function useRunController(
         if (submittedRunRef.current) return;
         response = await fetchRun(response.runId, controller.signal);
         restore(response);
-        persistRun(response, controller.signal);
       } catch (error) {
         if (!controller.signal.aborted && !submittedRunRef.current) {
           setRunError(asRunApiError(error));
@@ -121,21 +135,58 @@ export function useRunController(
       }
     };
 
-    void restoreLatestRun();
+    void reconnectActiveRun();
     return () => {
       controller.abort();
       if (activeRunController.current === controller) activeRunController.current = null;
     };
-  }, [catalog, persistRun, setWorkspace]);
+  }, [catalog, setWorkspace, rememberRun]);
 
   useEffect(() => () => {
     activeRunController.current?.abort();
   }, []);
 
+  // Dialog buffers are local: only confirmed workspace inputs enter preflight.
+  const draft = workspace?.draft;
+  useEffect(() => {
+    if (!catalog || !draft || runBusy) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void validateDraft(serializeDraftForApi(draft), controller.signal).then(response => {
+        if (!controller.signal.aborted) setValidationState({ draft, response });
+      }).catch(error => {
+        if (!controller.signal.aborted) setValidationState({ draft, response: null, error: asRunApiError(error) });
+      });
+    }, 300);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [catalog, draft, runBusy, validationRetry]);
+
   const currentValidation = workspace && validationState?.draft === workspace.draft
     ? validationState.response
     : null;
-  const availability = { disabled: !catalog || !workspace, reasonKey: null };
+  const availability = !workspace ? { disabled: true, reasonKey: "run.validationPending" }
+    : validationState?.draft === workspace.draft && validationState.error
+      ? { disabled: true, reasonKey: validationState.error.messageKey }
+      : getRunAvailability(workspace, currentValidation);
+  const canStop = runBusy && (!activeRunId.current
+    || workspace?.runResponse?.runId !== activeRunId.current
+    || isActiveRunStatus(workspace.runResponse.status));
+
+  const requestStop = async (runId: string, controller: AbortController) => {
+    const isCurrentRun = () => activeRunId.current === runId
+      && activeRunController.current === controller && !controller.signal.aborted;
+    try {
+      const response = await stopRun(runId, controller.signal);
+      if (!isCurrentRun()) return;
+      setRunError(null);
+      dispatch({ type: "run.update", value: response });
+    } catch (error) {
+      if (!isCurrentRun()) return;
+      stopRequested.current = false;
+      setStopping(false);
+      setRunError(asRunApiError(error));
+    }
+  };
 
   const handleRun = async () => {
     if (!catalog || !workspace || runBusy || runSubmissionLocked.current) return;
@@ -173,22 +224,24 @@ export function useRunController(
         controller.signal,
       );
       activeRunId.current = accepted.runId;
-      if (stopRequested.current) await stopRun(accepted.runId, controller.signal);
-      rememberDismissedRun(null);
-      setDateAdjustments(accepted.snapshot.dateAdjustments ?? []);
+      rememberRun(accepted, submittedDraft.shared.currency);
+      setDateAdjustments(runDataContext(accepted.snapshot)?.dateAdjustments ?? []);
       dispatch({
         type: "run.update",
         value: accepted,
         applyResolvedDates: true,
       });
+      // Keep observing the accepted job even when an early Stop request fails.
+      if (stopRequested.current) void requestStop(accepted.runId, controller);
       await subscribeToRunEvents(
         accepted.runId,
         (event) => dispatch({ type: "run.progress", value: event }),
         controller.signal,
       );
       const completed = await fetchRun(accepted.runId, controller.signal);
-      dispatch({ type: "run.update", value: completed });
-      persistRun(completed, controller.signal);
+      rememberRun(completed, submittedDraft.shared.currency);
+      setDateAdjustments(runDataContext(completed.snapshot)?.dateAdjustments ?? []);
+      dispatch({ type: "run.update", value: completed, applyResolvedDates: true });
     } catch (error) {
       if (controller.signal.aborted) return;
       setRunError(asRunApiError(error));
@@ -202,38 +255,40 @@ export function useRunController(
   };
 
   const handleStop = async () => {
-    if (!runBusy || stopRequested.current) return;
+    if (!canStop || stopRequested.current) return;
     stopRequested.current = true;
     setStopping(true);
     const runId = activeRunId.current;
     const controller = activeRunController.current;
     if (!runId || !controller) return;
-    const isCurrentRun = () => activeRunId.current === runId
-      && activeRunController.current === controller && !controller.signal.aborted;
-    try {
-      const response = await stopRun(runId, controller.signal);
-      if (!isCurrentRun()) return;
-      setRunError(null);
-      dispatch({ type: "run.update", value: response });
-    } catch (error) {
-      if (!isCurrentRun()) return;
-      stopRequested.current = false;
-      setStopping(false);
-      setRunError(asRunApiError(error));
-    }
+    await requestStop(runId, controller);
   };
 
   const handleReset = () => {
     if (runBusy) return;
     submittedRunRef.current = true;
-    rememberDismissedRun(workspace?.runResponse?.runId ?? null);
     dispatch({ type: "run.reset" });
     setRunError(null);
     setDateAdjustments([]);
   };
 
+  const handleImport = (file: PackageFile) => {
+    if (!catalog || runSubmissionLocked.current || runBusy) return;
+    submittedRunRef.current = true;
+    activeRunController.current?.abort();
+    const fresh = workspaceForDraft(packageDraft(file, catalog), catalog).state;
+    setWorkspace(current => ({ ...(file.type === "backtest"
+      ? workspaceReducer(fresh, { type: "run.update", value: file.result }, catalog) : fresh),
+      importedBacktest: file.type === "backtest" ? file : null,
+      resultRevision: (current?.resultRevision ?? 0) + 1,
+    }));
+    setValidationState(null);
+    setRunError(null);
+    setDateAdjustments([]);
+  };
+
   return {
-    dispatch, currentValidation, runError, runBusy, browserSaveFailed, stopping, dateAdjustments,
-    availability, handleRun, handleStop, handleReset, isLocked,
+    dispatch, currentValidation, runError, runBusy, canStop, browserSaveFailed, stopping, dateAdjustments,
+    availability, handleRun, handleStop, handleReset, handleImport, isLocked,
   };
 }

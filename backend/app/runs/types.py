@@ -5,11 +5,18 @@ from pydantic import Field, model_validator
 from app.config.validation import DataRequirement, StrategyValidationResult
 from app.domain.contracts import (
     FrozenRunConfig,
+    MetricSummary,
     RunResult,
     RunScope,
     RunSnapshot,
 )
-from app.domain.status import DomainModel, StrategyStatus
+from app.domain.status import (
+    Diagnostic,
+    DomainModel,
+    StrategyStatus,
+    is_success,
+    is_terminal,
+)
 
 
 class RunSubmission(DomainModel):
@@ -81,4 +88,50 @@ class RunResponse(DomainModel):
             raise ValueError("run response must preserve a selected strategy")
         if len(set(self.selected_strategy_ids)) != len(self.selected_strategy_ids):
             raise ValueError("selected strategy IDs must be unique")
+        return self
+
+
+class RunStrategySummary(DomainModel):
+    """A terminal strategy's saved metrics and diagnostics in a small event."""
+
+    metrics: MetricSummary | None = None
+    diagnostics: tuple[Diagnostic, ...] = ()
+
+
+class RunProgressEvent(DomainModel):
+    """JSON data inside an SSE frame; states are the same as full run responses."""
+
+    run_id: str = Field(alias="runId", min_length=1)
+    status: StrategyStatus
+    progress: RunProgress | None
+    strategy_statuses: dict[str, StrategyStatus] = Field(
+        alias="strategyStatuses", max_length=34
+    )
+    strategy_summaries: dict[str, RunStrategySummary] = Field(
+        default_factory=dict, alias="strategySummaries", max_length=34
+    )
+
+    @model_validator(mode="after")
+    def consistent_terminal_data(self) -> "RunProgressEvent":
+        if (
+            is_terminal(self.status)
+            and self.progress is not None
+            and self.progress.completed_strategies != self.progress.total_strategies
+        ):
+            raise ValueError("a terminal event must count every strategy as finished")
+        if is_terminal(self.status) and any(
+            not is_terminal(status) for status in self.strategy_statuses.values()
+        ):
+            raise ValueError("a terminal event cannot contain unfinished strategies")
+        for strategy_id, summary in self.strategy_summaries.items():
+            status = self.strategy_statuses.get(strategy_id)
+            if status is None or not is_terminal(status):
+                raise ValueError("summaries must belong to terminal strategies")
+            if is_success(status) and summary.metrics is None:
+                raise ValueError("successful summaries require saved metrics")
+            if (
+                status in {StrategyStatus.FAILED, StrategyStatus.UNAVAILABLE}
+                and not summary.diagnostics
+            ):
+                raise ValueError("unsuccessful summaries require a diagnosis")
         return self

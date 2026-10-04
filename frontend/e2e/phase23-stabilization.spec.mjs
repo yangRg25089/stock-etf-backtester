@@ -1,3 +1,4 @@
+import { installRunFixture, importPackage, backtestFile } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -13,26 +14,8 @@ async function savedRun(page) {
   return saved;
 }
 
-async function browserRun(page) {
-  return page.evaluate(async () => {
-    const databases = await indexedDB.databases();
-    if (!databases.some(database => database.name === "backtester.runs.v1")) return null;
-    return new Promise((resolve, reject) => {
-    const opening = indexedDB.open("backtester.runs.v1", 1);
-    opening.onerror = () => reject(opening.error);
-    opening.onsuccess = () => {
-      const database = opening.result;
-      if (!database.objectStoreNames.contains("responses")) { database.close(); resolve(null); return; }
-      const request = database.transaction("responses").objectStore("responses").get("latest");
-      request.onsuccess = () => { database.close(); resolve(request.result ?? null); };
-      request.onerror = () => { database.close(); reject(request.error); };
-    };
-    });
-  });
-}
-
 test("selected strategy cards keep whole-card hover color and remove the unselected indent", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
@@ -82,7 +65,10 @@ test("all permitted results fit a bounded comparison with a sticky header and re
   const extra = [...fixed.map((presetId, index) => ({ ...structuredClone(template), id: `fixed-${index}`, presetId })),
     ...Array.from({ length: 10 }, (_, index) => ({ ...structuredClone(template), id: `custom-${index}`, presetId: "composite_dca", instanceNumber: index + 1 }))];
   saved.result.strategyRuns = [template, ...extra, ...saved.result.strategyRuns.slice(1)];
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  saved.snapshot.config.strategies.push(...extra.map(row => ({ id: row.id, presetId: row.presetId, enabled: true, params: {}, instanceNumber: row.instanceNumber })));
+  saved.selectedStrategyIds.push(...extra.map(row => row.id));
+  saved.progress.totalStrategies = saved.progress.completedStrategies = saved.result.strategyRuns.length;
+  await installRunFixture(page, saved);
   for (const [width, height] of [[1920, 1080], [1440, 900], [1024, 768]]) {
     await page.setViewportSize({ width, height });
     await page.goto("/");
@@ -118,7 +104,7 @@ test("all permitted results fit a bounded comparison with a sticky header and re
 
 test("selected comparison rows lift forward without shifting table columns or row layout", async ({ page }) => {
   const saved = await savedRun(page);
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await installRunFixture(page, saved);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   const rows = page.locator("#result-panel-comparison tbody tr");
@@ -161,7 +147,7 @@ test("tablet topbars keep brand, run actions and locale on one row without page 
   for (const hasTouch of [false, true]) {
     const context = await browser.newContext({ hasTouch });
     const page = await context.newPage();
-    await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+    await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
     for (const width of [768, 1024, 1279]) {
       await page.setViewportSize({ width, height: 768 });
       await page.goto("/");
@@ -181,9 +167,10 @@ test("tablet topbars keep brand, run actions and locale on one row without page 
 });
 
 test("native numeric validation stays visible and focuses the invalid strategy input", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
   const runBefore = await page.locator(".run-submit-button").evaluate(node => node.outerHTML);
   await page.locator(".strategy-card-open").click();
   const dialog = page.locator(".strategy-dialog");
@@ -204,6 +191,7 @@ test("native numeric validation stays visible and focuses the invalid strategy i
 test("dialog validation has a busy indicator and prevents duplicate closing", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
   for (const kind of ["shared-settings", "strategy"]) {
     await page.locator(kind === "strategy" ? ".strategy-card-open" : ".shared-settings-open-button").click();
     const dialog = page.locator(`.${kind}-dialog`);
@@ -293,8 +281,9 @@ test("disabled rules stay compact, retain their parameters and expand from their
 });
 
 test("invalid disabled rules keep their field errors visible and reachable", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
   const runBefore = await page.locator(".run-submit-button").evaluate(node => node.outerHTML);
   await page.locator(".strategy-card-open").click();
   const dialog = page.locator(".strategy-dialog");
@@ -368,7 +357,7 @@ test("invalid disabled rules keep their field errors visible and reachable", asy
 });
 
 test("volatility condition names remain accurate for VXN and VXD", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".strategy-card-open").click();
   const dialog = page.locator(".strategy-dialog");
@@ -407,7 +396,7 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
 });
 
 test("sell ratios display percent values, align with thresholds and submit unchanged ratios", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   const submitted = [];
   await page.route("**/api/v1/config/validate", async route => {
     submitted.push(route.request().postDataJSON().draft);
@@ -415,6 +404,7 @@ test("sell ratios display percent values, align with thresholds and submit uncha
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
   const runBefore = await page.locator(".run-submit-button").evaluate(node => node.outerHTML);
   await page.locator(".strategy-card-open").click();
   const dialog = page.locator(".strategy-dialog");
@@ -449,6 +439,7 @@ test("sell ratios display percent values, align with thresholds and submit uncha
   await expect(dialog).toBeHidden();
   expect(submitted.at(-1).strategies[0].rules.sell.params["exit.vix.ratio1"]).toBe(0.29);
   expect(submitted.at(-1).strategies[0].rules.sell.params["exit.vix.ratio2"]).toBe(0.3);
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
   expect(await page.locator(".run-submit-button").evaluate(node => node.outerHTML)).toBe(runBefore);
   await page.getByRole("button", { name: "中文" }).click();
   await page.locator(".strategy-card-open").click();
@@ -465,7 +456,7 @@ test("sell ratios display percent values, align with thresholds and submit uncha
 });
 
 test("shared percentage editors preserve independent buy coverage and sell ratios", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   let submitted;
   await page.route("**/api/v1/config/validate", async route => {
     submitted = route.request().postDataJSON().draft;
@@ -502,7 +493,7 @@ test("shared percentage editors preserve independent buy coverage and sell ratio
 });
 
 test("exhausted condition kinds disable unusable group creation and restore after removal", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   const catalog = await (await page.request.get("/api/v1/catalog")).json();
   await page.locator(".add-strategy-button").click();
@@ -547,7 +538,7 @@ test("exhausted condition kinds disable unusable group creation and restore afte
 });
 
 test("keyboard condition deletion restores focus within its surviving group", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="composite_dca"]').click();
@@ -596,7 +587,7 @@ test("custom group choices reserve space for a usable child at catalog limits", 
     catalog.conditionLimits.maxNodes = maxNodes;
     await route.fulfill({ json: catalog });
   });
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="composite_dca"]').click();
@@ -629,7 +620,7 @@ test("custom group choices reserve space for a usable child at catalog limits", 
 });
 
 test("buy-only templates keep a passive sell section while custom strategies keep both editors", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="ma_buy_only"]').click();
@@ -680,7 +671,7 @@ test("editable grid values freeze into search results, candidate curves and CSV"
   await expect(editor.locator(".search-combination-count")).toContainText("2");
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toBeHidden();
-  const finished = page.waitForResponse(r => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!latest$)[^/]+$/.test(r.url()));
+  const finished = page.waitForResponse(r => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await finished).json();
   const grid = saved.result.strategyRuns.find(item => item.presetId === "grid_search");
@@ -743,93 +734,69 @@ test("grid value errors focus their input and inactive dimensions retain edits",
   await expect(dialog).toBeHidden();
 });
 
-test("browser reopening restores the workspace draft and cached run response", async ({ page }) => {
-  const saved = await savedRun(page);
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+test("reopening restores last accepted inputs, not later edits or completed results", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(saved.result.strategyRuns.length);
-
+  await page.locator(".shared-settings-open-button").click();
+  await page.locator("#field-run-startDate").fill("2024-01-31");
+  await page.locator("#field-run-endDate").fill("2024-03-01");
+  await page.locator(".shared-settings-dialog .dialog-done").click();
+  await page.locator(".run-submit-button").click();
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+  const accepted = await page.evaluate(() => localStorage.getItem("stock-etf-backtester.last-run-strategy.v1"));
+  expect(accepted).not.toBeNull();
   await page.locator(".shared-settings-open-button").click();
   await page.locator("#field-run-symbol").fill("SPY");
   await page.locator(".shared-settings-dialog .dialog-done").click();
-  await expect(page.locator(".shared-settings-dialog")).toBeHidden();
-
   await page.locator(".strategy-card-open").first().click();
   await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("31");
   await page.locator(".strategy-dialog .dialog-done").click();
-  await expect(page.locator(".strategy-dialog")).toBeHidden();
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="ma_trend"]').click();
-  await expect(page.locator(".strategy-nav-card")).toHaveCount(2);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("backtester.workspace.v1"))).not.toBeNull();
-  await expect.poll(async () => (await browserRun(page))?.runId).toBe(saved.runId);
-
-  await page.unroute("**/api/v1/runs/latest");
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
+  expect(await page.evaluate(() => localStorage.getItem("stock-etf-backtester.last-run-strategy.v1"))).toBe(accepted);
   await page.reload();
-  await expect(page.locator(".strategy-nav-card")).toHaveCount(2);
-  await page.locator(".shared-settings-open-button").click();
-  await expect(page.locator("#field-run-symbol")).toHaveValue("SPY");
-  await page.locator(".shared-settings-dialog .dialog-done").click();
-  await page.locator(".strategy-nav-card").first().locator(".strategy-card-open").click();
-  await expect(page.locator("#field-strategy-vix_dca-1-vix-buyThreshold")).toHaveValue("31");
-  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(saved.result.strategyRuns.length);
+  await expect(page.locator(".strategy-nav-card")).toHaveCount(1);
+  await expect(page.locator(".shared-settings-summary-symbol")).toContainText("QQQ");
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
+  await page.locator(".strategy-card-open").click();
+  await expect(page.locator("#field-strategy-vix_dca-1-vix-buyThreshold")).toHaveValue("25");
 });
 
-test("a newer server result replaces the browser copy and reset stays cleared after reopening", async ({ page }) => {
+test("completed server results require explicit import and reset leaves no hidden run state", async ({ page }) => {
   const saved = await savedRun(page);
-  let latest = saved;
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: latest }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect.poll(async () => (await browserRun(page))?.runId).toBe(saved.runId);
-  const newer = structuredClone(saved);
-  newer.runId = "newer-terminal-response";
-  newer.snapshot.runId = newer.runId;
-  newer.result.runId = newer.runId;
-  latest = newer;
-  await page.reload();
-  await expect.poll(async () => (await browserRun(page))?.runId).toBe(newer.runId);
-  await page.locator(".run-reset-button").click();
-  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(0);
-  await page.reload();
   await expect(page.locator(".shared-settings-open-button")).toBeVisible();
-  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(0);
-  expect((await browserRun(page)).runId).toBe(newer.runId);
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
+  await importPackage(page, backtestFile(saved));
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+  await expect(page.locator(".imported-result-label")).toBeVisible();
+  await page.locator(".run-reset-button").click();
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("backtester.dismissedRunId"))).toBeNull();
 });
 
-test("malformed browser result storage does not crash the workspace", async ({ page }) => {
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: null }));
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-  await expect(page.locator(".shared-settings-open-button")).toBeVisible();
-  await page.evaluate(() => new Promise((resolve, reject) => {
-    const opening = indexedDB.open("backtester.runs.v1", 1);
-    opening.onerror = () => reject(opening.error);
-    opening.onsuccess = () => {
-      const database = opening.result;
-      const transaction = database.transaction("responses", "readwrite");
-      transaction.oncomplete = () => { database.close(); resolve(); };
-      transaction.onerror = () => { database.close(); reject(transaction.error); };
-      transaction.objectStore("responses").put({ runId: "corrupted-cache", status: "completed",
-        selectedStrategyIds: [], snapshot: {}, result: { strategyRuns: [] } }, "latest");
-    };
-  }));
+test("malformed last-run inputs fall back without accessing retired result storage", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("stock-etf-backtester.last-run-strategy.v1", "{broken");
+    Object.defineProperty(window, "indexedDB", { get() { throw new Error("retired result storage accessed"); } });
+  });
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.reload();
-  await expect(page.locator(".shared-settings-open-button")).toBeVisible();
-  await expect(page.locator("#result-panel-comparison tbody tr")).toHaveCount(0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(page.locator(".shared-settings-summary-symbol")).toContainText("QQQ");
+  await expect(page.locator(".strategy-nav-card")).toHaveCount(1);
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("terminal progress cannot replace the browser cache before the complete API result arrives", async ({ page }) => {
-  const saved = await savedRun(page);
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+test("terminal progress remains busy until full result GET without storing result data", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect.poll(async () => (await browserRun(page))?.runId).toBe(saved.runId);
   await page.locator(".shared-settings-open-button").click();
   await page.locator("#field-run-startDate").fill("2024-01-31");
   await page.locator("#field-run-endDate").fill("2024-03-01");
@@ -838,7 +805,7 @@ test("terminal progress cannot replace the browser cache before the complete API
   const hold = new Promise(resolve => { release = resolve; });
   let completeResponse;
   await page.route("**/api/v1/runs/*", async route => {
-    if (route.request().method() !== "GET" || route.request().url().endsWith("/latest")) { await route.continue(); return; }
+    if (route.request().method() !== "GET" || route.request().url().endsWith("/active")) { await route.continue(); return; }
     const response = await route.fetch();
     completeResponse = await response.json();
     await hold;
@@ -846,13 +813,14 @@ test("terminal progress cannot replace the browser cache before the complete API
   });
   await page.locator(".run-submit-button").click();
   await expect.poll(() => completeResponse?.status).toMatch(/^completed/);
-  expect((await browserRun(page)).runId).toBe(saved.runId);
   await expect(page.locator(".run-submit-button")).toBeDisabled();
+  await expect(page.locator(".run-stop-button")).toHaveCount(0);
+  const last = await page.evaluate(() => JSON.parse(localStorage.getItem("stock-etf-backtester.last-run-strategy.v1")));
+  expect(Object.keys(last).sort()).toEqual(["catalogVersion", "draft", "savedAt", "schemaVersion"]);
   release();
-  await expect.poll(async () => (await browserRun(page))?.runId).toBe(completeResponse.runId);
-  const cached = await browserRun(page);
-  expect(cached).toEqual(completeResponse);
-  expect(cached.result.strategyRuns[0].dailyAssets.length).toBeGreaterThan(0);
+  await expect(page.locator(".run-submit-button")).toBeEnabled();
+  await expect(page.locator(".chart-overlay polyline.overlay-price")).toBeVisible();
+  expect(await page.evaluate(async () => (await indexedDB.databases()).map(item => item.name))).toEqual([]);
 });
 
 test("selected strategies retain their own trade markers and core curves always switch", async ({ page }) => {
@@ -868,8 +836,9 @@ test("selected strategies retain their own trade markers and core curves always 
   second.trades = [{ ...buy(sampleDates[1], "110"), side: "sell", reason: "signal_sell" }];
   second.dailyAssets = second.dailyAssets.map((asset, index) => ({ ...asset, totalAsset: String(110 + index * 2) }));
   saved.result.strategyRuns = [first, second, ...saved.result.strategyRuns.filter(item => item.id !== first.id)];
-  saved.selectedStrategyIds = [first.id];
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  saved.selectedStrategyIds = [first.id, second.id];
+  saved.snapshot.config.strategies.push({ id: second.id, presetId: second.presetId, enabled: true, params: {} });
+  await installRunFixture(page, saved);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
@@ -877,8 +846,8 @@ test("selected strategies retain their own trade markers and core curves always 
   await page.locator("#result-panel-comparison").getByRole("button", { name: /ボラティリティ積立/ }).click();
   await secondSelection.click();
   await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
-  const firstLegend = page.locator(`.overlay-legend-item[data-result-id="${first.id}"]`);
-  const secondLegend = page.locator(`.overlay-legend-item[data-result-id="${second.id}"]`);
+  const firstLegend = page.locator(`.chart-series-control[data-result-id="${first.id}"]`);
+  const secondLegend = page.locator(`.chart-series-control[data-result-id="${second.id}"]`);
   await firstLegend.hover();
   await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(1);
   await expect(page.locator(`polygon.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveCount(0);
@@ -926,7 +895,7 @@ test("selected strategies retain their own trade markers and core curves always 
 
 test("hiding the only visible core curve switches to the available alternative", async ({ page }) => {
   const saved = await savedRun(page);
-  await page.route("**/api/v1/runs/latest", route => route.fulfill({ json: saved }));
+  await installRunFixture(page, saved);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await page.locator("#result-panel-comparison").getByRole("button", { name: /ボラティリティ積立/ }).click();

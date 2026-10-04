@@ -9,8 +9,29 @@ from app.api.errors import APIException
 from app.api.runs import _run_service
 from app.api.types import APIErrorResponse
 from app.export.csv import ExportError, ExportKind, export_csv
+from app.export.packages import BacktestPackage, build_backtest_package
 
 router = APIRouter(prefix="/api/v1", tags=["exports"])
+
+
+@router.get(
+    "/runs/{run_id}/package",
+    response_model=BacktestPackage,
+    responses={404: {"model": APIErrorResponse}, 409: {"model": APIErrorResponse}},
+)
+def export_backtest_package(run_id: str, request: Request) -> BacktestPackage:
+    service = _run_service(request)
+    run = service.get_run(run_id)
+    if run is None:
+        raise APIException(404, "run_not_found", "api.errors.run_not_found")
+    try:
+        return build_backtest_package(
+            run, lambda candidate_id: service.get_candidate(run_id, candidate_id)
+        )
+    except ValueError as error:
+        raise APIException(
+            409, "result_not_exportable", "api.errors.result_not_exportable"
+        ) from error
 
 
 @router.get(

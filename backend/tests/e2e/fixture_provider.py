@@ -98,3 +98,25 @@ def create_fixture_run_manager(*, immediate: bool = True) -> RunManager:
         data_provider=Task4FixtureProvider(),
         executor=ImmediateExecutor() if immediate else None,
     )
+
+
+class WalkForwardFixtureProvider:
+    """Sparse multi-year fixture shared by search and portable browser checks."""
+
+    version = "fixture:walk-forward-v1"
+
+    def __init__(self) -> None:
+        from tests.search.test_walk_forward import source
+
+        self.source = source()
+
+    def load_for_strategy(
+        self,
+        *,
+        shared: SharedSettings,
+        strategy: FrozenStrategyInstance,
+        requirements: Sequence[DataRequirement],
+    ) -> StrategyDataLoad:
+        return StrategyDataLoad(
+            calendar=self.source.exchange_calendar, snapshot=self.source.snapshot
+        )

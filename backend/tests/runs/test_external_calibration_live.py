@@ -14,7 +14,7 @@ import httpx
 from app.main import app
 from app.metrics import calculate_xirr
 from app.runs.manager import RunManager
-from app.runs.sqlite_store import SQLiteRunStore
+from app.runs.store import InMemoryRunStore
 from app.runs.yahoo_data import YahooRunDataProvider
 from tests.runs.test_yahoo_data_live import _InlineExecutor
 
@@ -42,7 +42,7 @@ def test_live_dqydj_baselines_match_after_cashflow_and_price_basis_alignment(tmp
         ).read_text()
     )
     previous_service = app.state.run_service
-    store = SQLiteRunStore(tmp_path / "dqydj.sqlite3")
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -213,7 +213,6 @@ def test_live_dqydj_baselines_match_after_cashflow_and_price_basis_alignment(tmp
         asyncio.run(run())
     finally:
         app.state.run_service = previous_service
-        store.close()
 
 
 def _leaf(node_id, kind, params):
@@ -228,9 +227,7 @@ def test_live_nested_strategy_replays_signals_cash_positions_and_saved_exports(
     tmp_path,
 ):
     previous_service = app.state.run_service
-    path = tmp_path / "nested-calibration.sqlite3"
-    store = SQLiteRunStore(path)
-    reopened = None
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
     )
@@ -381,7 +378,7 @@ def test_live_nested_strategy_replays_signals_cash_positions_and_saved_exports(
         transactions = defaultdict(list)
         for trade in result["trades"]:
             transactions[trade["date"]].append(trade)
-        cash = quantity = contributed = invested = recycled = Decimal(0)
+        cash = quantity = contributed = invested = Decimal(0)
         previous_day = None
         for asset in result["dailyAssets"]:
             day, price = asset["date"], Decimal(asset["simulationPrice"])
@@ -410,15 +407,15 @@ def test_live_nested_strategy_replays_signals_cash_positions_and_saved_exports(
                 assert Decimal(trade["price"]) == price
                 assert abs(amount - shares * price) < Decimal("1e-20")
                 if trade["side"] == "buy":
+                    assert amount == cash
                     cash -= amount
                     quantity += shares
-                    reused = min(recycled, amount)
-                    recycled -= reused
-                    invested += amount - reused
+                    # This strategy spends all available cash. Every deposit
+                    # has now been invested; recycled proceeds add no principal.
+                    invested = contributed
                 else:
                     cash += amount
                     quantity -= shares
-                    recycled += amount
             assert abs(cash - Decimal(asset["cash"])) < Decimal("1e-20")
             assert abs(quantity - Decimal(asset["timingQuantity"])) < Decimal("1e-20")
             assert Decimal(asset["fixedQuantity"]) == 0
@@ -428,6 +425,7 @@ def test_live_nested_strategy_replays_signals_cash_positions_and_saved_exports(
             assert Decimal(asset["totalContributed"]) == contributed
             assert abs(Decimal(asset["actualInvested"]) - invested) < Decimal("1e-20")
             assert 0 <= invested <= contributed
+            assert 0 <= Decimal(asset["actualInvested"]) <= contributed
             previous_day = day
         metrics = result["metrics"]
         assert Decimal(metrics["totalContributed"]) == 600
@@ -440,8 +438,7 @@ def test_live_nested_strategy_replays_signals_cash_positions_and_saved_exports(
             Decimal(metrics["capitalMultiple"])
             - Decimal(metrics["endingEquity"]) / contributed
         ) < Decimal("1e-20")
-        store.close()
-        reopened = SQLiteRunStore(path)
+        reopened = store
         app.state.run_service = RunManager(store=reopened, executor=_InlineExecutor())
 
         async def restore():
@@ -475,6 +472,3 @@ def test_live_nested_strategy_replays_signals_cash_positions_and_saved_exports(
         asyncio.run(restore())
     finally:
         app.state.run_service = previous_service
-        store.close()
-        if reopened is not None:
-            reopened.close()

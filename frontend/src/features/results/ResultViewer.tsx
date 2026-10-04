@@ -11,6 +11,8 @@ import { resultColor } from "./colors";
 import { savedTechnicalIndicators } from "./technicalIndicators";
 import { DEFAULT_COMPARISON_SORT, sortedComparisons } from "./comparisonModel";
 import type { DiagnosticFieldAction } from "../runs/DiagnosticList";
+import { TradeExplanationDialog, type ResultInspection } from "./TradeExplanationDialog";
+import { savedPeriodBenchmarks } from "./savedConfiguration";
 
 interface ResultViewerProps {
   catalog?: Catalog | null;
@@ -34,6 +36,8 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
   const [candidatePending, setCandidatePending] = useState(false);
   const [candidateErrorKey, setCandidateErrorKey] = useState<string | null>(null);
   const candidateController = useRef<AbortController | null>(null);
+  const [inspection, setInspection] = useState<{ runId: string; value: ResultInspection } | null>(null);
+  useEffect(() => { setInspection(null); }, [run?.runId, busy, candidatePending]);
   useEffect(() => { setCandidateView(null); setCandidatePending(false); setCandidateErrorKey(null);
     return () => candidateController.current?.abort();
   }, [run?.runId, focusedResult?.id]);
@@ -45,7 +49,9 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
     candidateController.current = controller;
     setCandidatePending(true); setCandidateErrorKey(null);
     try {
-      const result = await fetchCandidate(run.runId, candidateId, controller.signal);
+      const result = state.importedBacktest ? state.importedBacktest.candidateDetails[candidateId]
+        : await fetchCandidate(run.runId, candidateId, controller.signal);
+      if (!result) throw new RunApiError("invalid_response", "files.invalidCandidates");
       if (!controller.signal.aborted) setCandidateView({ runId: run.runId, parentId: focusedResult.id, result });
     } catch (error) {
       if (!controller.signal.aborted) setCandidateErrorKey(error instanceof RunApiError ? error.messageKey : "api.errors.connection_failed");
@@ -59,8 +65,13 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
   const selectedComparisons = strategyRuns
     .filter((result) => selectedIds.includes(result.id) && result.id !== (candidateResult ? focusedResult?.id : chartResult?.id) && isCompletedResult(result))
     .flatMap((result) => {
+      if (chartResult?.evaluationPeriod && run) {
+        const matching = savedPeriodBenchmarks(run, chartResult, focusedResult).find(item => item.presetId === result.presetId);
+        if (!matching) return [];
+        result = matching;
+      }
       if (!result.dailyAssets || result.dailyAssets.length === 0) return [];
-      const index = strategyRuns.findIndex((item) => item.id === result.id);
+      const index = strategyRuns.findIndex((item) => item.id === result.id || result.role === "benchmark" && item.role === "benchmark" && item.presetId === result.presetId);
       return [{
         id: result.id,
         label: resultDisplayName(locale, result, strategyRuns),
@@ -74,9 +85,19 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
     && result.id !== (candidateResult ? focusedResult?.id : null));
   if (candidateResult) technicalResults.push(candidateResult);
   const technicalIndicators = savedTechnicalIndicators(technicalResults);
+  const inspect = (value: ResultInspection) => {
+    if (run && !busy && !candidatePending && isCompletedResult(value.result)) setInspection({ runId: run.runId, value });
+  };
+  const inspectTrade = (resultId: string, index: number) => {
+    const result = candidateResult?.id === resultId ? candidateResult : strategyRuns.find(item => item.id === resultId)
+      ?? (run && chartResult ? savedPeriodBenchmarks(run, chartResult, focusedResult).find(item => item.id === resultId) : undefined);
+    if (result) inspect({ result, parent: result === candidateResult ? focusedResult : null, kind: "trade", index });
+  };
+  const tradeResult = candidateResult ?? focusedResult;
 
   return (
     <div className="result-content">
+      {state.importedBacktest && <p className="imported-result-label">{translate(locale, "files.imported")} · {state.importedBacktest.exportedAt}</p>}
       <ResultDetails
         catalog={catalog}
         busy={busy}
@@ -94,6 +115,8 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
         candidatePending={candidatePending}
         candidateErrorKey={candidateErrorKey}
         onSelectCandidate={id => void selectCandidate(id)}
+        onTradeSelect={index => { if (tradeResult) inspectTrade(tradeResult.id, index); }}
+        onSignalSelect={signal => { if (tradeResult) inspect({ result: tradeResult, parent: candidateResult ? focusedResult : null, kind: "signal", signal }); }}
       />
 
       {run && focusedResult && (
@@ -114,22 +137,26 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
               signals={volatility[0]?.signals ?? []}
               volatilitySeries={volatility}
               technicalIndicators={technicalIndicators}
-              totalAssetLabel={resultDisplayName(locale, candidateResult && focusedResult ? focusedResult : chartResult, strategyRuns)}
+              totalAssetLabel={resultDisplayName(locale, candidateResult && focusedResult ? focusedResult : chartResult, strategyRuns)
+                + (chartResult.evaluationPeriod ? ` · ${translate(locale, `search.phase.${chartResult.evaluationPeriod.phase}`)}` : "")}
               totalAssetResultId={chartResult.id}
               showFocusedAsset={Boolean(candidateResult) || selectedIds.includes(chartResult.id)}
               comparisonSeries={selectedComparisons}
-              strategyOrder={orderedResults.map(result => candidateResult && result.id === focusedResult?.id ? candidateResult.id : result.id)}
+              strategyOrder={orderedResults.map(result => candidateResult && result.id === focusedResult?.id ? candidateResult.id
+                : chartResult.evaluationPeriod && run && result.role === "benchmark" ? savedPeriodBenchmarks(run, chartResult, focusedResult).find(item => item.presetId === result.presetId)?.id ?? result.id : result.id)}
               totalAssetColor={focusedIndex >= 0 ? resultColor(focusedIndex) : undefined}
               vixSymbol={volatility[0]?.symbol}
               vixThreshold={volatility[0]?.threshold}
               visibleSeriesIds={state.visibleSeriesIds}
               onSeriesChange={(id, visible) => dispatch({ type: "chart.series", id, visible })}
+              onTradeSelect={inspectTrade}
             />
           ) : (
             <p className="metric-empty">{translate(locale, "results.metricsUnavailable")}</p>
           )}
         </CollapsiblePanel>
       )}
+      {run && inspection?.runId === run.runId && !busy && !candidatePending && <TradeExplanationDialog run={run} inspection={inspection.value} locale={locale} onClose={() => setInspection(null)} />}
     </div>
   );
 }

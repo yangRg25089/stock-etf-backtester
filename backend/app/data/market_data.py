@@ -405,6 +405,8 @@ def _unknown_rate_unit(symbol: str, source: str, source_unit: str) -> Diagnostic
 def compose_data_snapshot(
     market_result: MarketDataResult,
     macro_results: Iterable[MacroDataResult],
+    *,
+    valuation: ValuationSnapshot | None = None,
 ) -> DataSnapshot:
     """Compose cached market and macro provider results into one domain snapshot.
 
@@ -438,7 +440,7 @@ def compose_data_snapshot(
     return _build_data_snapshot(
         market=base_snapshot.market,
         macro=tuple(macro_by_session.values()),
-        valuation=base_snapshot.valuation,
+        valuation=base_snapshot.valuation if valuation is None else valuation,
     )
 
 

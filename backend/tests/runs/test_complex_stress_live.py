@@ -16,7 +16,7 @@ from app.domain.contracts import StrategyPresetId
 from app.domain.immutability import thaw_value
 from app.main import app
 from app.runs.manager import RunManager
-from app.runs.sqlite_store import SQLiteRunStore
+from app.runs.store import InMemoryRunStore
 from tests.runs.test_single_strategy_live import (
     _condition,
     _ObservedYahoo,
@@ -151,8 +151,7 @@ def test_live_long_nested_rules_preserve_numeric_identity_across_execution_modes
 ):
     provider = _ObservedYahoo()
     original_service = app.state.run_service
-    path = tmp_path / "long-complex.sqlite3"
-    store = SQLiteRunStore(path)
+    store = InMemoryRunStore()
     app.state.run_service = RunManager(
         store=store, data_provider=provider, executor=_InlineExecutor()
     )
@@ -359,14 +358,8 @@ def test_live_long_nested_rules_preserve_numeric_identity_across_execution_modes
 
     try:
         saved = asyncio.run(run())
-        store.close()
-        recovered = SQLiteRunStore(path)
-        try:
-            record = recovered.get(saved["runId"])
-            assert record is not None
-            assert jsonable_encoder(record) == saved
-        finally:
-            recovered.close()
+        record = store.get(saved["runId"])
+        assert record is not None
+        assert jsonable_encoder(record) == saved
     finally:
         app.state.run_service = original_service
-        store.close()

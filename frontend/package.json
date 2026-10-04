@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "generate:api": "python scripts/generate_api_types.py",
     "test": "node scripts/run-tests.mjs",
-    "test:e2e": "playwright test --config=playwright.config.mjs"
+    "test:e2e": "playwright test --config=playwright.config.mjs",
+    "test:e2e:live": "playwright test --config=playwright.live.config.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

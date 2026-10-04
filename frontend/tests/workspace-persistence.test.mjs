@@ -5,7 +5,7 @@ import test from "node:test";
 
 const require = createRequire(import.meta.url);
 const { createInitialWorkspaceState, workspaceReducer } = require("../.test-output/features/strategies/model.js");
-const { restoreWorkspaceState, saveWorkspaceDraft } = require("../.test-output/features/strategies/workspacePersistence.js");
+const { restoreWorkspaceState, saveLastRunStrategy } = require("../.test-output/features/strategies/workspacePersistence.js");
 const catalog = JSON.parse(readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"));
 
 class MemoryStorage {
@@ -15,7 +15,7 @@ class MemoryStorage {
   removeItem(key) { this.values.delete(key); }
 }
 
-test("workspace browser storage restores shared and multi-strategy drafts without restoring a mutable result", () => {
+test("last accepted configuration restores shared and multi-strategy inputs without editor or result state", () => {
   let state = createInitialWorkspaceState(catalog);
   state.draft.shared.run.symbol = "SMH";
   state.draft.shared.run.endDate = "2025-12-31";
@@ -26,9 +26,10 @@ test("workspace browser storage restores shared and multi-strategy drafts withou
   state.runResponse = { runId: "must-remain-independent" };
   const storage = new MemoryStorage();
 
-  saveWorkspaceDraft(state, 8, storage);
-  const raw = JSON.parse(storage.getItem("backtester.workspace.v1"));
-  assert.equal("runResponse" in raw, false);
+  saveLastRunStrategy(state.draft, catalog, storage);
+  const raw = JSON.parse(storage.getItem("stock-etf-backtester.last-run-strategy.v1"));
+  assert.deepEqual(Object.keys(raw).sort(), ["catalogVersion", "draft", "savedAt", "schemaVersion"]);
+  state.draft.shared.run.symbol = "SPY";
   const restored = restoreWorkspaceState(catalog, storage);
 
   assert.equal(restored.state.draft.shared.run.symbol, "SMH");
@@ -39,21 +40,36 @@ test("workspace browser storage restores shared and multi-strategy drafts withou
     { id: "strategy-vix_dca-1", presetId: "vix_dca" },
     { id: "strategy-ma_trend-2", presetId: "ma_trend" },
   ]);
-  assert.equal(restored.state.activeStrategyId, "strategy-ma_trend-2");
-  assert.equal(restored.state.nextCustomNumber, 4);
-  assert.equal(restored.nextStrategySequence, 8);
+  assert.equal(restored.state.activeStrategyId, "strategy-vix_dca-1");
+  assert.equal(restored.state.nextCustomNumber, 1);
+  assert.equal(restored.nextStrategySequence, 3);
   assert.equal(restored.state.runResponse, null);
 });
 
 test("malformed or unknown workspace storage falls back to catalog defaults", () => {
   const storage = new MemoryStorage();
-  storage.setItem("backtester.workspace.v1", "{invalid-json");
+  storage.setItem("stock-etf-backtester.last-run-strategy.v1", "{invalid-json");
   const initial = createInitialWorkspaceState(catalog);
   const restored = restoreWorkspaceState(catalog, storage);
   assert.deepEqual(restored.state.draft, initial.draft);
 
-  storage.setItem("backtester.workspace.v1", JSON.stringify({ version: 99, draft: {} }));
+  storage.setItem("stock-etf-backtester.last-run-strategy.v1", JSON.stringify({ schemaVersion: 99, draft: {} }));
   assert.deepEqual(restoreWorkspaceState(catalog, storage).state.draft, initial.draft);
+});
+
+test("v12 last-run inputs restore without discarding inputs when analysis is added", () => {
+  const draft = createInitialWorkspaceState(catalog).draft;
+  draft.shared.run.symbol = "SPY";
+  delete draft.shared.analysis;
+  const storage = new MemoryStorage();
+  const key = "stock-etf-backtester.last-run-strategy.v1";
+  const saved = JSON.stringify({ schemaVersion: 1, catalogVersion: "catalog-v12", savedAt: "2026-10-04T00:00:00Z", draft });
+  storage.setItem(key, saved);
+  const restored = restoreWorkspaceState(catalog, storage);
+  assert.equal(restored.state.draft.shared.run.symbol, "SPY");
+  assert.equal(restored.state.draft.shared.analysis.riskFreeAnnualRatePct, "0");
+  assert.equal(restored.state.runResponse, null);
+  assert.equal(storage.getItem(key), saved);
 });
 
 test("workspace restoration preserves nested custom conditions and uses fresh addition identities", () => {
@@ -63,11 +79,11 @@ test("workspace restoration preserves nested custom conditions and uses fresh ad
   custom.rules = { buy: { id: "nested-root", operator: "OR", children: [
     { id: "nested-group", operator: "AND", children: [
       { id: "vxn-leaf", kind: "vix", params: { "vix.symbol": "^VXN", "vix.buyThreshold": "33" }, enabled: false },
-      { id: "ma-leaf", kind: "ma_trend", params: { "maTrend.fastPeriod": "50" } },
+      { id: "ma-leaf", kind: "ma_trend", params: { "ma.period": "50" } },
     ] },
   ] }, sell: null };
   const storage = new MemoryStorage();
-  saveWorkspaceDraft(state, 3, storage);
+  saveLastRunStrategy(state.draft, catalog, storage);
   const restored = restoreWorkspaceState(catalog, storage);
   assert.deepEqual(restored.state.draft.strategies.at(-1).rules, custom.rules);
   assert.equal(restored.nextStrategySequence, 13);
@@ -80,5 +96,5 @@ test("unavailable browser storage is handled without breaking the workspace", ()
   const storage = { getItem() { throw new Error("storage denied"); }, setItem() { throw new Error("quota exceeded"); } };
   const state = createInitialWorkspaceState(catalog);
   assert.deepEqual(restoreWorkspaceState(catalog, storage).state.draft, state.draft);
-  assert.equal(saveWorkspaceDraft(state, 2, storage), false);
+  assert.equal(saveLastRunStrategy(state.draft, catalog, storage), false);
 });

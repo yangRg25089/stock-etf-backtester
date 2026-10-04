@@ -1,3 +1,5 @@
+import { useId, type CSSProperties, type ReactNode } from "react";
+
 export interface ChartCursor {
   index: number;
   chartId: string;
@@ -8,6 +10,7 @@ export interface CursorReading {
   label: string;
   value: string;
   color?: string;
+  series?: { id: string; label: string; seriesId?: string };
 }
 
 export interface StrategyReading {
@@ -15,35 +18,81 @@ export interface StrategyReading {
   label: string;
   color: string;
   rank?: number;
+  seriesId?: string;
   readings: CursorReading[];
 }
 
-function ReadingValues({ readings }: { readings: CursorReading[] }) {
-  return readings.map(({ label, value, color }) => (
-    <span key={label} className="chart-cursor-reading" style={color ? { color } : undefined}>
-      <span>{label}</span> <strong>{value}</strong>
-    </span>
-  ));
+export interface SeriesInspection {
+  highlightedId: string | null;
+  selectedId: string | null;
+  inspect(id: string | null, source: "hoveredId" | "focusedId" | "selectedId", pointer?: boolean): void;
 }
 
-export function ChartReadout({ date, readings, strategies = [] }: {
+function SeriesControl({ id, label, description, color, seriesId, resultId, date, className = "", inspection, children }: {
+  id: string;
+  label: string;
+  description: string;
+  color?: string;
+  seriesId?: string;
+  resultId?: string;
+  date?: string;
+  className?: string;
+  inspection: SeriesInspection;
+  children: ReactNode;
+}) {
+  const descriptionId = useId();
+  const selected = inspection.selectedId === id;
+  return (
+    <button type="button"
+      className={`chart-series-control${className ? ` ${className}` : ""}${inspection.highlightedId === id ? " is-highlighted" : ""}${selected ? " is-selected" : ""}`}
+      aria-label={label} aria-pressed={selected} aria-describedby={descriptionId}
+      style={{ "--series-color": color } as CSSProperties}
+      data-series={seriesId ?? id} data-result-id={resultId} data-date={date}
+      onMouseEnter={() => inspection.inspect(id, "hoveredId")}
+      onMouseLeave={() => inspection.inspect(null, "hoveredId")}
+      onFocus={() => inspection.inspect(id, "focusedId")}
+      onBlur={() => inspection.inspect(null, "focusedId")}
+      onClick={event => inspection.inspect(id, "selectedId", event.detail > 0)}>
+      {children}
+      <span className="chart-series-selection" aria-hidden="true">{selected ? "✓" : ""}</span>
+      <span id={descriptionId} className="sr-only">{description}</span>
+    </button>
+  );
+}
+
+function ReadingValues({ readings, inspection }: { readings: CursorReading[]; inspection?: SeriesInspection }) {
+  return readings.map(({ label, value, color, series }) => {
+    const reading = <span key={series?.id ?? label} className="chart-cursor-reading" style={color ? { color } : undefined}>
+      <span>{label}</span> <strong>{value}</strong>
+    </span>;
+    return series && inspection
+      ? <SeriesControl key={series.id} {...series} description={value} color={color} inspection={inspection}>{reading}</SeriesControl>
+      : reading;
+  });
+}
+
+export function ChartReadout({ date, readings, strategies = [], inspection }: {
   date?: string;
   readings: CursorReading[];
   strategies?: StrategyReading[];
+  inspection: SeriesInspection;
 }) {
   if (!date) return null;
   return (
     <div className="chart-crosshair-readout" data-date={date}>
       <div className="chart-market-readout" data-date={date}>
         <time dateTime={date}>{date}</time>
-        <ReadingValues readings={readings} />
+        <ReadingValues readings={readings} inspection={inspection} />
       </div>
       {strategies.map(strategy => (
-        <div className="chart-strategy-readout" data-result-id={strategy.id} data-date={date} key={strategy.id}>
+        <SeriesControl key={strategy.id} id={strategy.id} label={strategy.label} color={strategy.color} seriesId={strategy.seriesId}
+          description={strategy.readings.map(reading => `${reading.label} ${reading.value}`).join(" · ")}
+          resultId={strategy.id} date={date}
+          className="chart-strategy-readout" inspection={inspection}>
           <span className="chart-strategy-rank" aria-hidden="true">{strategy.rank}</span>
           <span className="chart-strategy-name" title={strategy.label} style={{ color: strategy.color }}>{strategy.label}</span>
           <ReadingValues readings={strategy.readings} />
-        </div>
+        </SeriesControl>
       ))}
     </div>
   );

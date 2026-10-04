@@ -30,7 +30,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v12"
+CATALOG_VERSION: Final[str] = "catalog-v16"
 
 
 class SymbolSuggestion(DomainModel):
@@ -351,12 +351,5 @@ def catalog_as_dict() -> dict[str, object]:
     return get_catalog().model_dump(mode="json", by_alias=True)
 
 
-# Public aliases used by callers that model catalog as a noun or use generated
-# camel-case client names.  ``CATALOG`` is a frozen process-local snapshot;
-# ``get_catalog`` remains the stable accessor for dependency injection/tests.
+# Frozen process-local snapshot; get_catalog remains the injectable accessor.
 CATALOG: Final[Catalog] = get_catalog()
-getCatalog = get_catalog
-getSearchableParameters = get_searchable_parameters
-parameterKeysForPreset = parameter_keys_for_preset
-presetDefaults = preset_defaults
-catalogAsDict = catalog_as_dict

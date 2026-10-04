@@ -15,8 +15,9 @@ def test_browser_fixture_import_does_not_open_configured_user_database(tmp_path)
         [
             sys.executable,
             "-c",
-            "import tests.e2e.serve_api; from app.main import _run_store_path; "
-            "assert str(_run_store_path()) == ':memory:'",
+            "import tests.e2e.serve_api; from app.main import app; "
+            "from app.runs.store import InMemoryRunStore; "
+            "assert isinstance(app.state.run_service._store, InMemoryRunStore)",
         ],
         env={**os.environ, "STOCK_ETF_BACKTESTER_RUN_STORE_PATH": str(database)},
         capture_output=True,

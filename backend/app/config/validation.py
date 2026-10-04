@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 from math import prod
@@ -37,7 +38,9 @@ from app.domain.contracts import (
     StrategyInstance,
     StrategyPresetId,
 )
+from app.domain.execution import ExecutionSettings
 from app.domain.immutability import thaw_value
+from app.domain.performance import AnalysisSettings
 from app.domain.status import Diagnostic, DomainModel
 
 from .conditions import materialize_legacy_rules, normalize_rules
@@ -46,11 +49,14 @@ from .diagnostics import (
     invalid_parameter,
     required_data_unavailable,
 )
+from .parameters import decode_parameter_value, parse_parameter_value
 
 _SHARED_MODEL_TYPES: dict[str, type[BaseModel]] = {
     "run": RunSettings,
     "contribution": ContributionSettings,
     "data": DataSettings,
+    "analysis": AnalysisSettings,
+    "execution": ExecutionSettings,
 }
 
 
@@ -196,7 +202,7 @@ def validate_draft(
     strategy_results: list[StrategyValidationResult] = []
     requirements: list[DataRequirement] = []
     for index, strategy in enumerate(parsed.strategies):
-        result = _validate_strategy(index, strategy, source)
+        result = _validate_strategy(index, strategy, source, parsed.shared.run)
         strategy_results.append(result)
         if result.normalized is not None:
             requirements.extend(
@@ -280,7 +286,7 @@ def _materialize_shared_defaults(
     if not isinstance(raw_shared, Mapping):
         return values
     shared = dict(raw_shared)
-    for group in ("run", "contribution", "data"):
+    for group in _SHARED_MODEL_TYPES:
         if group in shared and not isinstance(shared[group], Mapping):
             continue
         raw_group = shared.get(group, {})
@@ -320,6 +326,23 @@ def _validate_shared(
         "contribution": shared.contribution,
         "data": shared.data,
     }
+    if shared.analysis is None:
+        diagnostics.append(
+            invalid_parameter(
+                issue=ConfigurationIssue.INVALID_TYPE,
+                field_path="analysis.riskFreeAnnualRatePct",
+            )
+        )
+    else:
+        groups["analysis"] = shared.analysis
+    if shared.execution is None:
+        diagnostics.append(
+            invalid_parameter(
+                issue=ConfigurationIssue.INVALID_TYPE, field_path="execution.commission"
+            )
+        )
+    else:
+        groups["execution"] = shared.execution
     if shared.run.end_mode is not EndMode.FIXED:
         diagnostics.append(
             invalid_parameter(
@@ -361,7 +384,7 @@ def _model_field_value(model: object, alias: str) -> object:
 
 
 def _validate_strategy(
-    index: int, strategy: StrategyInstance, catalog: Catalog
+    index: int, strategy: StrategyInstance, catalog: Catalog, run: RunSettings
 ) -> StrategyValidationResult:
     diagnostics: list[Diagnostic] = []
     try:
@@ -432,10 +455,10 @@ def _validate_strategy(
             preset.default_params.get(key, definition.default),
         )
         if key in inactive_value_keys:
-            resolved[key] = thaw_value(value)
+            resolved[key] = thaw_value(decode_parameter_value(definition, value))
             continue
         try:
-            validate_parameter_value(definition, value)
+            resolved[key] = parse_parameter_value(definition, value)
         except ParameterValidationError as error:
             diagnostics.append(
                 invalid_parameter(
@@ -445,12 +468,45 @@ def _validate_strategy(
                 )
             )
             continue
-        resolved[key] = _normalize_value(definition.type, value)
 
     if not diagnostics and preset.execution_module is ExecutionModule.SEARCH:
-        diagnostics.extend(
-            _validate_search_dimensions(index, resolved, preset, catalog)
+        from app.domain.search_windows import walk_forward_periods
+
+        windows = (
+            walk_forward_periods(run.start_date, run.end_date)
+            if resolved.get("search.optimizationMode") == "walk_forward"
+            else ()
         )
+        diagnostics.extend(
+            _validate_search_dimensions(
+                index, resolved, preset, catalog, evaluation_count=max(1, len(windows))
+            )
+        )
+        if resolved.get("search.optimizationMode") == "train_test":
+            cutoff = resolved.get("search.trainEndDate")
+            if (
+                not isinstance(cutoff, date)
+                or not run.start_date <= cutoff < run.end_date
+            ):
+                diagnostics.append(
+                    invalid_parameter(
+                        issue=ConfigurationIssue.OUT_OF_RANGE,
+                        field_path=f"strategies[{index}].params.search.trainEndDate",
+                        details={
+                            "startDate": run.start_date.isoformat(),
+                            "endDate": run.end_date.isoformat(),
+                        },
+                    )
+                )
+        if resolved.get("search.optimizationMode") == "walk_forward":
+            if not windows:
+                diagnostics.append(
+                    invalid_parameter(
+                        issue=ConfigurationIssue.OUT_OF_RANGE,
+                        field_path=f"strategies[{index}].params.search.optimizationMode",
+                        details={"minimumTrainYears": 5},
+                    )
+                )
     rules = None
     submitted_rules = (
         strategy.rules
@@ -463,7 +519,6 @@ def _validate_strategy(
             preset,
             catalog,
             f"strategies[{index}].rules",
-            _normalize_value,
         )
         diagnostics.extend(rule_diagnostics)
     if diagnostics:
@@ -490,25 +545,13 @@ def _validate_strategy(
     )
 
 
-def _normalize_value(parameter_type: ParameterType, value: object) -> object:
-    if parameter_type in {
-        ParameterType.DECIMAL,
-        ParameterType.RATIO,
-        ParameterType.PERCENT_POINT,
-    }:
-        return Decimal(str(value))
-    if parameter_type is ParameterType.SYMBOL and isinstance(value, str):
-        return value.strip()
-    if parameter_type in {ParameterType.ENUM_LIST, ParameterType.NUMBER_LIST}:
-        return tuple(value)  # type: ignore[arg-type]
-    return thaw_value(value)
-
-
 def _validate_search_dimensions(
     index: int,
     params: Mapping[str, object],
     preset: PresetDefinition,
     catalog: Catalog,
+    *,
+    evaluation_count: int = 1,
 ) -> tuple[Diagnostic, ...]:
     raw_dimension_keys = params.get("search.dimensions", ())
     if not isinstance(raw_dimension_keys, (list, tuple)) or any(
@@ -546,7 +589,7 @@ def _validate_search_dimensions(
             )
     if diagnostics:
         return tuple(diagnostics)
-    combinations = prod(
+    combinations = evaluation_count * prod(
         len(dimensions[key].configured_values(params)) for key in dimension_keys
     )
     maximum = params.get("search.maxCombinations")

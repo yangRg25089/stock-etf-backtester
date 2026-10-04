@@ -29,7 +29,29 @@ function validationFor(state, overrides = {}) {
   };
 }
 
-test("only a new accepted run applies resolved dates to the draft", () => {
+test("confirming unchanged dialog buffers preserves draft identity and saved results", () => {
+  const state = createInitialWorkspaceState(catalog);
+  state.runResponse = { runId: "saved-result" };
+  const { data, ...shared } = structuredClone(state.draft.shared);
+  assert.equal(workspaceReducer(state, { type: "shared.change", value: shared }), state);
+  assert.equal(workspaceReducer(state, { type: "strategy.commit", value: structuredClone(state.draft.strategies[0]) }), state);
+  const changed = workspaceReducer(state, { type: "shared.change", value: { ...shared, contribution: { ...shared.contribution, amount: "150" } } });
+  assert.notEqual(changed.draft, state.draft);
+  assert.equal(changed.draft.shared.data, state.draft.shared.data);
+  assert.equal(changed.runResponse, state.runResponse);
+  assert.notEqual(workspaceReducer(state, { type: "strategy.commit", value: { ...state.draft.strategies[0], params: { ...state.draft.strategies[0].params, "accumulation.cashSafetyLimit": "1500" } } }).draft, state.draft);
+  assert.ok(data);
+});
+
+test("no strategies has a stable disabled reason before and after preflight", () => {
+  const state = createInitialWorkspaceState(catalog);
+  state.draft.strategies = [];
+  for (const validation of [null, validationFor(state), validationFor(state, { diagnostics: [{ severity: "error", code: "invalid_parameter" }] })]) {
+    assert.deepEqual(getRunAvailability(state, validation), { disabled: true, reasonKey: "run.noStrategies" });
+  }
+});
+
+test("verified run data resolves dates only when explicitly applied to matching unedited inputs", () => {
   const initial = createInitialWorkspaceState(catalog);
   const state = {
     ...initial,
@@ -40,6 +62,7 @@ test("only a new accepted run applies resolved dates to the draft", () => {
   const accepted = {
     runId: "resolved-range", selectedStrategyIds: [state.activeStrategyId],
     snapshot: { config: { shared: { run: { symbol: "SOXQ", startDate: "2021-06-11", endDate: "2024-03-28" } } },
+      dataFingerprint: "loaded-soxq-data",
       dateAdjustments: [{ field: "startDate", requestedDate: "2020-01-01", effectiveDate: "2021-06-11", reason: "market_available_from" }],
     }, result: { strategyRuns: [] },
   };

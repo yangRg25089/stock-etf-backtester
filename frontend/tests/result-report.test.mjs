@@ -114,3 +114,24 @@ test("normal reports resolve the identity against the canonical run instead of a
   result.status = "running";
   assert.equal(isResultReportAvailable(run, stale), false);
 });
+
+test("reports include frozen execution assumptions and saved costs without changing net KPI values", () => {
+  const { run, result } = saved();
+  run.snapshot.config.shared.execution = { commission: "2", slippagePct: "0.1", spreadPct: "0.2", fractionalShares: false };
+  result.metrics.tradingCosts = { commission: "4", slippageCost: "0.25", spreadCost: "0.25", totalTradingCost: "4.50" };
+  const report = buildResultReport(run, result, "zh", catalog);
+  const execution = report.sections.find(section => section.title === "成交假设");
+  const costs = report.sections.find(section => section.title === "交易成本");
+  assert.equal(execution.lines.length, 4);
+  assert.match(execution.lines.join(" "), /US\$2\.00.*USD/);
+  assert.match(execution.lines.join(" "), /0\.1 %/);
+  assert.match(execution.lines.join(" "), /0\.2 %/);
+  assert.match(execution.lines.join(" "), /已停用/);
+  assert.equal(costs.lines.length, 4);
+  assert.match(costs.lines.at(-1), /US\$4\.50.*USD/);
+  assert.equal(report.metrics.find(item => item.key === "netProfit").value, "US$20.00");
+  const frozen = JSON.stringify(report.sections);
+  run.snapshot.config.shared.execution.commission = "99";
+  result.metrics.tradingCosts.totalTradingCost = "100";
+  assert.equal(JSON.stringify(report.sections), frozen);
+});
