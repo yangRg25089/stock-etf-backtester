@@ -25,3 +25,7 @@ Task192–199按局部格式化、HTTP、CSV、基准、搜索校验、结果投
 ### Task193 / CS52-02
 
 私有isResponseForContract使用switch替代嵌套三元式，分派顺序与校验语义不变；共享ResponseContract只用于该HTTP边界。请求URL身份、safe错误与SSE读取不改。308前端、type/lint/build以及phase51两项实际异候选/币种拒绝和重试浏览器通过，旧断言不变。日志`/tmp/backtester-task193-{unit,types,lint,build,browser}.log`；差异与调用复审通过。
+
+### Task194 / CS52-03
+
+flattenSavedMetrics按原metrics→analysis→tradingCosts覆盖顺序展平；searchCandidateCsvRow明确窗口/训练测试/样本外字段，prefixedMetrics只使用生成列。每候选测试指标一次构造，样本外指标仍在循环外构造。csvValue与JSON递归改显式分支，编码/键序/换行/数值列不变。308前端（含普通/分段/滚动后端fixture逐字符CSV对照）、type/lint/build及离线四CSV/PNG浏览器通过；旧断言未改。日志`/tmp/backtester-task194-{unit,types,lint,build,browser}.log`；差异/共通化复审通过。
