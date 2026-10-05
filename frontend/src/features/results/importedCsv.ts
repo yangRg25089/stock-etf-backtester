@@ -2,6 +2,7 @@ import fields from "../../api/generated.exports.json";
 import type { ExportKind, RunResponse, StrategyRun } from "../../api/generated";
 import { isExportAvailable } from "./exportModel";
 import { runDataContext } from "../../api/contractReader";
+import { expandDecimalDigits } from "../../shared/decimalText";
 
 const DECIMAL_COLUMNS = new Set([...fields.decimal, ...fields["numeric-parameters"], ...fields["test-metrics"], ...fields["out-of-sample-metrics"]]);
 
@@ -10,9 +11,7 @@ function fixedDecimal(value: string): string {
   if (!parts) return value;
   const digits = parts[2] + (parts[3] ?? "");
   const point = parts[2].length + Number(parts[4]);
-  const expanded = point <= 0 ? `0.${"0".repeat(-point)}${digits}`
-    : point >= digits.length ? digits + "0".repeat(point - digits.length)
-      : `${digits.slice(0, point)}.${digits.slice(point)}`;
+  const expanded = expandDecimalDigits(digits, point);
   return (parts[1] === "-" ? "-" : "") + expanded.replace(/^0+(?=\d)/, "");
 }
 

@@ -17,3 +17,7 @@
 ## 8项实施进度
 
 Task192–199按局部格式化、HTTP、CSV、基准、搜索校验、结果投影、列表控件、生命周期顺序实施；完成证据逐项追加，完整集成归Task200。
+
+### Task192 / CS52-01
+
+新增纯expandDecimalDigits只插入小数点/补零；formatExactPercent和fixedDecimal分别保留原有输入、符号、去零、指数及数值列政策。输入字段shiftDecimal和读取边界decimalIdentity不改。新增前后零/符号/科学指数4096边界基线先通过，重构后308前端、type/lint/build通过；后端生成fixture的四类离线CSV、科学记数身份及精确百分数旧断言未改。日志`/tmp/backtester-phase53-decimal-baseline.log`及`/tmp/backtester-task192-{unit,types,lint,build}.log`。差异/调用及简化复审通过。

@@ -62,3 +62,11 @@ test("exact percentage formatting preserves Decimal precision and scientific not
   assert.equal(formatExactPercent("-0.0000"), "0%");
   assert.equal(formatExactPercent(null), "—");
 });
+
+test("exact percentage expansion preserves leading/trailing-zero policy and exponent boundaries", () => {
+  for (const [value, expected] of [
+    ["00012.300", "1230%"], [".00100", "0.1%"], ["+.5", "50%"], ["1.2e3", "120000%"],
+    ["1.2300e-5", "0.00123%"], ["1e4097", "—"], ["1e-4097", "—"], ["abc", "—"], [".", "—"],
+  ]) assert.equal(formatExactPercent(value), expected, value);
+  assert.equal(formatExactPercent("1e-4096"), `0.${"0".repeat(4093)}1%`);
+});

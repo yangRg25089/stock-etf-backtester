@@ -1,4 +1,5 @@
 import type { Locale } from "../../i18n/messages";
+import { expandDecimalDigits } from "../../shared/decimalText";
 
 export function languageTag(locale: Locale): string {
   return locale === "ja" ? "ja-JP" : "zh-CN";
@@ -50,8 +51,7 @@ export function formatExactPercent(value: string | number | null | undefined): s
   const digits = match[2] + (match[3] ?? "");
   if (!/[1-9]/.test(digits)) return "0%";
   const point = match[2].length + Number(match[4] ?? 0) + 2;
-  const text = point <= 0 ? `0.${"0".repeat(-point)}${digits}` : point >= digits.length
-    ? digits + "0".repeat(point - digits.length) : `${digits.slice(0, point)}.${digits.slice(point)}`;
+  const text = expandDecimalDigits(digits, point);
   const [whole, fraction = ""] = text.split(".");
   const tail = fraction.replace(/0+$/, "");
   return `${match[1] === "-" ? "-" : ""}${whole.replace(/^0+(?=\d)/, "")}${tail ? `.${tail}` : ""}%`;
