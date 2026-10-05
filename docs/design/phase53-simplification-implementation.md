@@ -39,3 +39,9 @@ flattenSavedMetrics按原metrics→analysis→tradingCosts覆盖顺序展平；s
 先建立22项基线：20个首次关系错误、共同身份错误先于数量错误的Pydantic根路径、三种模式保存JSON往返。测试前提修正了先命中全局窗口排名检查的构造，以及Decimal参数JSON往返不能按Python对象类型比较的问题；原算法不改。AST机械提取walk_forward/train_test/full_period三个私有校验，校验主体/条件逐节点等价；共同身份及跨模式rolling检查仍留原validator，错误顺序、文案、路径不变。
 
 重构后151项领域/搜索/运行/导出、308前端通过，Ruff/149格式/mypy82通过；79模式生成及三份契约字节无差异。旧断言未改。日志`/tmp/backtester-task196-baseline-valid.log`及`/tmp/backtester-task196-{unit,front,ruff,format,types,generated}.log`；机械基线留`/tmp/backtester-task196-contracts-before.py`。差异/契约/错误优先级复审通过。
+
+### Task197 / CS52-06
+
+纯buildResultSelection投影主曲线/比较线、同期间基准、颜色/排名、技术和波动率、成交归属；savedPeriodBenchmarks每次只调用一次，preset映射保留首次匹配。原始结果/显示基准明确分离，不重赋result。候选fetch、AbortController、错误、说明dialog及界面状态仍在ResultViewer；价格显隐不加入投影状态。输入兼容原有null/undefined。
+
+新增3项纯投影检查覆盖普通/分段/滚动后端保存fixture的全部候选、同期间基准、颜色/排序/成交引用、零选择保留价格与输入不变；既有SSR及所有行为断言未改。311前端、type/lint/build与5项多选交易点/排名读数/快速图例/交易解释/Walk-forward离线浏览器通过。日志`/tmp/backtester-task197-{unit,browser,lint}.log`、`/tmp/backtester-task197-types-final.log`与`/tmp/backtester-task197-build-final.log`；差异、身份、状态独立与简化复审通过。

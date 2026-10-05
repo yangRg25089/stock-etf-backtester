@@ -4,15 +4,13 @@ import type { Catalog, Diagnostic, RunResponse, StrategyRun } from "../../api/ge
 import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
-import { findFocusedResult, isCompletedResult, resultDisplayName, selectedVolatilitySeries } from "./model";
+import { findFocusedResult, isCompletedResult } from "./model";
 import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
-import { resultColor } from "./colors";
-import { savedTechnicalIndicators } from "./technicalIndicators";
+import { buildResultSelection } from "./buildResultSelection";
 import { DEFAULT_COMPARISON_SORT, sortedComparisons } from "./comparisonModel";
 import type { DiagnosticFieldAction } from "../runs/DiagnosticList";
 import { TradeExplanationDialog, type ResultInspection } from "./TradeExplanationDialog";
-import { savedPeriodBenchmarks } from "./savedConfiguration";
 
 interface ResultViewerProps {
   catalog?: Catalog | null;
@@ -58,39 +56,13 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
     }
     finally { if (!controller.signal.aborted) setCandidatePending(false); }
   };
-  const chartResult = candidateResult ?? (focusedResult && isCompletedResult(focusedResult) ? focusedResult
-    : strategyRuns.find((result) => isCompletedResult(result) && selectedIds.includes(result.id))
-      ?? strategyRuns.find(isCompletedResult));
-  const volatility = run ? selectedVolatilitySeries(run, strategyRuns, selectedIds, candidateResult, focusedResult) : [];
-  const selectedComparisons = strategyRuns
-    .filter((result) => selectedIds.includes(result.id) && result.id !== (candidateResult ? focusedResult?.id : chartResult?.id) && isCompletedResult(result))
-    .flatMap((result) => {
-      if (chartResult?.evaluationPeriod && run) {
-        const matching = savedPeriodBenchmarks(run, chartResult, focusedResult).find(item => item.presetId === result.presetId);
-        if (!matching) return [];
-        result = matching;
-      }
-      if (!result.dailyAssets || result.dailyAssets.length === 0) return [];
-      const index = strategyRuns.findIndex((item) => item.id === result.id || result.role === "benchmark" && item.role === "benchmark" && item.presetId === result.presetId);
-      return [{
-        id: result.id,
-        label: resultDisplayName(locale, result, strategyRuns),
-        color: resultColor(index),
-        dailyAssets: result.dailyAssets,
-        trades: result.trades ?? [],
-      }];
-    });
-  const focusedIndex = chartResult ? strategyRuns.findIndex((result) => result.id === (candidateResult ? focusedResult?.id : chartResult.id)) : -1;
-  const technicalResults = strategyRuns.filter(result => selectedIds.includes(result.id) && isCompletedResult(result)
-    && result.id !== (candidateResult ? focusedResult?.id : null));
-  if (candidateResult) technicalResults.push(candidateResult);
-  const technicalIndicators = savedTechnicalIndicators(technicalResults);
+  const selection = buildResultSelection({ run, focusedResult, candidateResult, selectedIds, orderedResults, locale });
+  const { chartResult, volatility } = selection;
   const inspect = (value: ResultInspection) => {
     if (run && !busy && !candidatePending && isCompletedResult(value.result)) setInspection({ runId: run.runId, value });
   };
   const inspectTrade = (resultId: string, index: number) => {
-    const result = candidateResult?.id === resultId ? candidateResult : strategyRuns.find(item => item.id === resultId)
-      ?? (run && chartResult ? savedPeriodBenchmarks(run, chartResult, focusedResult).find(item => item.id === resultId) : undefined);
+    const result = selection.findTradeResult(resultId);
     if (result) inspect({ result, parent: result === candidateResult ? focusedResult : null, kind: "trade", index });
   };
   const tradeResult = candidateResult ?? focusedResult;
@@ -136,15 +108,13 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
               trades={chartResult.trades ?? []}
               signals={volatility[0]?.signals ?? []}
               volatilitySeries={volatility}
-              technicalIndicators={technicalIndicators}
-              totalAssetLabel={resultDisplayName(locale, candidateResult && focusedResult ? focusedResult : chartResult, strategyRuns)
-                + (chartResult.evaluationPeriod ? ` · ${translate(locale, `search.phase.${chartResult.evaluationPeriod.phase}`)}` : "")}
+              technicalIndicators={selection.technicalIndicators}
+              totalAssetLabel={selection.totalAssetLabel}
               totalAssetResultId={chartResult.id}
-              showFocusedAsset={Boolean(candidateResult) || selectedIds.includes(chartResult.id)}
-              comparisonSeries={selectedComparisons}
-              strategyOrder={orderedResults.map(result => candidateResult && result.id === focusedResult?.id ? candidateResult.id
-                : chartResult.evaluationPeriod && run && result.role === "benchmark" ? savedPeriodBenchmarks(run, chartResult, focusedResult).find(item => item.presetId === result.presetId)?.id ?? result.id : result.id)}
-              totalAssetColor={focusedIndex >= 0 ? resultColor(focusedIndex) : undefined}
+              showFocusedAsset={selection.showFocusedAsset}
+              comparisonSeries={selection.selectedComparisons}
+              strategyOrder={selection.strategyOrder}
+              totalAssetColor={selection.totalAssetColor}
               vixSymbol={volatility[0]?.symbol}
               vixThreshold={volatility[0]?.threshold}
               visibleSeriesIds={state.visibleSeriesIds}
