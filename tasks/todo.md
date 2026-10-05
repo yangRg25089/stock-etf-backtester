@@ -1214,7 +1214,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - [x] Task197：CS52-06纯结果选择投影。
 - [x] Task198：CS52-08数值列表控件。
 - [x] Task199：CS52-05运行订阅/预校验职责分离。
-- [ ] Task200：完整集成、真实来源门禁及稳定化复审。
+- [x] Task200：完整集成、真实来源门禁及稳定化复审。
 - 基线：前端305 passed；后端沙箱中696 passed/49 failed，失败为真实Yahoo请求DNS不可达，正通过审批联网复跑。尚未修改应用源码。
 - 用户追加旧验收缺口：继续原135、182–183/102/W/120及189；远端指定目标和SEC secret答复待到达，Inspector仍按原文暂缓。
 - Task191：新增两条失败单测及实际浏览器长小数复现后修复；月度详情/ARIA两位显示，精确title/快照/CSV不变；11指标整卡说明、键盘ARIA及共用高度按钮。307项前端、type/lint/build与8项双语/320/768/1024/1440px浏览器/原型/axe通过，截图复看。首次axe查出说明节点置于dl内不合法，已移至分组外并保留旧dd断言；原型仅更新本次明确要求的显示精度，并新增原始精度title和展开断言。后端联网基线745 passed（62.37秒，46条既有提示）。记录见`docs/design/phase53-simplification-implementation.md`。
@@ -1226,3 +1226,4 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - Task197：buildResultSelection纯函数一次构建同期间基准/主曲线/比较线/技术与波动率/颜色/排名/成交归属；候选请求、取消和交互留ResultViewer。311项前端、type/lint/build及5项多选标记/排名读数/交易解释/滚动候选浏览器通过，旧断言不变；3种后端保存fixture的全部候选映射和输入不变已补测。
 - Task198：NumberListControl在原共享字段模块内独立处理逐项输入/增删；参数元数据、数字解析、空值、单位/ARIA、禁用和至少一项规则不变。2项行为基线先通过，重构后313项前端、type/lint/build及3项原生数字校验/网格候选/全策略dialog浏览器通过，旧断言不变。
 - Task199：observeRun共通订阅→单次终态GET，恢复入口仍在两者之间检查已被新提交取代；useDraftValidation只管理确认草稿300ms预校验/错误归属/重试，runErrors共享错误归一。提交/停止/导入/保存/解锁各自身份保护保持。317项前端、type/lint/build及20项生命周期/停止/离线/重跑/预校验浏览器通过，旧断言不变。
+- Task200：最终完整真实后端770 passed（275.21秒，46条既有提示）、前端317 passed（0 skip）、浏览器161 passed（6.0分钟）、真实生产QQQ/VIX三次刷新重跑/冻结CSV 1 passed（55.1秒）。Ruff/149文件格式/mypy82、前端type/lint/build及unused检查通过，79模式生成字节不变。首次浏览器160通过/1失败来自旧绩效用例在预校验pending时采集按钮HTML；补齐首次/确认后等待，保留全部旧断言，再完整复跑通过。独立只读五轴及简化复审、双语/窄屏截图和差异核对完成。3项绩效指摘与8项建议全部关闭；Task189追溯也已独立关闭，135/远端及暂缓181仍未完成。完整证据见`docs/design/phase53-simplification-implementation.md`。

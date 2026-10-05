@@ -60,10 +60,14 @@ observeRun共通SSE订阅→单次保存结果读取；恢复入口仍在订阅�
 
 日志`/tmp/backtester-task199-baseline-valid.log`及`/tmp/backtester-task199-{unit,types,lint,build,browser}.log`。对原控制器逐段核对锁/AbortController/草稿身份/响应顺序/错误语义，五轴与简化复审通过。继续Task200完整真实门禁与稳定化。
 
-### Task200：完整集成进行中
+### Task200：完整集成完成
 
 当前完整后端770 passed（275.21秒，46条既有yfinance弃用提示）、前端317 passed；Ruff/149文件格式/mypy82、type/lint/build、额外TypeScript unused检查和79模式生成通过，三份生成契约字节不变。真实生产QQQ/VIX三次刷新重跑及冻结CSV 1 passed（55.1秒），仅使用独立8124/5175服务。
 
-首次全量浏览器160通过/1失败（12.2分钟）。失败仅是phase40旧用例过早在首次预校验pending时捕获按钮HTML，确认新草稿的合法预校验使disabled属性被移除/重新附加，属性顺序改变但值完全相同。新增等待首次及确认后校验完成的前提，原按钮、旧结果、利率、数值及完整axe断言一条未删；两个绩效用例随后通过（12.3秒）。最终全量继续复跑，不把首次失败隐藏为全绿。
+首次全量浏览器160通过/1失败（12.2分钟）。失败仅是phase40旧用例过早在首次预校验pending时捕获按钮HTML，确认新草稿的合法预校验使disabled属性被移除/重新附加，属性顺序改变但值完全相同。新增等待首次及确认后校验完成的前提，原按钮、旧结果、利率、数值及完整axe断言一条未删；两个绩效用例随后通过（12.3秒）。最终统一全量161 passed（6.0分钟），不把首次失败隐藏为全绿。
 
 独立模型只读五轴审查覆盖ba554a0..e000bf7的全部源码/测试/设计差异，未发现确认的Critical/Required问题或结构回归；未替代实际运行验证。没有扩散重构、改变费用/本金/成交/CSV规则或读取个人运行数据库。
+
+最终检查覆盖日中双语、320–1920px、原生缩放、绩效短显示/整卡说明/月热图高度、所有策略dialog、多选/颜色/交易身份、候选及滚动窗口、离线四CSV/PNG、确认草稿预校验、停止/重连/迟到响应与真实默认刷新重跑。实际复看绩效中文及窄屏截图；8项审计建议和3项新增指摘均已对应，未发现新的确认缺陷。原始新增功能文档、原简化审计和阶段35原稿字节不变，agent配置不被Git跟踪。
+
+完整日志：`/tmp/backtester-task200-backend.log`、`/tmp/backtester-task200-front.log`、`/tmp/backtester-task200-browser-final.log`、`/tmp/backtester-task200-live.log`，以及`/tmp/backtester-task200-{types,lint,build}.log`。79模式生成无差异、`git diff --check`通过；本地代码与验收记录按切片提交。旧RV原稿追溯已由Task189独立关闭；ETF Task135、远端CI/发布/分支收敛和暂缓Inspector仍未完成，Task200通过不等于全项目完成。
