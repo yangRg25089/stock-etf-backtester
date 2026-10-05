@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent, InputHTMLAttributes, ReactNode } from "react";
 import type { Diagnostic, ParameterDefinition } from "../../api/generated";
 import {
   interpolate,
@@ -60,6 +60,68 @@ function dependencyIsPresent(value: unknown): boolean {
 function describedBy(...ids: Array<string | null | undefined>): string | undefined {
   const value = ids.filter((item): item is string => Boolean(item)).join(" ");
   return value || undefined;
+}
+
+interface NumberListControlProps {
+  values: unknown[];
+  fieldId: string;
+  label: string;
+  unit: string | null;
+  locale: Locale;
+  common: InputHTMLAttributes<HTMLInputElement> & { "data-parameter-key": string };
+  numericProps: Pick<InputHTMLAttributes<HTMLInputElement>, "min" | "max" | "step" | "inputMode">;
+  required: boolean;
+  onChange(value: unknown[]): void;
+}
+
+function NumberListControl({ values, fieldId, label, unit, locale, common, numericProps, required, onChange }: NumberListControlProps) {
+  return (
+    <div className="number-list-control">
+      {values.map((item, index) => (
+        <div className="number-list-row" key={`${common["data-parameter-key"]}-${index}`}>
+          <label className="sr-only" htmlFor={`${fieldId}-${index}`}>
+            {`${label} ${index + 1}`}
+          </label>
+          <div className={`unit-field${unit ? " has-unit" : ""}`}>
+            <input
+              {...numericProps}
+              {...common}
+              aria-describedby={describedBy(common["aria-describedby"], unit ? `${fieldId}-${index}-unit` : null)}
+              id={`${fieldId}-${index}`}
+              className={`input${unit ? " input-with-unit" : ""}`}
+              type="number"
+              required={required}
+              value={inputValue(item)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                const next = [...values];
+                next[index] = event.target.value === "" ? "" : Number(event.target.value);
+                onChange(next);
+              }}
+            />
+            {unit && <span className="unit-label" id={`${fieldId}-${index}-unit`}>{unit}</span>}
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            disabled={common.disabled || values.length <= 1}
+            aria-label={interpolate(translate(locale, "field.removeItem"), { field: label })}
+            title={interpolate(translate(locale, "field.removeItem"), { field: label })}
+            onClick={() => onChange(values.filter((_, itemIndex) => itemIndex !== index))}
+          >
+            −
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="text-button"
+        disabled={common.disabled}
+        onClick={() => onChange([...values, ""])}
+      >
+        + {translate(locale, "field.addItem")}
+      </button>
+    </div>
+  );
 }
 
 export function ParameterField({
@@ -211,54 +273,9 @@ export function ParameterField({
       </select>
     );
   } else if (definition.type === "number_list") {
-    const values = Array.isArray(value) ? value : [];
-    control = (
-      <div className="number-list-control">
-        {values.map((item, index) => (
-          <div className="number-list-row" key={`${definition.key}-${index}`}>
-            <label className="sr-only" htmlFor={`${fieldId}-${index}`}>
-              {`${label} ${index + 1}`}
-            </label>
-            <div className={`unit-field${unit ? " has-unit" : ""}`}>
-              <input
-                {...numericProps}
-                {...common}
-                aria-describedby={describedBy(descriptionIds, unit ? `${fieldId}-${index}-unit` : null)}
-                id={`${fieldId}-${index}`}
-                className={`input${unit ? " input-with-unit" : ""}`}
-                type="number"
-                required={required ?? (definition.nullable !== true)}
-                value={inputValue(item)}
-                onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                  const next = [...values];
-                  next[index] = event.target.value === "" ? "" : Number(event.target.value);
-                  onChange(next);
-                }}
-              />
-              {unit && <span className="unit-label" id={`${fieldId}-${index}-unit`}>{unit}</span>}
-            </div>
-            <button
-              type="button"
-              className="icon-button"
-              disabled={fieldDisabled || values.length <= 1}
-              aria-label={interpolate(translate(locale, "field.removeItem"), { field: label })}
-              title={interpolate(translate(locale, "field.removeItem"), { field: label })}
-              onClick={() => onChange(values.filter((_, itemIndex) => itemIndex !== index))}
-            >
-              −
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          className="text-button"
-          disabled={fieldDisabled}
-          onClick={() => onChange([...values, ""])}
-        >
-          + {translate(locale, "field.addItem")}
-        </button>
-      </div>
-    );
+    control = <NumberListControl values={Array.isArray(value) ? value : []} fieldId={fieldId}
+      label={label} unit={unit} locale={locale} common={common} numericProps={numericProps}
+      required={required ?? (definition.nullable !== true)} onChange={onChange} />;
   } else {
     const isDate = definition.type === "date";
     const isSymbol = definition.type === "symbol";

@@ -45,3 +45,9 @@ flattenSavedMetrics按原metrics→analysis→tradingCosts覆盖顺序展平；s
 纯buildResultSelection投影主曲线/比较线、同期间基准、颜色/排名、技术和波动率、成交归属；savedPeriodBenchmarks每次只调用一次，preset映射保留首次匹配。原始结果/显示基准明确分离，不重赋result。候选fetch、AbortController、错误、说明dialog及界面状态仍在ResultViewer；价格显隐不加入投影状态。输入兼容原有null/undefined。
 
 新增3项纯投影检查覆盖普通/分段/滚动后端保存fixture的全部候选、同期间基准、颜色/排序/成交引用、零选择保留价格与输入不变；既有SSR及所有行为断言未改。311前端、type/lint/build与5项多选交易点/排名读数/快速图例/交易解释/Walk-forward离线浏览器通过。日志`/tmp/backtester-task197-{unit,browser,lint}.log`、`/tmp/backtester-task197-types-final.log`与`/tmp/backtester-task197-build-final.log`；差异、身份、状态独立与简化复审通过。
+
+### Task198 / CS52-08
+
+同一共享字段模块的私有NumberListControl仅承接列表输入及增删，原inputValue、describedBy、catalog单位/边界/空值政策和prop覆盖顺序保持；其他控件分支不动。公共ParameterField契约不变，没有再建一份参数元数据。
+
+新增2项行为基线先通过，覆盖数字/空白输入、回调和输入不变、逐项单位/ARIA、禁用、nullable和至少一项；重构后313项前端、type/lint/build及3项原生数字校验/网格值与CSV/所有策略三大块dialog浏览器通过，旧断言未改。首次静态检查发现单位必须允许null，已按原unitLabel契约修正，没有转换原值。日志`/tmp/backtester-task198-baseline.log`、`/tmp/backtester-task198-{unit,types,lint,build}-final.log`及`/tmp/backtester-task198-browser.log`。DOM/事件/可访问性及简化差异复审通过。
