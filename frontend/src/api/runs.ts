@@ -50,11 +50,26 @@ function assertRequestedIdentity(actual: string, requested: string): void {
   if (actual !== requested) throw new RunApiError("invalid_response", "api.errors.invalid_response");
 }
 
+type ResponseContract = "RunResponse" | "ActiveRun" | "StrategyRun" | "InstrumentMetadata" | "DraftValidationResponse" | "BacktestPackage";
+
+function isResponseForContract(contract: ResponseContract, payload: unknown): boolean {
+  switch (contract) {
+    case "ActiveRun":
+      return payload === null || (isRunResponse(payload) && isActiveRunStatus(payload.status));
+    case "RunResponse":
+      return isRunResponse(payload);
+    case "StrategyRun":
+      return isStrategyRun(payload);
+    default:
+      return matchesContract(contract, payload);
+  }
+}
+
 async function requestJson<T>(
   url: string,
   init: RequestInit,
   signal: AbortSignal | undefined,
-  contract: "RunResponse" | "ActiveRun" | "StrategyRun" | "InstrumentMetadata" | "DraftValidationResponse" | "BacktestPackage",
+  contract: ResponseContract,
 ): Promise<T> {
   let response: Response;
   try {
@@ -83,10 +98,7 @@ async function requestJson<T>(
     }
     throw fallbackError(response.status);
   }
-  const valid = contract === "ActiveRun" ? payload === null || (isRunResponse(payload) && isActiveRunStatus(payload.status))
-    : contract === "RunResponse" ? isRunResponse(payload)
-      : contract === "StrategyRun" ? isStrategyRun(payload) : matchesContract(contract, payload);
-  if (!valid) throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
+  if (!isResponseForContract(contract, payload)) throw new RunApiError("invalid_response", "api.errors.invalid_response", [], response.status);
   return payload as T;
 }
 

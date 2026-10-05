@@ -1207,7 +1207,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 
 - [x] Task191：月度详情格式、绩效整卡说明和月热图高度展开/还原。
 - [x] Task192：CS52-01精确小数点展开共通。
-- [ ] Task193：CS52-02 HTTP校验显式分派。
+- [x] Task193：CS52-02 HTTP校验显式分派。
 - [ ] Task194：CS52-03离线CSV行构建共通。
 - [ ] Task195：CS52-04基准编排顺序循环。
 - [ ] Task196：CS52-07按模式分离搜索契约校验。
@@ -1219,3 +1219,4 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 用户追加旧验收缺口：继续原135、182–183/102/W/120及189；远端指定目标和SEC secret答复待到达，Inspector仍按原文暂缓。
 - Task191：新增两条失败单测及实际浏览器长小数复现后修复；月度详情/ARIA两位显示，精确title/快照/CSV不变；11指标整卡说明、键盘ARIA及共用高度按钮。307项前端、type/lint/build与8项双语/320/768/1024/1440px浏览器/原型/axe通过，截图复看。首次axe查出说明节点置于dl内不合法，已移至分组外并保留旧dd断言；原型仅更新本次明确要求的显示精度，并新增原始精度title和展开断言。后端联网基线745 passed（62.37秒，46条既有提示）。记录见`docs/design/phase53-simplification-implementation.md`。
 - Task192：仅共用unsigned digits与小数点位置的字符串展开，精确百分数/CSV各自符号、去零、输入和数值列政策不变。新增指数/前后零边界基线先通过；重构后308项前端（含真实后端四类CSV逐字符等值）、type/lint/build及差异通过，旧断言未改。
+- Task193：成功响应使用私有显式switch分派，ActiveRun的null/活动状态、RunResponse/StrategyRun语义校验及其他生成Schema不变；请求身份后置检查、错误信封和SSE未改。308项前端、type/lint/build及2项实际异候选/币种拒绝与重试浏览器通过，旧断言不变。

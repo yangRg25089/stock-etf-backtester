@@ -21,3 +21,7 @@ Task192–199按局部格式化、HTTP、CSV、基准、搜索校验、结果投
 ### Task192 / CS52-01
 
 新增纯expandDecimalDigits只插入小数点/补零；formatExactPercent和fixedDecimal分别保留原有输入、符号、去零、指数及数值列政策。输入字段shiftDecimal和读取边界decimalIdentity不改。新增前后零/符号/科学指数4096边界基线先通过，重构后308前端、type/lint/build通过；后端生成fixture的四类离线CSV、科学记数身份及精确百分数旧断言未改。日志`/tmp/backtester-phase53-decimal-baseline.log`及`/tmp/backtester-task192-{unit,types,lint,build}.log`。差异/调用及简化复审通过。
+
+### Task193 / CS52-02
+
+私有isResponseForContract使用switch替代嵌套三元式，分派顺序与校验语义不变；共享ResponseContract只用于该HTTP边界。请求URL身份、safe错误与SSE读取不改。308前端、type/lint/build以及phase51两项实际异候选/币种拒绝和重试浏览器通过，旧断言不变。日志`/tmp/backtester-task193-{unit,types,lint,build,browser}.log`；差异与调用复审通过。
