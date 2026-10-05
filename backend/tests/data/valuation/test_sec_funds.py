@@ -144,3 +144,34 @@ def test_fund_locator_never_guesses_an_ambiguous_or_invalid_class():
     source["data"] = [["../../private", "S000006409", "C000017595", "ABC"]]
     with pytest.raises(ValueError):
         fund_identity(source, "ABC")
+
+
+def test_native_conditional_issuer_category_keeps_the_reported_unsupported_position():
+    source = portfolio(asset="DE", payoff="N/A").replace(
+        "<issuerCat>CORP</issuerCat>",
+        '<issuerConditional issuerCat="OTHER" desc="N/A"/>',
+    )
+    parsed = nport_xml(source, fund=identity(), filing=evidence(), registered_etf=True)
+    assert parsed is not None
+    assert len(parsed.holdings) == 1
+    assert parsed.holdings[0].issuer_type == "unknown:other"
+    assert parsed.holdings[0].asset_type == "derivative-equity"
+    assert parsed.capabilities.has_derivatives
+    assert not parsed.capabilities.supports_equity_pe
+
+
+@pytest.mark.parametrize(
+    "category",
+    [
+        "",
+        '<issuerConditional desc="N/A"/>',
+        '<issuerConditional issuerCat="" desc="N/A"/>',
+        '<issuerConditional issuerCat="CORP" desc="N/A"/>',
+        '<issuerCat>CORP</issuerCat><issuerConditional issuerCat="OTHER" desc="N/A"/>',
+        '<issuerConditional issuerCat="OTHER"/><issuerConditional issuerCat="OTHER"/>',
+    ],
+)
+def test_native_issuer_category_rejects_missing_invalid_or_ambiguous_choices(category):
+    source = portfolio().replace("<issuerCat>CORP</issuerCat>", category)
+    with pytest.raises(ValueError):
+        nport_xml(source, fund=identity(), filing=evidence(), registered_etf=True)

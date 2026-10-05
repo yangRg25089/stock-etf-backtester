@@ -57,7 +57,7 @@
 
 | 项目 | 现状 | 关闭条件 |
 | --- | --- | --- |
-| ETF历史PE正向数据链 | SEC原生N-CEN/N-PORT解析及18项边界测试已建立；实际运行仍只走company_tickers→个股CompanyFacts，基金解析没有运行消费者 | 完成历史基金/series/class身份、证券映射及公开时点持仓估值接入；真实ETF普通/搜索/导出与独立估值正向通过。现金管理基金持仓规则仍待既有答复，不能用当前持仓/PE补历史 |
+| ETF历史PE正向数据链 | SEC原生N-CEN/N-PORT解析已建立；随后真实申报发现的条件发行人类别缺口已修复，25项固定及1项真实归一回归通过。实际运行仍只走company_tickers→个股CompanyFacts，基金解析没有运行消费者 | 完成历史基金/series/class身份、证券映射及公开时点持仓估值接入；真实ETF普通/搜索/导出与独立估值正向通过。现金管理基金持仓规则仍待既有答复，不能用当前持仓/PE补历史；来源及778后端门禁见[原生来源验证](20261005-etf-native-source-verification.md) |
 | 最新版本远端CI | `.github/workflows/ci.yml`已配置完整后端真实来源及前端/浏览器/生产流程；SEC secret发布/可用性未完成确认和验收 | 最新提交到达目标main，并在GitHub实际跑绿；缺联系人须失败，不能skip或容错成功。本次没有GitHub CI运行证据 |
 | 远端main及agent文件清理 | 本地仅main且agent配置已不跟踪；只读核实远端仍有main和两条feature，旧main仍跟踪agent文件 | 完成已指定远端写入及分支收敛，核实远端HEAD与当前main一致、agent路径无跟踪。此前自动审批拒绝仍未解除，本轮无远端写入 |
 | V1发布 | 本地没有tag，最新系统未形成远端正式基线 | 完成实际CI/最终验收后再发布并核实标签；不能把本地构建等同release |

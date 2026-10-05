@@ -187,6 +187,7 @@ SEC_USER_AGENT='Stock ETF Backtester contact@example.com' \
 - Yahoo 行情/指数/利率及 SEC 个股历史 PE 已接入运行。个股复用原估值内核，通过 CompanyFacts、关联财务申报（包括事实明确引用的8-K）、公开时间、历史上市类别与完整拆股/价格证据核对；MSFT 2024全年252交易日正向估值、普通/搜索及独立账本/导出已通过。证据不足只影响依赖 PE 的策略，其他策略照常运行。
 - SEC 请求联系人已由用户提供并保存于本机忽略文件 `.local/sec-user-agent`，权限0600；也支持显式 `SEC_USER_AGENT`。不从私人 Git 配置提取或虚构邮箱，不记录请求头、联系人或异常文本。文件不提交到 Git；CI需要另行设置同名secret，当前尚未上传本机联系人。
 - ETF 原生N-CEN/N-PORT的基金/series/class身份及完整持仓/负债解析已建立，仍未接入普通回测：现金管理持仓规则、历史证券映射和正向ETF估值验算归Task135待办。当前PE、当前持仓不能替代历史数据；单独smoke通过不代表完整ETF能力完成。
+- 原生N-PORT发行人类别支持直接字段或唯一`issuerConditional issuerCat="OTHER"`，两者同时存在/重复/缺失均拒绝；OTHER保持未知，衍生品/基金持仓仍按原资格限制。真实QQQ原文105条持仓归一验证已通过，属于[原生来源验证](design/20261005-etf-native-source-verification.md)，不是正向ETF PE验收。
 
 官方参考：[SEC EDGAR API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)、[SEC Developer Resources / fair access](https://www.sec.gov/about/developer-resources)、[SEC N-PORT 数据集](https://www.sec.gov/data-research/sec-markets-data/form-n-port-data-sets)、[yfinance 1.7.0 history 实现与 timeout 参数](https://github.com/ranaroussi/yfinance/blob/1.7.0/yfinance/scrapers/history.py)。
 

@@ -84,6 +84,20 @@ def _text(element: ET.Element, path: str, ns: dict[str, str]) -> str:
     return values[0].text.strip()
 
 
+def _issuer_category(element: ET.Element, ns: dict[str, str]) -> str:
+    direct = element.findall("n:issuerCat", ns)
+    conditional = element.findall("n:issuerConditional", ns)
+    if len(direct) == 1 and not conditional:
+        return _text(element, "n:issuerCat", ns)
+    if (
+        not direct
+        and len(conditional) == 1
+        and conditional[0].get("issuerCat") == "OTHER"
+    ):
+        return "OTHER"
+    raise ValueError("missing or ambiguous SEC issuer category")
+
+
 def _decimal(value: object) -> Decimal:
     try:
         result = Decimal(str(value))
@@ -173,9 +187,9 @@ def nport_xml(
             ("CURRENCY_CODE", "curCd"),
             ("PAYOFF_PROFILE", "payoffProfile"),
             ("ASSET_CAT", "assetCat"),
-            ("ISSUER_TYPE", "issuerCat"),
         ):
             row[field] = _text(item, f"n:{tag}", ns)
+        row["ISSUER_TYPE"] = _issuer_category(item, ns)
         holdings.append(row)
         identity: dict[str, object] = {
             "ACCESSION_NUMBER": filing.accession,
