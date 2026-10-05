@@ -1,50 +1,29 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { Catalog, Diagnostic, RunDateAdjustment, RunResponse } from "../../api/generated";
+import type { Catalog, RunDateAdjustment, RunResponse } from "../../api/generated";
 import { runDataContext } from "../../api/contractReader";
 import { isActiveRunStatus } from "../../api/runStatus";
 import {
-  createIdempotencyKey, fetchRun, fetchActiveRun, subscribeToRunEvents,
+  createIdempotencyKey, fetchActiveRun,
   RunApiError, submitRun, validateDraft, stopRun, type RunProgressEvent,
 } from "../../api/runs";
 import {
   createInitialWorkspaceState, getRunAvailability, serializeDraftForApi, workspaceReducer,
-  type BacktestDraft, type WorkspaceAction, type WorkspaceState,
+  type WorkspaceAction, type WorkspaceState,
 } from "../strategies/model";
 import { draftFromRun, workspaceForDraft } from "../strategies/draftReader";
 import { restoreWorkspaceState, saveLastRunStrategy } from "../strategies/workspacePersistence";
 import { packageDraft, type PackageFile } from "../files/packageModel";
+import { observeRun } from "./observeRun";
+import { asRunApiError } from "./runErrors";
+import { useDraftValidation } from "./useDraftValidation";
 
-interface ValidationState {
-  draft: BacktestDraft;
-  response: Awaited<ReturnType<typeof validateDraft>> | null;
-  error?: RunApiError;
-}
-
-function asRunApiError(error: unknown): RunApiError {
-  if (error instanceof RunApiError) return error;
-  return new RunApiError("provider_request_failed", "api.errors.connection_failed", [{
-    code: "provider_request_failed",
-    messageKey: "api.errors.connection_failed",
-    severity: "error",
-  }]);
-}
-
-export function validationDiagnostics(
-  response: Awaited<ReturnType<typeof validateDraft>>,
-): Diagnostic[] {
-  return [
-    ...(response.diagnostics ?? []),
-    ...(response.strategies ?? []).flatMap((strategy) => strategy.diagnostics ?? []),
-  ];
-}
+export { validationDiagnostics } from "./useDraftValidation";
 
 export function useRunController(
   catalog: Catalog | null,
   workspace: WorkspaceState | null,
   setWorkspace: Dispatch<SetStateAction<WorkspaceState | null>>,
 ) {
-  const [validationState, setValidationState] = useState<ValidationState | null>(null);
-  const [validationRetry, setValidationRetry] = useState(0);
   const [runError, setRunError] = useState<RunApiError | null>(null);
   const [dateAdjustments, setDateAdjustments] = useState<RunDateAdjustment[]>([]);
   const [runBusy, setRunBusy] = useState(false);
@@ -66,21 +45,6 @@ export function useRunController(
     setBrowserSaveFailed(!frozenDraft || !saveLastRunStrategy(frozenDraft, catalog, undefined, failedIds));
   }, [catalog]);
 
-  const preflightFailed = Boolean(validationState?.error || validationState?.response &&
-    validationDiagnostics(validationState.response).some(item => item.severity === "error"));
-  const dispatch = useCallback((action: WorkspaceAction) => {
-    if (!catalog) return;
-    if (runSubmissionLocked.current && action.type !== "run.update" && action.type !== "run.progress") return;
-    // A successful dialog confirmation may recover a transient preflight error
-    // even when its configuration has not changed.
-    if (preflightFailed && (action.type === "shared.change" || action.type === "strategy.commit")) {
-      setValidationRetry(value => value + 1);
-    }
-    setWorkspace((current) => current
-      ? workspaceReducer(current, action, catalog)
-      : current);
-  }, [catalog, setWorkspace, preflightFailed]);
-
   useEffect(() => {
     if (!catalog) return;
     const controller = new AbortController();
@@ -100,7 +64,7 @@ export function useRunController(
         };
 
         if (controller.signal.aborted || submittedRunRef.current) return;
-        let response = await fetchActiveRun(controller.signal);
+        const response = await fetchActiveRun(controller.signal);
         if (!response || submittedRunRef.current) return;
 
         const restoreProgress = (value: RunProgressEvent) => {
@@ -117,10 +81,9 @@ export function useRunController(
         activeRunId.current = response.runId;
         runSubmissionLocked.current = true;
         setRunBusy(true);
-        await subscribeToRunEvents(response.runId, restoreProgress, controller.signal);
-        if (submittedRunRef.current) return;
-        response = await fetchRun(response.runId, controller.signal);
-        restore(response);
+        const completed = await observeRun(response.runId, restoreProgress, controller.signal,
+          () => !submittedRunRef.current);
+        restore(completed);
       } catch (error) {
         if (!controller.signal.aborted && !submittedRunRef.current) {
           setRunError(asRunApiError(error));
@@ -147,27 +110,24 @@ export function useRunController(
     activeRunController.current?.abort();
   }, []);
 
-  // Dialog buffers are local: only confirmed workspace inputs enter preflight.
-  const draft = workspace?.draft;
-  useEffect(() => {
-    if (!catalog || !draft || runBusy) return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      void validateDraft(serializeDraftForApi(draft), controller.signal).then(response => {
-        if (!controller.signal.aborted) setValidationState({ draft, response });
-      }).catch(error => {
-        if (!controller.signal.aborted) setValidationState({ draft, response: null, error: asRunApiError(error) });
-      });
-    }, 300);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [catalog, draft, runBusy, validationRetry]);
+  const { currentValidation, error: validationError, failed: preflightFailed, retry: retryValidation,
+    accept: acceptValidation, reset: resetValidation } = useDraftValidation(catalog, workspace?.draft, runBusy);
+  const dispatch = useCallback((action: WorkspaceAction) => {
+    if (!catalog) return;
+    if (runSubmissionLocked.current && action.type !== "run.update" && action.type !== "run.progress") return;
+    // A successful dialog confirmation may recover a transient preflight error
+    // even when its configuration has not changed.
+    if (preflightFailed && (action.type === "shared.change" || action.type === "strategy.commit")) {
+      retryValidation();
+    }
+    setWorkspace((current) => current
+      ? workspaceReducer(current, action, catalog)
+      : current);
+  }, [catalog, setWorkspace, preflightFailed, retryValidation]);
 
-  const currentValidation = workspace && validationState?.draft === workspace.draft
-    ? validationState.response
-    : null;
   const availability = !workspace ? { disabled: true, reasonKey: "run.validationPending" }
-    : validationState?.draft === workspace.draft && validationState.error
-      ? { disabled: true, reasonKey: validationState.error.messageKey }
+    : validationError
+      ? { disabled: true, reasonKey: validationError.messageKey }
       : getRunAvailability(workspace, currentValidation);
   const canStop = runBusy && (!activeRunId.current
     || workspace?.runResponse?.runId !== activeRunId.current
@@ -206,7 +166,7 @@ export function useRunController(
 
     try {
       const validation = await validateDraft(apiDraft, controller.signal);
-      setValidationState({ draft: submittedDraft, response: validation });
+      acceptValidation(submittedDraft, validation);
       const allowed = getRunAvailability({ draft: submittedDraft }, validation);
       if (allowed.disabled) {
         const diagnostics = validation.diagnostics ?? [];
@@ -234,15 +194,16 @@ export function useRunController(
       });
       // Keep observing the accepted job even when an early Stop request fails.
       if (stopRequested.current) void requestStop(accepted.runId, controller);
-      await subscribeToRunEvents(
+      const completed = await observeRun(
         accepted.runId,
         (event) => dispatch({ type: "run.progress", value: event }),
         controller.signal,
       );
-      const completed = await fetchRun(accepted.runId, controller.signal);
-      rememberRun(completed, submittedDraft.shared.currency);
-      setDateAdjustments(runDataContext(completed.snapshot)?.dateAdjustments ?? []);
-      dispatch({ type: "run.update", value: completed, applyResolvedDates: true });
+      if (completed) {
+        rememberRun(completed, submittedDraft.shared.currency);
+        setDateAdjustments(runDataContext(completed.snapshot)?.dateAdjustments ?? []);
+        dispatch({ type: "run.update", value: completed, applyResolvedDates: true });
+      }
     } catch (error) {
       if (controller.signal.aborted) return;
       setRunError(asRunApiError(error));
@@ -283,7 +244,7 @@ export function useRunController(
       importedBacktest: file.type === "backtest" ? file : null,
       resultRevision: (current?.resultRevision ?? 0) + 1,
     }));
-    setValidationState(null);
+    resetValidation();
     setRunError(null);
     setDateAdjustments([]);
   };

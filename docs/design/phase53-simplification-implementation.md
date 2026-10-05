@@ -51,3 +51,11 @@ flattenSavedMetrics按原metrics→analysis→tradingCosts覆盖顺序展平；s
 同一共享字段模块的私有NumberListControl仅承接列表输入及增删，原inputValue、describedBy、catalog单位/边界/空值政策和prop覆盖顺序保持；其他控件分支不动。公共ParameterField契约不变，没有再建一份参数元数据。
 
 新增2项行为基线先通过，覆盖数字/空白输入、回调和输入不变、逐项单位/ARIA、禁用、nullable和至少一项；重构后313项前端、type/lint/build及3项原生数字校验/网格值与CSV/所有策略三大块dialog浏览器通过，旧断言未改。首次静态检查发现单位必须允许null，已按原unitLabel契约修正，没有转换原值。日志`/tmp/backtester-task198-baseline.log`、`/tmp/backtester-task198-{unit,types,lint,build}-final.log`及`/tmp/backtester-task198-browser.log`。DOM/事件/可访问性及简化差异复审通过。
+
+### Task199 / CS52-05
+
+observeRun共通SSE订阅→单次保存结果读取；恢复入口仍在订阅结束与GET之间检查submittedRunRef，迟到结果应用仍由原入口保护。useDraftValidation只承接确认草稿的300ms校验/取消/错误归属和重试，失败重试判断仍保留旧状态而不错误作用于新草稿；validationDiagnostics从原入口重导出，App公共消费不变。runErrors共用既有错误归一。
+
+原恢复/卸载/预校验effect注册顺序保留，提交与恢复的finally保护不合并；停止重试、提交锁、记忆冻结配置、导入/reset身份及费用/CSV不动。新增4项生命周期基线先317 passed；首个新测试纠正了fetch省略method仍是GET的前提，没有改请求代码。重构后317前端、type/lint/build（137模块）、20项原迟到停止/重试/早期停止/SSE/文件离线/刷新重跑/草稿隔离浏览器通过，旧断言不变。
+
+日志`/tmp/backtester-task199-baseline-valid.log`及`/tmp/backtester-task199-{unit,types,lint,build,browser}.log`。对原控制器逐段核对锁/AbortController/草稿身份/响应顺序/错误语义，五轴与简化复审通过。继续Task200完整真实门禁与稳定化。
