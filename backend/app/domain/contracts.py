@@ -927,77 +927,7 @@ class SearchResult(DomainModel):
         if set(self.ranked_candidate_ids) != expected_ranked_ids:
             raise ValueError("ranking must include every completed candidate once")
         if self.optimization_mode == "walk_forward":
-            windows = self.walk_forward_windows
-            if (
-                not windows
-                or self.out_of_sample is None
-                or self.out_of_sample_period is None
-                or self.train_period is not None
-                or self.test_period is not None
-            ):
-                raise ValueError(
-                    "walk-forward requires windows and a saved out-of-sample result"
-                )
-            window_ids = tuple(
-                identifier for window in windows for identifier in window.candidate_ids
-            )
-            if window_ids != candidate_ids or [
-                window.sequence for window in windows
-            ] != list(range(1, len(windows) + 1)):
-                raise ValueError(
-                    "walk-forward windows must partition ordered candidates"
-                )
-            if self.ranked_candidate_ids != tuple(
-                identifier
-                for window in windows
-                for identifier in window.ranked_candidate_ids
-            ) or any(row.test_result is not None for row in self.candidates):
-                raise ValueError("walk-forward keeps separate training rankings")
-            if (
-                self.out_of_sample.result_id in set(candidate_ids)
-                or self.out_of_sample_period.phase != "test"
-            ):
-                raise ValueError(
-                    "out-of-sample identity must be separate from training"
-                )
-            for index, window in enumerate(windows):
-                completed = expected_ranked_ids.intersection(window.candidate_ids)
-                if set(window.ranked_candidate_ids) != completed or len(
-                    set(window.ranked_candidate_ids)
-                ) != len(window.ranked_candidate_ids):
-                    raise ValueError(
-                        "every window must retain its complete training ranking"
-                    )
-                if (
-                    index
-                    and (
-                        window.test_period.start_date
-                        - windows[index - 1].test_period.end_date
-                    ).days
-                    != 1
-                ):
-                    raise ValueError("out-of-sample windows must be contiguous")
-            if (
-                self.out_of_sample_period.start_date
-                != windows[0].test_period.start_date
-                or self.out_of_sample_period.end_date
-                != windows[-1].test_period.end_date
-            ):
-                raise ValueError("out-of-sample period must cover every testing window")
-            if (
-                len(self.period_benchmarks) != 2
-                or len({row.id for row in self.period_benchmarks}) != 2
-                or {row.preset_id for row in self.period_benchmarks}
-                != {StrategyPresetId.MONTHLY_DCA, StrategyPresetId.LUMP_SUM}
-                or any(
-                    row.role != ResultRole.BENCHMARK
-                    or row.evaluation_period != self.out_of_sample_period
-                    for row in self.period_benchmarks
-                )
-            ):
-                raise ValueError(
-                    "walk-forward requires matching out-of-sample benchmarks"
-                )
+            _validate_walk_forward_search(self, candidate_ids, expected_ranked_ids)
         elif (
             self.walk_forward_windows
             or self.out_of_sample is not None
@@ -1005,54 +935,121 @@ class SearchResult(DomainModel):
         ):
             raise ValueError("rolling results require walk-forward mode")
         elif self.optimization_mode == "train_test":
-            if self.train_period is None or self.test_period is None:
-                raise ValueError("split search requires both saved periods")
-            if (
-                self.train_period.phase != "train"
-                or self.test_period.phase != "test"
-                or self.train_period.end_date >= self.test_period.start_date
-            ):
-                raise ValueError("train and test periods must be disjoint and ordered")
-            test_ids = tuple(
-                row.test_result.result_id
-                for row in self.candidates
-                if row.test_result is not None
-            )
-            if len(test_ids) != len(candidate_ids) or len(
-                set((*candidate_ids, *test_ids))
-            ) != 2 * len(candidate_ids):
-                raise ValueError(
-                    "every split candidate requires a distinct test identity"
-                )
-            if (
-                len(self.period_benchmarks) != 4
-                or len({row.id for row in self.period_benchmarks}) != 4
-            ):
-                raise ValueError("split search requires four distinct period baselines")
-            for period in (self.train_period, self.test_period):
-                baselines = [
-                    row
-                    for row in self.period_benchmarks
-                    if row.evaluation_period == period
-                    and row.role == ResultRole.BENCHMARK
-                ]
-                if {row.preset_id for row in baselines} != {
-                    StrategyPresetId.MONTHLY_DCA,
-                    StrategyPresetId.LUMP_SUM,
-                } or len(baselines) != 2:
-                    raise ValueError(
-                        "each period requires matching DCA and lump-sum baselines"
-                    )
-        elif (
-            self.train_period is not None
-            or self.test_period is not None
-            or self.period_benchmarks
-            or any(row.test_result is not None for row in self.candidates)
-        ):
-            raise ValueError(
-                "full-period search cannot contain split evaluation results"
-            )
+            _validate_split_search(self, candidate_ids)
+        else:
+            _validate_full_period_search(self)
         return self
+
+
+def _validate_walk_forward_search(
+    result: SearchResult, candidate_ids: tuple[str, ...], expected_ranked_ids: set[str]
+) -> None:
+    windows = result.walk_forward_windows
+    if (
+        not windows
+        or result.out_of_sample is None
+        or result.out_of_sample_period is None
+        or result.train_period is not None
+        or result.test_period is not None
+    ):
+        raise ValueError(
+            "walk-forward requires windows and a saved out-of-sample result"
+        )
+    window_ids = tuple(
+        identifier for window in windows for identifier in window.candidate_ids
+    )
+    if window_ids != candidate_ids or [window.sequence for window in windows] != list(
+        range(1, len(windows) + 1)
+    ):
+        raise ValueError("walk-forward windows must partition ordered candidates")
+    if result.ranked_candidate_ids != tuple(
+        identifier for window in windows for identifier in window.ranked_candidate_ids
+    ) or any(row.test_result is not None for row in result.candidates):
+        raise ValueError("walk-forward keeps separate training rankings")
+    if (
+        result.out_of_sample.result_id in set(candidate_ids)
+        or result.out_of_sample_period.phase != "test"
+    ):
+        raise ValueError("out-of-sample identity must be separate from training")
+    for index, window in enumerate(windows):
+        completed = expected_ranked_ids.intersection(window.candidate_ids)
+        if set(window.ranked_candidate_ids) != completed or len(
+            set(window.ranked_candidate_ids)
+        ) != len(window.ranked_candidate_ids):
+            raise ValueError("every window must retain its complete training ranking")
+        if (
+            index
+            and (
+                window.test_period.start_date - windows[index - 1].test_period.end_date
+            ).days
+            != 1
+        ):
+            raise ValueError("out-of-sample windows must be contiguous")
+    if (
+        result.out_of_sample_period.start_date != windows[0].test_period.start_date
+        or result.out_of_sample_period.end_date != windows[-1].test_period.end_date
+    ):
+        raise ValueError("out-of-sample period must cover every testing window")
+    if (
+        len(result.period_benchmarks) != 2
+        or len({row.id for row in result.period_benchmarks}) != 2
+        or {row.preset_id for row in result.period_benchmarks}
+        != {StrategyPresetId.MONTHLY_DCA, StrategyPresetId.LUMP_SUM}
+        or any(
+            row.role != ResultRole.BENCHMARK
+            or row.evaluation_period != result.out_of_sample_period
+            for row in result.period_benchmarks
+        )
+    ):
+        raise ValueError("walk-forward requires matching out-of-sample benchmarks")
+
+
+def _validate_split_search(
+    result: SearchResult, candidate_ids: tuple[str, ...]
+) -> None:
+    if result.train_period is None or result.test_period is None:
+        raise ValueError("split search requires both saved periods")
+    if (
+        result.train_period.phase != "train"
+        or result.test_period.phase != "test"
+        or result.train_period.end_date >= result.test_period.start_date
+    ):
+        raise ValueError("train and test periods must be disjoint and ordered")
+    test_ids = tuple(
+        row.test_result.result_id
+        for row in result.candidates
+        if row.test_result is not None
+    )
+    if len(test_ids) != len(candidate_ids) or len(
+        set((*candidate_ids, *test_ids))
+    ) != 2 * len(candidate_ids):
+        raise ValueError("every split candidate requires a distinct test identity")
+    if (
+        len(result.period_benchmarks) != 4
+        or len({row.id for row in result.period_benchmarks}) != 4
+    ):
+        raise ValueError("split search requires four distinct period baselines")
+    for period in (result.train_period, result.test_period):
+        baselines = [
+            row
+            for row in result.period_benchmarks
+            if row.evaluation_period == period and row.role == ResultRole.BENCHMARK
+        ]
+        if {row.preset_id for row in baselines} != {
+            StrategyPresetId.MONTHLY_DCA,
+            StrategyPresetId.LUMP_SUM,
+        } or len(baselines) != 2:
+            raise ValueError("each period requires matching DCA and lump-sum baselines")
+
+
+def _validate_full_period_search(result: SearchResult) -> None:
+    if (
+        result.train_period is not None
+        or result.test_period is not None
+        or result.period_benchmarks
+        or any(row.test_result is not None for row in result.candidates)
+    ):
+        raise ValueError("full-period search cannot contain split evaluation results")
 
 
 class SearchHeatmapSlice(DomainModel):

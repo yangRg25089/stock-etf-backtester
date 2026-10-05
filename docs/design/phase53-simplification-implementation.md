@@ -33,3 +33,9 @@ flattenSavedMetrics按原metrics→analysis→tradingCosts覆盖顺序展平；s
 ### Task195 / CS52-04
 
 按既有_BENCHMARKS(DCA→一次投入)循环，各次check_cancelled→set_current→run_benchmark→complete不变，RunCancelled继续外抛；其他异常保持局部failed与原stage/preset值。无reference_load分支及内核不改。新增定投/一次投入/同时异常3种基线，先43 passed，重构后运行/CSV/搜索87 passed；Ruff/148格式/mypy82通过，旧断言未改。新增测试插入时一度误移动相邻幂等断言，已原位恢复后重新建立绿色基线；最终diff只新增测试。日志`/tmp/backtester-task195-baseline-valid.log`及`/tmp/backtester-task195-{unit,ruff,format,types}.log`；差异/异常/取消/顺序复审通过。
+
+### Task196 / CS52-07
+
+先建立22项基线：20个首次关系错误、共同身份错误先于数量错误的Pydantic根路径、三种模式保存JSON往返。测试前提修正了先命中全局窗口排名检查的构造，以及Decimal参数JSON往返不能按Python对象类型比较的问题；原算法不改。AST机械提取walk_forward/train_test/full_period三个私有校验，校验主体/条件逐节点等价；共同身份及跨模式rolling检查仍留原validator，错误顺序、文案、路径不变。
+
+重构后151项领域/搜索/运行/导出、308前端通过，Ruff/149格式/mypy82通过；79模式生成及三份契约字节无差异。旧断言未改。日志`/tmp/backtester-task196-baseline-valid.log`及`/tmp/backtester-task196-{unit,front,ruff,format,types,generated}.log`；机械基线留`/tmp/backtester-task196-contracts-before.py`。差异/契约/错误优先级复审通过。
