@@ -524,48 +524,28 @@ class RunManager:
                         _failure_outcome(unavailable),
                     )
             else:
-                self._check_cancelled(run_id)
-                self._set_current(run_id, _BENCHMARKS[0][0])
-                try:
-                    dca_outcome = self._run_benchmark(
-                        config,
-                        reference_load,
-                        run_id=run_id,
-                        benchmark_id=_BENCHMARKS[0][0],
-                        preset_id=_BENCHMARKS[0][1],
-                    )
-                except RunCancelled:
-                    raise
-                except Exception as error:
-                    dca_outcome = _failure_outcome(
-                        (
-                            _calculation_diagnostic(
-                                error, run_id=run_id, stage="monthly_dca"
-                            ),
+                for benchmark_id, preset_id in _BENCHMARKS:
+                    self._check_cancelled(run_id)
+                    self._set_current(run_id, benchmark_id)
+                    try:
+                        benchmark_outcome = self._run_benchmark(
+                            config,
+                            reference_load,
+                            run_id=run_id,
+                            benchmark_id=benchmark_id,
+                            preset_id=preset_id,
                         )
-                    )
-                self._complete_run(run_id, _BENCHMARKS[0][0], dca_outcome)
-                self._check_cancelled(run_id)
-                self._set_current(run_id, _BENCHMARKS[1][0])
-                try:
-                    lump_outcome = self._run_benchmark(
-                        config,
-                        reference_load,
-                        run_id=run_id,
-                        benchmark_id=_BENCHMARKS[1][0],
-                        preset_id=_BENCHMARKS[1][1],
-                    )
-                except RunCancelled:
-                    raise
-                except Exception as error:
-                    lump_outcome = _failure_outcome(
-                        (
-                            _calculation_diagnostic(
-                                error, run_id=run_id, stage="lump_sum"
-                            ),
+                    except RunCancelled:
+                        raise
+                    except Exception as error:
+                        benchmark_outcome = _failure_outcome(
+                            (
+                                _calculation_diagnostic(
+                                    error, run_id=run_id, stage=preset_id.value
+                                ),
+                            )
                         )
-                    )
-                self._complete_run(run_id, _BENCHMARKS[1][0], lump_outcome)
+                    self._complete_run(run_id, benchmark_id, benchmark_outcome)
 
             validation_by_id = {
                 validation.strategy_id: validation

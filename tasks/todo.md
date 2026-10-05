@@ -1209,7 +1209,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - [x] Task192：CS52-01精确小数点展开共通。
 - [x] Task193：CS52-02 HTTP校验显式分派。
 - [x] Task194：CS52-03离线CSV行构建共通。
-- [ ] Task195：CS52-04基准编排顺序循环。
+- [x] Task195：CS52-04基准编排顺序循环。
 - [ ] Task196：CS52-07按模式分离搜索契约校验。
 - [ ] Task197：CS52-06纯结果选择投影。
 - [ ] Task198：CS52-08数值列表控件。
@@ -1221,3 +1221,4 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - Task192：仅共用unsigned digits与小数点位置的字符串展开，精确百分数/CSV各自符号、去零、输入和数值列政策不变。新增指数/前后零边界基线先通过；重构后308项前端（含真实后端四类CSV逐字符等值）、type/lint/build及差异通过，旧断言未改。
 - Task193：成功响应使用私有显式switch分派，ActiveRun的null/活动状态、RunResponse/StrategyRun语义校验及其他生成Schema不变；请求身份后置检查、错误信封和SSE未改。308项前端、type/lint/build及2项实际异候选/币种拒绝与重试浏览器通过，旧断言不变。
 - Task194：CSV模块私有指标展平、搜索行与前缀字段构建，每候选的测试指标只展平一次；值序列化/JSON递归用显式分支，生成列、覆盖顺序和精度不变。308项前端（普通/分段/滚动保存fixture与服务端CSV等值）、type/lint/build、离线四CSV/PNG浏览器及差异通过，旧断言不变。
+- Task195：两基准按原_BENCHMARKS顺序循环；每个基准的取消、current、异常及complete顺序不变，stage仍为原preset值。新增三种基准异常基线先通过43项，重构后运行/CSV/搜索87项及Ruff/148文件格式/mypy82通过；无数据分支和计算内核未改，旧断言不变。

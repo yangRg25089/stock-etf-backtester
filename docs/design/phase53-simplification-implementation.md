@@ -29,3 +29,7 @@ Task192–199按局部格式化、HTTP、CSV、基准、搜索校验、结果投
 ### Task194 / CS52-03
 
 flattenSavedMetrics按原metrics→analysis→tradingCosts覆盖顺序展平；searchCandidateCsvRow明确窗口/训练测试/样本外字段，prefixedMetrics只使用生成列。每候选测试指标一次构造，样本外指标仍在循环外构造。csvValue与JSON递归改显式分支，编码/键序/换行/数值列不变。308前端（含普通/分段/滚动后端fixture逐字符CSV对照）、type/lint/build及离线四CSV/PNG浏览器通过；旧断言未改。日志`/tmp/backtester-task194-{unit,types,lint,build,browser}.log`；差异/共通化复审通过。
+
+### Task195 / CS52-04
+
+按既有_BENCHMARKS(DCA→一次投入)循环，各次check_cancelled→set_current→run_benchmark→complete不变，RunCancelled继续外抛；其他异常保持局部failed与原stage/preset值。无reference_load分支及内核不改。新增定投/一次投入/同时异常3种基线，先43 passed，重构后运行/CSV/搜索87 passed；Ruff/148格式/mypy82通过，旧断言未改。新增测试插入时一度误移动相邻幂等断言，已原位恢复后重新建立绿色基线；最终diff只新增测试。日志`/tmp/backtester-task195-baseline-valid.log`及`/tmp/backtester-task195-{unit,ruff,format,types}.log`；差异/异常/取消/顺序复审通过。

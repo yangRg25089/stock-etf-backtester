@@ -831,6 +831,58 @@ def test_manager_reuses_same_submission_and_rejects_changed_body_for_key() -> No
         manager.submit_run(_submission("another-vix"), idempotency_key="retry-key")
 
 
+@pytest.mark.parametrize(
+    "failed_presets",
+    [("monthly_dca",), ("lump_sum",), ("monthly_dca", "lump_sum")],
+)
+def test_benchmark_failures_keep_execution_order_safe_stage_and_later_results(
+    failed_presets, monkeypatch, caplog
+) -> None:
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(), data_provider=_FixtureProvider(), executor=executor
+    )
+    original = manager._run_benchmark
+    executed = []
+
+    def run_benchmark(*args, **kwargs):
+        preset = kwargs["preset_id"]
+        executed.append(preset)
+        if preset in failed_presets:
+            raise ArithmeticError("private benchmark failure details")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(manager, "_run_benchmark", run_benchmark)
+    accepted = manager.submit_run(_submission("healthy"), idempotency_key="bench-fail")
+    executor.run_next()
+    completed = manager.get_run(accepted.run_id)
+    assert completed is not None
+    runs = _runs(completed)
+    assert executed == ["monthly_dca", "lump_sum"]
+    for identity, preset in (
+        ("benchmark:monthly-dca", "monthly_dca"),
+        ("benchmark:lump-sum", "lump_sum"),
+    ):
+        row = runs[identity]
+        if preset in failed_presets:
+            assert row.status is StrategyStatus.FAILED
+            assert row.metrics is None
+            assert row.diagnostics[0].details == {
+                "runId": accepted.run_id,
+                "stage": preset,
+            }
+        else:
+            assert row.status is StrategyStatus.COMPLETED
+            assert row.metrics is not None
+    assert runs["healthy"].status is StrategyStatus.COMPLETED
+    assert completed.status is StrategyStatus.COMPLETED_WITH_WARNING
+    assert completed.progress is not None
+    assert (
+        completed.progress.completed_strategies == completed.progress.total_strategies
+    )
+    assert "private benchmark failure details" not in caplog.text
+
+
 def test_manager_logs_run_and_strategy_status_without_exception_or_config_values(
     caplog,
 ) -> None:
