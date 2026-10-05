@@ -1195,3 +1195,10 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 准确需求映射、失败证据/测试前提纠正、最终命令和未执行范围见`docs/design/20261005-strict-acceptance-audit.md`；日志`/tmp/backtester-strict-audit-backend.log`、`/tmp/backtester-strict-instrument-green.log`、`/tmp/backtester-strict-audit-browser-complete.log`、`/tmp/backtester-strict-audit-live-final.log`。
 - 文档最终检查修正B51-04历史断链；原简化审计中退役文件链接保持原字节并注明当前入口。两份旧RV原稿不可追溯，不把现有对应表当作原稿逐字验收。
 - [ ] Task189：恢复/确认`docs/design/2026102_rv.md`及`2026102_rv_backend.md`原稿的可追溯来源，再核对是否存在对应表未保留的指摘；当前目录/可见Git历史均未找到，不伪造原文。
+
+## 阶段52：前后端代码简化复审（2026-10-05）
+
+- [x] Task190：使用code-simplification检查当前前后端的重复逻辑、复杂职责、共通化和历史残留，核对调用/测试/框架入口及Git上下文。
+- 82个后端、105个非生成前端源文件和18个样式文件完成静态扫描；确认8项维护建议，详见`docs/design/20261005-code-simplification-audit.md`。优先共通精确小数、明确HTTP校验分派、收敛CSV行构建和自动基准编排，再处理搜索校验、结果投影、列表控件及运行生命周期。
+- TypeScript额外unused检查、前端lint零警告、后端Ruff/mypy82通过，文档diff检查通过。没有确认新的功能缺陷或可直接删除的无消费者实现；测试保留入口、动态类名/框架回调、生成脚本接口和ETF未完成能力已分类。
+- 本轮未改应用源码或测试，8项建议尚未实施，未重跑单测/真实数据/build/E2E；不以此前745/305/160/1门禁冒充重构验收。原Task135、181、远端及旧RV来源未完成状态保持独立。
