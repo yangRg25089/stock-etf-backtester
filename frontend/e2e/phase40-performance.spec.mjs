@@ -36,6 +36,7 @@ test("saved NAV analysis is bilingual, accessible and independent of draft rate 
   await expect(panel.locator(".performance-stat").filter({ hasText: "買付回数" }).locator("dd")).toHaveText(String(saved.result.strategyRuns[0].metrics.analysis.buyCount));
   const original = await panel.innerText();
   const runButton = page.getByRole("button", { name: "バックテストを実行", exact: true });
+  await expect(runButton).toBeEnabled();
   const originalRunControl = await runButton.evaluate(node => node.outerHTML);
   await page.locator(".shared-settings-summary").click();
   const dialog = page.locator(".shared-settings-dialog");
@@ -44,6 +45,7 @@ test("saved NAV analysis is bilingual, accessible and independent of draft rate 
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toHaveCount(0);
   expect(await panel.innerText()).toBe(original);
+  await expect(runButton).toBeEnabled();
   expect(await runButton.evaluate(node => node.outerHTML)).toBe(originalRunControl);
   for (const locale of ["日本語", "中文"]) {
     await page.getByRole("button", { name: locale, exact: true }).click();

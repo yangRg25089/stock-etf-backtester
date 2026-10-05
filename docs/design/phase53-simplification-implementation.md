@@ -59,3 +59,11 @@ observeRun共通SSE订阅→单次保存结果读取；恢复入口仍在订阅�
 原恢复/卸载/预校验effect注册顺序保留，提交与恢复的finally保护不合并；停止重试、提交锁、记忆冻结配置、导入/reset身份及费用/CSV不动。新增4项生命周期基线先317 passed；首个新测试纠正了fetch省略method仍是GET的前提，没有改请求代码。重构后317前端、type/lint/build（137模块）、20项原迟到停止/重试/早期停止/SSE/文件离线/刷新重跑/草稿隔离浏览器通过，旧断言不变。
 
 日志`/tmp/backtester-task199-baseline-valid.log`及`/tmp/backtester-task199-{unit,types,lint,build,browser}.log`。对原控制器逐段核对锁/AbortController/草稿身份/响应顺序/错误语义，五轴与简化复审通过。继续Task200完整真实门禁与稳定化。
+
+### Task200：完整集成进行中
+
+当前完整后端770 passed（275.21秒，46条既有yfinance弃用提示）、前端317 passed；Ruff/149文件格式/mypy82、type/lint/build、额外TypeScript unused检查和79模式生成通过，三份生成契约字节不变。真实生产QQQ/VIX三次刷新重跑及冻结CSV 1 passed（55.1秒），仅使用独立8124/5175服务。
+
+首次全量浏览器160通过/1失败（12.2分钟）。失败仅是phase40旧用例过早在首次预校验pending时捕获按钮HTML，确认新草稿的合法预校验使disabled属性被移除/重新附加，属性顺序改变但值完全相同。新增等待首次及确认后校验完成的前提，原按钮、旧结果、利率、数值及完整axe断言一条未删；两个绩效用例随后通过（12.3秒）。最终全量继续复跑，不把首次失败隐藏为全绿。
+
+独立模型只读五轴审查覆盖ba554a0..e000bf7的全部源码/测试/设计差异，未发现确认的Critical/Required问题或结构回归；未替代实际运行验证。没有扩散重构、改变费用/本金/成交/CSV规则或读取个人运行数据库。
