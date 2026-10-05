@@ -1,9 +1,9 @@
+import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { readFile } from "node:fs/promises";
-import { importPackage, installRunFixture } from "./helpers/runtime.mjs";
+import { installRunFixture } from "./helpers/runtime.mjs";
 
-test("partial failure JSON exports frozen values, imports offline and requires field correction", async ({ page }) => {
+test("partial API failures preserve results while strategy exports remain draft-only", async ({ page }) => {
   const response = await page.request.post("/api/v1/runs", { headers: { "Idempotency-Key": `partial-files-${Date.now()}` }, data: {
     draft: { shared: { run: { symbol: "QQQ", startDate: "2024-01-31", endDate: "2024-03-01" } },
       strategies: [{ id: "file-vix", presetId: "vix_dca", params: { "vix.buyThreshold": "not-numeric" } },
@@ -27,16 +27,18 @@ test("partial failure JSON exports frozen values, imports offline and requires f
   await restored;
   await expect(page.locator(".run-submit-button")).toHaveAttribute("aria-busy", "false");
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("stock-etf-backtester.last-run-strategy.v1")).failedStrategyIds)).toEqual(["file-vix"]);
-  await page.locator(".package-menu summary").click();
-  const waiting = page.waitForEvent("download");
-  await page.getByRole("button", { name: /結果を保存/ }).click();
-  const file = JSON.parse(await readFile(await (await waiting).path(), "utf8"));
-  expect(file.result).toEqual(saved);
-  expect(file.config.strategies[0].params["vix.buyThreshold"]).toBe("not-numeric");
-  await page.route("**/api/v1/runs/**", route => route.request().url().endsWith("/active")
-    ? route.fulfill({ json: null }) : route.abort());
-  await importPackage(page, file);
+  const downloadEvent = page.waitForEvent("download");
+  await page.locator('.package-actions button').first().click();
+  const exported = JSON.parse(await readFile(await (await downloadEvent).path(), "utf8"));
+  expect(exported.type).toBe("strategy");
+  expect(exported).not.toHaveProperty("result");
+  expect(exported.draft.strategies).toHaveLength(1);
   const prior = await page.locator(".comparison-table").textContent();
+
+  // The run snapshot restores the malformed API strategy independently from
+  // the valid one-strategy workspace package exported above.
+  await page.reload();
+  await expect(page.locator(".strategy-card-open")).toHaveCount(2);
   await page.locator(".strategy-card-open").first().click();
   const dialog = page.locator(".strategy-dialog");
   await dialog.locator(".dialog-done").click();
@@ -46,6 +48,7 @@ test("partial failure JSON exports frozen values, imports offline and requires f
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator(".comparison-table")).toHaveText(prior);
+
   await page.reload();
   await expect(page.locator(".strategy-card-open")).toHaveCount(2);
   await page.locator(".strategy-card-open").first().click();

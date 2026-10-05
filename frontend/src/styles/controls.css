@@ -9,8 +9,8 @@
 
 .run-submit-button {
   display: inline-grid;
-  width: 44px;
-  min-width: 44px;
+  width: 56px;
+  min-width: 56px;
   min-height: 44px;
   place-items: center;
   padding: 0;
@@ -124,3 +124,5 @@ h2 {
 .shared-settings-execution-group .shared-settings-fields {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
 }
+
+.execution-actions .button { width: 56px; min-width: 56px; min-height: 44px; padding: 0; }

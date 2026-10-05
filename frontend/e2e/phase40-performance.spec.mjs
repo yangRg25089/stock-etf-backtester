@@ -48,7 +48,7 @@ test("saved NAV analysis is bilingual, accessible and independent of draft rate 
   await expect(runButton).toBeEnabled();
   expect(await runButton.evaluate(node => node.outerHTML)).toBe(originalRunControl);
   for (const locale of ["日本語", "中文"]) {
-    await page.getByRole("button", { name: locale, exact: true }).click();
+    await page.locator(".locale-select").selectOption(locale === "日本語" ? "ja" : locale === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 800 });
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
@@ -70,5 +70,5 @@ test("grid candidate details keep the saved risk-free assumption and exact trade
   const panel = page.locator("#result-panel-performance");
   await expect(panel.locator(".performance-basis")).toContainText("5%");
   await expect(panel.locator(".performance-stat").filter({ hasText: "買付回数" }).locator("dd")).toHaveText(String(candidate.metrics.analysis.buyCount));
-  await expect(panel.locator(".performance-owner")).toContainText(`#${candidate.sequence}`);
+  await expect(page.locator(".result-detail-name")).toContainText(`#${candidate.sequence}`);
 });

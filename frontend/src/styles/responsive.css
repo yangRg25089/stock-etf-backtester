@@ -8,7 +8,7 @@
     grid-template-rows: auto minmax(0, 1fr);
     width: calc(100% - 32px);
     max-width: none;
-    height: calc(100dvh - var(--app-topbar-height));
+    height: calc(100dvh - var(--app-topbar-height) - 26px);
     min-height: 0;
     padding: 10px 0 14px;
     overflow: hidden;
@@ -136,6 +136,7 @@
 @media (max-width: 767px) {
   :root {
     --app-topbar-height: 108px;
+    --table-expanded-sticky-top: var(--app-topbar-height);
   }
 
   .main-content {
@@ -179,7 +180,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: "brand locale" "controls controls";
     align-content: center;
-    min-height: var(--app-topbar-height);
+    min-height: 108px;
     gap: 8px 10px;
     padding: 6px 15px;
   }
@@ -270,9 +271,18 @@
 }
 
 @media (max-width: 420px) {
-  .topbar-right {
-    justify-content: flex-end;
+  .app-topbar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "brand palette locale" "controls controls tools";
   }
+
+  .topbar-right {
+    display: contents;
+  }
+
+  .return-color-control { grid-area: palette; }
+  .locale-select-control { grid-area: locale; }
+  .package-controls { grid-area: tools; justify-self: end; }
 
   .main-content {
     width: min(100% - 24px, 1180px);
@@ -295,8 +305,8 @@
   }
 
   .execution-actions .run-submit-button {
-    width: 44px;
-    flex: 0 0 44px;
+    width: 56px;
+    flex: 0 0 56px;
   }
 
   .catalog-error {
@@ -363,7 +373,8 @@
 }
 
 @media (pointer: coarse) {
-  .comparison-table-scroll, .trade-table-scroll { --table-controls-height: 52px; }
+  .app-topbar { padding-block: 5px; }
+  .table-height-controls { min-height: 52px; }
   .table-expand-button { min-width: 44px; min-height: 44px; }
   .comparison-sort { min-height: 44px; }
   .result-tab { min-height: 44px; }
@@ -441,4 +452,37 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+@media (max-width: 1000px) {
+  .package-action span:not(.run-button-spinner) { display: none; }
+  .package-action { min-width: 44px; min-height: 44px; padding: 0; }
+}
+@media (min-width: 768px) and (max-width: 1000px) {
+  .app-topbar {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas: "brand actions controls";
+    gap: 4px 8px;
+    min-height: 55px;
+    padding: 4px 10px;
+  }
+
+  .app-topbar:has(.selected-strategies) { grid-template-areas: "brand actions controls" "selected selected selected"; }
+  .topbar-brand { grid-area: brand; }
+  .topbar-brand .brand-name { display: none; }
+  .execution-actions { grid-area: actions; gap: 4px; }
+  .topbar-right { grid-area: controls; gap: 4px; min-width: 0; }
+  .selected-strategies { grid-area: selected; min-width: 0; }
+  .locale-select-control .locale-select { width: 96px; min-width: 96px; padding-inline: 6px 20px; }
+  .return-color-control { gap: 0; }
+  .return-color-option { min-width: 28px; padding-inline: 3px; }
+  .package-actions { gap: 4px; }
+  .package-action { min-width: 40px; min-height: 40px; padding: 0; }
+}
+@media (max-width: 420px) {
+  .app-topbar { grid-template-areas: "theme palette locale" "brand brand brand" "controls controls controls" "tools tools tools"; }
+  .package-controls { justify-self: start; }
+  .theme-control { grid-area: theme; }
+  .topbar-right { gap: 6px; }
 }

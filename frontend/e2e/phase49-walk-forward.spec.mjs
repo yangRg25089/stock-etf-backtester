@@ -3,14 +3,14 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { importPackage } from "./helpers/runtime.mjs";
+import { restoreSavedRecord } from "./helpers/runtime.mjs";
 
 const backend = path.resolve("../backend");
 const fixture = JSON.parse(execFileSync(path.join(backend, ".venv/bin/python"), ["tests/e2e/export_file_fixture.py", "--walk-forward"], {
   cwd: backend, env: { ...process.env, PYTHONPATH: backend }, encoding: "utf8",
 }));
 
-test("rolling windows, continuous OOS chart, selected signal parameters and offline exports", async ({ page }) => {
+test("rolling windows, continuous OOS chart, selected signal parameters and saved API exports", async ({ page }) => {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   let runRequests = 0;
@@ -20,7 +20,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and offl
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await importPackage(page, fixture.package);
+  await restoreSavedRecord(page, { ...fixture.record, csv: fixture.csv });
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await page.locator(".comparison-table").getByRole("button", { name: "グリッド検索", exact: true }).click();
   await expect(page.locator(".comparison-period").filter({ hasText: "ローリング検証" })).toBeVisible();
@@ -31,7 +31,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and offl
   await page.locator(".search-table .result-select").first().click();
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "false");
   await page.locator("#result-tab-trades").click();
-  await expect(page.locator(".result-trades-context")).toContainText("学習");
+  await expect(page.locator(".result-detail-name")).toContainText("学習");
   await page.locator("#result-tab-search").click();
   await page.locator(".search-window-select").selectOption("1");
   await expect(page.locator(".search-periods")).toContainText("2016-01-01 → 2020-12-31");
@@ -40,8 +40,8 @@ test("rolling windows, continuous OOS chart, selected signal parameters and offl
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".chart-overlay [data-result-id]").first()).toBeVisible();
   await page.locator("#result-tab-trades").click();
-  await expect(page.locator(".result-trades-context")).toContainText("ローリング検証");
-  await expect(page.locator(".result-trades-context")).toContainText("2020-01-01 → 2021-02-05");
+  await expect(page.locator(".result-detail-name")).toContainText("ローリング検証");
+  await expect(page.locator(".result-detail-name")).toContainText("2020-01-01 → 2021-02-05");
   for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {
     const waiting = page.waitForEvent("download");
     await page.locator(`[data-export-kind='${kind}']`).click();
@@ -54,7 +54,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and offl
   expect((await report).suggestedFilename()).toMatch(/\.png$/);
   await page.locator("#result-tab-search").click();
   for (const language of ["日本語", "中文"]) {
-    await page.getByRole("button", { name: language, exact: true }).click();
+    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

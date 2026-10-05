@@ -3,8 +3,9 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Catalog, Diagnostic, PresetDefinition, StrategyRules } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
+import { strategyInstanceName } from "../../shared/lib/strategyInstanceName";
 import { validateDraft } from "../../api/runs";
-import { serializeDraftForApi } from "./model";
+import { createStrategyDraft, serializeDraftForApi } from "./model";
 import { useDialogValidation } from "../../shared/ui/useDialogValidation";
 import { DiagnosticList } from "../runs/DiagnosticList";
 import { ParameterField } from "../../shared/ui/ParameterField";
@@ -98,21 +99,28 @@ export function StrategyEditorDialog({
   returnFocusRef,
 }: StrategyEditorDialogProps) {
   const [strategy, setStrategy] = useState(() => structuredClone(originalStrategy));
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const validation = useDialogValidation();
   const errors = validation.errors;
   const footerErrors = errors.filter(item => !catalog.parameters?.some(parameter => item.fieldPath?.endsWith(`.${parameter.key}`)));
   const dialogRef = useRef<HTMLDialogElement>(null);
   const preset = catalog.presets?.find((item) => item.id === strategy.presetId);
-  const closeDialog = () => void validation.attemptClose(dialogRef.current, async signal => {
-    const submitted = { ...draft, strategies: draft.strategies.map(item => item.id === strategy.id ? strategy : item) };
-    const response = await validateDraft(serializeDraftForApi(submitted), signal);
-    return [...(response.diagnostics ?? []), ...(response.strategies?.find(item => item.strategyId === strategy.id)?.diagnostics ?? [])];
-  }, () => {
-    onCommit(strategy);
-    if (dialogRef.current?.open) dialogRef.current.close();
-    returnFocusRef.current?.focus();
-    onClose();
-  });
+  const closeDialog = () => {
+    if (confirmingReset) {
+      setConfirmingReset(false);
+      return;
+    }
+    return void validation.attemptClose(dialogRef.current, async signal => {
+      const submitted = { ...draft, strategies: draft.strategies.map(item => item.id === strategy.id ? strategy : item) };
+      const response = await validateDraft(serializeDraftForApi(submitted), signal);
+      return [...(response.diagnostics ?? []), ...(response.strategies?.find(item => item.strategyId === strategy.id)?.diagnostics ?? [])];
+    }, () => {
+      onCommit(strategy);
+      if (dialogRef.current?.open) dialogRef.current.close();
+      returnFocusRef.current?.focus();
+      onClose();
+    });
+  };
 
   useEffect(() => {
     if (!focusFieldKey) return;
@@ -132,13 +140,13 @@ export function StrategyEditorDialog({
 
   if (!preset) return null;
 
-  const name = `${translate(locale, preset.nameKey)}${strategy.instanceNumber ? ` ${strategy.instanceNumber}` : ""}`;
+  const name = strategyInstanceName(translate(locale, preset.nameKey), strategy.instanceNumber);
   const hasError = errors.some((diagnostic) => diagnostic.severity === "error");
 
   const content = (
     <ModalShell dialogRef={dialogRef} className="strategy-dialog" id={`strategy-dialog-${strategy.id}`}
       labelledBy="strategy-editor-heading" describedBy="strategy-editor-description" onRequestClose={closeDialog}>
-      <div className="strategy-dialog-shell">
+      <div className={`strategy-dialog-shell${confirmingReset ? " is-reset-confirming" : ""}`}>
         <header className="strategy-dialog-heading">
           <div className="strategy-dialog-heading-copy">
             <h2 id="strategy-editor-heading">{name}</h2>
@@ -146,6 +154,13 @@ export function StrategyEditorDialog({
           </div>
           <div className="strategy-dialog-heading-actions">
             {hasError && <span className="strategy-nav-error">{translate(locale, "strategy.hasErrors")}</span>}
+            <button className="button icon-only-button strategy-dialog-reset" type="button"
+              aria-label={translate(locale, "strategy.reset")} title={translate(locale, "strategy.reset")}
+              disabled={validation.pending} onClick={() => { validation.clearErrors(); setConfirmingReset(true); }}>
+              <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <path d="M4 4v5h5M4.7 8A6.5 6.5 0 1 1 4 12" />
+              </svg>
+            </button>
             <button
               className="button icon-only-button strategy-dialog-close"
               type="button"
@@ -158,7 +173,20 @@ export function StrategyEditorDialog({
             </button>
           </div>
         </header>
-        <fieldset className="strategy-dialog-content dialog-fields" disabled={validation.pending}>
+        {confirmingReset && <div className="strategy-reset-confirmation" role="group" aria-label={translate(locale, "strategy.resetQuestion")}>
+          <p>{translate(locale, "strategy.resetQuestion")}</p>
+          <div>
+            <button className="button" type="button" onClick={() => setConfirmingReset(false)}>{translate(locale, "files.cancel")}</button>
+            <button className="button button-primary" type="button" onClick={() => {
+              const defaults = createStrategyDraft(catalog, strategy.presetId, strategy.id);
+              defaults.instanceNumber = strategy.instanceNumber;
+              setStrategy(defaults);
+              validation.clearErrors();
+              setConfirmingReset(false);
+            }}>{translate(locale, "strategy.reset")}</button>
+          </div>
+        </div>}
+        <fieldset className="strategy-dialog-content dialog-fields" disabled={validation.pending || confirmingReset}>
           <StrategyEditorForm
             catalog={catalog}
             strategy={strategy}

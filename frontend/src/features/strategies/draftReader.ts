@@ -1,6 +1,6 @@
 import type { Catalog, ConditionGroup, ConditionLeaf, ParameterDefinition, RunResponse, StrategyRules } from "../../api/generated";
 import { isBoundedJson, isNumericSearchValue, isRecord, matchesContract, runDataContext, validExecutionSettings } from "../../api/contractReader";
-import { createInitialWorkspaceState, createStrategyDraft, type BacktestDraft, type WorkspaceState } from "./model";
+import { createInitialWorkspaceState, createStrategyDraft, strategyInstanceLimit, type BacktestDraft, type WorkspaceState } from "./model";
 
 function parameterShape(value: unknown, definition: ParameterDefinition): boolean {
   if (value === null) return definition.nullable === true;
@@ -55,8 +55,9 @@ function validRules(value: unknown, catalog: Catalog, recoverFailed = false): va
 
 /** Check structure/catalog membership; business validation remains at the shared API. */
 export function readDraft(value: unknown, catalog: Catalog, failedIds: ReadonlySet<string> = new Set()): BacktestDraft | null {
+  const totalLimit = catalog.strategyLimits?.maxTotalInstances;
   if (!isBoundedJson(value) || !isRecord(value) || !isRecord(value.shared) || !Array.isArray(value.strategies)
-    || !value.strategies.length || value.strategies.length > (catalog.presets?.length ?? 12) + (catalog.strategyLimits?.maxCustomInstances ?? 10)) return null;
+    || !value.strategies.length || totalLimit === undefined || value.strategies.length > totalLimit) return null;
   if (Object.keys(value).some(key => !["shared", "strategies"].includes(key))) return null;
   const defaults = createInitialWorkspaceState(catalog).draft;
   const { shared } = value;
@@ -69,7 +70,7 @@ export function readDraft(value: unknown, catalog: Catalog, failedIds: ReadonlyS
   const contractShared = { run: shared.run, contribution, data, analysis, execution };
   if (!matchesContract("SharedSettings", contractShared) || (typeof shared.currency !== "undefined"
     && (typeof shared.currency !== "string" || !/^[A-Z]{3}$/.test(shared.currency)))) return null;
-  const executionDraft = { commission: String(execution.commission), slippagePct: String(execution.slippagePct), spreadPct: String(execution.spreadPct), fractionalShares: execution.fractionalShares === true };
+  const executionDraft = { commission: String(execution.commission), slippagePct: String(execution.slippagePct), spreadPct: String(execution.spreadPct), fractionalShares: execution.fractionalShares === true, capitalGainsTaxEnabled: execution.capitalGainsTaxEnabled === true };
   if (!validExecutionSettings(executionDraft)) return null;
   const strategies: BacktestDraft["strategies"] = [];
   const counts = new Map<string, number>();
@@ -79,7 +80,8 @@ export function readDraft(value: unknown, catalog: Catalog, failedIds: ReadonlyS
     const preset = catalog.presets?.find(preset => preset.id === item.presetId);
     if (!preset) return null;
     const count = (counts.get(preset.id) ?? 0) + 1;
-    if (count > (preset.id === "composite_dca" ? catalog.strategyLimits?.maxCustomInstances ?? 10 : catalog.strategyLimits?.maxFixedInstances ?? 1)) return null;
+    const perPresetLimit = strategyInstanceLimit(catalog);
+    if (perPresetLimit === undefined || count > perPresetLimit) return null;
     counts.set(preset.id, count);
     const recoverFailed = failedIds.has(item.id);
     const params = readParams(item.params ?? {}, preset.parameterKeys, catalog, recoverFailed);
@@ -89,7 +91,7 @@ export function readDraft(value: unknown, catalog: Catalog, failedIds: ReadonlyS
     if (typeof item.instanceNumber === "number") {
       if (!Number.isSafeInteger(item.instanceNumber) || item.instanceNumber < 1 || item.instanceNumber > 1_000_000) return null;
       strategy.instanceNumber = item.instanceNumber;
-    }
+    } else strategy.instanceNumber = count;
     if (item.rules !== undefined) strategy.rules = structuredClone(item.rules as StrategyRules | null);
     strategies.push(strategy);
   }
@@ -108,9 +110,14 @@ export function workspaceForDraft(draft: BacktestDraft, catalog: Catalog): { sta
     const sequence = Number(/-(\d+)$/.exec(strategy.id)?.[1] ?? 0);
     return Number.isSafeInteger(sequence) && sequence < 1_000_000 ? sequence : 0;
   })) + 1;
+  const nextInstanceNumberByPreset = Object.fromEntries((catalog.presets ?? []).map(preset => {
+    const instances = draft.strategies.filter(strategy => strategy.presetId === preset.id);
+    const next = Math.max(0, ...instances.map((strategy, index) => strategy.instanceNumber ?? index + 1)) + 1;
+    return [preset.id, instances.length ? next : 1];
+  }));
   return { state: { ...createInitialWorkspaceState(catalog), draft,
     activeStrategyId: draft.strategies[0]?.id ?? null,
-    nextCustomNumber: Math.max(0, ...draft.strategies.map(item => item.instanceNumber ?? 0)) + 1,
+    nextInstanceNumberByPreset,
   }, nextStrategySequence };
 }
 

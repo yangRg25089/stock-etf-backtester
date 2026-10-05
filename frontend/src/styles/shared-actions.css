@@ -5,7 +5,7 @@
 .strategy-navigator-heading h2 { margin-right: auto; }
 .strategy-navigator-heading .strategy-add { margin-left: 4px; }
 .run-stop-button { color: var(--app-red); border-color: var(--app-red); }
-.run-stop-button svg { fill: currentColor; stroke: none; }
+.run-stop-button svg { width: 19px; height: 19px; fill: currentColor; stroke: none; }
 .comparison-table tr.is-running { background: var(--app-selection-bg); }
 .result-waiting, .result-stopped { color: var(--app-muted); font-size: 17px; }
 .search-table tr.is-selected { background: var(--app-accent-soft); }

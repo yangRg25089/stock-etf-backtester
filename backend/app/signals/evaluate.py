@@ -155,7 +155,11 @@ def _evaluate_strategy(
                 is not None
             )
             evaluation = combine_conditions(
-                day, f"conditions.{side}:{node.id}", node.operator, children
+                day,
+                f"conditions.{side}:{node.id}",
+                node.operator,
+                children,
+                include_all_triggers=side == "buy",
             ).model_copy(update={"condition_id": node.id})
             evaluations.append(evaluation)
             return evaluation
@@ -177,7 +181,11 @@ def _evaluate_strategy(
         if buy is None or buy.signal_id != buy_id:
             evaluations.append(
                 combine_conditions(
-                    day, buy_id, ConditionLogic.AND, () if buy is None else (buy,)
+                    day,
+                    buy_id,
+                    ConditionLogic.AND,
+                    () if buy is None else (buy,),
+                    include_all_triggers=True,
                 )
             )
         sell = evaluate_node(rules.sell, "sell", day, f"strategies[{index}].rules.sell")

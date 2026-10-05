@@ -27,8 +27,9 @@ test("buy and sell markers use distinct fills and borders with narrow isosceles 
     quantity: "1", price: asset.simulationPrice, cashAmount: asset.simulationPrice, currency: "USD", signalId: "feedback.trade",
   }));
   await openSaved(page, saved);
-  await selectVix(page);
   await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  await selectVix(page);
+  await expect(page.locator(".chart-trade-marker")).toHaveCount(2);
   const legend = page.locator(`.chart-series-control[data-result-id="${strategy.id}"]`);
   await legend.hover();
   const read = selector => page.locator(selector).evaluate(node => ({
@@ -55,7 +56,7 @@ test("buy and sell markers use distinct fills and borders with narrow isosceles 
   await expect(page.locator(".chart-trade-marker")).toHaveCount(2);
   await page.mouse.move(0, 0);
   await legend.blur();
-  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  await expect(page.locator(".chart-trade-marker")).toHaveCount(2);
   await legend.focus();
   await expect(page.locator(".chart-trade-marker")).toHaveCount(2);
   await page.getByRole("button", { name: "期間を拡大", exact: true }).click();
@@ -73,6 +74,8 @@ test("buy and sell markers use distinct fills and borders with narrow isosceles 
     expect(x).toBeGreaterThanOrEqual(92);
     expect(x).toBeLessThanOrEqual(774);
   }
+  await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
+  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
 });
 
 test("saved results begin unselected and trade details visibly identify the independent focus", async ({ page }) => {
@@ -80,21 +83,21 @@ test("saved results begin unselected and trade details visibly identify the inde
   await openSaved(page, saved);
   const selected = page.locator('.comparison-table .result-select[aria-pressed="true"]');
   await expect(selected).toHaveCount(0);
-  await expect(page.locator(".comparison-table .is-selected, .comparison-table .is-focused")).toHaveCount(0);
+  await expect(page.locator(".comparison-table tbody tr.is-focused")).toHaveCount(0);
+  await expect(page.locator(".comparison-table .is-selected")).toHaveCount(0);
   await expect(page.locator(".result-snapshot-info, .result-saved-context")).toHaveCount(0);
   for (const name of ["ボラティリティ積立", "毎月定額積立", "一括投資"]) {
     const row = page.locator(".comparison-table").getByRole("button", { name, exact: true });
     await row.click();
     await page.getByRole("tab", { name: "取引明細", exact: true }).click();
-    await expect(page.locator(".result-trades-context")).toHaveText(name);
-    await page.getByRole("tab", { name: "戦略比較", exact: true }).click();
+    await expect(page.locator(".result-detail-name")).toHaveText(name);
   }
   await expect(selected).toHaveCount(3);
   await page.locator(".comparison-table").getByRole("button", { name: "毎月定額積立", exact: true }).click();
   await page.getByRole("tab", { name: "取引明細", exact: true }).click();
-  await expect(page.locator(".result-trades-context")).toHaveText("毎月定額積立");
-  await page.getByRole("button", { name: "中文", exact: true }).click();
-  await expect(page.locator(".result-trades-context")).toHaveText("每月定额定投");
+  await expect(page.locator(".result-detail-name")).toHaveText("毎月定額積立");
+  await page.locator(".locale-select").selectOption("zh");
+  await expect(page.locator(".result-detail-name")).toHaveText("每月定额定投");
   await page.reload();
   await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
 });
@@ -210,7 +213,7 @@ test("all strategy dialogs keep three ordered blocks with applicable limits acro
     await page.locator(`.strategy-add-option[data-preset-id="${preset}"]`).click();
   }
   for (const locale of ["日本語", "中文"]) {
-    await page.getByRole("button", { name: locale, exact: true }).click();
+    await page.locator(".locale-select").selectOption(locale === "日本語" ? "ja" : locale === "中文" ? "zh" : "en");
     for (const [index, preset] of presets.entries()) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await expect(page.locator(".workbench-config")).toBeVisible();

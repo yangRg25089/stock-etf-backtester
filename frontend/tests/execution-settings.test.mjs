@@ -11,7 +11,7 @@ const { TradingCostsPanel } = require("../.test-output/features/results/TradingC
 
 test("shared execution inputs and their API serialization use the catalog", () => {
   const state = createInitialWorkspaceState(catalog);
-  assert.deepEqual(state.draft.shared.execution, { commission: "0", slippagePct: "0", spreadPct: "0", fractionalShares: true });
+  assert.deepEqual(state.draft.shared.execution, { commission: "0", slippagePct: "0", spreadPct: "0", fractionalShares: true, capitalGainsTaxEnabled: false });
   state.draft.shared.execution = { commission: "2.25", slippagePct: "0.1", spreadPct: "0.2", fractionalShares: false };
   assert.deepEqual(serializeDraftForApi(state.draft).shared.execution, state.draft.shared.execution);
   const markup = renderToStaticMarkup(React.createElement(SharedSettingsForm, { catalog, value: state.draft.shared, locale: "zh", currency: "JPY", onChange() {} }));

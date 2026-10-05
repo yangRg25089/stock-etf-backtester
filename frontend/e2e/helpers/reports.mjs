@@ -32,7 +32,9 @@ export async function savedRun(page, presetId = "vix_dca", params = {}, editRule
   let saved;
   await expect.poll(async () => {
     saved = await (await page.request.get(`/api/v1/runs/${runId}`)).json();
-    return saved.status;
+    if (/^completed(?:_with_warning)?$/.test(saved.status)) return saved.status;
+    const errors = (saved.result?.strategyRuns ?? []).map(row => `${row.id}: ${(row.diagnostics ?? []).map(item => item.messageKey).join(",")}`).join("; ");
+    return `${saved.status} ${errors}`;
   }).toMatch(/^completed(?:_with_warning)?$/);
   const primary = saved.result.strategyRuns.find(row => row.id === "report-strategy");
   expect(primary.status, JSON.stringify(primary.diagnostics)).toMatch(/^completed(?:_with_warning)?$/);
@@ -62,6 +64,7 @@ export async function openSaved(page, saved) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+  await expect(page.locator(".result-interactions")).not.toBeDisabled();
 }
 
 export async function pngDownload(page, name, minWidth = 1000) {

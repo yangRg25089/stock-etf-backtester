@@ -22,6 +22,7 @@ export function SharedSettingsForm({ catalog, value, locale, onChange, errors = 
     "execution.slippagePct": value.execution?.slippagePct,
     "execution.spreadPct": value.execution?.spreadPct,
     "execution.fractionalShares": value.execution?.fractionalShares,
+    "execution.capitalGainsTaxEnabled": value.execution?.capitalGainsTaxEnabled,
   };
   const dependencies = { ...Object.fromEntries((catalog.parameters ?? []).map(({ key, default: item }) => [key, item])), ...values };
   const update = (key: SharedFieldKey, next: unknown) => {
@@ -37,7 +38,7 @@ export function SharedSettingsForm({ catalog, value, locale, onChange, errors = 
       onChange({ ...value, analysis: { riskFreeAnnualRatePct: next == null ? null : String(next) } });
     } else if (key.startsWith("execution.")) {
       const name = key.slice("execution.".length);
-      onChange({ ...value, execution: { ...value.execution!, [name]: name === "fractionalShares" ? next === true : next == null ? null : String(next) } });
+      onChange({ ...value, execution: { ...value.execution!, [name]: name === "fractionalShares" || name === "capitalGainsTaxEnabled" ? next === true : next == null ? null : String(next) } });
     } else {
       onChange({ ...value, contribution: { ...value.contribution, day: next == null || next === "" ? null : Number(next) } });
     }
@@ -76,7 +77,7 @@ export function SharedSettingsForm({ catalog, value, locale, onChange, errors = 
       </fieldset>
       <fieldset className="shared-settings-group shared-settings-execution-group">
         <legend>{translate(locale, "parameterGroups.execution")}</legend>
-        <div className="shared-settings-fields">{field("execution.commission")}{field("execution.slippagePct")}{field("execution.spreadPct")}{field("execution.fractionalShares")}</div>
+        <div className="shared-settings-fields">{field("execution.commission")}{field("execution.slippagePct")}{field("execution.spreadPct")}{field("execution.fractionalShares")}{field("execution.capitalGainsTaxEnabled")}</div>
       </fieldset>
     </div>
   </section>;

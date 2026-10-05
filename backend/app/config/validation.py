@@ -228,22 +228,24 @@ def _validate_strategy_counts(
     for index, strategy in enumerate(strategies):
         count = counts.get(strategy.preset_id, 0) + 1
         counts[strategy.preset_id] = count
-        custom = strategy.preset_id is StrategyPresetId.COMPOSITE_DCA
-        maximum = (
-            catalog.strategy_limits.max_custom_instances
-            if custom
-            else catalog.strategy_limits.max_fixed_instances
-        )
-        if count > maximum:
+        per_preset_maximum = catalog.strategy_limits.max_instances_per_preset
+        if count > per_preset_maximum:
             diagnostics.append(
                 invalid_parameter(
-                    issue=ConfigurationIssue.TOO_MANY_STRATEGIES
-                    if custom
-                    else ConfigurationIssue.DUPLICATE_STRATEGY,
+                    issue=ConfigurationIssue.TOO_MANY_STRATEGIES,
                     field_path=f"strategies[{index}].presetId",
-                    details={"maximum": maximum},
+                    details={"maximum": per_preset_maximum},
                 )
             )
+    total_maximum = catalog.strategy_limits.max_total_instances
+    if len(strategies) > total_maximum:
+        diagnostics.append(
+            invalid_parameter(
+                issue=ConfigurationIssue.TOO_MANY_STRATEGIES,
+                field_path=f"strategies[{total_maximum}].presetId",
+                details={"maximum": total_maximum},
+            )
+        )
     return tuple(diagnostics)
 
 

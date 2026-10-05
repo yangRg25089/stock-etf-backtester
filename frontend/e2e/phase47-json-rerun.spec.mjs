@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backtestFile, importPackage } from "./helpers/runtime.mjs";
+import { strategyFile, importPackage } from "./helpers/runtime.mjs";
 import { savedRun } from "./helpers/reports.mjs";
 
 async function execute(page) {
@@ -29,9 +29,9 @@ test("saved inputs survive refresh and rerun through the real API validation bou
   expect(errors).toEqual([]);
 });
 
-test("an exported result configuration can be imported and executed again", async ({ page }) => {
+test("a saved strategy configuration can be imported and executed again", async ({ page }) => {
   const saved = await savedRun(page);
   await page.goto("/");
-  await importPackage(page, backtestFile(saved));
+  await importPackage(page, strategyFile(saved));
   await execute(page);
 });

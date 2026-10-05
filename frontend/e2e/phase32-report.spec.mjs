@@ -24,7 +24,7 @@ test("PNG contains frozen full-range results in both locales and survives draft 
   expect(reportText).toContain(new Intl.NumberFormat("ja-JP", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(primary.metrics.endingEquity)));
   expect(reportText).toContain(saved.runId);
   await expect.poll(() => page.evaluate(() => window.reportAudit.revoked)).toBe(1);
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await pngDownload(page, "report-zh.png");
   expect(await page.evaluate(() => window.reportAudit.text.join("\n"))).toContain("回测结果报告");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);

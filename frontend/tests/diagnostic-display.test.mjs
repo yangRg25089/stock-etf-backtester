@@ -45,7 +45,7 @@ test("collapsed field errors can show the readable field label without exposing 
   assert.doesNotMatch(html, /strategies\[0\]|rules\.buy|rsi\.period/);
 });
 
-test("backend diagnostic messages have readable Japanese and Chinese text", () => {
+test("backend diagnostic messages have readable Japanese, Chinese and English text", () => {
   function diagnosticKeys(directory) {
     return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
       const path = join(directory, entry.name);
@@ -57,7 +57,7 @@ test("backend diagnostic messages have readable Japanese and Chinese text", () =
   }
   const keys = [...new Set(diagnosticKeys(new URL("../../backend/app", import.meta.url).pathname))];
   assert.ok(keys.length > 30);
-  for (const locale of ["ja", "zh"]) {
+  for (const locale of ["ja", "zh", "en"]) {
     for (const messageKey of keys) {
       const html = renderToStaticMarkup(React.createElement(DiagnosticList, { locale, diagnostics: [{ code: "stale_data", severity: "warning", messageKey }] }));
       assert.ok(!html.includes(messageKey), `${locale}: missing diagnostic translation ${messageKey}`);

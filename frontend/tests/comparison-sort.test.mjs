@@ -24,10 +24,16 @@ test("numeric sorting handles negative, zero, null, legacy and stable ties", () 
   for (const { key } of COMPARISON_COLUMNS) assert.equal(sortedComparisons(results, { key, direction:"ascending" }, "zh").length, 5);
 });
 
+test("comparison sorting preserves precision beyond floating-point resolution", () => {
+  const results = [make("small", 0.1, { endingEquity: "10.0000000000000000001" }),
+    make("large", 0.2, { endingEquity: "10.0000000000000000002" })];
+  assert.deepEqual(sortedComparisons(results, { key: "endingEquity", direction: "descending" }, "en").map(result => result.id), ["large", "small"]);
+});
+
 test("all allowed strategies and automatic benchmarks have distinct colors", () => {
   const catalog = JSON.parse(readFileSync(new URL("../.test-output/catalog.json", import.meta.url), "utf8"));
   const fixed = catalog.presets.filter(preset => !["composite_dca", "monthly_dca", "lump_sum"].includes(preset.id)).length;
-  const count = fixed + catalog.strategyLimits.maxCustomInstances + 2;
+  const count = fixed + catalog.strategyLimits.maxTotalInstances + 2;
   const colors = Array.from({ length:count }, (_, index) => resultColor(index));
   assert.equal(new Set(colors).size, count);
   for (const color of colors) {

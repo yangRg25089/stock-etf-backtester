@@ -42,7 +42,7 @@ test("legend identifies the underlying closing price in both languages", async (
   await openSaved(page, await computed(page));
   const price = page.locator('.chart-series-control[data-series="price"]');
   await expect(price).toHaveAccessibleName("銘柄の終値 (USD)");
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await expect(price).toHaveAccessibleName("标的收盘价 (USD)");
 });
 
@@ -56,7 +56,12 @@ test("legend hover and click use identical curves, fills and trade points with c
   await openSaved(page, saved);
   await selectResult(page, "ボラティリティ積立");
   const pinned = legend(page, primary.id);
-  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  await expect(pinned).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".chart-trade-marker")).toHaveCount(2);
+  await pinned.click();
+  await leaveLegend(page);
+  await expect(pinned).toHaveAttribute("aria-pressed", "false");
+  expect(await appearance(page)).toEqual({ lines: [], areas: [], markers: [] });
   await pinned.hover();
   const hovering = await appearance(page);
   expect(hovering.lines).toHaveLength(1);
@@ -87,24 +92,21 @@ test("legend hover and click use identical curves, fills and trade points with c
   expect((await appearance(page)).markers).toHaveLength(0);
 });
 
-test("legend pin cannot return after its strategy or core series is hidden", async ({ page }) => {
+test("deselection clears the strategy pin and keeps the last core series visible", async ({ page }) => {
   const saved = await computed(page);
   await openSaved(page, saved);
   await selectResult(page, "ボラティリティ積立");
   const primary = legend(page, saved.result.strategyRuns[0].id);
+  await expect(primary).toHaveAttribute("aria-pressed", "true");
   await primary.click();
   await leaveLegend(page);
+  await expect(primary).toHaveAttribute("aria-pressed", "false");
   await selectResult(page, "ボラティリティ積立");
   await expect(primary).toHaveCount(0);
-  await selectResult(page, "ボラティリティ積立");
-  await expect(primary).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".chart-highlight-area, .chart-trade-marker")).toHaveCount(0);
-  const price = page.locator('.chart-series-control[data-series="price"]');
-  await price.click();
-  await page.locator('.chart-legend button[data-series="price"]').click();
-  await expect(price).toHaveCount(0);
-  await page.locator('.chart-legend button[data-series="price"]').click();
-  await expect(price).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".chart-trade-marker, .comparison-overlay-series-line.is-highlighted")).toHaveCount(0);
+  const priceToggle = page.locator('.chart-legend button[data-series="price"]');
+  await expect(priceToggle).toBeDisabled();
+  await expect(priceToggle).toHaveAttribute("aria-pressed", "true");
 });
 
 test("permanent readings group market data first and follow the selected comparison ranking", async ({ page }) => {
@@ -147,14 +149,19 @@ test("permanent readings group market data first and follow the selected compari
 });
 
 test("comparison and trade tables expand all rows vertically and retain their widths", async ({ page }) => {
-  const extra = Array.from({ length: 10 }, (_, index) => ({ id: `custom-${index}`, presetId: "composite_dca", params: {} }));
+  // Include the primary: five instances per type and ten user strategies in total.
+  const extra = [
+    ...Array.from({ length: 5 }, (_, index) => ({ id: `custom-${index}`, presetId: "composite_dca", params: {} })),
+    ...Array.from({ length: 4 }, (_, index) => ({ id: `volatility-copy-${index}`, presetId: "vix_dca", params: {} })),
+  ];
   const saved = await computed(page, extra);
   const primary = saved.result.strategyRuns[0];
   primary.trades = Array.from({ length: 80 }, (_, index) => ({ ...saved.result.strategyRuns.find(result => result.presetId === "monthly_dca").trades[0], date: primary.dailyAssets[index % primary.dailyAssets.length].date }));
   await openSaved(page, saved);
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(12);
   let runRequests = 0;
   page.on("request", request => { if (request.url().includes("/api/v1/runs")) runRequests++; });
-  const comparison = page.locator(".comparison-table-scroll");
+  const comparison = page.locator(".comparison-table-region");
   const check = async (container, table, name) => {
     const expand = container.getByRole("button", { name: `${name}を全行表示`, exact: true });
     const before = await container.boundingBox();
@@ -176,10 +183,10 @@ test("comparison and trade tables expand all rows vertically and retain their wi
   };
   await check(comparison, comparison.locator("table"), "戦略比較");
   await page.getByRole("tab", { name: "取引明細", exact: true }).click();
-  const trades = page.locator(".trade-table-scroll");
+  const trades = page.locator(".trade-table-region");
   await check(trades, trades.locator("table"), "取引明細");
   expect(runRequests).toBe(0);
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await expect(trades.getByRole("button", { name: "展开全部交易明细", exact: true })).toBeVisible();
 });
 
@@ -210,15 +217,10 @@ test("touch legend selection and release never leave a synthetic hover behind", 
     await page.goto("/");
     await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).tap();
     const control = legend(page, saved.result.strategyRuns[0].id);
-    await control.tap();
     await expect(control).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".chart-highlight-area")).toHaveCount(1);
     await control.tap();
     await expect(control).toHaveAttribute("aria-pressed", "false");
-    await expect(page.locator(".chart-highlight-area, .chart-trade-marker")).toHaveCount(0);
-    await control.tap();
-    await expect(control).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".chart-highlight-area")).toHaveCount(1);
+    await expect(page.locator(".chart-trade-marker, .comparison-overlay-series-line.is-highlighted")).toHaveCount(0);
     const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     expect(report.violations).toEqual([]);
   } finally { await context.close(); }
@@ -232,13 +234,14 @@ test("table height controls stay visible through horizontal scroll and saved-run
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/");
   const comparison = page.locator(".comparison-table-scroll");
-  const toggle = comparison.locator(".table-expand-button");
+  const region = page.locator(".comparison-table-region");
+  const toggle = region.locator(".table-expand-button");
   for (const scroll of [0, 300, 10000]) {
     await comparison.evaluate((node, left) => { node.scrollLeft = left; }, scroll);
     const control = await toggle.boundingBox();
-    const region = await comparison.boundingBox();
-    expect(control.x).toBeGreaterThanOrEqual(region.x);
-    expect(control.x + control.width).toBeLessThanOrEqual(region.x + region.width);
+    const scrollRegion = await comparison.boundingBox();
+    expect(control.x).toBeGreaterThanOrEqual(scrollRegion.x);
+    expect(control.x + control.width).toBeLessThanOrEqual(scrollRegion.x + scrollRegion.width);
   }
   await comparison.evaluate(node => { node.scrollLeft = 0; });
   await toggle.click();
@@ -249,8 +252,9 @@ test("table height controls stay visible through horizontal scroll and saved-run
   await installRunFixture(page, replacement);
   await page.reload();
   await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
-  await expect(page.locator(".comparison-table-scroll .table-expand-button")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".comparison-table-region .table-expand-button")).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator(".comparison-table th[aria-sort]")).toContainText("投入額に対する利益率");
   await expect(page.locator('.chart-series-control[aria-pressed="true"]')).toHaveCount(0);
-  await expect(page.locator(".chart-highlight-area, .chart-trade-marker, .chart-strategy-readout")).toHaveCount(0);
+  await expect(page.locator(".chart-trade-marker, .comparison-overlay-series-line.is-highlighted")).toHaveCount(0);
+  await expect(page.locator(".chart-strategy-readout[aria-pressed='true']")).toHaveCount(0);
 });

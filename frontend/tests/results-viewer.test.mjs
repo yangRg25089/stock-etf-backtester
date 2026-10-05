@@ -189,7 +189,7 @@ test("KPI, chart, trades, and exports use the focused saved result, not the acti
     dispatch() {},
   }));
 
-  assert.match(html, /class="result-trades-context"[^>]*>\s*每月定额定投/);
+  assert.match(html, /class="result-detail-name"[^>]*>\s*每月定额定投/);
   assert.match(html, /波动率买入信号/);
   assert.doesNotMatch(html, /移動平均トレンド/);
   assert.match(html, /2024-02-02/);
@@ -217,13 +217,12 @@ test("result details leads with one complete comparison table and no duplicate K
   assert.doesNotMatch(html, /results\.detailsEntry/);
   assert.doesNotMatch(html, /result-snapshot-info|QQQ · 2020-01-01 — 2024-02-02/);
   assert.doesNotMatch(html, /class="result-run-id"/);
-  assert.match(html, /class="result-trades-context"[^>]*>\s*每月定额定投/);
+  assert.match(html, /class="result-detail-name"[^>]*>\s*每月定额定投/);
   assert.match(html, /aria-controls="result-chart-panel-content"[^>]*aria-expanded="true"|aria-expanded="true"[^>]*aria-controls="result-chart-panel-content"/);
-  assert.match(html, /class="result-trades-context"[^>]*>\s*每月定额定投/);
+  assert.match(html, /class="result-detail-name"[^>]*>\s*每月定额定投/);
   assert.match(html, /data-export-kind="summary"/);
   assert.equal((html.match(/class="metric-card"/g) ?? []).length, 0);
   assert.match(html, /已投入本金/);
-  assert.match(html, /注入本金/);
   assert.match(html, /期末资产/);
   assert.match(html, /投入回报率/);
   assert.match(html, /年化回报/);
@@ -335,19 +334,31 @@ test("request and partial failures stay visible while draft edits do not add res
   assert.doesNotMatch(staleHtml, /result-snapshot-info|QQQ · 2020-01-01 — 2024-02-02/);
 });
 
-test("saved details default to comparison, consolidate metrics, and gate search by result data", () => {
+test("comparison remains primary while detail tabs default to trades and search is gated by result data", () => {
   const state = workspaceWithRun();
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "ja",
     state,
     dispatch() {},
   }));
-  assert.match(html, /role="tablist" aria-label="実行結果"/);
+  assert.match(html, /role="tablist" aria-label="実行結果の詳細"/);
   assert.match(html, /id="result-details"[^>]*tabindex="-1"/);
-  assert.ok(resultViewerSource.includes('key={run?.runId ?? "no-run"}'));
-  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>戦略比較/);
-  assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>取引明細/);
+  assert.match(html, /id="result-strategy-details"[^>]*tabindex="-1"/);
+  assert.ok(resultViewerSource.includes('key={`run-results:${run?.runId ?? "empty"}`}'));
+  assert.ok(resultViewerSource.includes('key={`strategy-details:${run.runId}`}'));
+  const summaryCardStart = html.indexOf('id="result-details"');
+  const comparisonStart = html.indexOf('id="result-panel-comparison"');
+  const detailCardStart = html.indexOf('id="result-strategy-details"');
+  const detailTargetStart = html.indexOf('class="result-detail-target"');
+  const tabsStart = html.indexOf('role="tablist" aria-label="実行結果の詳細"');
+  assert.ok(summaryCardStart < comparisonStart && comparisonStart < detailCardStart && detailCardStart < detailTargetStart && detailTargetStart < tabsStart);
+  assert.doesNotMatch(html.slice(summaryCardStart, detailCardStart), /id="result-tab-trades"/);
+  assert.doesNotMatch(html.slice(detailCardStart), /id="result-panel-comparison"/);
+  assert.doesNotMatch(html, /id="result-tab-comparison"|role="tab"[^>]*>戦略比較/);
+  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>取引明細/);
   assert.doesNotMatch(html, /role="tab"[^>]*>検索結果/);
+  assert.match(html, /class="result-detail-target"[^>]*aria-label="明細対象"/);
+  assert.match(html, /class="result-detail-name"[^>]*>毎月定額積立/);
   assert.doesNotMatch(html, /result-panel-metrics|result-panel-overview/);
   assert.match(html, /損益/);
   assert.doesNotMatch(html, /CSV 出力<\/button>/);
@@ -369,6 +380,28 @@ test("saved details default to comparison, consolidate metrics, and gate search 
   assert.match(searchHtml, /role="tab"[^>]*>検索結果/);
 });
 
+test("detail focus has no last-click comparison-row treatment or chart selection", () => {
+  const state = workspaceWithRun();
+  state.selectedResultIds = [];
+  state.focusedResultId = "benchmark-dca";
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "ja", state, dispatch() {},
+  }));
+  const focusedRow = html.match(/<tr(?=[^>]*data-result-id="benchmark-dca")[^>]*>[\s\S]*?<\/tr>/)?.[0];
+  assert.ok(focusedRow, "detail result row remains available in the comparison table");
+  assert.doesNotMatch(focusedRow, /is-selected|is-focused|aria-current/);
+  assert.match(focusedRow, /aria-pressed="false"/);
+});
+
+test("comparison navigation uses one named scroll region without a duplicate outer landmark", () => {
+  const html = renderToStaticMarkup(React.createElement(ResultViewer, {
+    locale: "ja", state: workspaceWithRun(), dispatch() {},
+  }));
+  assert.doesNotMatch(html, /<section[^>]*id="result-panel-comparison"[^>]*aria-labelledby=/);
+  assert.match(html, /role="region" aria-label="実行結果の比較"/);
+  assert.match(html, /<caption class="sr-only">実行結果の比較<\/caption>/);
+});
+
 test("trade tables render directly and remain available independently of chart collapse", () => {
   const state = workspaceWithRun();
   state.showChart = true;
@@ -383,7 +416,7 @@ test("trade tables render directly and remain available independently of chart c
   assert.match(chartOnly, /id="result-chart-panel-heading"[^>]*>.*?<span>資産推移<\/span>/s);
   assert.doesNotMatch(chartOnly, /display-toggle|result-display-heading|trade-display-icon/);
   assert.match(chartOnly, /class="sr-only" id="result-comparison-heading">実行結果の比較/);
-  assert.match(chartOnly, /class="result-trades-context" id="result-trades-heading"[^>]*>\s*毎月定額積立/);
+  assert.match(chartOnly, /class="result-detail-name"[^>]*>\s*毎月定額積立/);
 
   state.showChart = false;
   const tradesOnly = renderToStaticMarkup(React.createElement(ResultViewer, {
@@ -472,8 +505,8 @@ test("an empty workspace keeps the details card first and every CSV kind visible
   }));
   assert.ok(html.indexOf('id="result-details"') >= 0);
   assert.match(html, /还没有结果/);
-  assert.equal((html.match(/<button[^>]*disabled/g) ?? []).length, 6);
-  assert.match(html, /saved-data-button" disabled/);
+  assert.equal((html.match(/<button[^>]*disabled/g) ?? []).length, 5);
+  assert.doesNotMatch(html, /saved-data-button|保存データ|保存行情说明|Saved data/);
   assert.match(html, /data-report-kind="png" disabled/);
   assert.match(html, /data-export-kind="summary" disabled/);
   assert.match(html, /data-export-kind="search-results" disabled/);
@@ -486,12 +519,12 @@ test("comparison withholds failed metrics without role or status columns", () =>
   const render = () => renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
   const partial = render();
   assert.doesNotMatch(partial, /status-tag/);
-  assert.equal((partial.match(/>—<\/td>/g) ?? []).length, 8);
+  assert.equal((partial.match(/>—(?:<\/span>)?<\/td>/g) ?? []).length, 9);
   assert.doesNotMatch(partial, /run-status-panel|run-strategy-statuses|部分策略已完成/);
   state.runResponse.status = "failed";
   state.runResponse.result.strategyRuns[1].status = "failed";
   const failed = render();
-  assert.equal((failed.match(/>—<\/td>/g) ?? []).length, 16);
+  assert.equal((failed.match(/>—(?:<\/span>)?<\/td>/g) ?? []).length, 16);
   assert.doesNotMatch(failed, /status-tag/);
 });
 
@@ -514,7 +547,7 @@ test("pending jobs withhold comparison metrics without a status column or progre
   const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
   assert.doesNotMatch(html, /pending-run-id|run-status-panel|progress-copy|run-strategy-details/);
   assert.doesNotMatch(html, /status-tag/);
-  assert.equal((html.match(/>—<\/td>/g) ?? []).length, 16);
+  assert.equal((html.match(/>—(?:<\/span>)?<\/td>/g) ?? []).length, 16);
 });
 
 test("result errors announce one localized reason when the API title duplicates its diagnostic", () => {
@@ -529,12 +562,13 @@ test("result errors announce one localized reason when the API title duplicates 
   assert.doesNotMatch(html, /run-status-panel/);
 });
 
- test("comparison is the sole metrics page and exports visibly indicate CSV download", () => {
+ test("comparison is a primary overview and exports visibly indicate CSV download", () => {
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "zh", state: workspaceWithRun(), dispatch() {}, error: null,
   }));
   assert.doesNotMatch(html, /result-focus-select|result-panel-overview|result-panel-metrics/);
-  assert.match(html, /id="result-tab-comparison"[^>]*aria-selected="true"/);
+  assert.doesNotMatch(html, /id="result-tab-comparison"/);
+  assert.ok(html.indexOf('id="result-panel-comparison"') < html.indexOf('id="result-tab-trades"'));
   assert.match(html, /汇总.csv/);
   assert.match(html, /class="export-download-icon"/);
 });
@@ -546,6 +580,6 @@ test("result info and repeated ticker or dates are absent in every saved run sta
     state.runResponse.status = status;
     const html = renderToStaticMarkup(React.createElement(ResultViewer, { locale: "ja", state, dispatch() {}, error: null }));
     assert.doesNotMatch(html, /result-snapshot-info|保存した設定|result-saved-context|result-saved-range|QQQ · 相対|QQQ · 価格/);
-    assert.match(html, /class="result-trades-context"[^>]*>\s*毎月定額積立/);
+    assert.match(html, /class="result-detail-name"[^>]*>\s*毎月定額積立/);
   }
 });

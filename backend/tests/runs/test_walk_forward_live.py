@@ -168,14 +168,14 @@ def test_real_walk_forward_training_ranks_oos_fees_nav_and_saved_export():
                     baseline,
                     provider.observed["walk-real"],
                 )
-            file = (await client.get(f"/api/v1/runs/{run_id}/package")).json()
-            assert len(file["candidateDetails"]) == 5
-            assert (
-                file["candidateDetails"][search["outOfSample"]["resultId"]][
-                    "dailyAssets"
-                ]
-                == parent["dailyAssets"]
+            oos = await client.get(
+                f"/api/v1/runs/{run_id}/candidates/{search['outOfSample']['resultId']}"
             )
+            assert oos.status_code == 200, oos.text
+            assert oos.json()["dailyAssets"] == parent["dailyAssets"]
+            assert (
+                await client.get(f"/api/v1/runs/{run_id}/package")
+            ).status_code == 404
 
     try:
         asyncio.run(verify())

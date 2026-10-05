@@ -1,5 +1,4 @@
 export const diagnosticsMessages: Record<string, string> = {
-  "data.savedInfo": "保存行情说明",
   "data.providers": "提供方",
   "data.currency": "币种",
   "data.requestedPeriod": "指定期间",

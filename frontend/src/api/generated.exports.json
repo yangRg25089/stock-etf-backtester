@@ -44,6 +44,7 @@
     "commission",
     "slippageCost",
     "spreadCost",
+    "capitalGainsTax",
     "totalTradingCost"
   ],
   "daily-assets": [
@@ -67,6 +68,7 @@
     "commission",
     "slippageCost",
     "spreadCost",
+    "capitalGainsTax",
     "totalTradingCost"
   ],
   "trades": [
@@ -93,6 +95,7 @@
     "commission",
     "slippageCost",
     "spreadCost",
+    "capitalGainsTax",
     "totalTradingCost"
   ],
   "search-results": [
@@ -139,6 +142,7 @@
     "commission",
     "slippageCost",
     "spreadCost",
+    "capitalGainsTax",
     "totalTradingCost"
   ],
   "search-evaluation": [
@@ -182,6 +186,7 @@
     "testCommission",
     "testSlippageCost",
     "testSpreadCost",
+    "testCapitalGainsTax",
     "testTotalTradingCost",
     "walkForwardWindow",
     "selectedForTesting",
@@ -222,6 +227,7 @@
     "outOfSampleCommission",
     "outOfSampleSlippageCost",
     "outOfSampleSpreadCost",
+    "outOfSampleCapitalGainsTax",
     "outOfSampleTotalTradingCost"
   ],
   "test-metrics": [
@@ -257,6 +263,7 @@
     "testCommission",
     "testSlippageCost",
     "testSpreadCost",
+    "testCapitalGainsTax",
     "testTotalTradingCost"
   ],
   "out-of-sample-metrics": [
@@ -292,6 +299,7 @@
     "outOfSampleCommission",
     "outOfSampleSlippageCost",
     "outOfSampleSpreadCost",
+    "outOfSampleCapitalGainsTax",
     "outOfSampleTotalTradingCost"
   ],
   "analysis": [
@@ -319,6 +327,7 @@
     "commission",
     "slippageCost",
     "spreadCost",
+    "capitalGainsTax",
     "totalTradingCost"
   ],
   "provenance": [
@@ -332,6 +341,7 @@
     "annualizedVolatility",
     "averageCashRatio",
     "calmarRatio",
+    "capitalGainsTax",
     "capitalMultiple",
     "cash",
     "cashAfter",

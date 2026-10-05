@@ -23,7 +23,7 @@
   z-index: 20;
   top: 0;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
@@ -79,30 +79,21 @@
 }
 
 
-.locale-switch {
+.locale-select-control {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
+}
+
+.locale-select-control .locale-select {
+  min-width: 124px;
+  min-height: 36px;
+  padding: 5px 30px 5px 10px;
+  color: var(--app-foreground);
+  background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
-}
-
-.locale-switch button {
-  min-width: 52px;
-  min-height: 32px;
-  padding: 4px 8px;
-  color: var(--app-muted);
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
   font-size: 12px;
-}
-
-.locale-switch button[aria-pressed="true"] {
-  color: var(--app-foreground);
-  background: var(--app-accent-soft);
-  font-weight: 650;
+  cursor: pointer;
 }
 
 .main-content {
@@ -117,7 +108,7 @@
   gap: 10px;
   width: calc(100% - 32px);
   max-width: 1920px;
-  height: calc(100dvh - var(--app-topbar-height));
+  height: calc(100dvh - var(--app-topbar-height) - 26px);
   min-height: 0;
   margin: 0 auto;
   padding: 10px 0 14px;
@@ -175,6 +166,8 @@
 }
 
 .workbench-divider .workbench-config-toggle {
+  position: relative;
+  z-index: 1;
   width: 100%;
   min-width: 0;
 }
@@ -249,7 +242,20 @@
   grid-column: 2;
   min-width: 24px;
   padding-top: 8px;
-  background: linear-gradient(90deg, transparent calc(50% - .5px), var(--app-border) calc(50% - .5px), var(--app-border) calc(50% + .5px), transparent calc(50% + .5px));
+  background: none;
+}
+
+.workbench-divider::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 0;
+  width: 1px;
+  background: var(--app-border);
+  content: "";
+  pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .workbench-config-toggle svg,
@@ -328,3 +334,15 @@
   background: var(--app-surface-muted);
   border-color: var(--app-border-strong);
 }
+
+.brand-name, label, th, dt, .field-help, .chart-readout { cursor: default; }
+button, button span, button strong { cursor: inherit; user-select: none; }
+
+.selected-strategies { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; min-width: 0; grid-column: 1 / -1; font-size: 11px; }
+.selected-strategy-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 200px; padding: 3px 8px; color: var(--app-foreground); background: color-mix(in srgb, var(--result-color) 10%, var(--app-surface)); border: 1px solid var(--result-color); border-radius: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.selected-strategy-chip span { color: var(--result-color); }
+
+.app-footer { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 26px; color: var(--app-muted); font-size: 11px; cursor: default; }
+.app-footer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.theme-control { min-width: 38px; min-height: 36px; }
+.theme-control svg { width: 20px; height: 20px; }

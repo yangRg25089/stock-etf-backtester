@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { savedRun } from "./helpers/reports.mjs";
-import { importPackage, installRunFixture } from "./helpers/runtime.mjs";
+import { restoreSavedRecord, fetchSavedRecord, installRunFixture } from "./helpers/runtime.mjs";
 
 async function openSearch(page, saved) {
   await installRunFixture(page, saved);
@@ -21,14 +21,34 @@ test("saved heatmap fixes the third dimension, switches stages/metrics and opens
     "search.values.accumulation.cashSafetyLimit": [100, 200],
   }, rules => { rules.buy = rules.buy.children.find(item => item.kind === "vix"); rules.sell = null; });
   const grid = saved.result.strategyRuns.find(row => row.searchResult);
-  const file = await (await page.request.get(`/api/v1/runs/${saved.runId}/package`)).json();
+  const file = await fetchSavedRecord(page, saved);
   const lab = await openSearch(page, saved);
+  const sequenceHeader = page.locator(".search-table thead th").first();
+  await sequenceHeader.locator("button").click();
+  await expect(sequenceHeader).toHaveAttribute("aria-sort", "ascending");
+  const ascendingSequence = Math.min(...grid.searchResult.candidates.map(row => row.sequence));
+  await expect(page.locator(".search-table tbody tr").first().locator("th button")).toHaveText(String(ascendingSequence));
+  await sequenceHeader.locator("button").click();
+  await expect(sequenceHeader).toHaveAttribute("aria-sort", "descending");
+  const descendingSequence = Math.max(...grid.searchResult.candidates.map(row => row.sequence));
+  await expect(page.locator(".search-table tbody tr").first().locator("th button")).toHaveText(String(descendingSequence));
+
   await lab.getByLabel("X", { exact: true }).selectOption("vix.buyThreshold");
   await lab.getByLabel("Y", { exact: true }).selectOption("rsi.buyThreshold");
   await lab.getByLabel("現金安全上限", { exact: true }).selectOption({ label: "200" });
   await expect(lab.locator(".search-heatmap-table thead th")).toHaveText(["RSI買付しきい値", "20", "25", "30"]);
   await expect(lab.locator(".search-heatmap-table tbody th")).toHaveText(["25", "35"]);
   await expect(lab.locator(".search-heat-cell")).toHaveCount(6);
+  const xSort = lab.locator(".search-matrix-caption button").nth(0);
+  const ySort = lab.locator(".search-matrix-caption button").nth(1);
+  await xSort.click();
+  await expect(lab.locator(".search-heatmap-table thead th")).toHaveText(["RSI買付しきい値", "30", "25", "20"]);
+  await ySort.click();
+  await expect(lab.locator(".search-heatmap-table tbody th")).toHaveText(["35", "25"]);
+  await xSort.click();
+  await ySort.click();
+  await expect(lab.locator(".search-heatmap-table thead th")).toHaveText(["RSI買付しきい値", "20", "25", "30"]);
+  await expect(lab.locator(".search-heatmap-table tbody th")).toHaveText(["25", "35"]);
   const candidate = grid.searchResult.candidates.find(row => Number(row.parameterValues["vix.buyThreshold"]) === 20
     && Number(row.parameterValues["rsi.buyThreshold"]) === 25 && Number(row.parameterValues["accumulation.cashSafetyLimit"]) === 200);
   await lab.getByLabel("指標", { exact: true }).selectOption("drawdown");
@@ -49,7 +69,7 @@ test("saved heatmap fixes the third dimension, switches stages/metrics and opens
   await lab.getByRole("button", { name: "ヒートマップ", exact: true }).click();
   expect(await lab.getByLabel("X", { exact: true }).inputValue()).not.toBe(await lab.getByLabel("Y", { exact: true }).inputValue());
   for (const language of ["日本語", "中文"]) {
-    await page.getByRole("button", { name: language, exact: true }).click();
+    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
@@ -60,7 +80,7 @@ test("saved heatmap fixes the third dimension, switches stages/metrics and opens
   await lab.screenshot({ path: test.info().outputPath("search-lab.png") });
   let requests = 0;
   await page.route("**/api/v1/runs/**", route => { requests++; return route.abort(); });
-  await importPackage(page, file);
+  await restoreSavedRecord(page, file);
   await page.locator(".comparison-table").getByRole("button", { name: "网格搜索", exact: true }).click();
   await page.locator("#result-tab-search").click();
   await page.locator(".search-lab > summary").click();

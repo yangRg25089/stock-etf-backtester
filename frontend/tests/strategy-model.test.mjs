@@ -320,14 +320,17 @@ test("partial success is derived from backend strategy statuses", () => {
 });
 
 
-test("fixed strategies cannot repeat; custom strategies allow ten and stable sequence numbers", () => {
+test("each strategy type can repeat five times within the ten-instance total limit", () => {
   let state = createInitialWorkspaceState(catalog);
-  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "duplicate-vix", presetId: "vix_dca" }, catalog), state);
-  for (let index = 1; index <= 10; index += 1) state = workspaceReducer(state, { type: "strategy.add", id: `custom-${index}`, presetId: "composite_dca" }, catalog);
-  assert.deepEqual(state.draft.strategies.slice(1).map(item => item.instanceNumber), [1,2,3,4,5,6,7,8,9,10]);
-  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "eleven", presetId: "composite_dca" }, catalog), state);
-  state = workspaceReducer(state, { type: "strategy.remove", id: "custom-2" });
-  state = workspaceReducer(state, { type: "strategy.add", id: "replacement", presetId: "composite_dca" }, catalog);
-  assert.equal(state.draft.strategies.at(-1).instanceNumber, 11);
-  assert.equal(state.draft.strategies[2].instanceNumber, 3);
+  for (let index = 2; index <= 5; index += 1) state = workspaceReducer(state, { type: "strategy.add", id: `vix-${index}`, presetId: "vix_dca" }, catalog);
+  for (let index = 1; index <= 5; index += 1) state = workspaceReducer(state, { type: "strategy.add", id: `rsi-${index}`, presetId: "rsi_dca" }, catalog);
+  assert.deepEqual(state.draft.strategies.filter(item => item.presetId === "vix_dca").map(item => item.instanceNumber ?? 1), [1,2,3,4,5]);
+  assert.deepEqual(state.draft.strategies.filter(item => item.presetId === "rsi_dca").map(item => item.instanceNumber), [1,2,3,4,5]);
+  assert.equal(state.draft.strategies.length, 10);
+  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "six-vix", presetId: "vix_dca" }, catalog), state);
+  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "sixth-rsi", presetId: "rsi_dca" }, catalog), state);
+  state = workspaceReducer(state, { type: "strategy.remove", id: "rsi-2" });
+  state = workspaceReducer(state, { type: "strategy.add", id: "replacement", presetId: "rsi_dca" }, catalog);
+  assert.equal(state.draft.strategies.at(-1).instanceNumber, 6);
+  assert.equal(state.draft.strategies.find(item => item.id === "rsi-3").instanceNumber, 3);
 });

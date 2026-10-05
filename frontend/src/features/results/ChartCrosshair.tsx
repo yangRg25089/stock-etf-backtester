@@ -1,4 +1,5 @@
 import { useId, type CSSProperties, type ReactNode } from "react";
+import type { ReturnTone } from "./returnTone";
 
 export interface ChartCursor {
   index: number;
@@ -10,6 +11,7 @@ export interface CursorReading {
   label: string;
   value: string;
   color?: string;
+  tone?: ReturnTone;
   series?: { id: string; label: string; seriesId?: string };
 }
 
@@ -25,7 +27,7 @@ export interface StrategyReading {
 export interface SeriesInspection {
   highlightedId: string | null;
   selectedId: string | null;
-  inspect(id: string | null, source: "hoveredId" | "focusedId" | "selectedId", pointer?: boolean): void;
+  inspect(id: string | null, source: "hoveredId" | "focusedId" | "selectedId", pointer?: boolean, touch?: boolean): void;
 }
 
 function SeriesControl({ id, label, description, color, seriesId, resultId, date, className = "", inspection, children }: {
@@ -52,7 +54,8 @@ function SeriesControl({ id, label, description, color, seriesId, resultId, date
       onMouseLeave={() => inspection.inspect(null, "hoveredId")}
       onFocus={() => inspection.inspect(id, "focusedId")}
       onBlur={() => inspection.inspect(null, "focusedId")}
-      onClick={event => inspection.inspect(id, "selectedId", event.detail > 0)}>
+      onClick={event => inspection.inspect(id, "selectedId", event.detail > 0,
+        (event.nativeEvent as PointerEvent).pointerType === "touch")}>
       {children}
       <span className="chart-series-selection" aria-hidden="true">{selected ? "✓" : ""}</span>
       <span id={descriptionId} className="sr-only">{description}</span>
@@ -61,9 +64,9 @@ function SeriesControl({ id, label, description, color, seriesId, resultId, date
 }
 
 function ReadingValues({ readings, inspection }: { readings: CursorReading[]; inspection?: SeriesInspection }) {
-  return readings.map(({ label, value, color, series }) => {
+  return readings.map(({ label, value, color, series, tone }) => {
     const reading = <span key={series?.id ?? label} className="chart-cursor-reading" style={color ? { color } : undefined}>
-      <span>{label}</span> <strong>{value}</strong>
+      <span>{label}</span> <strong className={tone ? `return-value is-${tone}` : undefined}>{value}</strong>
     </span>;
     return series && inspection
       ? <SeriesControl key={series.id} {...series} description={value} color={color} inspection={inspection}>{reading}</SeriesControl>
@@ -90,7 +93,7 @@ export function ChartReadout({ date, readings, strategies = [], inspection }: {
           resultId={strategy.id} date={date}
           className="chart-strategy-readout" inspection={inspection}>
           <span className="chart-strategy-rank" aria-hidden="true">{strategy.rank}</span>
-          <span className="chart-strategy-name" title={strategy.label} style={{ color: strategy.color }}>{strategy.label}</span>
+          <span className="chart-strategy-name" title={strategy.label}>{strategy.label}</span>
           <ReadingValues readings={strategy.readings} />
         </SeriesControl>
       ))}

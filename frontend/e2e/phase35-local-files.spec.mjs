@@ -2,32 +2,26 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { savedRun } from "./helpers/reports.mjs";
-import { importPackage, backtestFile } from "./helpers/runtime.mjs";
+import { importPackage, openSaved, strategyFile } from "./helpers/runtime.mjs";
 
-async function downloadFile(page, kind) {
+async function downloadStrategy(page) {
   const waiting = page.waitForEvent("download");
-  await page.locator(".package-menu summary").click();
-  await page.getByRole("button", { name: kind === "strategy" ? /戦略を保存/ : /結果を保存/ }).click();
+  await page.locator(".package-actions button").first().click();
   const download = await waiting;
-  expect(download.suggestedFilename()).toMatch(new RegExp(`\\.${kind}\\.json$`));
+  expect(download.suggestedFilename()).toMatch(/\.strategy\.json$/);
   return JSON.parse(await readFile(await download.path(), "utf8"));
 }
 
-test("file preview cancel is inert; strategy import resets results without writing last-run inputs", async ({ page }) => {
+test("preview cancel preserves the result; strategy import clears results without writing last accepted inputs", async ({ page }) => {
   const saved = await savedRun(page);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
-  await importPackage(page, backtestFile(saved));
-  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
-  const initial = await downloadFile(page, "strategy");
+  await openSaved(page, saved);
+  const initial = await downloadStrategy(page);
   const altered = structuredClone(initial);
-  altered.draft.shared.run.symbol = "SPY";
-  altered.draft.shared.currency = "USD";
+  altered.draft.shared.run.symbol = "SPY"; altered.draft.shared.currency = "USD";
   const before = await page.evaluate(() => localStorage.getItem("stock-etf-backtester.last-run-strategy.v1"));
   await importPackage(page, altered, false);
   await expect(page.locator(".package-preview")).toContainText("SPY");
-  await page.locator(".package-preview footer").getByRole("button", { name: "キャンセル", exact: true }).click();
+  await page.locator(".package-preview .shared-settings-dialog-footer").getByRole("button", { name: "キャンセル", exact: true }).click();
   await expect(page.locator(".shared-settings-summary-symbol")).toContainText("QQQ");
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await importPackage(page, altered);
@@ -36,85 +30,33 @@ test("file preview cancel is inert; strategy import resets results without writi
   expect(await page.evaluate(() => localStorage.getItem("stock-etf-backtester.last-run-strategy.v1"))).toBe(before);
 });
 
-test("imported search candidates, four CSVs and PNG work without a run server", async ({ page }) => {
-  const saved = await savedRun(page, "grid_search", { "search.dimensions": ["vix.buyThreshold"], "search.values.vix.buyThreshold": [20, 30] },
-    rules => rules.buy.children.forEach(node => { if (node.kind !== "vix") node.enabled = false; }));
-  const response = await page.request.get(`/api/v1/runs/${saved.runId}/package`);
-  expect(response.status()).toBe(200);
-  const file = await response.json();
-  const primary = saved.result.strategyRuns[0];
-  const entry = primary.searchResult.candidates[1];
-  const expectedCsv = {};
-  for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {
-    expectedCsv[kind] = await (await page.request.get(`/api/v1/runs/${saved.runId}/export/${kind}`, {
-      params: { focusedResultId: kind === "search-results" ? primary.id : entry.candidateId },
-    })).text();
-  }
-  const unexpected = [];
-  await page.route("**/api/v1/runs/**", route => {
-    if (route.request().url().endsWith("/active")) return route.fulfill({ json: null });
-    unexpected.push(route.request().url()); return route.fulfill({ status: 404, json: {} });
-  });
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-  await importPackage(page, file);
-  await page.locator("#result-tab-search").click();
-  await page.locator(".search-results").getByRole("button", { name: "2", exact: true }).click();
-  await expect(page.locator(".search-results").getByRole("button", { name: "2", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".chart-overlay svg.result-chart")).toBeVisible();
-  await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveAttribute("points", /[\d.]+,[\d.]+(?: [\d.]+,[\d.]+)+/);
-  for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {
-    const waiting = page.waitForEvent("download");
-    await page.locator(`[data-export-kind='${kind}']`).click();
-    const content = await readFile(await (await waiting).path(), "utf8");
-    expect(content).toBe(expectedCsv[kind]);
-  }
-  const waiting = page.waitForEvent("download");
-  await page.locator("[data-report-kind=png]").click();
-  const png = await readFile(await (await waiting).path());
-  expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
-  const reexported = await downloadFile(page, "backtest");
-  expect(reexported.config).toEqual(file.config);
-  expect(reexported.result).toEqual(file.result);
-  expect(reexported.candidateDetails).toEqual(file.candidateDetails);
-  expect(unexpected).toEqual([]);
-});
-
-test("result file exports the frozen run rather than later dialog edits, then rerun becomes live", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-  await page.locator(".shared-settings-open-button").click();
-  await page.locator("#field-run-startDate").fill("2024-02-01");
-  await page.locator("#field-run-endDate").fill("2024-03-01");
-  await page.locator(".shared-settings-dialog .dialog-done").click();
-  await page.locator(".run-submit-button").click();
-  await expect(page.locator(".run-submit-button")).toBeEnabled();
-  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
-  await page.locator(".strategy-card-open").first().click();
-  await page.locator("#field-strategy-vix_dca-1-vix-buyThreshold").fill("31");
-  await page.locator(".strategy-dialog .dialog-done").click();
-  const strategy = await downloadFile(page, "strategy");
-  const result = await downloadFile(page, "backtest");
-  expect(strategy.draft.strategies[0].rules.buy.params["vix.buyThreshold"]).toBe(31);
-  expect(Number(result.config.strategies[0].rules.buy.params["vix.buyThreshold"])).toBe(25);
-  await importPackage(page, result);
-  await expect(page.locator(".imported-result-label")).toBeVisible();
-  await page.locator(".run-submit-button").click();
-  await expect(page.locator(".run-submit-button")).toBeEnabled();
-  await expect(page.locator(".imported-result-label")).toHaveCount(0);
-});
-
-test("bad import never replaces the workbench and oversize files are rejected before parsing", async ({ page }) => {
+test("strategy download follows draft edits while CSV and frozen API results remain unchanged", async ({ page }) => {
   const saved = await savedRun(page);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-  await importPackage(page, backtestFile(saved));
-  const errors = [];
-  page.on("pageerror", error => errors.push(error.message));
-  for (const mutate of [file => { file.schemaVersion = 99; }, file => { file.result.result.strategyRuns[0].searchResult = {}; },
-    file => { delete file.result.result.strategyRuns[0].signals[0].signalId; }]) {
-    const file = backtestFile(structuredClone(saved)); mutate(file);
-    await page.locator(".file-import-input").setInputFiles({ name: "invalid.backtest.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await openSaved(page, saved);
+  const csv = await (await page.request.get(`/api/v1/runs/${saved.runId}/export/summary`, { params: { focusedResultId: saved.result.strategyRuns[0].id } })).text();
+  await page.locator(".strategy-card-open").first().click();
+  await page.locator('[data-parameter-key="vix.buyThreshold"]').fill("31");
+  await page.locator(".strategy-dialog .dialog-done").click();
+  const strategy = await downloadStrategy(page);
+  expect(Number(strategy.draft.strategies[0].rules.buy.params["vix.buyThreshold"])).toBe(31);
+  const waiting = page.waitForEvent("download");
+  await page.locator('[data-export-kind="summary"]').click();
+  expect(await readFile(await (await waiting).path(), "utf8")).toBe(csv);
+  expect((await page.request.get(`/api/v1/runs/${saved.runId}/package`)).status()).toBe(404);
+  await expect(page.locator(".package-actions button")).toHaveCount(2);
+  await importPackage(page, strategy);
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
+});
+
+test("invalid, oversized and removed result files cannot replace the workspace", async ({ page }) => {
+  const saved = await savedRun(page);
+  await openSaved(page, saved);
+  const errors = []; page.on("pageerror", error => errors.push(error.message));
+  for (const mutate of [file => { file.schemaVersion = 99; }, file => { file.type = "backtest"; },
+    file => { file.draft.strategies[0].rules.buy.params["vix.buyThreshold"] = "bad"; },
+    file => { file.draft.strategies[0].params["unknown.parameter"] = true; }]) {
+    const file = strategyFile(saved); mutate(file);
+    await page.locator(".file-import-input").setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
     await expect(page.locator(".package-error")).toBeVisible();
     await expect(page.locator(".package-preview")).toHaveCount(0);
     await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
@@ -126,45 +68,17 @@ test("bad import never replaces the workbench and oversize files are rejected be
   expect(errors).toEqual([]);
 });
 
-test("corrupt candidate mappings and terminal envelopes are rejected before changing saved charts", async ({ page }) => {
+for (const kind of ["search", "signal", "aggregate", "candidate"]) test(`malformed ${kind} API success is rejected without a page crash`, async ({ page }) => {
   const saved = await savedRun(page, "grid_search", { "search.dimensions": ["vix.buyThreshold"], "search.values.vix.buyThreshold": [20, 30] },
-    rules => rules.buy.children.forEach(node => { if (node.kind !== "vix") node.enabled = false; }));
-  const response = await page.request.get(`/api/v1/runs/${saved.runId}/package`);
-  const valid = await response.json();
-  await page.goto("/");
-  await importPackage(page, valid);
-  const errors = [];
-  page.on("pageerror", error => errors.push(error.message));
-  const before = await page.locator(".comparison-table").innerText();
-  for (const mutate of [
-    file => { file.result.result.strategyRuns[0].searchResult.candidates[0].parameterValues = null; },
-    file => { file.result.result.strategyRuns = []; },
-    file => { file.result.result.status = "queued"; },
-    file => { file.result.result.strategyRuns.splice(0, 1); },
-  ]) {
-    const file = structuredClone(valid);
-    mutate(file);
-    await page.locator(".file-import-input").setInputFiles({ name: "invalid.backtest.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
-    await expect(page.locator(".package-error")).toBeVisible();
-    await expect(page.locator(".package-preview")).toHaveCount(0);
-    expect(await page.locator(".comparison-table").innerText()).toBe(before);
-  }
-  await page.locator("#result-tab-search").click();
-  const download = page.waitForEvent("download");
-  await page.locator('[data-export-kind="search-results"]').click();
-  expect(await readFile(await (await download).path(), "utf8")).toContain("candidateId");
-  expect(errors).toEqual([]);
-});
-
-for (const kind of ["search", "signal"]) test(`malformed HTTP success with a broken ${kind} is rejected without a page crash`, async ({ page }) => {
-  const saved = await savedRun(page);
+    rules => { rules.buy = rules.buy.children.find(node => node.kind === "vix"); rules.sell = null; });
   saved.status = "running";
   const primary = saved.result.strategyRuns[0];
   if (kind === "search") primary.searchResult = {};
-  else delete primary.signals[0].signalId;
+  else if (kind === "signal") delete primary.signals[0].signalId;
+  else if (kind === "candidate") primary.searchResult.candidates[0].parameterValues = null;
+  else { saved.status = "completed"; saved.result.status = "queued"; }
   await page.route("**/api/v1/runs/active", route => route.fulfill({ json: saved }));
-  const errors = [];
-  page.on("pageerror", error => errors.push(error.message));
+  const errors = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("/");
   await expect(page.getByText("API の応答を読み取れませんでした。", { exact: true })).toBeVisible();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
@@ -172,22 +86,19 @@ for (const kind of ["search", "signal"]) test(`malformed HTTP success with a bro
   expect(errors).toEqual([]);
 });
 
-test("file controls and import dialogs remain readable and accessible across layouts and locales", async ({ page }) => {
-  const saved = await savedRun(page);
+test("strategy preview and visible file controls work across layouts and all locales", async ({ page }) => {
+  const saved = await savedRun(page); const file = strategyFile(saved);
   await page.goto("/");
-  for (const language of ["日本語", "中文"]) {
-    await page.getByRole("button", { name: language, exact: true }).click();
+  for (const locale of ["ja", "zh", "en"]) {
+    await page.locator(".locale-select").selectOption(locale);
     for (const width of [1920, 1024, 768, 320]) {
       await page.setViewportSize({ width, height: 900 });
-      await importPackage(page, backtestFile(saved), false);
+      await importPackage(page, file, false);
       const geometry = await page.locator(".package-preview").boundingBox();
-      expect(geometry.x).toBeGreaterThanOrEqual(0);
-      expect(geometry.x + geometry.width).toBeLessThanOrEqual(width);
+      expect(geometry.x).toBeGreaterThanOrEqual(0); expect(geometry.x + geometry.width).toBeLessThanOrEqual(width);
       await expect(page.locator(".package-preview .button-primary")).toBeInViewport();
-      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
-      await page.screenshot({ path: test.info().outputPath(`file-preview-${language}-${width}.png`) });
-      await page.keyboard.press("Escape");
-      await expect(page.locator(".package-preview")).toHaveCount(0);
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      await page.keyboard.press("Escape"); await expect(page.locator(".package-preview")).toHaveCount(0);
     }
   }
 });

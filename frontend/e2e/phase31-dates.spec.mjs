@@ -45,7 +45,7 @@ test("worker-resolved dates survive refresh; unsubmitted edits and completed res
   await expect(page.locator(".shared-settings-summary-period")).toContainText("2024-01-31");
   await expect(page.locator(".shared-date-adjustment")).toHaveText("取得可能な 2024-01-31 から計算します。");
   expect(gets).toHaveLength(1);
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await expect(page.locator(".shared-date-adjustment")).toHaveText("已从可用行情日 2024-01-31 开始回测。");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.reload();
@@ -93,7 +93,7 @@ test("a period before listing offers explicit recovery without running or replac
   await page.route(`**/api/v1/runs/${runId}`, route => route.fulfill({ json: saved }));
   await page.route("**/api/v1/instruments/SOXQ", route => route.fulfill({ json: { symbol: "SOXQ", currency: "USD", diagnostics: [] } }));
   await page.goto("/");
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await page.locator(".shared-settings-open-button").click();
   await page.locator("#field-run-symbol").fill("SOXQ");
   await page.locator("#field-run-endDate").fill("2020-12-31");

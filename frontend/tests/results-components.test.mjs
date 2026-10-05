@@ -47,19 +47,20 @@ const results = [
   },
 ];
 
-test("comparison table focuses saved identity without role or status columns", () => {
+test("comparison table marks only selected curves without last-focus, role or status columns", () => {
   const html = renderToStaticMarkup(React.createElement(ResultComparison, {
     locale: "zh",
     strategyRuns: results,
     selectedResultIds: ["benchmark-dca"],
+    focusedResultId: "benchmark-dca",
     onFocus() {},
   }));
 
   assert.match(html, /aria-pressed="true"><span>每月定额定投/);
   assert.match(html, /aria-pressed="false"><span>波动率信号定投/);
-  assert.doesNotMatch(html, /benchmark-dca|vix-instance/);
   assert.doesNotMatch(html, /角色|状态|基准策略|已完成，有警告|status-tag/);
   assert.match(html, /资本倍数/);
+  assert.doesNotMatch(html, /is-focused|aria-current/);
 });
 
 test("comparison rows expose independent curve selection and stable row colors", () => {
@@ -123,7 +124,7 @@ test("unavailable optional metrics render as unavailable rather than zero", () =
   }));
   assert.match(html, /—/);
   assert.doesNotMatch(html, /NaN|undefined/);
-  assert.ok((html.match(/>—<\/td>/g) ?? []).length >= 2);
+  assert.equal((html.match(/class="return-value is-missing">—<\/span>/g) ?? []).length, 2);
 });
 
 test("legacy gross turnover is not presented as invested principal", () => {
@@ -140,7 +141,7 @@ test("legacy gross turnover is not presented as invested principal", () => {
     locale: "zh", strategyRuns: [...results, { ...results[0], id: "second-vix" }],
     onFocus() {},
   }));
-  for (const label of ["已投入本金", "注入本金", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤"]) assert.match(html, new RegExp(label));
-  assert.match(html, /波动率信号定投 · 1/);
-  assert.match(html, /波动率信号定投 · 2/);
+  for (const label of ["已投入本金", "期末资产", "净盈亏", "投入回报率", "资本倍数", "年化回报", "最大回撤", "税金"]) assert.match(html, new RegExp(label));
+  assert.match(html, /<span>波动率信号定投<\/span>/);
+  assert.match(html, /<span>波动率信号定投2<\/span>/);
 });

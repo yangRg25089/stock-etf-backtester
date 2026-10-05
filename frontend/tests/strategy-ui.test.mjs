@@ -36,7 +36,7 @@ function render(state, locale = "ja") {
 }
 
 test("every catalog editor always contains ordered buy-limit, buy and sell blocks", () => {
-  for (const locale of ["ja", "zh"]) {
+  for (const locale of ["ja", "zh", "en"]) {
     for (const preset of catalog.presets) {
       const strategy = { id: `structure-${preset.id}`, presetId: preset.id, params: structuredClone(preset.defaultParams), rules: structuredClone(preset.defaultRules) };
       const html = renderEditor(strategy, locale);
@@ -46,7 +46,7 @@ test("every catalog editor always contains ordered buy-limit, buy and sell block
       assert.ok(limit >= 0 && buy > limit && sell > buy, `${locale} ${preset.id} has all three ordered sections`);
       assert.equal((html.match(/data-rule-side=/g) ?? []).length, 2);
       if (preset.id === "ma_buy_only") {
-        assert.match(html, locale === "ja" ? /売却なし/ : /不卖出/);
+        assert.match(html, locale === "ja" ? /売却なし/ : locale === "zh" ? /不卖出/ : /No sell rule/);
         const sellBlock = html.slice(sell);
         assert.doesNotMatch(sellBlock, /role="switch"|data-parameter-key=/);
       }
@@ -56,7 +56,7 @@ test("every catalog editor always contains ordered buy-limit, buy and sell block
       }
       if (["monthly_dca", "lump_sum"].includes(preset.id)) {
         assert.match(html, /data-parameter-key="scheduled.fundingMode"/);
-        assert.match(html, locale === "ja" ? /上限なし/ : /不设买入上限/);
+        assert.match(html, locale === "ja" ? /上限なし/ : locale === "zh" ? /不设买入上限/ : /No limit/);
       }
     }
   }
@@ -75,7 +75,7 @@ function renderEditor(strategy, locale = "ja") {
   }));
 }
 
-test("execution offers play reset and a stop button only while busy even while busy, disabled, or complete", () => {
+test("execution keeps play reset stop in stable positions and disables inactive actions", () => {
   for (const options of [
     { busy: false, run: null, availability: { disabled: false, reasonKey: null } },
     { busy: true, run: null, availability: { disabled: false, reasonKey: null } },
@@ -85,7 +85,7 @@ test("execution offers play reset and a stop button only while busy even while b
     const html = renderToStaticMarkup(React.createElement(RunActions, {
       locale: "zh", canReset: true, onRun() {}, onReset() {}, onStop() {}, stopping: false, ...options,
     }));
-    assert.equal((html.match(/<button /g) ?? []).length, options.busy ? 3 : 2);
+    assert.equal((html.match(/<button /g) ?? []).length, 3);
     assert.doesNotMatch(html, /run-controls|run-control-main|run-reason|run-complete-feedback|<p /);
   }
 });
@@ -111,8 +111,8 @@ test("the final result read keeps edits locked without offering to stop a termin
     run: { status: "completed", progress: { completedStrategies: 3, totalStrategies: 3 } },
   }));
   assert.match(html, /aria-busy="true" disabled=""/);
-  assert.doesNotMatch(html, /run-stop-button/);
-  assert.equal((html.match(/<button /g) ?? []).length, 2);
+  assert.match(html, /run-stop-button[^>]*disabled/);
+  assert.equal((html.match(/<button /g) ?? []).length, 3);
 });
 
 test("fixed strategy uses independent buy sell cards and header switches without composition", () => {
@@ -136,16 +136,23 @@ test("custom strategy shows an unlimited placeholder for a blank monthly buy lim
 });
 
 test("strategy menu and reducer consume the same catalog instance limits", () => {
-  const restricted = { ...catalog, strategyLimits: { maxCustomInstances: 2, maxFixedInstances: 2 } };
+  const restricted = { ...catalog, strategyLimits: { maxInstancesPerPreset: 2, maxTotalInstances: 3 } };
   let state = createInitialWorkspaceState(restricted);
   const renderCurrent = () => renderToStaticMarkup(React.createElement(StrategyNavigator, { catalog: restricted, locale: "ja", state, validation: null, dispatch() {}, onAdd() {} }));
   assert.doesNotMatch(renderCurrent(), /data-preset-id="vix_dca" disabled/);
   state = workspaceReducer(state, { type: "strategy.add", id: "second-vix", presetId: "vix_dca" }, restricted);
   assert.equal(state.draft.strategies.filter(item => item.presetId === "vix_dca").length, 2);
-  for (let index = 1; index <= 2; index++) state = workspaceReducer(state, { type: "strategy.add", id: `custom-${index}`, presetId: "composite_dca" }, restricted);
+  state = workspaceReducer(state, { type: "strategy.add", id: "custom-1", presetId: "composite_dca" }, restricted);
   const html = renderCurrent();
-  for (const preset of ["vix_dca", "composite_dca"]) assert.match(html, new RegExp(`data-preset-id="${preset}" disabled`));
-  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "third-custom", presetId: "composite_dca" }, restricted), state);
+  assert.match(html, /data-preset-id="vix_dca" disabled/);
+  assert.match(html, /data-preset-id="composite_dca" disabled/);
+  assert.equal(workspaceReducer(state, { type: "strategy.add", id: "another-rsi", presetId: "rsi_dca" }, restricted), state);
+});
+
+test("strategy cards expose a direct copy icon and no more-actions dialog", () => {
+  const html = render(createInitialWorkspaceState(catalog));
+  assert.match(html, /class="icon-button strategy-copy"/);
+  assert.doesNotMatch(html, /strategy-more|strategy-tools-dialog/);
 });
 
 test("strategy editor keeps one label per field and no repeated parameter summary", () => {
@@ -252,7 +259,7 @@ test("catalog selector offers five optional strategies and preserves required be
   assert.doesNotMatch(controls, /run-scope-select|run-scope-help|<select/);
   assert.match(controls, /run-submit-button/);
   assert.match(controls, /run-reset-button/);
-  assert.match(html, /data-preset-id="vix_dca"[^>]*disabled=""/);
+  assert.match(html, /class="icon-button strategy-copy"[^>]*aria-label="复制波动率信号定投"/);
 });
 
 test("strategy picker precedes summary cards and editing stays separate from the run target", () => {
@@ -277,6 +284,6 @@ test("strategy navigation lists every instance while the editor only expands the
   assert.equal((html.match(/class="strategy-card strategy-nav-card(?: is-active)?"/g) ?? []).length, 2);
   assert.match(html, /class="strategy-card strategy-nav-card is-active"/);
   assert.match(html, /aria-label="编辑波动率信号定投"/);
-  assert.match(html, /aria-label="编辑自定义策略 1"/);
+  assert.match(html, /aria-label="编辑自定义策略"/);
   assert.doesNotMatch(html, /id="field-strategy-(?:vix_dca-1-vix-symbol|composite-1-accumulation-fixedDcaRatio)"/);
 });

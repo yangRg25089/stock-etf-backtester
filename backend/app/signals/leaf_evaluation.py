@@ -279,5 +279,13 @@ def evaluate_leaf(
                 "triggered_signal_ids": (signal_id,) if hit else (),
             }
         )
+    elif is_buy:
+        evaluation = evaluation.model_copy(
+            update={
+                "triggered_signal_ids": (signal_id,)
+                if evaluation.state is SignalState.TRUE
+                else ()
+            }
+        )
     evaluations.append(evaluation)
     return evaluation

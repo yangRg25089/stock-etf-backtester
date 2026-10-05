@@ -58,8 +58,12 @@ test("search results retain backend ranking, invalid candidates, and stable diag
   assert.match(html, /计算过程中发生错误/);
   assert.doesNotMatch(html, /strategies\[0\]\.params\.vix\.buyThreshold/);
   assert.match(html, /class="sr-only">搜索候选（共 3 个）/);
+  assert.doesNotMatch(html, /<section[^>]*class="search-results"[^>]*aria-labelledby=/);
+  assert.match(html, /role="region" aria-label="搜索候选（共 3 个）"/);
   assert.match(html, /<caption class="sr-only">搜索候选/);
-  assert.match(html, /<th scope="col">候选<\/th>/);
+  assert.match(html, /<th scope="col"><button[^>]*>候选<span aria-hidden="true">↕<\/span><\/button><\/th>/);
+  assert.match(html, /aria-label="按期末资产降序排序"/);
+  assert.equal((html.match(/class="table-sort"/g) ?? []).length, 6);
 });
 
 test("large searches render an initial page and expose the remaining candidate count", () => {

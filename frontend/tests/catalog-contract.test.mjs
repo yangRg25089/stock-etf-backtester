@@ -159,8 +159,8 @@ test("catalog decimals are decoded as numbers before strategy defaults enter a d
   }
 });
 
-test("all registered fields and preset labels are translated in both locales", () => {
-  for (const locale of ["ja", "zh"]) {
+test("all registered fields and preset labels are translated in all locales", () => {
+  for (const locale of ["ja", "zh", "en"]) {
     for (const definition of backendCatalog.parameters) {
       assert.notEqual(
         translate(locale, definition.translationKey),
@@ -187,8 +187,8 @@ test("all registered fields and preset labels are translated in both locales", (
   }
 });
 
-test("the Japanese and Chinese dictionaries cover shared fields and preset names", () => {
-  for (const locale of ["ja", "zh"]) {
+test("the locale dictionaries cover shared fields and preset names", () => {
+  for (const locale of ["ja", "zh", "en"]) {
     for (const definition of mockCatalog.parameters) {
       assert.notEqual(translate(locale, definition.translationKey), definition.translationKey);
     }
@@ -196,8 +196,8 @@ test("the Japanese and Chinese dictionaries cover shared fields and preset names
   }
 });
 
-test("provider rate limit and timeout diagnostics are localized in both locales", () => {
-  for (const locale of ["ja", "zh"]) {
+test("provider rate limit and timeout diagnostics are localized in all locales", () => {
+  for (const locale of ["ja", "zh", "en"]) {
     for (const key of [
       "market.provider_rate_limited",
       "market.provider_timeout",

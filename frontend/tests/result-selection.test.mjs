@@ -19,10 +19,23 @@ test("empty selection does not invent a chart, markers, indicators or trade owne
   assert.equal(selection.findTradeResult("unknown"), undefined);
 });
 
+test("a search candidate keeps its detail owner but deselecting its parent removes the candidate curve and indicators", () => {
+  const file = JSON.parse(readFileSync(new URL("../.test-output/portable-fixture.json", import.meta.url), "utf8")).record;
+  const run = file.result;
+  const parent = run.result.strategyRuns.find(result => result.searchResult);
+  const candidateResult = Object.values(file.candidateDetails)[0];
+  const selection = buildResultSelection({ run, focusedResult: parent, candidateResult, selectedIds: [], orderedResults: run.result.strategyRuns, locale: "ja" });
+  assert.equal(selection.chartResult, candidateResult);
+  assert.equal(selection.showFocusedAsset, false);
+  assert.deepEqual(selection.technicalIndicators, []);
+  assert.deepEqual(selection.volatility, []);
+  assert.deepEqual(selection.selectedComparisons, []);
+});
+
 test("frozen selection projection preserves candidate ownership, matching-period benchmarks, ordering and colors", () => {
   for (const filename of ["portable-fixture", "split-fixture", "walk-fixture"]) {
     const path = new URL(`../.test-output/${filename}.json`, import.meta.url);
-    const file = JSON.parse(readFileSync(path, "utf8")).package;
+    const file = JSON.parse(readFileSync(path, "utf8")).record;
     const run = file.result;
     const results = run.result.strategyRuns;
     const parent = results.find(result => result.searchResult);
@@ -60,7 +73,7 @@ test("frozen selection projection preserves candidate ownership, matching-period
 });
 
 test("no selection keeps price data available without showing focused assets or volatility", () => {
-  const file = JSON.parse(readFileSync(new URL("../.test-output/portable-fixture.json", import.meta.url), "utf8")).package;
+  const file = JSON.parse(readFileSync(new URL("../.test-output/portable-fixture.json", import.meta.url), "utf8")).record;
   const run = file.result;
   const results = run.result.strategyRuns;
   const focusedResult = results.find(isCompletedResult);

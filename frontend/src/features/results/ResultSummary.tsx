@@ -2,11 +2,13 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties
 import type { StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { savedEvaluationPhase } from "./savedConfiguration";
-import { formatCurrency, formatMultiple, formatPercent } from "./format";
+import { formatCurrency, formatMultiple } from "./format";
+import { ReturnPercent } from "./ReturnPercent";
 import { resultColor } from "./colors";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
-import { COMPARISON_COLUMNS, DEFAULT_COMPARISON_SORT, sortedComparisons, type ComparisonSort, type ComparisonSortKey } from "./comparisonModel";
+import { COMPARISON_COLUMNS, DEFAULT_COMPARISON_SORT, sortedComparisons, type ComparisonSort } from "./comparisonModel";
 import { TableExpandButton } from "./TableExpandButton";
+import { SortableHeader } from "./SortableHeader";
 
 const useRowLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -17,8 +19,7 @@ interface ResultComparisonProps {
   selectedResultIds?: string[];
   sort?: ComparisonSort;
   onSortChange?(sort: ComparisonSort): void;
-  onFocus(id: string): void;
-  onToggleSelection?(id: string): void;
+  onSelect?(id: string): void;
 }
 
 export function ResultComparison({
@@ -28,8 +29,7 @@ export function ResultComparison({
   selectedResultIds = [],
   sort = DEFAULT_COMPARISON_SORT,
   onSortChange = () => undefined,
-  onFocus,
-  onToggleSelection = () => undefined,
+  onSelect = () => undefined,
 }: ResultComparisonProps) {
   const [heightExpanded, setHeightExpanded] = useState(false);
   const scrollId = useId();
@@ -51,89 +51,84 @@ export function ResultComparison({
     }
     previousTops.current = nextTops;
   }, [ordered]);
-  const changeSort = (key: ComparisonSortKey) => {
-    if (busy) return;
-    onSortChange({ key, direction: sort.key === key
-      ? sort.direction === "ascending" ? "descending" : "ascending"
-      : key === "strategy" || key === "maximumDrawdown" ? "ascending" : "descending" });
-  };
   if (strategyRuns.length === 0) {
     return <p className="metric-empty">{translate(locale, "results.noComparisons")}</p>;
   }
+  const table = <table className="comparison-table">
+    <caption className="sr-only">{translate(locale, "results.comparisonTitle")}</caption>
+    <thead>
+      <tr>
+        {COMPARISON_COLUMNS.map(column => <SortableHeader key={column.key} locale={locale} label={translate(locale, column.labelKey)}
+          sortKey={column.key} sort={sort} disabled={busy} className="comparison-sort"
+          firstDirection={column.key === "strategy" || column.key === "maximumDrawdown" ? "ascending" : "descending"}
+          onSort={onSortChange} />)}
+      </tr>
+    </thead>
+    <tbody>
+      {ordered.map((result, rankIndex) => {
+        const metrics = isCompletedResult(result) ? result.metrics : null;
+        const displayName = resultDisplayName(locale, result, strategyRuns);
+        const color = resultColor(strategyRuns.indexOf(result));
+        const isSelected = selectedResultIds.includes(result.id);
+        return (
+          <tr
+            ref={element => { if (element) rows.current.set(result.id, element); else rows.current.delete(result.id); }}
+            data-result-id={result.id}
+            className={`${result.status === "running" || result.status === "loading" ? "is-running " : ""}${isSelected ? "is-selected" : ""}`.trim()}
+            style={{ "--result-color": color } as CSSProperties}
+            key={`${result.role}-${result.id}`}
+            onClick={() => { if (!busy) onSelect(result.id); }}
+          >
+            <th scope="row">
+              <div className="result-name-cell">
+                <span className="result-rank" aria-hidden="true">{rankIndex + 1}</span>
+                {["running", "loading"].includes(result.status ?? "queued") && <span className="run-button-spinner" role="status" aria-label={translate(locale, `status.${result.status}`)} />}
+                {result.status === "queued" && <span className="result-waiting" role="status" aria-label={translate(locale, "status.queued")}>◷</span>}
+                {result.status === "cancelled" && <span className="result-stopped" role="status" aria-label={translate(locale, "status.cancelled")}>■</span>}
+                <span className="result-color-swatch" aria-hidden="true" />
+                <button
+                  className="result-select"
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={isSelected}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (busy) return;
+                    onSelect(result.id);
+                  }}
+                >
+                  <span>{displayName}</span>
+                </button>
+                {result.evaluationPeriod && <small className="comparison-period"
+                  title={`${result.evaluationPeriod.startDate} → ${result.evaluationPeriod.endDate}`}>
+                  {translate(locale, `search.phase.${savedEvaluationPhase(result)}`)}
+                </small>}
+              </div>
+            </th>
+            <td>{formatCurrency(investedPrincipalValue(metrics), metrics?.currency, locale)}</td>
+            <td>{formatCurrency(metrics?.endingEquity, metrics?.currency, locale)}</td>
+            <td>{formatCurrency(metrics?.netProfit, metrics?.currency, locale)}</td>
+            <td><ReturnPercent value={metrics?.returnOnContributions} locale={locale} /></td>
+            <td>{formatMultiple(metrics?.capitalMultiple, locale)}</td>
+            <td><ReturnPercent value={metrics?.xirr} locale={locale} /></td>
+            <td><ReturnPercent value={metrics?.maximumDrawdown} locale={locale} kind="drawdown" /></td>
+            <td>{formatCurrency(metrics?.tradingCosts?.capitalGainsTax, metrics?.currency, locale)}</td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>;
   return (
-    <div id={scrollId} className={`comparison-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} tabIndex={0} role="region"
-      aria-label={translate(locale, "results.comparisonTitle")}>
+    <div className={`table-height-region comparison-table-region${heightExpanded ? " is-height-expanded" : ""}`}>
       <div className="table-height-controls">
         <TableExpandButton locale={locale} tableName={translate(locale, "results.tab.comparison")}
           controls={scrollId} expanded={heightExpanded} disabled={busy}
           onToggle={() => setHeightExpanded(previous => !previous)} />
       </div>
-      <table className="comparison-table">
-        <caption className="sr-only">{translate(locale, "results.comparisonTitle")}</caption>
-        <thead>
-          <tr>
-            {COMPARISON_COLUMNS.map(column => <th scope="col" key={column.key} aria-sort={sort.key === column.key ? sort.direction : undefined}>
-              <button type="button" className={`comparison-sort${sort.key === column.key ? " is-sorted" : ""}`}
-                disabled={busy} onClick={() => changeSort(column.key)}>
-                {translate(locale, column.labelKey)}<span aria-hidden="true">{sort.key === column.key ? sort.direction === "ascending" ? "↑" : "↓" : "↕"}</span>
-              </button>
-            </th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {ordered.map((result, rankIndex) => {
-            const metrics = isCompletedResult(result) ? result.metrics : null;
-            const displayName = resultDisplayName(locale, result, strategyRuns);
-            const color = resultColor(strategyRuns.indexOf(result));
-            const isSelected = selectedResultIds.includes(result.id);
-            return (
-              <tr
-                ref={element => { if (element) rows.current.set(result.id, element); else rows.current.delete(result.id); }}
-                className={`${result.status === "running" || result.status === "loading" ? "is-running " : ""}${isSelected ? "is-selected" : ""}`}
-                style={{ "--result-color": color } as CSSProperties}
-                key={`${result.role}-${result.id}`}
-                onClick={() => { if (!busy) { onFocus(result.id); onToggleSelection(result.id); } }}
-              >
-                <th scope="row">
-                  <div className="result-name-cell">
-                    <span className="result-rank" aria-hidden="true">{rankIndex + 1}</span>
-                    {["running", "loading"].includes(result.status ?? "queued") && <span className="run-button-spinner" role="status" aria-label={translate(locale, `status.${result.status}`)} />}
-                    {result.status === "queued" && <span className="result-waiting" role="status" aria-label={translate(locale, "status.queued")}>◷</span>}
-                    {result.status === "cancelled" && <span className="result-stopped" role="status" aria-label={translate(locale, "status.cancelled")}>■</span>}
-                    <span className="result-color-swatch" aria-hidden="true" />
-                    <button
-                      className="result-select"
-                      type="button"
-                      disabled={busy}
-                      aria-pressed={isSelected}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (busy) return;
-                        onFocus(result.id);
-                        onToggleSelection(result.id);
-                      }}
-                    >
-                      <span>{displayName}</span>
-                    </button>
-                    {result.evaluationPeriod && <small className="comparison-period"
-                      title={`${result.evaluationPeriod.startDate} → ${result.evaluationPeriod.endDate}`}>
-                      {translate(locale, `search.phase.${savedEvaluationPhase(result)}`)}
-                    </small>}
-                  </div>
-                </th>
-                <td>{formatCurrency(investedPrincipalValue(metrics), metrics?.currency, locale)}</td>
-                <td>{formatCurrency(metrics?.totalContributed, metrics?.currency, locale)}</td>
-                <td>{formatCurrency(metrics?.endingEquity, metrics?.currency, locale)}</td>
-                <td>{formatCurrency(metrics?.netProfit, metrics?.currency, locale)}</td>
-                <td>{formatPercent(metrics?.returnOnContributions, locale)}</td>
-                <td>{formatMultiple(metrics?.capitalMultiple, locale)}</td>
-                <td>{formatPercent(metrics?.xirr, locale)}</td>
-                <td>{formatPercent(metrics?.maximumDrawdown, locale)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div id={scrollId} className={`comparison-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} tabIndex={0} role="region"
+        aria-label={translate(locale, "results.comparisonTitle")}>
+        {heightExpanded ? <div className="table-expanded-overflow">{table}</div> : table}
+      </div>
     </div>
   );
 }

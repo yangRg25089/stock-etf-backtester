@@ -237,7 +237,7 @@ function validTradeExplanation(trade: Trade): boolean {
 }
 
 function validTradingCosts(costs?: TradingCosts | null): boolean {
-  return costs == null || Object.values(costs).every(value => compareDecimals(value, 0) >= 0);
+  return costs == null || Object.values(costs).every(value => value == null || compareDecimals(value, 0) >= 0);
 }
 
 /** Mirror the domain input invariant exactly, without rounding decimal strings. */

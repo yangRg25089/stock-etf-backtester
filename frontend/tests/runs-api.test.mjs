@@ -10,7 +10,6 @@ const {
   fetchRun,
   fetchInstrument,
   fetchCandidate,
-  fetchBacktestPackage,
   stopRun,
   RunApiError,
   submitRun,
@@ -25,18 +24,17 @@ function response(payload, status = 200) {
   });
 }
 
-for (const operation of ["run", "stop", "candidate", "package"]) {
+for (const operation of ["run", "stop", "candidate"]) {
   test(`${operation} API rejects a valid response belonging to another requested identity`, async () => {
-    const file = JSON.parse(readFileSync(new URL("../.test-output/portable-fixture.json", import.meta.url), "utf8")).package;
+    const file = JSON.parse(readFileSync(new URL("../.test-output/portable-fixture.json", import.meta.url), "utf8")).record;
     const detail = Object.values(file.candidateDetails)[0];
-    const payload = operation === "package" ? file : operation === "candidate" ? detail : file.result;
+    const payload = operation === "candidate" ? detail : file.result;
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => response(payload);
     try {
       const request = operation === "run" ? fetchRun(`${file.result.runId}-foreign`)
         : operation === "stop" ? stopRun(`${file.result.runId}-foreign`)
-          : operation === "candidate" ? fetchCandidate(file.result.runId, `${detail.id}-foreign`)
-            : fetchBacktestPackage(`${file.result.runId}-foreign`);
+          : fetchCandidate(file.result.runId, `${detail.id}-foreign`);
       await assert.rejects(request, error => error instanceof RunApiError && error.code === "invalid_response");
     } finally { globalThis.fetch = originalFetch; }
   });

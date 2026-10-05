@@ -39,7 +39,7 @@ export function buildResultSelection({ run, focusedResult, candidateResult, sele
   const focusedIndex = chartResult ? strategyRuns.findIndex(result => result.id === (candidateResult ? focusedResult?.id : chartResult.id)) : -1;
   const technicalResults = strategyRuns.filter(result => selectedIds.includes(result.id) && isCompletedResult(result)
     && result.id !== (candidateResult ? focusedResult?.id : null));
-  if (candidateResult) technicalResults.push(candidateResult);
+  if (candidateResult && focusedResult && selectedIds.includes(focusedResult.id)) technicalResults.push(candidateResult);
   const strategyOrder = orderedResults.map(result => {
     if (candidateResult && result.id === focusedResult?.id) return candidateResult.id;
     if (chartResult?.evaluationPeriod && run && result.role === "benchmark") return benchmarksByPreset.get(result.presetId)?.id ?? result.id;
@@ -52,7 +52,7 @@ export function buildResultSelection({ run, focusedResult, candidateResult, sele
     technicalIndicators: savedTechnicalIndicators(technicalResults),
     volatility: run ? selectedVolatilitySeries(run, strategyRuns, selectedIds, candidateResult, focusedResult) : [],
     totalAssetColor: focusedIndex >= 0 ? resultColor(focusedIndex) : undefined,
-    showFocusedAsset: Boolean(candidateResult) || Boolean(chartResult && selectedIds.includes(chartResult.id)),
+    showFocusedAsset: Boolean(chartResult && selectedIds.includes(candidateResult ? focusedResult?.id ?? "" : chartResult.id)),
     totalAssetLabel: chartResult ? resultDisplayName(locale, candidateResult && focusedResult ? focusedResult : chartResult, strategyRuns)
       + (chartResult.evaluationPeriod ? ` · ${translate(locale, `search.phase.${chartResult.evaluationPeriod.phase}`)}` : "") : "",
   };

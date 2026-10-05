@@ -9,7 +9,7 @@ const retired = ["app.localOnly", "page.subtitle", "workbench.resizeConfig", "se
   "results.compareToggle", "export.csv"];
 
 test("retired control text and orphan style selectors are completely absent", () => {
-  for (const locale of ["ja", "zh"]) {
+  for (const locale of ["ja", "zh", "en"]) {
     for (const key of retired) assert.equal(translate(locale, key), key);
     assert.notEqual(translate(locale, "export.csvLabel"), "export.csvLabel");
     assert.notEqual(translate(locale, "market.latest_quote_delayed"), "market.latest_quote_delayed");

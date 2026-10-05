@@ -1,18 +1,20 @@
-<div id="backtest-ui-preview" aria-label="株式・ETF バックテスターの作業画面">
+<div id="backtest-ui-preview" data-return-palette="green-up" aria-label="株式・ETF バックテスターの作業画面">
   <style>
     body:has(> #backtest-ui-preview) { margin: 0; }
     #backtest-ui-preview {
       box-sizing: border-box;
       position: relative;
-      --bg: #f3f5f9;
+      --bg: #def5e5;
       --surface: #fff;
-      --text: #253c6d;
-      --muted: #455b8a;
-      --border: #d4dbea;
-      --accent: #30497d;
-      --accent-soft: #eaf0fa;
-      --action: #f2842f;
-      --action-text: #192d52;
+      --text: #173d32;
+      --muted: #35594c;
+      --border: #bcead5;
+      --accent: #25644f;
+      --accent-soft: #def5e5;
+      --action: #9ed5c5;
+      --action-text: #173d32;
+      --return-positive: #087443;
+      --return-negative: #b71c1c;
       color: var(--text);
       background: var(--bg);
       border: 1px solid var(--border);
@@ -48,9 +50,9 @@
     #backtest-ui-preview .brand,
     #backtest-ui-preview .execution-actions,
     #backtest-ui-preview .topbar-right,
-    #backtest-ui-preview .locale-switch { display: flex; align-items: center; gap: 8px; }
+    #backtest-ui-preview .locale-select-control { display: flex; align-items: center; gap: 8px; }
     #backtest-ui-preview .topbar-brand { min-width: 0; }
-    #backtest-ui-preview .brand-mark { display: grid; place-items: center; width: 28px; height: 28px; color: #fff; background: var(--accent); border-radius: 5px; font-weight: 700; }
+    #backtest-ui-preview .brand-mark { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; color: #fff; background: var(--accent); border-radius: 5px; font-weight: 700; }
     #backtest-ui-preview .brand-name { font-weight: 650; white-space: nowrap; }
     #backtest-ui-preview .execution-actions { flex: 1 1 auto; justify-content: flex-end; }
     #backtest-ui-preview button,
@@ -68,9 +70,17 @@
     #backtest-ui-preview .run-button svg { width: 17px; height: 17px; fill: currentColor; }
 
 
-    #backtest-ui-preview .locale-switch { gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 6px; }
-    #backtest-ui-preview .locale-switch button { min-height: 32px; padding: 3px 8px; border: 0; background: transparent; }
-    #backtest-ui-preview .locale-switch button[aria-pressed="true"] { background: var(--accent-soft); }
+    #backtest-ui-preview .locale-select { min-width: 100px; padding: 5px 8px; font-size: 12px; }
+    #backtest-ui-preview[data-return-palette="red-up"] { --return-positive: #b71c1c; --return-negative: #087443; }
+    #backtest-ui-preview .return-value.is-positive { color: var(--return-positive); }
+    #backtest-ui-preview .return-value.is-negative { color: var(--return-negative); }
+    #backtest-ui-preview .return-color-control { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 5px; }
+    #backtest-ui-preview .return-color-control button { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 32px; min-height: 32px; padding: 3px; border-color: transparent; font-weight: 700; }
+    #backtest-ui-preview .return-color-control button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+    #backtest-ui-preview .return-color-control [data-return-palette="red-up"] span:first-child,
+    #backtest-ui-preview .return-color-control [data-return-palette="green-up"] span:last-child { color: #b71c1c; }
+    #backtest-ui-preview .return-color-control [data-return-palette="red-up"] span:last-child,
+    #backtest-ui-preview .return-color-control [data-return-palette="green-up"] span:first-child { color: #087443; }
     #backtest-ui-preview main { height: auto; min-height: 0; padding: 8px 10px 12px; overflow: hidden; }
     #backtest-ui-preview .mobile-views { display: none; }
     #backtest-ui-preview .workbench-layout { display: grid; grid-template-columns: 320px 24px minmax(0, 1fr); height: 100%; min-height: 0; }
@@ -95,11 +105,11 @@
     #backtest-ui-preview .strategy-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 6px; padding: 7px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
     #backtest-ui-preview .strategy-card-list { padding: 4px; }
     #backtest-ui-preview .strategy-card { margin-inline-start: 8px; transform-origin: right center; transition: margin-inline-start 160ms ease-out, transform 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out; }
-    #backtest-ui-preview .strategy-card.is-active { z-index: 1; margin-inline-start: 0; transform: scale(1.015); background: #dde6f5; border-color: #8b9abb; box-shadow: inset 3px 0 0 var(--accent), 0 2px 8px #253c6d20; }
-    #backtest-ui-preview .strategy-card:has(.strategy-card-open:hover) { background: #dde6f5; }
+    #backtest-ui-preview .strategy-card.is-active { z-index: 1; margin-inline-start: 0; transform: scale(1.015); background: #bcead5; border-color: #8ec3b0; box-shadow: inset 3px 0 0 var(--accent), 0 2px 8px #173d3220; }
+    #backtest-ui-preview .strategy-card:has(.strategy-card-open:hover) { background: #bcead5; }
     #backtest-ui-preview .strategy-card-open { display: grid; min-width: 0; padding: 0; text-align: left; background: transparent; border: 0; }
     #backtest-ui-preview .strategy-card.is-active .strategy-card-open,
-    #backtest-ui-preview .strategy-card-open:hover { background: #dde6f5; }
+    #backtest-ui-preview .strategy-card-open:hover { background: #bcead5; }
     #backtest-ui-preview .strategy-card-name { font-weight: 650; }
     #backtest-ui-preview .strategy-card-summary { margin-top: 2px; color: var(--muted); font-size: 12px; }
     #backtest-ui-preview .strategy-actions { position: absolute; top: 3px; right: 4px; display: flex; align-items: center; gap: 5px; padding: 3px; background: var(--surface); border-radius: 6px; box-shadow: 0 2px 8px #253c6d20; opacity: 0; pointer-events: none; }
@@ -127,14 +137,15 @@
     #backtest-ui-preview :is(.performance-stat, .trading-cost-stat) { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
     #backtest-ui-preview :is(.performance-stat, .trading-cost-stat) dt { color: var(--muted); font-size: 12px; }
     #backtest-ui-preview :is(.performance-stat, .trading-cost-stat) dd { margin: 4px 0 0; font-size: 18px; font-weight: 650; }
-    #backtest-ui-preview .period-table-scroll { max-height: 360px; overflow: auto; overscroll-behavior-y: auto; }
+    #backtest-ui-preview .period-table-scroll { max-height: min(360px, 45dvh); overflow: auto; overscroll-behavior-y: auto; }
     #backtest-ui-preview .period-table-scroll.is-height-expanded { max-height: none; }
     #backtest-ui-preview .period-table-scroll thead th { position: sticky; top: 0; }
     #backtest-ui-preview .heatmap-table { min-width: 650px; table-layout: fixed; }
+    #backtest-ui-preview .heatmap-annual { border-inline-start: 2px solid var(--accent); border-inline-end: 2px solid var(--accent); background: var(--accent-soft); font-weight: 700; }
     #backtest-ui-preview .heatmap-table td { padding: 3px; text-align: center; }
     #backtest-ui-preview .heatmap-cell { width: 100%; padding: 4px 2px; font-size: 11px; min-height: 38px; border-color: transparent; }
-    #backtest-ui-preview .heatmap-cell.is-positive { color: var(--accent); background: #e9eef8; }
-    #backtest-ui-preview .heatmap-cell.is-negative { color: #7c3f12; background: #fff0e3; }
+    #backtest-ui-preview .heatmap-cell.is-positive { color: #fff; background: var(--return-positive); }
+    #backtest-ui-preview .heatmap-cell.is-negative { color: #fff; background: var(--return-negative); }
     #backtest-ui-preview .heatmap-cell.is-inspected { outline: 2px solid var(--accent); outline-offset: -2px; }
     #backtest-ui-preview .heatmap-detail { color: var(--muted); font-size: 12px; }
     #backtest-ui-preview .result-tabs { display: flex; gap: 4px; margin: 0; overflow-x: auto; border-bottom: 1px solid var(--border); }
@@ -171,11 +182,13 @@
     #backtest-ui-preview .asset-line { vector-effect: non-scaling-stroke; fill: none; stroke: #30497d; stroke-width: 1.2; }
     #backtest-ui-preview .base-line { stroke: #8b9abb; stroke-width: 1; stroke-dasharray: 4 4; }
     #backtest-ui-preview .comparison-table-wrap { overflow-x: auto; }
-    #backtest-ui-preview [data-panel="comparison"].comparison-table-wrap { max-height: min(300px, 30dvh); overflow: auto; overscroll-behavior: contain auto; }
+    #backtest-ui-preview .comparison-table-wrap, #backtest-ui-preview .period-table-scroll { max-height: min(360px, 45dvh); overflow: auto; overscroll-behavior: contain auto; }
     #backtest-ui-preview .comparison-table thead { position: sticky; z-index: 2; top: 0; }
-    #backtest-ui-preview .comparison-table tbody tr { position: relative; translate: 0 0; transition: translate 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out; }
-    #backtest-ui-preview .comparison-table tbody tr:has(.result-select[aria-pressed="true"]) { z-index: 1; translate: 0 -1px; background: color-mix(in srgb, var(--row-color) 18%, var(--surface)); box-shadow: 0 3px 6px rgb(37 60 109 / 18%), inset 0 0 0 1px var(--row-color); }
-    #backtest-ui-preview [data-panel="trades"] .comparison-table-wrap { max-height: 420px; overflow: auto; overscroll-behavior: contain auto; }
+    #backtest-ui-preview .comparison-table tbody tr { position: relative; translate: 4px 0; transition: translate 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out; }
+    #backtest-ui-preview .comparison-table tbody tr.is-selected { z-index: 1; translate: 0 -1px; background: color-mix(in srgb, var(--row-color) 10%, #fff); box-shadow: 0 2px 6px rgb(37 60 109 / 12%), inset 0 0 0 1px var(--row-color); }
+    #backtest-ui-preview .result-detail-target { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid #30497d; border-inline-start-width: 4px; border-radius: 7px; background: #dde6f5; }
+    #backtest-ui-preview .result-detail-label { color: var(--muted); font-size: 11px; font-weight: 650; }
+    #backtest-ui-preview .result-detail-name { margin: 1px 0 0; font-size: 13px; font-weight: 700; }
     #backtest-ui-preview [data-panel="trades"] thead th { position: sticky; top: 0; }
     #backtest-ui-preview .signal-switch { width: 36px; height: 22px; min-height: 22px; background: var(--accent); border-radius: 12px; border: 0; padding: 3px; }
     #backtest-ui-preview .signal-switch span { display: block; width: 16px; height: 16px; background: #fff; border-radius: 50%; transform: translateX(14px); }
@@ -321,7 +334,17 @@
     #backtest-ui-preview .trade-date-button { border: 0; background: transparent; color: var(--accent); text-decoration: underline; }
     #backtest-ui-preview .chart-trade-action { cursor: pointer; }
     #backtest-ui-preview .chart-trade-action:focus { outline: 2px solid var(--accent); }
-    @media (max-width: 420px) { #backtest-ui-preview .inspector-values { grid-template-columns: 1fr; } }
+    @media (max-width: 420px) {
+      #backtest-ui-preview .app-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand palette locale" "controls controls controls"; gap: 8px 10px; }
+      #backtest-ui-preview .topbar-brand { grid-area: brand; }
+      #backtest-ui-preview .brand { min-width: 0; }
+      #backtest-ui-preview .brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+      #backtest-ui-preview .execution-actions { grid-area: controls; justify-content: flex-start; }
+      #backtest-ui-preview .topbar-right { display: contents; }
+      #backtest-ui-preview .return-color-control { grid-area: palette; }
+      #backtest-ui-preview .locale-select-control { grid-area: locale; }
+      #backtest-ui-preview .inspector-values { grid-template-columns: 1fr; }
+    }
 </style>
 
   <header class="app-topbar">
@@ -332,9 +355,10 @@
     <div class="execution-actions" role="group" aria-label="実行操作">
       <button class="icon-button run-button" type="button" aria-label="バックテストを実行" title="バックテストを実行"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8c0-.7.8-1.1 1.4-.7l11 7.1a1 1 0 0 1 0 1.6l-11 7.1a.9.9 0 0 1-1.4-.7V2.8Z"/></svg></button>
       <button class="icon-button reset-button" type="button" aria-label="結果をクリア" title="結果をクリア">↺</button>
+      <button class="icon-button stop-button" type="button" aria-label="実行を停止" title="実行を停止">■</button>
 
     </div>
-    <div class="topbar-right"><div class="locale-switch" role="group" aria-label="表示言語"><button type="button" aria-pressed="true">日本語</button><button type="button" aria-pressed="false">中文</button></div></div>
+    <div class="topbar-right"><div class="package-actions" role="group" aria-label="戦略ファイル"><button class="icon-button" type="button" aria-label="戦略JSONをダウンロード" title="戦略JSONをダウンロード">↓</button><button class="icon-button" type="button" aria-label="戦略JSONを読み込む" title="戦略JSONを読み込む">↑</button></div><div class="return-color-control" role="group" aria-label="リターンの色"><button type="button" data-return-palette="red-up" aria-pressed="false" aria-label="上昇は赤、下落は緑"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button><button type="button" data-return-palette="green-up" aria-pressed="true" aria-label="上昇は緑、下落は赤"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button></div><label class="locale-select-control"><span class="sr-only">表示言語</span><select class="locale-select"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label></div>
   </header>
 
   <main>
@@ -368,29 +392,18 @@
         <section class="result-card" id="prototype-result-details" aria-label="実行結果">
           <header class="panel-heading">
             <div class="panel-heading-main"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-result-body"><span class="chevron" aria-hidden="true">⌄</span>実行結果</button></div>
-            <div class="result-context-actions"><button type="button" class="icon-button" data-inspector="data" aria-label="保存データ" title="保存データ" aria-haspopup="dialog">ⓘ</button><div class="export-controls" role="group" aria-label="CSV をエクスポート"><button type="button" title="サマリー CSV">↓ サマリー.csv</button><button type="button" title="日次資産 CSV">↓ 日次資産.csv</button><button type="button" title="取引 CSV">↓ 取引.csv</button><button type="button" disabled title="検索結果なし">↓ 検索結果.csv</button></div><button type="button" class="prototype-report-download" title="保存済み戦略の結果を PNG で保存">↓ レポート.png</button></div>
+            <div class="result-context-actions"><div class="export-controls" role="group" aria-label="CSV をエクスポート"><button type="button" title="サマリー CSV">↓ サマリー.csv</button><button type="button" title="日次資産 CSV">↓ 日次資産.csv</button><button type="button" title="取引 CSV">↓ 取引.csv</button><button type="button" disabled title="検索結果なし">↓ 検索結果.csv</button></div><button type="button" class="prototype-report-download" title="保存済み戦略の結果を PNG で保存">↓ レポート.png</button></div>
           </header>
           <div id="prototype-result-body" class="panel-body">
-            <div class="result-tabs" role="tablist" aria-label="実行結果"><button type="button" role="tab" aria-selected="true" data-tab="comparison">戦略比較</button><button type="button" role="tab" aria-selected="false" data-tab="trades">取引明細</button><button type="button" role="tab" aria-selected="false" data-tab="performance">パフォーマンス</button></div>
-            <section class="tab-panel comparison-table-wrap" role="tabpanel" data-panel="comparison" id="prototype-comparison-scroll">
+            <section class="comparison-primary">
+            <div class="comparison-table-wrap" id="prototype-comparison-scroll" tabindex="0" role="region" aria-label="実行結果の比較">
               <div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="戦略比較" aria-label="戦略比較を全行表示" aria-expanded="false" aria-controls="prototype-comparison-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div>
-              <table class="comparison-table"><caption class="sr-only">実行結果の比較</caption><thead><tr><th scope="col"><button class="comparison-sort" type="button" data-column="0">戦略<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="1">投入済み元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="2">注入元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="3">期末資産<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="4">純損益<span aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="descending"><button class="comparison-sort" type="button" data-column="5">投入利益率<span aria-hidden="true">↓</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="6">資産倍率<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="7">XIRR<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="8">最大ドローダウン<span aria-hidden="true">↕</span></button></th></tr></thead><tbody><tr style="--row-color:#7656a6"><th scope="row"><span class="result-rank" aria-hidden="true">1</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 一括投資</button></th><td>$8,100</td><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td></tr><tr style="--row-color:#a65b0f"><th scope="row"><span class="result-rank" aria-hidden="true">2</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 毎月定額積立</button></th><td>$8,100</td><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td></tr><tr style="--row-color:#30497d"><th scope="row"><span class="result-rank" aria-hidden="true">3</span> <button type="button" class="result-select" aria-pressed="true"><span aria-hidden="true" style="color:var(--row-color)">●</span> ボラティリティ積立</button></th><td>$7,800</td><td>$8,100</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td></tr></tbody></table>
-            </section>
-            <section class="tab-panel" role="tabpanel" data-panel="trades" hidden><h4 class="trade-context">ボラティリティ積立</h4><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
-            <section class="tab-panel" role="tabpanel" data-panel="performance" hidden>
-              <h4>ボラティリティ積立</h4><p class="performance-basis">単位純資産ベース · 年 252 取引日 · 無リスク年利率 0%</p>
-              <h4>リターン・リスク</h4><dl class="performance-grid">
-                <div class="performance-stat" tabindex="0" title="注資影響を除く単位純資産の伸びを実日数で年率化。"><dt>NAV 年率リターン</dt><dd>12.4%</dd></div><div class="performance-stat" tabindex="0" title="日次リターンの標本標準偏差を年252取引日で換算。"><dt>年率ボラティリティ</dt><dd>20.3%</dd></div><div class="performance-stat" tabindex="0" title="超過日次リターンの平均 / 標準偏差を年率化。"><dt>Sharpe</dt><dd>0.67</dd></div><div class="performance-stat" tabindex="0" title="超過日次リターンの平均 / 全観測の下方偏差を年率化。"><dt>Sortino</dt><dd>0.91</dd></div><div class="performance-stat" tabindex="0" title="NAV年率リターン / 最大ドローダウン。"><dt>Calmar</dt><dd>0.35</dd></div>
-              </dl><h4>回復期間</h4><dl class="performance-grid"><div class="performance-stat" tabindex="0" title="ピークから回復または最終日までの日数。"><dt>最長ドローダウン期間</dt><dd>500 日</dd></div><div class="performance-stat" tabindex="0" title="最深下落の底から元のピークを回復するまで。"><dt>最大下落からの回復</dt><dd>216 日</dd></div></dl>
-              <h4>売買・現金</h4><dl class="performance-grid"><div class="performance-stat" tabindex="0" title="実際の買付約定の件数。"><dt>買付回数</dt><dd>42</dd></div><div class="performance-stat" tabindex="0" title="実際の売却約定の件数。"><dt>売却回数</dt><dd>0</dd></div><div class="performance-stat" tabindex="0" title="買付・売却の総代金 / 注資後の平均総資産。"><dt>総売買回転率</dt><dd>96.2%</dd></div><div class="performance-stat" tabindex="0" title="総資産が正の日の現金比率の平均。"><dt>平均現金比率</dt><dd>8.4%</dd></div></dl>
-              <section class="trading-costs-panel"><h4>取引コスト</h4><dl class="performance-grid"><div class="trading-cost-stat"><dt>手数料</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>スリッページ損失</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>スプレッド損失</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>コスト合計</dt><dd>$0.00</dd></div></dl></section>
-              <h4>年次リターン</h4><p class="performance-basis">保存期間のNAVリターン。部分年・部分月を年率化しません。</p>
-              <div class="period-table-scroll" tabindex="0" role="region" aria-label="年次リターン"><table class="annual-performance-table"><caption class="sr-only">年次リターン</caption><thead><tr><th scope="col">年</th><th scope="col">戦略 NAV</th><th scope="col">銘柄終値</th><th scope="col">毎月定額積立</th></tr></thead><tbody><tr><th scope="row" title="2024-01-02 → 2024-12-31">2024</th><td>12.4%</td><td>14.5%</td><td>14.5%</td></tr></tbody></table></div>
-              <div class="performance-group-heading"><h4>月次リターン</h4><button type="button" class="table-expand-button" data-table-height-toggle="月次リターン" aria-label="月次リターンを全行表示" aria-expanded="false" aria-controls="prototype-monthly-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><div id="prototype-monthly-scroll" class="period-table-scroll" tabindex="0" role="region" aria-label="月次リターン"><table class="heatmap-table"><caption class="sr-only">月次リターン</caption><thead><tr><th scope="col">年</th><th scope="col">1月</th><th scope="col">2月</th><th scope="col">3月</th><th scope="col">4月</th><th scope="col">5月</th><th scope="col">6月</th><th scope="col">7月</th><th scope="col">8月</th><th scope="col">9月</th><th scope="col">10月</th><th scope="col">11月</th><th scope="col">12月</th></tr></thead><tbody><tr><th scope="row">2024</th><td><button class="heatmap-cell is-positive" type="button" aria-label="2024-01 · 2.12%" title="2024-01 · 2.1234%">+2.12%</button></td><td><button class="heatmap-cell is-negative" type="button" aria-label="2024-02 · -1.23%" title="2024-02 · -1.2345%">-1.23%</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div><p class="heatmap-detail" role="status">セルを選ぶと保存値を表示します。</p>
-              <h4>ドローダウン区間</h4><div class="period-table-scroll" tabindex="0" role="region" aria-label="ドローダウン区間"><table class="drawdown-episodes-table"><caption class="sr-only">ドローダウン区間</caption><thead><tr><th scope="col">ピーク</th><th scope="col">底</th><th scope="col">下落率</th><th scope="col">回復日</th><th scope="col">期間</th><th scope="col">回復</th></tr></thead><tbody><tr><th scope="row">2024-07-01</th><td>2024-08-05</td><td>-12.3%</td><td>未回復</td><td title="2024-12-31">183 日</td><td>—</td></tr></tbody></table></div>
-            </section>
+              <table class="comparison-table"><caption class="sr-only">実行結果の比較</caption><thead><tr><th scope="col"><button class="comparison-sort" type="button" data-column="0">戦略<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="1">投入済み元本<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="2">期末資産<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="3">純損益<span aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="descending"><button class="comparison-sort" type="button" data-column="4">投入利益率<span aria-hidden="true">↓</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="5">資産倍率<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="6">XIRR<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="7">最大ドローダウン<span aria-hidden="true">↕</span></button></th><th scope="col"><button class="comparison-sort" type="button" data-column="8">税金<span aria-hidden="true">↕</span></button></th></tr></thead><tbody><tr style="--row-color:#7656a6"><th scope="row"><span class="result-rank" aria-hidden="true">1</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 一括投資</button></th><td>$8,100</td><td>$28,754</td><td>$20,654</td><td>255.0%</td><td>3.55×</td><td>20.7%</td><td>35.1%</td><td>$0.00</td></tr><tr style="--row-color:#a65b0f"><th scope="row"><span class="result-rank" aria-hidden="true">2</span> <button type="button" class="result-select" aria-pressed="false"><span aria-hidden="true" style="color:var(--row-color)">●</span> 毎月定額積立</button></th><td>$8,100</td><td>$16,653</td><td>$8,553</td><td>105.6%</td><td>2.06×</td><td>21.1%</td><td>35.1%</td><td>$0.00</td></tr><tr class="is-selected" style="--row-color:#30497d"><th scope="row"><span class="result-rank" aria-hidden="true">3</span> <button type="button" class="result-select" aria-pressed="true"><span aria-hidden="true" style="color:var(--row-color)">●</span> ボラティリティ積立</button></th><td>$7,800</td><td>$16,622</td><td>$8,522</td><td>105.2%</td><td>2.05×</td><td>21.0%</td><td>35.1%</td><td>$1.20</td></tr></tbody></table>
+            </div></section>
           </div>
         </section>
+
+
 
         <section class="result-card" id="prototype-chart-panel" aria-label="資産推移">
           <header class="panel-heading"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-chart-body"><span class="chevron" aria-hidden="true">⌄</span>資産推移</button></header>
@@ -422,6 +435,25 @@
             </div>
           </div>
         </section>
+
+        <section class="result-card" id="prototype-strategy-details" aria-label="戦略詳細">
+          <header class="panel-heading"><div class="panel-heading-main"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-strategy-details-body"><span class="chevron" aria-hidden="true">⌄</span>戦略詳細</button></div></header>
+          <div id="prototype-strategy-details-body" class="panel-body">
+            <section class="result-detail-target" aria-label="明細対象"><span aria-hidden="true" class="result-color-swatch" style="background:#30497d"></span><div><span class="result-detail-label">明細対象</span><h4 class="result-detail-name">ボラティリティ積立</h4></div></section>
+            <div class="result-tabs" role="tablist" aria-label="実行結果の詳細"><button type="button" role="tab" aria-selected="true" aria-controls="prototype-trades-panel" data-tab="trades">取引明細</button><button type="button" role="tab" aria-selected="false" aria-controls="prototype-performance-panel" data-tab="performance">パフォーマンス</button></div>
+            <section class="tab-panel" id="prototype-trades-panel" role="tabpanel" data-panel="trades"><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
+            <section class="tab-panel" id="prototype-performance-panel" role="tabpanel" data-panel="performance" hidden>
+              <p class="performance-basis">単位純資産ベース · 年 252 取引日 · 無リスク年利率 0%</p>
+              <h4>リターン・リスク</h4><dl class="performance-grid">
+                <div class="performance-stat" tabindex="0" title="注資影響を除く単位純資産の伸びを実日数で年率化。"><dt>NAV 年率リターン</dt><dd>12.4%</dd></div><div class="performance-stat" tabindex="0" title="日次リターンの標本標準偏差を年252取引日で換算。"><dt>年率ボラティリティ</dt><dd>20.3%</dd></div><div class="performance-stat" tabindex="0" title="超過日次リターンの平均 / 標準偏差を年率化。"><dt>Sharpe</dt><dd>0.67</dd></div><div class="performance-stat" tabindex="0" title="超過日次リターンの平均 / 全観測の下方偏差を年率化。"><dt>Sortino</dt><dd>0.91</dd></div><div class="performance-stat" tabindex="0" title="NAV年率リターン / 最大ドローダウン。"><dt>Calmar</dt><dd>0.35</dd></div>
+              </dl><h4>回復期間</h4><dl class="performance-grid"><div class="performance-stat" tabindex="0" title="ピークから回復または最終日までの日数。"><dt>最長ドローダウン期間</dt><dd>500 日</dd></div><div class="performance-stat" tabindex="0" title="最深下落の底から元のピークを回復するまで。"><dt>最大下落からの回復</dt><dd>216 日</dd></div></dl>
+              <h4>売買・現金</h4><dl class="performance-grid"><div class="performance-stat" tabindex="0" title="実際の買付約定の件数。"><dt>買付回数</dt><dd>42</dd></div><div class="performance-stat" tabindex="0" title="実際の売却約定の件数。"><dt>売却回数</dt><dd>0</dd></div><div class="performance-stat" tabindex="0" title="買付・売却の総代金 / 注資後の平均総資産。"><dt>総売買回転率</dt><dd>96.2%</dd></div><div class="performance-stat" tabindex="0" title="総資産が正の日の現金比率の平均。"><dt>平均現金比率</dt><dd>8.4%</dd></div></dl>
+              <section class="trading-costs-panel"><h4>取引コスト</h4><dl class="performance-grid"><div class="trading-cost-stat"><dt>手数料</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>スリッページ損失</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>スプレッド損失</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>コスト合計</dt><dd>$0.00</dd></div></dl></section>
+              <div class="performance-group-heading"><h4>月次リターン</h4><button type="button" class="table-expand-button" data-table-height-toggle="月次リターン" aria-label="月次リターンを全行表示" aria-expanded="false" aria-controls="prototype-monthly-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><div id="prototype-monthly-scroll" class="period-table-scroll" tabindex="0" role="region" aria-label="月次リターン"><table class="heatmap-table"><caption class="sr-only">月次リターン</caption><thead><tr><th scope="col">年</th><th scope="col">1月</th><th scope="col">2月</th><th scope="col">3月</th><th scope="col">4月</th><th scope="col">5月</th><th scope="col">6月</th><th scope="col">7月</th><th scope="col">8月</th><th scope="col">9月</th><th scope="col">10月</th><th scope="col">11月</th><th scope="col">12月</th><th scope="col" class="heatmap-annual">年計</th></tr></thead><tbody><tr><th scope="row">2024</th><td><button class="heatmap-cell is-positive" type="button" aria-label="2024-01 · 2.12%" title="2024-01 · 2.1234%">+2.12%</button></td><td><button class="heatmap-cell is-negative" type="button" aria-label="2024-02 · -1.23%" title="2024-02 · -1.2345%">-1.23%</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><button class="heatmap-cell is-positive heatmap-annual" type="button" aria-label="2024 年次リターン +12.4%" title="2024 · +12.4%">+12.4%</button></td></tr></tbody></table></div><p class="heatmap-detail" role="status">セルを選ぶと保存値を表示します。</p>
+              <h4>ドローダウン区間</h4><div class="period-table-scroll" tabindex="0" role="region" aria-label="ドローダウン区間"><table class="drawdown-episodes-table"><caption class="sr-only">ドローダウン区間</caption><thead><tr><th scope="col">ピーク</th><th scope="col">底</th><th scope="col">下落率</th><th scope="col">回復日</th><th scope="col">期間</th><th scope="col">回復</th></tr></thead><tbody><tr><th scope="row">2024-07-01</th><td>2024-08-05</td><td>-12.3%</td><td>未回復</td><td title="2024-12-31">183 日</td><td>—</td></tr></tbody></table></div>
+            </section>
+          </div>
+        </section>
       </section>
     </div>
   </main>
@@ -432,7 +464,7 @@
         <fieldset><legend>対象</legend><div class="fields"><div class="field"><label for="prototype-symbol">銘柄コード</label><input id="prototype-symbol" value="QQQ"/><div class="etf-options"><button type="button">QQQ</button><button type="button">SPY</button><button type="button">VOO</button><button type="button">VTI</button><button type="button">IVV</button></div></div></div></fieldset>
         <fieldset><legend>期間</legend><div class="fields"><div class="field"><label for="prototype-start">開始日</label><input id="prototype-start" type="date" value="2020-01-01"/></div><div class="field"><label for="prototype-end">終了日</label><input id="prototype-end" type="date" value="2026-10-01"/></div></div></fieldset>
         <fieldset><legend>投入計画</legend><div class="fields"><div class="field"><label for="prototype-cash">毎月の投入額</label><div class="unit-field"><input id="prototype-cash" type="number" value="100"/><span class="unit">USD</span></div></div><div class="field"><label for="prototype-day">毎月の投入日</label><input id="prototype-day" type="number" min="1" max="31" value="1"/></div></div></fieldset>
-        <fieldset><legend>分析</legend><div class="fields"><div class="field"><label for="prototype-risk-free">無リスク年利率</label><div class="unit-field"><input id="prototype-risk-free" type="number" required min="-99.99" max="100" step="0.01" value="0"/><span class="unit">%</span></div><small>Sharpe / Sortino の比較基準。現金には加算しません。</small></div></div></fieldset>
+        <fieldset><legend>分析</legend><div class="fields"><div class="field"><label for="prototype-risk-free">無リスク年利率</label><div class="unit-field"><input id="prototype-risk-free" type="number" required min="-99.99" max="100" step="0.01" value="0"/><span class="unit">%</span></div><small>Sharpe / Sortino の比較基準。現金には加算しません。</small></div><div class="field"><label for="prototype-capital-gains-tax">資本利得税</label><button id="prototype-capital-gains-tax" type="button" role="switch" aria-label="資本利得税を適用" aria-checked="false"><i class="signal-switch" aria-hidden="true"><span></span></i></button><small>売却益に20%。既定では無効。</small></div></div></fieldset>
         <fieldset><legend>約定</legend><div class="fields"><div class="field"><label for="prototype-commission">1件あたりの手数料</label><div class="unit-field"><input id="prototype-commission" type="number" required min="0" step="0.01" value="0"/><span class="unit">USD / 件</span></div><small>約定時だけ課金します。</small></div><div class="field"><label for="prototype-slippage">スリッページ</label><div class="unit-field"><input id="prototype-slippage" type="number" required min="0" max="99.99" step="0.01" value="0"/><span class="unit">%</span></div></div><div class="field"><label for="prototype-spread">売買スプレッド</label><div class="unit-field"><input id="prototype-spread" type="number" required min="0" max="199.98" step="0.01" value="0"/><span class="unit">%</span></div></div><div class="field"><label>端株を許可</label><button id="prototype-fractional" type="button" role="switch" aria-label="端株を許可" aria-checked="true"><i class="signal-switch" aria-hidden="true"><span></span></i></button><small>OFF：整数株数。余りは現金。</small></div></div></fieldset>
       </div><footer class="dialog-footer"><button class="button-primary dialog-done" type="button">完了</button></footer>
     </div>
@@ -462,7 +494,6 @@
   </dialog>
   <template id="prototype-inspector-trade"><p><time>2026-08-03</time> · 買い $508.40 · シグナル買付</p><p>シグナル日 <time>2026-07-31</time></p><h3>判定条件</h3><p class="inspector-condition">VIX 25 ≥ 25 · ✓ TRUE</p><h3>約定</h3><dl class="inspector-values"><div><dt>基準価格</dt><dd>$410.00</dd></div><div><dt>約定価格</dt><dd>$410.00</dd></div><div><dt>数量</dt><dd>1.24</dd></div><div><dt>約定額</dt><dd>$508.40</dd></div></dl><h3>取引コスト</h3><dl class="inspector-values"><div><dt>手数料</dt><dd>$0.00</dd></div><div><dt>スリッページ損失</dt><dd>$0.00</dd></div><div><dt>スプレッド損失</dt><dd>$0.00</dd></div><div><dt>コスト合計</dt><dd>$0.00</dd></div></dl><h3>取引前後</h3><dl class="inspector-values"><div><dt>現金</dt><dd>$608.40 → $100.00</dd></div><div><dt>保有数量</dt><dd>0 → 1.24</dd></div></dl></template>
   <template id="prototype-inspector-planned"><p><time>2026-09-01</time> · 買い $100.00 · 定額積立</p><h3>判定条件</h3><p>投入計画に基づく買付です。</p><h3>約定</h3><dl class="inspector-values"><div><dt>約定価格</dt><dd>$416.00</dd></div><div><dt>数量</dt><dd>0.24</dd></div></dl></template>
-  <template id="prototype-inspector-data"><dl class="inspector-values"><div><dt>データ提供元</dt><dd>Yahoo Finance</dd></div><div><dt>通貨</dt><dd>USD</dd></div><div><dt>指定期間</dt><dd>2020-01-01 → 2026-09-29</dd></div><div><dt>実際の期間</dt><dd>2020-01-02 → 2026-09-29</dd></div><div><dt>約定用価格</dt><dd>配当・分割調整済みの終値</dd></div><div><dt>評価用価格</dt><dd>配当調整なし。EPS の基準と合わせて評価</dd></div></dl><h3>保存された観測値</h3><p class="inspector-condition">^VIX · 100%</p></template>
   <template id="prototype-grid-template"><section class="prototype-grid-settings"><h3>検索設定</h3><p>候補値を組み合わせて比較します。</p><div class="prototype-grid-values">
 <fieldset class="prototype-grid-value-card"><legend>指数しきい値の候補</legend><div class="fields">
 <div class="field"><label class="sr-only" for="prototype-grid-vix-0">指数しきい値の候補 1</label><div class="unit-field"><input id="prototype-grid-vix-0" type="number" required min="0" step="0.01" value="25"/><span class="unit">pt</span></div></div>
@@ -491,6 +522,10 @@
       const strategyDialog = root.querySelector(".strategy-dialog");
       const inspectorDialog = root.querySelector(".prototype-inspector-dialog");
       root.querySelector("#prototype-fractional").addEventListener("click", event => {
+        const button = event.currentTarget;
+        button.setAttribute("aria-checked", String(button.getAttribute("aria-checked") !== "true"));
+      });
+      root.querySelector("#prototype-capital-gains-tax").addEventListener("click", event => {
         const button = event.currentTarget;
         button.setAttribute("aria-checked", String(button.getAttribute("aria-checked") !== "true"));
       });
@@ -535,7 +570,7 @@
         const openInspector = event => {
           event.preventDefault(); event.stopPropagation();
           opener.focus();
-          inspectorDialog.querySelector("h2").textContent = opener.dataset.inspector === "data" ? "QQQ · 保存データ" : "ボラティリティ積立";
+          inspectorDialog.querySelector("h2").textContent = "ボラティリティ積立";
           inspectorDialog.querySelector(".dialog-content").replaceChildren(root.querySelector(`#prototype-inspector-${opener.dataset.inspector}`).content.cloneNode(true));
           setOpen(inspectorDialog, opener);
         };
@@ -580,10 +615,29 @@
         root.querySelectorAll(".result-tabs button").forEach((item) => item.setAttribute("aria-selected", String(item === button)));
         root.querySelectorAll(".tab-panel").forEach((panel) => { panel.hidden = panel.dataset.panel !== button.dataset.tab; });
       }));
+      let returnColorManual = false;
+      const applyReturnColors = palette => {
+        root.dataset.returnPalette = palette;
+        root.querySelectorAll('.return-color-control button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.returnPalette === palette)));
+      };
+      root.querySelectorAll('.return-color-control button').forEach(button => button.addEventListener('click', () => {
+        returnColorManual = true; applyReturnColors(button.dataset.returnPalette);
+      }));
+      root.querySelector('.locale-select').addEventListener('change', event => {
+        if (!returnColorManual) applyReturnColors(event.target.value === 'zh' ? 'red-up' : 'green-up');
+      });
+      const colorValue = (cell, tone) => { const value = document.createElement('span'); value.className = `return-value is-${tone}`; value.textContent = cell.textContent; cell.replaceChildren(value); };
+      root.querySelectorAll('.comparison-table tbody tr').forEach(row => {
+        [4, 6].forEach(index => colorValue(row.cells[index], 'positive')); colorValue(row.cells[7], 'negative');
+      });
+      colorValue(root.querySelector('.performance-stat dd'), 'positive');
+      colorValue(root.querySelector('.drawdown-episodes-table tbody tr').cells[2], 'negative');
       root.querySelectorAll(".heatmap-cell").forEach(button => {
         const inspect = () => {
           root.querySelectorAll(".heatmap-cell").forEach(cell => cell.classList.toggle("is-inspected", cell === button));
-          root.querySelector(".heatmap-detail").textContent = button.getAttribute("aria-label");
+          const detail = root.querySelector(".heatmap-detail");
+          detail.textContent = button.getAttribute("aria-label");
+          detail.className = `heatmap-detail return-value is-${button.classList.contains('is-positive') ? 'positive' : 'negative'}`;
         };
         ["mouseenter", "focus", "click"].forEach(event => button.addEventListener(event, inspect));
       });
@@ -600,13 +654,13 @@
           if (item.dataset.series === "asset") root.querySelector(".trade-marker").style.display = shown ? "" : "none";
         }
       }));
-      let sortedColumn = 5;
+      let sortedColumn = 4;
       let sortDirection = "descending";
       root.querySelectorAll(".comparison-sort").forEach(button => button.addEventListener("click", () => {
         const column = Number(button.dataset.column);
         sortDirection = sortedColumn === column
           ? sortDirection === "ascending" ? "descending" : "ascending"
-          : column === 0 || column === 8 ? "ascending" : "descending";
+          : column === 0 || column === 7 ? "ascending" : "descending";
         sortedColumn = column;
         const table = button.closest("table");
         const rows = [...table.tBodies[0].rows];
@@ -623,7 +677,11 @@
         });
       }));
       root.querySelectorAll(".result-select").forEach(button => button.addEventListener("click", () => {
-        button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
+        const selected = button.getAttribute("aria-pressed") !== "true";
+        button.setAttribute("aria-pressed", String(selected));
+        const row = button.closest("tr");
+        row.classList.toggle("is-selected", selected);
+        root.querySelector(".result-detail-name").textContent = button.textContent.trim();
       }));
       root.querySelectorAll(".etf-options button").forEach(button => button.addEventListener("click", () => {
         root.querySelector("#prototype-symbol").value = button.textContent;

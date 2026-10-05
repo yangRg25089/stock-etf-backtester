@@ -4,10 +4,10 @@ import type { StrategyDraft } from "./model";
 import { formatStrategySummary } from "./strategySummary";
 
 export function StrategyCard({ strategy, name, active, busy, hasError, summaryId, locale,
-  buttonRef, onOpen, onRemove, onTools }: {
+  buttonRef, canDuplicate, onOpen, onRemove, onDuplicate }: {
   strategy: StrategyDraft; name: string; active: boolean; busy: boolean; hasError: boolean;
-  summaryId: string; locale: Locale; buttonRef: Ref<HTMLButtonElement>;
-  onOpen(event: MouseEvent<HTMLButtonElement>): void; onRemove(): void; onTools(): void;
+  summaryId: string; locale: Locale; buttonRef: Ref<HTMLButtonElement>; canDuplicate: boolean;
+  onOpen(event: MouseEvent<HTMLButtonElement>): void; onRemove(): void; onDuplicate(): void;
 }) {
   return (
     <article
@@ -44,9 +44,14 @@ export function StrategyCard({ strategy, name, active, busy, hasError, summaryId
             <path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6" />
           </svg>
         </button>
-        <button className="icon-button strategy-more" type="button" disabled={busy} aria-haspopup="dialog"
-          aria-label={translate(locale, "strategy.more", { name })} title={translate(locale, "strategy.more", { name })}
-          onClick={onTools}><span aria-hidden="true">⋯</span></button>
+        <button className="icon-button strategy-copy" type="button" disabled={busy || !canDuplicate}
+          aria-label={translate(locale, "strategy.copy", { name })} title={translate(locale, "strategy.copy", { name })}
+          onClick={onDuplicate}>
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <rect x="7" y="6" width="10" height="11" rx="1.5" />
+            <path d="M13 6V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v8A1.5 1.5 0 0 0 4.5 14H7" />
+          </svg>
+        </button>
       </div>
     </article>
   );

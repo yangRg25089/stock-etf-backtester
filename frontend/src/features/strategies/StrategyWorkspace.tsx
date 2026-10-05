@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch } from "react";
 import type { Catalog, DraftValidationResponse, StrategyPresetId } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
+import { strategyInstanceName } from "../../shared/lib/strategyInstanceName";
 import { StrategyEditorDialog } from "./StrategyEditorDialog";
-import { StrategyToolsDialog } from "./StrategyToolsDialog";
 import { StrategyCard } from "./StrategyCard";
-import type { WorkspaceAction, WorkspaceState } from "./model";
+import { canAddStrategy, type WorkspaceAction, type WorkspaceState } from "./model";
 import { StrategyAddMenu } from "./StrategyAddMenu";
 
 interface StrategyNavigatorProps {
@@ -41,7 +41,6 @@ export function StrategyNavigator({
   fieldNavigation = null,
   onFieldNavigationHandled,
 }: StrategyNavigatorProps) {
-  const [toolsStrategyId, setToolsStrategyId] = useState<string | null>(null);
   const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
   const [focusFieldKey, setFocusFieldKey] = useState<string | null>(null);
   const [focusFieldIndex, setFocusFieldIndex] = useState<number | undefined>();
@@ -53,7 +52,6 @@ export function StrategyNavigator({
   const presets = catalog.presets ?? [];
 
   const editingStrategy = state.draft.strategies.find((item) => item.id === editingStrategyId);
-  const toolsStrategy = state.draft.strategies.find(item => item.id === toolsStrategyId);
   const handleFieldFocusHandled = useCallback(() => {
     setFocusFieldKey(null);
     setFocusFieldIndex(undefined);
@@ -117,7 +115,7 @@ export function StrategyNavigator({
           {state.draft.strategies.map((strategy, index) => {
             const preset = presets.find((item) => item.id === strategy.presetId);
             if (!preset) return null;
-            const name = translate(locale, preset.nameKey) + (strategy.instanceNumber ? ` ${strategy.instanceNumber}` : "");
+            const name = strategyInstanceName(translate(locale, preset.nameKey), strategy.instanceNumber);
             const isRunTarget = strategy.id === state.activeStrategyId;
             const strategyValidation = validation?.strategies?.find(
               (item) => item.strategyId === strategy.id,
@@ -130,6 +128,7 @@ export function StrategyNavigator({
             return (
               <StrategyCard key={strategy.id} strategy={strategy} name={name} active={isRunTarget}
                 busy={busy} hasError={hasError} summaryId={summaryId} locale={locale}
+                canDuplicate={canAddStrategy(catalog, state.draft.strategies, strategy.presetId)}
                 buttonRef={element => {
                   if (element) cardButtonRefs.current.set(strategy.id, element);
                   else cardButtonRefs.current.delete(strategy.id);
@@ -144,7 +143,7 @@ export function StrategyNavigator({
                   setEditingStrategyId(strategy.id);
                 }}
                 onRemove={() => removeStrategy(strategy.id, index)}
-                onTools={() => { if (!busy) setToolsStrategyId(strategy.id); }} />
+                onDuplicate={() => { if (!busy) onDuplicate(strategy.id); }} />
             );
           })}
         </div>
@@ -171,11 +170,6 @@ export function StrategyNavigator({
           }}
         />
       )}
-      {toolsStrategy && <StrategyToolsDialog key={toolsStrategy.id} locale={locale} busy={busy}
-        name={translate(locale, presets.find(item => item.id === toolsStrategy.presetId)?.nameKey ?? "") + (toolsStrategy.instanceNumber ? ` ${toolsStrategy.instanceNumber}` : "")}
-        canDuplicate={toolsStrategy.presetId === "composite_dca" && state.draft.strategies.filter(item => item.presetId === "composite_dca").length < (catalog.strategyLimits?.maxCustomInstances ?? 0)}
-        onDuplicate={() => onDuplicate(toolsStrategy.id)} onReset={() => dispatch({ type: "strategy.reset", id: toolsStrategy.id })}
-        onClose={() => setToolsStrategyId(null)} />}
     </section>
   );
 }

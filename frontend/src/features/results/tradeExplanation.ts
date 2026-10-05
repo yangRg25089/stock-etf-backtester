@@ -108,6 +108,8 @@ export function explainTrade(run: RunResponse, result: StrategyRun, index: numbe
 }
 
 export function explainUnexecutedSignal(run: RunResponse, result: StrategyRun, signal: UnexecutedSignal, locale: Locale, parent?: StrategyRun | null) {
-  const side = signal.signalId === "accumulation.buy" || signal.signalId === "ma.trend" ? "buy" : "sell";
+  const baseSignalId = signal.signalId.split(":", 1)[0];
+  const side = baseSignalId === "accumulation.buy" || baseSignalId === "ma.trend" || baseSignalId.endsWith(".buy")
+    ? "buy" : "sell";
   return { signal, conditions: conditionsOnDate(run, result, signal.signalDate, side, locale, parent) };
 }

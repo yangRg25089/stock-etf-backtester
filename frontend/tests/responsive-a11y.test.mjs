@@ -107,8 +107,59 @@ test("desktop workbench keeps top controls fixed with independent strategy list 
   assert.match(tablet, /\.workbench-config\s*\{[^}]*position:\s*relative/s);
   assert.match(tablet, /\.workbench-results\s*\{[^}]*overflow-y:\s*auto/s);
   assert.match(blockFor(".app-topbar"), /position:\s*sticky/);
-  assert.match(app, /<header className="app-topbar">[\s\S]*?className="topbar-brand"[\s\S]*?<RunActions/);
+  assert.match(app, /<header[^>]*className="app-topbar">[\s\S]*?className="topbar-brand"[\s\S]*?<RunActions/);
   assert.doesNotMatch(app, /className="page-heading"/);
+});
+
+test("the workbench separator is a centered one-pixel rule rather than a responsive gradient", () => {
+  const divider = blockFor(".workbench-divider");
+  const rule = blockFor(".workbench-divider::before");
+  assert.doesNotMatch(divider, /linear-gradient/);
+  assert.match(divider, /background:\s*none/);
+  assert.match(rule, /position:\s*absolute/);
+  assert.match(rule, /left:\s*50%/);
+  assert.match(rule, /transform:\s*translateX\(-50%\)/);
+  assert.match(rule, /top:\s*0/);
+  assert.match(rule, /bottom:\s*0/);
+  assert.match(rule, /width:\s*1px/);
+});
+
+test("performance explanations have a visible hover and keyboard-focus presentation", () => {
+  const card = blockFor(".performance-stat");
+  const tooltip = blockFor(".performance-help-tooltip");
+  assert.match(card, /position:\s*relative/);
+  assert.match(tooltip, /visibility:\s*hidden/);
+  assert.match(tooltip, /position:\s*absolute/);
+  assert.match(css, /\.performance-stat:hover\s*>\s*\.performance-help-tooltip[\s\S]*?\.performance-stat:focus-visible\s*>\s*\.performance-help-tooltip/);
+  assert.match(css, /\.performance-basis:hover\s*>\s*\.performance-help-tooltip[\s\S]*?\.performance-basis:focus-visible\s*>\s*\.performance-help-tooltip/);
+  assert.match(tooltip, /max-width:\s*min\(320px, calc\(100vw - 32px\)\)/);
+});
+
+test("all returns share the monthly red/green tokens with readable contrast", () => {
+  const positive = blockFor(".heatmap-cell.is-positive");
+  const negative = blockFor(".heatmap-cell.is-negative");
+  assert.match(css, /--return-red:\s*#b71c1c/);
+  assert.match(css, /--return-green:\s*#087443/);
+  assert.match(blockFor('.app-frame[data-return-palette="red-up"]'), /--return-positive:\s*var\(--return-red\)/);
+  assert.match(positive, /background:\s*var\(--return-positive\)/);
+  assert.match(positive, /color:\s*#ffffff/);
+  assert.match(negative, /background:\s*var\(--return-negative\)/);
+  assert.match(negative, /color:\s*#ffffff/);
+  assert.match(blockFor(".return-value.is-positive"), /color:\s*var\(--return-positive\)/);
+  assert.match(blockFor(".return-value.is-negative"), /color:\s*var\(--return-negative\)/);
+  assert.ok(contrastRatio("#ffffff", "#b71c1c") >= 4.5);
+  assert.ok(contrastRatio("#ffffff", "#087443") >= 4.5);
+  for (const [tone, color] of [["positive", "#087443"], ["negative", "#b71c1c"]]) {
+    assert.match(blockFor(`.search-heat-cell.is-${tone}`), /var\(--heat-strength\) \* 40%/);
+    const strongestTint = `#${color.slice(1).match(/../g).map(channel =>
+      Math.round(parseInt(channel, 16) * .12 + 255 * .88).toString(16).padStart(2, "0")).join("")}`;
+    assert.ok(contrastRatio(color, strongestTint) >= 4.5);
+  }
+});
+
+test("table sort controls share keyboard-visible styles", () => {
+  assert.match(css, /\.table-sort\.is-sorted\s*\{[^}]*color:\s*var\(--app-accent\)/s);
+  assert.match(css, /\.table-sort:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--app-accent\)/s);
 });
 
 test("mobile workbench exposes separate configuration and results views under the fixed topbar", () => {
@@ -129,7 +180,7 @@ test("the design prototype mirrors the flattened workbench and result hierarchy"
   assert.match(prototype, /class="strategy-card-list"/);
   assert.doesNotMatch(prototype, /class="editor-scroll"|class="page-heading"|class="run-summary-card"|class="details-entry"/);
   assert.match(prototype, /class="icon-button config-toggle"[^>]*aria-expanded="true"/);
-  assert.match(prototype, /role="tablist" aria-label="実行結果"/);
+  assert.match(prototype, /role="tablist" aria-label="実行結果の詳細"/);
   assert.ok(prototype.indexOf('id="prototype-result-details"') < prototype.indexOf('id="prototype-chart-panel"'));
   assert.match(prototype, /position:\s*sticky; z-index: 4; top: 0/);
   assert.match(prototype, /\.price-line[^}]*stroke-width:\s*1\.2/);
@@ -137,8 +188,10 @@ test("the design prototype mirrors the flattened workbench and result hierarchy"
   assert.match(prototype, /#backtest-ui-preview \.shared-settings-copy span[^}]*font-size: 12px/);
   assert.match(prototype, /#backtest-ui-preview \.strategy-card-summary[^}]*font-size: 12px/);
   assert.match(prototype, /height:\s*100dvh/);
-  assert.match(prototype, /data-panel="comparison"/);
-  assert.doesNotMatch(prototype, /prototype-result-focus|data-tab="overview"|data-tab="metrics"/);
+  assert.match(prototype, /class="comparison-primary"/);
+  assert.doesNotMatch(prototype, /data-panel="comparison"|data-tab="comparison"|prototype-result-focus|data-tab="overview"|data-tab="metrics"/);
+  assert.ok(prototype.indexOf('class="comparison-primary"') < prototype.indexOf('role="tablist" aria-label="実行結果の詳細"'));
+  assert.ok(prototype.indexOf('role="tablist" aria-label="実行結果の詳細"') < prototype.indexOf('<section class="tab-panel" id="prototype-trades-panel"'));
   assert.match(prototype, /Ctrl\/Command＋スクロールは全図を同期して拡大・縮小/);
   assert.doesNotMatch(prototype, /result-run-id|strategy-vix_dca-1|candidate-[0-9]/);
 });
@@ -154,6 +207,19 @@ test("wide data tables scroll inside their panels instead of widening the page",
 test("comparison and trade tables permit vertical scroll chaining without losing horizontal containment", () => {
   const panel = blockFor(".comparison-table-scroll,\n.trade-table-scroll");
   assert.match(panel, /overscroll-behavior:\s*contain auto/);
+});
+
+test("expanded table titles share the results-scroll sticky behavior and stay within the owning table", () => {
+  const controls = blockFor(".table-height-region.is-height-expanded .table-height-controls");
+  const performanceHeading = blockFor(".performance-group.is-height-expanded > .performance-group-heading");
+  assert.match(controls, /position:\s*sticky/);
+  assert.match(controls, /top:\s*var\(--table-expanded-sticky-top/);
+  assert.match(performanceHeading, /position:\s*sticky/);
+  assert.match(performanceHeading, /top:\s*var\(--table-expanded-sticky-top/);
+  assert.match(css, /\.collapsible-panel:has\(\.is-height-expanded\)\s*\{\s*overflow:\s*clip;/);
+  assert.match(css, /\.comparison-table-region\.is-height-expanded \.comparison-table thead[\s\S]*?position:\s*static/s);
+  assert.match(css, /\.trade-table-region\.is-height-expanded \.trade-table-scroll thead th[\s\S]*?position:\s*static/s);
+  assert.match(css, /--table-expanded-sticky-top:\s*var\(--app-topbar-height\)/);
 });
 
 test("coarse-pointer inputs and buttons have at least 44px targets", () => {
@@ -212,8 +278,11 @@ test("semantic text colors meet WCAG AA contrast against their surfaces", () => 
   assert.ok(contrastRatio(token("focus"), token("bg")) >= 3, "focus outline should remain visible as a UI indicator");
 });
 
-test("the application and prototype share the requested blue and orange palette", () => {
+test("the application preserves its blue palette and exposes the shared mint theme", () => {
   for (const color of ["#253c6d", "#30497d", "#455b8a", "#f2842f"]) {
+    assert.ok(css.toLowerCase().includes(color));
+  }
+  for (const color of ["#def5e5", "#bcead5", "#9ed5c5", "#8ec3b0"]) {
     assert.ok(css.toLowerCase().includes(color));
     assert.ok(prototype.toLowerCase().includes(color));
   }
@@ -233,8 +302,22 @@ test("workbench explanatory text meets the readable type scale", () => {
   assert.match(blockFor(".shared-settings-summary-text"), /font-size:\s*12px/);
   assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /font-size:\s*12px/);
   assert.match(blockFor(".strategy-nav-card .strategy-card-summary"), /-webkit-line-clamp:\s*2/);
-  assert.match(blockFor(".result-trades-context"), /font-size:\s*13px/);
+  assert.match(blockFor(".result-detail-name"), /font-size:\s*13px/);
   assert.doesNotMatch(app, /result-focus-select/);
+});
+
+test("all result table scrollers share one vertical max-height", () => {
+  assert.match(css, /--result-table-max-height:\s*min\(360px,\s*45dvh\)/);
+  const sharedScrollerRule = css.match(/\.comparison-table-scroll,\s*\.trade-table-scroll,\s*\.search-table-scroll,\s*\.performance-table-scroll,\s*\.search-lab-scroll\s*\{([^}]*)\}/s);
+  assert.ok(sharedScrollerRule, "every results table scroller belongs to the shared rule");
+  assert.match(sharedScrollerRule[1], /max-height:\s*var\(--result-table-max-height\)/);
+  assert.match(sharedScrollerRule[1], /overflow-y:\s*auto/);
+});
+
+test("only selected comparison rows use an identity tint and foreground lift", () => {
+  assert.doesNotMatch(css, /is-focused/);
+  assert.match(css, /\.comparison-table tbody tr\.is-selected\s*\{[^}]*translate:\s*0 -1px/s);
+  assert.match(css, /\.comparison-table tbody tr\.is-selected\s*\{[^}]*background:\s*color-mix/s);
 });
 
 test("the fixed strategy navigator does not stretch cards to fill unused height", () => {
@@ -268,7 +351,7 @@ test("shared settings use a modal and the sidebar toggle has one fixed location"
   const tablet = mediaBlock("@media (min-width: 768px) and (max-width: 1279px)");
   assert.doesNotMatch(tablet, /--app-topbar-height\s*:|grid-template-areas/);
   assert.match(blockFor(":root"), /--app-topbar-height:\s*55px/);
-  assert.match(tablet, /\.main-content\.workbench-main\s*\{[^}]*height:\s*calc\(100dvh - var\(--app-topbar-height\)\)/s);
+  assert.match(tablet, /\.main-content\.workbench-main\s*\{[^}]*height:\s*calc\(100dvh - var\(--app-topbar-height\) - 26px\)/s);
   assert.match(tablet, /\.workbench-layout\s*\{[^}]*min-height:\s*0/s);
 });
 
@@ -306,7 +389,7 @@ test("base button styles precede and preserve emphasized action colors", () => {
 test("wheel zoom mode and primary run icon have clear visual affordances", () => {
   assert.match(runActions, /className="run-play-icon"/);
   assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-action\)/);
-  assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*44px/s);
+  assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*56px/s);
   assert.match(css, /\.chart-wheel-zoom-toggle\[aria-pressed="true"\]/);
   assert.match(css, /\.shared-settings-dialog/);
 });

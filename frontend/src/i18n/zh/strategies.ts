@@ -1,7 +1,5 @@
 export const strategiesMessages: Record<string, string> = {
-  "strategy.more": "{name} 的操作",
-  "strategy.duplicate": "复制",
-  "strategy.duplicateHint": "仅能复制未达到数量上限的自定义策略。",
+  "strategy.copy": "复制{name}",
   "strategy.reset": "恢复默认",
   "strategy.resetQuestion": "将当前设置恢复为默认值？",
   "parameters.search.optimizationMode": "评估期间",
@@ -34,7 +32,8 @@ export const strategiesMessages: Record<string, string> = {
   "strategy.remove": "删除{name}",
   "strategy.addLabel": "添加策略",
   "strategy.choosePreset": "选择策略",
-  "strategy.alreadyAdded": "已添加",
+  "strategy.presetLimitReached": "同类策略最多5个",
+  "strategy.totalLimitReached": "策略总数最多10个",
   "strategy.add": "添加",
   "strategy.noSelection": "添加策略后，设置卡片会显示在这里。",
   "strategy.vixDisabled": "买入条件已关闭",

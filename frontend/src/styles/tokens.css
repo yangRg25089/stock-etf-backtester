@@ -1,4 +1,8 @@
 :root {
+  --return-red: #b71c1c;
+  --return-green: #087443;
+  --return-positive: var(--return-green);
+  --return-negative: var(--return-red);
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", sans-serif;
   color: var(--app-foreground);
   background: var(--app-bg);
@@ -31,4 +35,24 @@
   --app-error-text: #67282b;
   --app-radius: 6px;
   --app-topbar-height: 55px;
+  --table-expanded-sticky-top: 0px;
+}
+
+:root[data-theme="mint"] {
+  --app-bg: #def5e5;
+  --app-surface: #ffffff;
+  --app-surface-muted: #effaf3;
+  --app-foreground: #173d32;
+  --app-muted: #35594c;
+  --app-border: #bcead5;
+  --app-border-strong: #8ec3b0;
+  --app-accent: #25644f;
+  --app-accent-soft: #def5e5;
+  --app-selection-bg: #bcead5;
+  --app-action: #9ed5c5;
+  --app-action-text: #173d32;
+  --app-action-hover: #8ec3b0;
+  --app-control-muted-bg: #e4f3eb;
+  --app-shadow: #173d3220;
+  --app-shadow-deep: #173d3280;
 }

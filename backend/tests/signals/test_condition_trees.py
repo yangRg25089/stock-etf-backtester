@@ -81,9 +81,56 @@ def test_nested_buy_rules_use_independent_thresholds_and_parentheses():
     }
     assert series.available
     assert signals["accumulation.buy"].state is SignalState.TRUE
+    assert signals["accumulation.buy"].triggered_signal_ids == (
+        "ma.trend:trend",
+        "vix.buy:vix25",
+    )
     assert signals["vix.buy:vix25"].state is SignalState.TRUE
     assert signals["rsi.buy:rsi35"].state is SignalState.FALSE
     assert signals["vix.buy:vix25"].observed_value == Decimal("30")
+
+
+def test_vix_preset_trade_records_its_real_condition_signal():
+    validation = validate_draft(
+        {
+            "shared": {
+                "run": {
+                    "symbol": "QQQ",
+                    "startDate": _SESSIONS[0],
+                    "endDate": _SESSIONS[-1],
+                    "endMode": "fixed",
+                }
+            },
+            "strategies": [
+                {"id": "vix-run", "presetId": "vix_dca", "enabled": True, "params": {}}
+            ],
+        }
+    )
+    frozen = validation.config_for()
+    assert frozen is not None
+    snapshot = _snapshot(
+        ("10",) * len(_SESSIONS),
+        vix_values={day: "30" for day in _SESSIONS},
+    )
+    calendar = ExchangeCalendar.from_dates(
+        _SESSIONS,
+        as_of_date=_SESSIONS[-1],
+        latest_complete_date=_SESSIONS[-1],
+        calendar_coverage_end_date=_SESSIONS[-1],
+    )
+    series = evaluate_signals(frozen, snapshot, sessions=_SESSIONS).strategies[0]
+    ledger = run_strategy(
+        frozen,
+        frozen.strategies[0],
+        schedule(frozen.shared, calendar),
+        snapshot,
+        series,
+        exchange_calendar=calendar,
+    )
+
+    signal_buys = [trade for trade in ledger.trades if trade.signal_id is not None]
+    assert signal_buys
+    assert {trade.signal_id for trade in signal_buys} == {"vix.buy"}
 
 
 def test_or_does_not_hide_missing_enabled_data_and_disabled_groups_need_no_data():

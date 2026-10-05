@@ -1,9 +1,10 @@
 import { jaMessages } from "./ja";
 import { zhMessages } from "./zh";
+import { enMessages } from "./en";
 
-export type Locale = "ja" | "zh";
+export type Locale = "ja" | "zh" | "en";
 
-const messages: Record<Locale, Record<string, string>> = { ja: jaMessages, zh: zhMessages };
+const messages: Record<Locale, Record<string, string>> = { ja: jaMessages, zh: zhMessages, en: enMessages };
 
 export function translate(
   locale: Locale,

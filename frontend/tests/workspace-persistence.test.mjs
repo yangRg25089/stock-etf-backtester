@@ -17,7 +17,7 @@ class MemoryStorage {
 }
 
 test("last partial run preserves bounded failed inputs until explicitly corrected and rerun", () => {
-  const file = JSON.parse(readFileSync(new URL("../.test-output/partial-fixture.json", import.meta.url), "utf8")).package;
+  const file = JSON.parse(readFileSync(new URL("../.test-output/partial-fixture.json", import.meta.url), "utf8")).record;
   const draft = draftFromRun(file.result, catalog);
   const failedIds = file.result.result.strategyRuns.filter(row => row.role === "strategy" && row.status === "failed").map(row => row.id);
   const storage = new MemoryStorage();
@@ -42,7 +42,7 @@ test("last accepted configuration restores shared and multi-strategy inputs with
   state.draft.strategies[0].params["vix.buyThreshold"] = "31";
   state.draft.strategies[0].rules.buy.params["vix.buyThreshold"] = "31";
   state = workspaceReducer(state, { type: "strategy.add", id: "strategy-ma_trend-2", presetId: "ma_trend" }, catalog);
-  state.nextCustomNumber = 4;
+  state.nextInstanceNumberByPreset = { vix_dca: 5, ma_trend: 4 };
   state.runResponse = { runId: "must-remain-independent" };
   const storage = new MemoryStorage();
 
@@ -61,7 +61,8 @@ test("last accepted configuration restores shared and multi-strategy inputs with
     { id: "strategy-ma_trend-2", presetId: "ma_trend" },
   ]);
   assert.equal(restored.state.activeStrategyId, "strategy-vix_dca-1");
-  assert.equal(restored.state.nextCustomNumber, 1);
+  assert.equal(restored.state.nextInstanceNumberByPreset.vix_dca, 2);
+  assert.equal(restored.state.nextInstanceNumberByPreset.ma_trend, 2);
   assert.equal(restored.nextStrategySequence, 3);
   assert.equal(restored.state.runResponse, null);
 });

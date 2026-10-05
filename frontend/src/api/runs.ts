@@ -8,7 +8,6 @@ import type {
   RunSubmissionRequest,
   InstrumentMetadata,
   StrategyRun,
-  BacktestPackage,
 } from "./generated";
 import { isRunProgressEvent, isRunResponse, isStrategyRun, matchesContract } from "./contractReader";
 import { isActiveRunStatus, isTerminalRunStatus } from "./runStatus";
@@ -50,7 +49,7 @@ function assertRequestedIdentity(actual: string, requested: string): void {
   if (actual !== requested) throw new RunApiError("invalid_response", "api.errors.invalid_response");
 }
 
-type ResponseContract = "RunResponse" | "ActiveRun" | "StrategyRun" | "InstrumentMetadata" | "DraftValidationResponse" | "BacktestPackage";
+type ResponseContract = "RunResponse" | "ActiveRun" | "StrategyRun" | "InstrumentMetadata" | "DraftValidationResponse";
 
 function isResponseForContract(contract: ResponseContract, payload: unknown): boolean {
   switch (contract) {
@@ -278,11 +277,5 @@ export async function stopRun(runId: string, signal?: AbortSignal): Promise<RunR
 export async function fetchCandidate(runId: string, candidateId: string, signal?: AbortSignal): Promise<StrategyRun> {
   const response = await requestJson<StrategyRun>(`/api/v1/runs/${encodeURIComponent(runId)}/candidates/${encodeURIComponent(candidateId)}`, { method: "GET" }, signal, "StrategyRun");
   assertRequestedIdentity(response.id, candidateId);
-  return response;
-}
-
-export async function fetchBacktestPackage(runId: string, signal?: AbortSignal): Promise<BacktestPackage> {
-  const response = await requestJson<BacktestPackage>(`/api/v1/runs/${encodeURIComponent(runId)}/package`, { method: "GET" }, signal, "BacktestPackage");
-  assertRequestedIdentity(response.result.runId, runId);
   return response;
 }

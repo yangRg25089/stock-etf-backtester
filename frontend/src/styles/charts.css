@@ -314,7 +314,13 @@
   min-height: 24px;
 }
 .chart-strategy-rank { color: var(--app-muted); }
-.chart-strategy-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.chart-strategy-name {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--series-color) 72%, var(--app-foreground));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
 .chart-cursor-reading { white-space: nowrap; }
 .chart-core-readout-row {
   min-height: 40px;
@@ -345,12 +351,11 @@
   font-size: 12px;
 }
 
-.performance-owner,
-.result-trades-context {
+.result-detail-name {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin: 0 0 10px;
+  margin: 1px 0 0;
   font-size: 13px;
   font-weight: 650;
 }

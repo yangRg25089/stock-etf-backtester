@@ -1,3 +1,5 @@
+import { formatPercent } from "./format";
+import { returnTone } from "./returnTone";
 import { reportBitmapSize, wrapReportText, type ResultReport } from "./reportModel";
 
 const WIDTH = 1200;
@@ -16,7 +18,7 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Canvas unavailable");
-  const styles = getComputedStyle(document.documentElement);
+  const styles = getComputedStyle(document.querySelector(".app-frame") ?? document.documentElement);
   const color = (key: string) => styles.getPropertyValue(key).trim();
   const palette = { background: color("--app-surface"), soft: color("--app-surface-muted"),
     text: color("--app-foreground"), muted: color("--app-muted"), border: color("--app-border"), accent: color("--app-accent") };
@@ -43,8 +45,11 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
   const headerHeight = 194 + title.length * 40;
   const chartHeight = 395 + legendHeight;
   const sectionsHeight = sections.reduce((height, section) => height + 64 + section.wrapped.length * 28, 0);
+  const heatmap = report.periodReturns;
+  const years = [...new Set([...heatmap.monthly, ...heatmap.annual].map(row => row.year))].sort((a, b) => a - b);
+  const heatmapHeight = 84 + Math.max(1, years.length) * 42;
   const height = headerHeight + metricHeight * 2 + 28 + chartHeight + 200 + sectionsHeight
-    + notes.length * 26 + footer.length * 24 + 112;
+    + heatmapHeight + notes.length * 26 + footer.length * 24 + 112;
   const bitmap = reportBitmapSize(WIDTH, height);
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
@@ -144,6 +149,34 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
     textLines(section.wrapped, MARGIN + 20, y + 47, 28, 20);
     y += sectionHeight;
   }
+  text(heatmap.title, MARGIN, y + 4, 23, palette.text, 700);
+  y += 40;
+  const cellWidth = BODY_WIDTH / 14;
+  const monthCells = new Map(heatmap.monthly.map(row => [`${row.year}-${row.month}`, row]));
+  const annualCells = new Map(heatmap.annual.map(row => [row.year, row]));
+  text(heatmap.yearTitle, MARGIN + 8, y, 16, palette.muted);
+  for (let month = 1; month <= 12; month++) text(String(month), MARGIN + month * cellWidth + 8, y, 16, palette.muted);
+  const annualHeading = wrap(heatmap.annualTitle, 12, cellWidth - 4, 600);
+  textLines(annualHeading, MARGIN + 13 * cellWidth + 3, y, 14, 12, palette.text, 600);
+  y += 28;
+  for (const year of years) {
+    checkAbort(signal);
+    text(String(year), MARGIN + 8, y + 9, 16, palette.text, 600);
+    for (let column = 1; column <= 13; column++) {
+      const row = column === 13 ? annualCells.get(year) : monthCells.get(`${year}-${column}`);
+      const tone = returnTone(row?.navReturn);
+      const x = MARGIN + column * cellWidth;
+      const fill = tone === "positive" ? color("--return-positive") : tone === "negative" ? color("--return-negative") : palette.soft;
+      context.fillStyle = fill; context.fillRect(x + 2, y, cellWidth - 4, 34);
+      if (column === 13) { context.strokeStyle = palette.accent; context.lineWidth = 2; context.strokeRect(x + 2, y, cellWidth - 4, 34); }
+      const value = `${tone === "positive" ? "+" : ""}${formatPercent(row?.navReturn, "en")}`;
+      const size = Math.max(10, Math.min(14, 14 * (cellWidth - 8) / Math.max(1, (() => { font(14, 600); return context.measureText(value).width; })())));
+      text(value, x + 6, y + 10, size, tone === "positive" || tone === "negative" ? "#ffffff" : palette.muted, 600);
+    }
+    y += 42;
+  }
+  if (!years.length) { text(heatmap.empty, MARGIN, y, 18, palette.muted); y += 42; }
+  y += 16;
   textLines(notes, MARGIN, y + 8, 26, 18, palette.muted);
   y += 28 + notes.length * 26;
   textLines(footer, MARGIN, y, 24, 16, palette.muted);

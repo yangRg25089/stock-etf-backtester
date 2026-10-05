@@ -32,6 +32,8 @@ export function ResultsCharts({
   visibleSeriesIds,
   onSeriesChange,
   onTradeSelect,
+  inspectedSeriesId,
+  onInspectedSeriesChange,
 }: ResultsChartsProps) {
   const [hiddenTechnicalKinds, setHiddenTechnicalKinds] = useState<string[]>([]);
   const interaction = useChartInteraction(dailyAssets.length, CHART, busy);
@@ -128,6 +130,8 @@ export function ResultsCharts({
               volatilityComparisons={indicatorSeries.some(series => series.id === "vix") ? volatilityComparisons : []}
               technicalLines={technicalLines}
               onTradeSelect={busy ? undefined : onTradeSelect}
+              inspectedSeriesId={inspectedSeriesId}
+              onInspectedSeriesChange={busy ? undefined : onInspectedSeriesChange}
             />
           )}
           {indicatorSeries.map((series) => (

@@ -11,7 +11,7 @@ export function readStyles(url = stylesEntry, ancestors = new Set()) {
 
 export function readTranslationSources() {
   const sources = [readFileSync(new URL("messages.ts", translationRoot), "utf8")];
-  for (const locale of ["ja", "zh"]) {
+  for (const locale of ["ja", "zh", "en"]) {
     const folder = new URL(`${locale}/`, translationRoot);
     for (const name of readdirSync(folder).filter(name => name.endsWith(".ts")).sort()) sources.push(readFileSync(new URL(name, folder), "utf8"));
   }

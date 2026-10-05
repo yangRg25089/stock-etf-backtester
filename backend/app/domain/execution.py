@@ -19,6 +19,9 @@ class ExecutionSettings(DomainModel):
     slippage_pct: Decimal = Field(alias="slippagePct", ge=0, lt=100)
     spread_pct: Decimal = Field(alias="spreadPct", ge=0, lt=200)
     fractional_shares: bool = Field(alias="fractionalShares", strict=True)
+    capital_gains_tax_enabled: bool = Field(
+        default=False, alias="capitalGainsTaxEnabled", strict=True
+    )
 
     @field_validator("spread_pct")
     @classmethod
@@ -43,17 +46,25 @@ class TradingCosts(DomainModel):
     commission: Decimal = Field(ge=0)
     slippage_cost: Decimal = Field(alias="slippageCost", ge=0)
     spread_cost: Decimal = Field(alias="spreadCost", ge=0)
+    capital_gains_tax: Decimal | None = Field(
+        default=None, alias="capitalGainsTax", ge=0
+    )
     total_trading_cost: Decimal = Field(alias="totalTradingCost", ge=0)
 
     @classmethod
     def from_components(
-        cls, commission: Decimal, slippage: Decimal, spread: Decimal
+        cls,
+        commission: Decimal,
+        slippage: Decimal,
+        spread: Decimal,
+        capital_gains_tax: Decimal | None = Decimal(0),
     ) -> "TradingCosts":
         return cls(
             commission=commission,
             slippageCost=slippage,
             spreadCost=spread,
-            totalTradingCost=commission + slippage + spread,
+            capitalGainsTax=capital_gains_tax,
+            totalTradingCost=commission + slippage + spread + (capital_gains_tax or 0),
         )
 
     @classmethod
@@ -63,4 +74,14 @@ class TradingCosts(DomainModel):
             sum((row.commission for row in rows), Decimal(0)),
             sum((row.slippage_cost for row in rows), Decimal(0)),
             sum((row.spread_cost for row in rows), Decimal(0)),
+            sum(
+                (
+                    row.capital_gains_tax
+                    for row in rows
+                    if row.capital_gains_tax is not None
+                ),
+                Decimal(0),
+            )
+            if all(row.capital_gains_tax is not None for row in rows)
+            else None,
         )

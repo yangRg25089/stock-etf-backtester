@@ -244,7 +244,7 @@ def test_successful_zero_trade_fixture_run_still_exports_the_trade_header() -> N
     assert exported.text.splitlines() == [
         "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
         "signalId,dataSources,calendarAsOf,marketDataThrough,"
-        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,totalTradingCost"
+        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost"
     ]
 
 
@@ -352,7 +352,7 @@ def test_pe_signal_uses_valuation_price_and_does_not_read_future_publications() 
     assert threshold_run["unexecutedSignals"] == [
         {
             "signalDate": "2024-01-31",
-            "signalId": "accumulation.buy",
+            "signalId": "pe.buy",
             "reason": "no_following_backtest_session",
         }
     ]

@@ -36,7 +36,9 @@ export function formatAxisValue(
   return new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(value);
 }
 
-export function axisTitle(locale: Locale, seriesId: AxisSeriesId, currency?: string): string {
+export function axisTitle(locale: Locale, seriesId: AxisSeriesId, currency?: string, compact = false): string {
+  if (compact && seriesId === "vix") return "VIX";
+  if (compact && seriesId === "drawdown") return translate(locale, "chart.drawdownAxisShort");
   if (seriesId === "rsi") return translate(locale, "chart.rsiAxis");
   if (seriesId === "index") return translate(locale, "chart.overlayAxis");
   if (seriesId === "totalAsset" && !currency) return translate(locale, "chart.totalAssetAxisPlain");

@@ -239,9 +239,7 @@ export function useRunController(
     submittedRunRef.current = true;
     activeRunController.current?.abort();
     const fresh = workspaceForDraft(packageDraft(file, catalog), catalog).state;
-    setWorkspace(current => ({ ...(file.type === "backtest"
-      ? workspaceReducer(fresh, { type: "run.update", value: file.result }, catalog) : fresh),
-      importedBacktest: file.type === "backtest" ? file : null,
+    setWorkspace(current => ({ ...fresh,
       resultRevision: (current?.resultRevision ?? 0) + 1,
     }));
     resetValidation();

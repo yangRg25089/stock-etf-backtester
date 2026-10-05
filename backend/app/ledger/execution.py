@@ -19,6 +19,7 @@ def execute_trade(
     held_quantity: Decimal,
     settings: ExecutionSettings | None,
     sell_quantity: Decimal | None = None,
+    average_cost: Decimal | None = None,
 ) -> Trade | None:
     with localcontext() as context:
         context.prec = settings.rate_precision if settings else context.prec
@@ -49,10 +50,17 @@ def execute_trade(
         amount = gross + commission if buy else gross - commission
         if amount <= 0:
             return None
+        tax = Decimal(0)
+        if not buy and settings is not None and settings.capital_gains_tax_enabled:
+            if average_cost is None or not average_cost.is_finite() or average_cost < 0:
+                raise ValueError("taxed sells require a non-negative average cost")
+            tax = max(amount - quantity * average_cost, Decimal(0)) * Decimal("0.20")
+            amount -= tax
         costs = TradingCosts.from_components(
             commission,
             quantity * base_price * slippage,
             quantity * base_price * half_spread,
+            tax,
         )
         return Trade(
             date=day,

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Catalog, StrategyPresetId } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
-import { strategyInstanceLimit, type StrategyDraft } from "./model";
+import { canAddStrategy, strategyInstanceLimit, type StrategyDraft } from "./model";
 
 /** The menu owns keyboard movement and dismissal; the navigator owns the draft. */
 export function StrategyAddMenu({ catalog, strategies, locale, busy, addButtonRef, onAdd }: {
@@ -85,8 +85,11 @@ export function StrategyAddMenu({ catalog, strategies, locale, busy, addButtonRe
         <span className="strategy-add-menu-label">{translate(locale, "strategy.choosePreset")}</span>
         {addablePresets.map((item) => {
           const count = strategies.filter(strategy => strategy.presetId === item.id).length;
-          const maximum = strategyInstanceLimit(catalog, item.id);
-          const alreadyAdded = maximum === undefined || count >= maximum;
+          const maximum = strategyInstanceLimit(catalog);
+          const totalLimit = catalog.strategyLimits?.maxTotalInstances;
+          const atPresetLimit = maximum === undefined || count >= maximum;
+          const atTotalLimit = totalLimit === undefined || strategies.length >= totalLimit;
+          const disabled = busy || !canAddStrategy(catalog, strategies, item.id);
           return (
             <button
               key={item.id}
@@ -94,16 +97,16 @@ export function StrategyAddMenu({ catalog, strategies, locale, busy, addButtonRe
               type="button"
               role="menuitem"
               data-preset-id={item.id}
-              disabled={busy || alreadyAdded}
+              disabled={disabled}
               onClick={() => {
-                if (busy || alreadyAdded) return;
+                if (busy || !canAddStrategy(catalog, strategies, item.id)) return;
                 onAdd(item.id);
                 setAddMenuOpen(false);
                 addButtonRef.current?.focus();
               }}
             >
               <span>{translate(locale, item.nameKey)}</span>
-              {alreadyAdded && <small>{translate(locale, "strategy.alreadyAdded")}</small>}
+              {disabled && <small>{translate(locale, atPresetLimit ? "strategy.presetLimitReached" : atTotalLimit ? "strategy.totalLimitReached" : "strategy.presetLimitReached")}</small>}
             </button>
           );
         })}

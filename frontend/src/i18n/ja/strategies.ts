@@ -1,7 +1,5 @@
 export const strategiesMessages: Record<string, string> = {
-  "strategy.more": "{name} の操作",
-  "strategy.duplicate": "コピー",
-  "strategy.duplicateHint": "上限に達していないカスタム戦略のみコピーできます。",
+  "strategy.copy": "{name} をコピー",
   "strategy.reset": "初期値に戻す",
   "strategy.resetQuestion": "現在の設定を初期値に戻しますか？",
   "parameters.search.optimizationMode": "評価期間",
@@ -34,7 +32,8 @@ export const strategiesMessages: Record<string, string> = {
   "strategy.remove": "{name} を削除",
   "strategy.addLabel": "戦略を追加",
   "strategy.choosePreset": "戦略を選択",
-  "strategy.alreadyAdded": "追加済み",
+  "strategy.presetLimitReached": "同じ戦略は5件まで",
+  "strategy.totalLimitReached": "戦略は合計10件まで",
   "strategy.add": "追加",
   "strategy.noSelection": "戦略を追加すると、ここに設定カードが表示されます。",
   "strategy.vixDisabled": "買付条件オフ",

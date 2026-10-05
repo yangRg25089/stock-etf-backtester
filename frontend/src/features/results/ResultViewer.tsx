@@ -5,12 +5,15 @@ import { translate, type Locale } from "../../i18n/messages";
 import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceAction, WorkspaceState } from "../strategies/model";
 import { findFocusedResult, isCompletedResult } from "./model";
+import { isCandidateForSearch } from "./candidateReader";
 import { ResultsCharts } from "./ResultsCharts";
 import { ResultDetails } from "./ResultDetails";
+import { ResultStrategyDetails } from "./ResultStrategyDetails";
 import { buildResultSelection } from "./buildResultSelection";
 import { DEFAULT_COMPARISON_SORT, sortedComparisons } from "./comparisonModel";
 import type { DiagnosticFieldAction } from "../runs/DiagnosticList";
 import { TradeExplanationDialog, type ResultInspection } from "./TradeExplanationDialog";
+import { useTableScrollBoundary } from "./useTableScrollBoundary";
 
 interface ResultViewerProps {
   catalog?: Catalog | null;
@@ -23,10 +26,29 @@ interface ResultViewerProps {
 }
 
 export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy = false, catalog }: ResultViewerProps) {
+  const tableScrollRef = useTableScrollBoundary();
   const run: RunResponse | null = state.runResponse;
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const strategyRuns = run?.result?.strategyRuns ?? [];
   const selectedIds = state.selectedResultIds;
+  const [seriesInspection, setSeriesInspection] = useState<{ runId: string; id: string | null } | null>(null);
+  const inspectedSeriesId = seriesInspection?.runId === run?.runId ? seriesInspection?.id ?? null : null;
+  const inspectSeries = (id: string | null) => {
+    if (busy || !run) return;
+    setSeriesInspection({ runId: run.runId, id });
+    if (id) {
+      const parentId = candidateView?.result.id === id ? candidateView.parentId : id;
+      if (strategyRuns.some(result => result.id === parentId)) dispatch({ type: "result.focus", id: parentId });
+    }
+  };
+  const selectStrategy = (id: string) => {
+    if (busy || !run) return;
+    const selected = selectedIds.includes(id);
+    dispatch({ type: "result.focus", id });
+    dispatch({ type: "result.toggleSelection", id });
+    const displayedId = candidateView?.parentId === id ? candidateView.result.id : id;
+    setSeriesInspection({ runId: run.runId, id: selected ? inspectedSeriesId === displayedId ? null : inspectedSeriesId : displayedId });
+  };
   const [comparisonView, setComparisonView] = useState({ runId: run?.runId, sort: DEFAULT_COMPARISON_SORT });
   const comparisonSort = comparisonView.runId === run?.runId ? comparisonView.sort : DEFAULT_COMPARISON_SORT;
   const orderedResults = sortedComparisons(strategyRuns, comparisonSort, locale);
@@ -47,10 +69,13 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
     candidateController.current = controller;
     setCandidatePending(true); setCandidateErrorKey(null);
     try {
-      const result = state.importedBacktest ? state.importedBacktest.candidateDetails[candidateId]
-        : await fetchCandidate(run.runId, candidateId, controller.signal);
-      if (!result) throw new RunApiError("invalid_response", "files.invalidCandidates");
-      if (!controller.signal.aborted) setCandidateView({ runId: run.runId, parentId: focusedResult.id, result });
+      const result = await fetchCandidate(run.runId, candidateId, controller.signal);
+      if (!isCandidateForSearch(result, focusedResult, candidateId)) throw new RunApiError("invalid_response", "api.errors.invalid_response");
+      if (!controller.signal.aborted) {
+        setCandidateView({ runId: run.runId, parentId: focusedResult.id, result });
+        if (!selectedIds.includes(focusedResult.id)) dispatch({ type: "result.toggleSelection", id: focusedResult.id });
+        setSeriesInspection({ runId: run.runId, id: result.id });
+      }
     } catch (error) {
       if (!controller.signal.aborted) setCandidateErrorKey(error instanceof RunApiError ? error.messageKey : "api.errors.connection_failed");
     }
@@ -68,27 +93,22 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
   const tradeResult = candidateResult ?? focusedResult;
 
   return (
-    <div className="result-content">
-      {state.importedBacktest && <p className="imported-result-label">{translate(locale, "files.imported")} · {state.importedBacktest.exportedAt}</p>}
+    <div className="result-content" ref={tableScrollRef}>
       <ResultDetails
         catalog={catalog}
         busy={busy}
-        key={run?.runId ?? "no-run"}
+        key={`run-results:${run?.runId ?? "empty"}`}
         locale={locale}
         run={run}
         focusedResult={focusedResult}
         state={state}
-        dispatch={dispatch}
         error={error}
         fieldAction={fieldAction}
         comparisonSort={comparisonSort}
         onComparisonSortChange={sort => setComparisonView({ runId: run?.runId, sort })}
         candidateResult={candidateResult ?? null}
         candidatePending={candidatePending}
-        candidateErrorKey={candidateErrorKey}
-        onSelectCandidate={id => void selectCandidate(id)}
-        onTradeSelect={index => { if (tradeResult) inspectTrade(tradeResult.id, index); }}
-        onSignalSelect={signal => { if (tradeResult) inspect({ result: tradeResult, parent: candidateResult ? focusedResult : null, kind: "signal", signal }); }}
+        onSelectStrategy={selectStrategy}
       />
 
       {run && focusedResult && (
@@ -120,11 +140,28 @@ export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy
               visibleSeriesIds={state.visibleSeriesIds}
               onSeriesChange={(id, visible) => dispatch({ type: "chart.series", id, visible })}
               onTradeSelect={inspectTrade}
+              inspectedSeriesId={inspectedSeriesId}
+              onInspectedSeriesChange={inspectSeries}
             />
           ) : (
             <p className="metric-empty">{translate(locale, "results.metricsUnavailable")}</p>
           )}
         </CollapsiblePanel>
+      )}
+      {run && (
+        <ResultStrategyDetails
+          key={`strategy-details:${run.runId}`}
+          busy={busy}
+          locale={locale}
+          run={run}
+          focusedResult={focusedResult}
+          candidateResult={candidateResult ?? null}
+          candidatePending={candidatePending}
+          candidateErrorKey={candidateErrorKey}
+          onSelectCandidate={id => void selectCandidate(id)}
+          onTradeSelect={index => { if (tradeResult) inspectTrade(tradeResult.id, index); }}
+          onSignalSelect={signal => { if (tradeResult) inspect({ result: tradeResult, parent: candidateResult ? focusedResult : null, kind: "signal", signal }); }}
+        />
       )}
       {run && inspection?.runId === run.runId && !busy && !candidatePending && <TradeExplanationDialog run={run} inspection={inspection.value} locale={locale} onClose={() => setInspection(null)} />}
     </div>

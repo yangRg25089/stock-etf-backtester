@@ -11,6 +11,7 @@ import { numericValue } from "../format";
 import type { SeriesDefinition, NormalizedComparisonSeries, IndicatorComparison } from "./chartTypes";
 import { CHART, MAIN_WITHOUT_DATES, chartScale, xPosition } from "./chartScale";
 import { axisTitle, seriesLabel, formatAxisValue, preciseValue } from "./chartFormat";
+import { returnTone } from "../returnTone";
 import { seriesIdentity } from "./chartSeriesModel";
 import { ChartAxes } from "./ChartAxes";
 import { HighlightArea } from "./ChartSeries";
@@ -33,6 +34,8 @@ export function OverlayChart({
   volatilityComparisons,
   technicalLines,
   onTradeSelect,
+  inspectedSeriesId,
+  onInspectedSeriesChange,
 }: {
   locale: Locale;
   assets: DailyAsset[];
@@ -50,6 +53,8 @@ export function OverlayChart({
   volatilityComparisons: IndicatorComparison[];
   technicalLines: TechnicalChartLine[];
   onTradeSelect?(resultId: string, index: number): void;
+  inspectedSeriesId?: string | null;
+  onInspectedSeriesChange?(id: string | null): void;
 }) {
   const geometry = MAIN_WITHOUT_DATES;
   const gradientId = `chart-gradient-${useId()}`;
@@ -65,7 +70,8 @@ export function OverlayChart({
     }),
   }));
   const visibleIdentities = new Set([...normalized.map(({ definition }) => seriesIdentity(definition)), ...comparisonNormalized.map(comparison => comparison.id), ...technicalNormalized.map(line => line.id)]);
-  const highlight = useSeriesHighlight(visibleIdentities);
+  const highlight = useSeriesHighlight(visibleIdentities, onInspectedSeriesChange
+    ? { id: inspectedSeriesId ?? null, onChange: onInspectedSeriesChange } : undefined);
   const highlightedId = highlight.highlightedId;
   if (normalized.length === 0 && comparisonNormalized.length === 0) {
     return <p className="chart-empty">{translate(locale, "chart.noOverlaySeries")}</p>;
@@ -128,7 +134,9 @@ export function OverlayChart({
   });
   for (const definition of indicatorSeries) {
     const point = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
-    readings.push({ label: definition.label ?? translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color });
+    readings.push({ label: definition.label ?? translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color,
+      ...(definition.id === "drawdown" ? { tone: returnTone(point?.value, "drawdown") } : {}),
+    });
   }
   for (const comparison of volatilityComparisons) {
     const point = comparison.samples.find(sample => sample.index === readingIndex);
@@ -150,7 +158,7 @@ export function OverlayChart({
       readings: [
         { label: translate(locale, "chart.asset"), value: preciseValue(numericValue(asset?.totalAsset), locale, currency) },
         { label: translate(locale, "chart.principal"), value: preciseValue(numericValue(asset?.totalContributed), locale, currency) },
-        { label: translate(locale, "chart.principalIndex"), value: point?.indexValue.toFixed(1) ?? "—" },
+        { label: translate(locale, "chart.principalIndex"), value: point?.indexValue.toFixed(1) ?? "—", tone: returnTone(point ? point.indexValue - 100 : null) },
       ],
     };
   }).sort((left, right) => (left.rank ?? Infinity) - (right.rank ?? Infinity));

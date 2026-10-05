@@ -52,13 +52,16 @@ def test_walk_forward_api_displays_oos_and_exports_every_saved_training_window()
             assert abs(Decimal(primary["metrics"]["endingEquity"]) - 620) < Decimal(
                 "1e-20"
             )
-            package_response = await client.get(f"/api/v1/runs/{run_id}/package")
-            assert package_response.status_code == 200, package_response.text
-            package = package_response.json()
-            assert len(package["candidateDetails"]) == 5
+            assert (
+                await client.get(f"/api/v1/runs/{run_id}/package")
+            ).status_code == 404
             for window in search["walkForwardWindows"]:
                 for identifier in window["candidateIds"]:
-                    detail = package["candidateDetails"][identifier]
+                    response = await client.get(
+                        f"/api/v1/runs/{run_id}/candidates/{identifier}"
+                    )
+                    assert response.status_code == 200, response.text
+                    detail = response.json()
                     assert detail["evaluationPeriod"] == window["trainPeriod"]
                     assert detail["dailyAssets"]
             exported = await client.get(

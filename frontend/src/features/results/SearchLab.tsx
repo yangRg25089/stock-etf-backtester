@@ -3,9 +3,13 @@ import type { SearchCandidate } from "../../api/generated";
 import { compareDecimals, decimalIdentity } from "../../api/contractReader";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatPercent, formatPlainNumber } from "./format";
+import { ReturnPercent } from "./ReturnPercent";
+import { returnTone } from "./returnTone";
 import { savedCandidate } from "./savedConfiguration";
 import { buildSearchHeatmap, buildSearchNeighborhood, searchMetricValue, searchOutcomeId, searchParameters, searchValue,
   sortedSearchValues, type SearchMetric, type SearchStage, type SearchSlice } from "./searchLabModel";
+import { SortableHeader } from "./SortableHeader";
+import { sortTableRows, type TableSort, type TableSortDirection } from "./tableSorting";
 
 const AXIS_PAGE_SIZE = 20;
 
@@ -24,9 +28,17 @@ export function SearchLab({ result, locale, selectedId, pending, onSelect }: {
   const [xKey, setXKey] = useState(dimensions[0].key);
   const [yKey, setYKey] = useState(dimensions[1]?.key ?? "");
   const [pages, setPages] = useState({ x: 0, y: 0 });
+  const [matrixAxisOrder, setMatrixAxisOrder] = useState<{ x: TableSortDirection; y: TableSortDirection }>({ x: "ascending", y: "ascending" });
+  const [neighborSort, setNeighborSort] = useState<TableSort<"value" | "metric"> | null>(null);
   const fixed = Object.fromEntries(dimensions.filter(item => item.key !== xKey && (view !== "heatmap" || item.key !== yKey)).map(item => [item.key, values[item.key]]));
   const matrix = view === "heatmap" ? buildSearchHeatmap(result, xKey, yKey, fixed) : null;
   const neighbors = view === "neighbors" ? buildSearchNeighborhood(result, xKey, fixed) : null;
+  const neighborRows = neighbors?.values.map((value, index) => ({ value, candidate: neighbors.candidates[index] })) ?? [];
+  const orderedNeighborRows = sortTableRows(neighborRows, neighborSort, (row, key) => key === "value" ? row.value : searchMetricValue(row.candidate, stage, metric), locale);
+  const orderedXValues = matrix && matrixAxisOrder.x === "descending" ? [...matrix.xValues].reverse() : matrix?.xValues ?? [];
+  const orderedYValues = matrix && matrixAxisOrder.y === "descending" ? [...matrix.yValues].reverse() : matrix?.yValues ?? [];
+  const matrixXIndexes = new Map(matrix?.xValues.map((value, index) => [decimalIdentity(value), index]) ?? []);
+  const matrixYIndexes = new Map(matrix?.yValues.map((value, index) => [decimalIdentity(value), index]) ?? []);
   const label = (key: string) => translate(locale, dimensions.find(item => item.key === key)?.translationKey ?? `parameters.${key}`);
   const metricLabel = translate(locale, `search.metric.${metric}`);
   const formatted = (value: string | null) => metric === "xirr" || metric === "drawdown" ? formatPercent(value, locale) : formatPlainNumber(value, locale);
@@ -34,7 +46,7 @@ export function SearchLab({ result, locale, selectedId, pending, onSelect }: {
   const cell = (candidate: SearchCandidate | null) => {
     const number = searchMetricValue(candidate, stage, metric);
     const id = searchOutcomeId(candidate, stage);
-    const tone = number == null ? "missing" : compareDecimals(number, 0) === 0 ? "neutral" : compareDecimals(number, 0) < 0 ? "negative" : "positive";
+    const tone = returnTone(number, metric === "drawdown" ? "drawdown" : "return");
     const strength = number == null ? 0 : Math.min(.3, .07 + Math.abs(Number(number)) / (metric === "sharpe" || metric === "calmar" ? 20 : 3));
     const status = candidate ? translate(locale, `status.${stage === "test" ? candidate.testResult?.status ?? "unavailable" : candidate.status}`) : translate(locale, "performance.noObservation");
     const parameters = candidate ? dimensions.map(item => `${label(item.key)} ${String(searchParameters(candidate)[item.key])}`).join(" · ") : "";
@@ -43,7 +55,7 @@ export function SearchLab({ result, locale, selectedId, pending, onSelect }: {
       aria-label={`${parameters} · ${metricLabel} ${formatted(number)} · ${status}`}
       title={`${parameters} · ${metricLabel} ${formatted(number)} · ${status}`}
       onClick={() => { if (id) onSelect?.(id); }}>
-      {number == null ? "—" : formatted(number)}
+      {metric === "xirr" || metric === "drawdown" ? <ReturnPercent value={number} locale={locale} kind={metric === "drawdown" ? "drawdown" : "return"} /> : formatted(number)}
     </button>;
   };
   const axisControl = (axis: "x" | "y", count: number) => {
@@ -59,6 +71,16 @@ export function SearchLab({ result, locale, selectedId, pending, onSelect }: {
     </div>;
   };
   const xOffset = pages.x * AXIS_PAGE_SIZE, yOffset = pages.y * AXIS_PAGE_SIZE;
+  const toggleAxisOrder = (axis: "x" | "y") => setMatrixAxisOrder(previous => ({
+    ...previous, [axis]: previous[axis] === "ascending" ? "descending" : "ascending",
+  }));
+  const sortAxisButton = (axis: "x" | "y") => {
+    const direction = matrixAxisOrder[axis];
+    const axisLabel = translate(locale, `search.axis.${axis}`);
+    return <button type="button" className="table-sort" disabled={pending}
+      aria-label={translate(locale, "table.sortBy", { column: axisLabel, direction: translate(locale, `table.${direction === "ascending" ? "descending" : "ascending"}`) })}
+      onClick={() => toggleAxisOrder(axis)}>{axisLabel}<span aria-hidden="true">{direction === "ascending" ? "↑" : "↓"}</span></button>;
+  };
   return <details className="search-lab">
     <summary>{translate(locale, "search.lab")}</summary>
     <div className="search-lab-toolbar">
@@ -82,12 +104,15 @@ export function SearchLab({ result, locale, selectedId, pending, onSelect }: {
     <p className="field-hint">{translate(locale, "search.fixedSliceHelp")}</p>
     <div className="search-axis-pages-row">{axisControl("x", matrix?.xValues.length ?? neighbors?.values.length ?? 0)}{matrix && axisControl("y", matrix.yValues.length)}</div>
     <div className="data-table-scroll search-lab-scroll" tabIndex={0} role="region" aria-label={translate(locale, view === "heatmap" ? "search.heatmap" : "search.neighbors")}>
-      {matrix ? <table className="data-table search-heatmap-table"><caption>{label(yKey)} ↓ · {label(xKey)} → · {metricLabel}</caption>
-        <thead><tr><th scope="col">{label(yKey)}</th>{matrix.xValues.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map(value => <th scope="col" key={decimalIdentity(value)}>{String(value)}</th>)}</tr></thead>
-        <tbody>{matrix.yValues.slice(yOffset, yOffset + AXIS_PAGE_SIZE).map((value, row) => <tr key={decimalIdentity(value)}><th scope="row">{String(value)}</th>
-          {matrix.cells[row + yOffset].slice(xOffset, xOffset + AXIS_PAGE_SIZE).map((candidate, column) => <td key={column}>{cell(candidate)}</td>)}</tr>)}</tbody>
-      </table> : neighbors && <table className="data-table search-neighbor-table"><caption>{label(xKey)}</caption><thead><tr><th scope="col">{label(xKey)}</th><th scope="col">{metricLabel}</th></tr></thead>
-        <tbody>{neighbors.values.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map((value, index) => <tr key={decimalIdentity(value)}><th scope="row">{String(value)}</th><td>{cell(neighbors.candidates[index + xOffset])}</td></tr>)}</tbody></table>}
+      {matrix ? <table className="data-table search-heatmap-table"><caption className="search-matrix-caption"><span>{label(yKey)} ↓ · {label(xKey)} → · {metricLabel}</span><span>{sortAxisButton("x")}{sortAxisButton("y")}</span></caption>
+        <thead><tr><th scope="col">{label(yKey)}</th>{orderedXValues.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map(value => <th scope="col" key={decimalIdentity(value)}>{String(value)}</th>)}</tr></thead>
+        <tbody>{orderedYValues.slice(yOffset, yOffset + AXIS_PAGE_SIZE).map(value => <tr key={decimalIdentity(value)}><th scope="row">{String(value)}</th>
+          {orderedXValues.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map(xValue => <td key={decimalIdentity(xValue)}>{cell(matrix.cells[matrixYIndexes.get(decimalIdentity(value))!][matrixXIndexes.get(decimalIdentity(xValue))!])}</td>)}</tr>)}</tbody>
+      </table> : neighbors && <table className="data-table search-neighbor-table"><caption>{label(xKey)}</caption><thead><tr>
+        <SortableHeader locale={locale} label={label(xKey)} sortKey="value" sort={neighborSort} disabled={pending} onSort={setNeighborSort} />
+        <SortableHeader locale={locale} label={metricLabel} sortKey="metric" sort={neighborSort} firstDirection={metric === "drawdown" ? "ascending" : "descending"} disabled={pending} onSort={setNeighborSort} />
+      </tr></thead>
+        <tbody>{orderedNeighborRows.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map(({ value, candidate }) => <tr key={decimalIdentity(value)}><th scope="row">{String(value)}</th><td>{cell(candidate)}</td></tr>)}</tbody></table>}
     </div>
   </details>;
 }

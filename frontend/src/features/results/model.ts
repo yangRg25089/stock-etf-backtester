@@ -1,6 +1,7 @@
 import type { MetricSummary, RunResponse, SignalEvaluation, StrategyRun } from "../../api/generated";
 import { isSuccessfulRunStatus } from "../../api/runStatus";
 import { translate, type Locale } from "../../i18n/messages";
+import { strategyInstanceName } from "../../shared/lib/strategyInstanceName";
 import { conditionLeaves, conditionParameters } from "../strategies/conditions";
 import { savedResultConfiguration } from "./savedConfiguration";
 
@@ -23,7 +24,7 @@ export function isVolatilityObservation(signal: SignalEvaluation, symbol?: strin
 export function selectedVolatilitySeries(run: RunResponse, results: StrategyRun[], selectedIds: string[], candidate?: StrategyRun | null, parent?: StrategyRun | null): SavedVolatilitySeries[] {
   const groups = new Map<string, { signals: SignalEvaluation[]; thresholds: Set<string> }>();
   const selected = results.filter(result => selectedIds.includes(result.id) && result.id !== (candidate ? parent?.id : undefined));
-  if (candidate) selected.push(candidate);
+  if (candidate && parent && selectedIds.includes(parent.id)) selected.push(candidate);
   for (const result of selected.filter(isCompletedResult)) {
     for (const signal of result.signals ?? []) {
       if (!isVolatilityObservation(signal)) continue;
@@ -57,8 +58,8 @@ export function isCompletedResult(result: StrategyRun): boolean {
 export function resultDisplayName(locale: Locale, result: StrategyRun, results: StrategyRun[]): string {
   const peers = results.filter((item) => item.presetId === result.presetId && item.role === result.role);
   const name = translate(locale, `presets.${result.presetId}.name`);
-  if (result.instanceNumber) return `${name} ${result.instanceNumber}`;
-  return peers.length > 1 ? `${name} · ${peers.findIndex((item) => item.id === result.id) + 1}` : name;
+  const ordinal = result.instanceNumber ?? (peers.length > 1 ? peers.findIndex(item => item.id === result.id) + 1 : undefined);
+  return strategyInstanceName(name, ordinal);
 }
 
 export function findFocusedResult(

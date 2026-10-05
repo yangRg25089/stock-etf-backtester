@@ -49,16 +49,21 @@ def test_current_catalog_defaults_to_today_and_removes_obsolete_features():
         "IVV",
     }
     assert all(item.currency == "USD" for item in catalog.symbol_suggestions)
-    assert catalog.strategy_limits.max_custom_instances == 10
+    assert catalog.strategy_limits.max_instances_per_preset == 5
+    assert catalog.strategy_limits.max_total_instances == 10
 
 
-def test_custom_instances_allow_ten_and_fixed_presets_do_not_repeat():
-    ten = [_strategy("composite_dca", number) for number in range(1, 11)]
-    assert validate_draft(_draft(ten)).valid
-    assert not validate_draft(_draft([*ten, _strategy("composite_dca", 11)])).valid
-    assert not validate_draft(
-        _draft([_strategy("vix_dca", 1), _strategy("vix_dca", 2)])
-    ).valid
+def test_each_strategy_type_allows_five_instances_with_a_total_limit_of_ten():
+    catalog = get_catalog()
+    for preset in catalog.presets:
+        five = [_strategy(preset.id, number) for number in range(1, 6)]
+        assert validate_draft(_draft(five)).valid, preset.id
+        six = [*five, _strategy(preset.id, 6)]
+        assert not validate_draft(_draft(six)).valid, preset.id
+    custom = [_strategy("composite_dca", number) for number in range(1, 6)]
+    vix = [_strategy("vix_dca", number) for number in range(1, 6)]
+    assert validate_draft(_draft([*custom, *vix])).valid
+    assert not validate_draft(_draft([*custom, *vix, _strategy("ma_trend", 1)])).valid
 
 
 def test_conditions_cannot_repeat_within_one_side_but_buy_sell_are_independent():

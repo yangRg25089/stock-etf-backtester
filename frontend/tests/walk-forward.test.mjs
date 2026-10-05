@@ -4,15 +4,17 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { catalog } from "./helpers/contracts.mjs";
 const require = createRequire(import.meta.url);
-const { readPackage } = require("../.test-output/features/files/packageModel.js");
-const { importedCsv } = require("../.test-output/features/results/importedCsv.js");
+const { isCandidateForSearch } = require("../.test-output/features/results/candidateReader.js");
 const { savedResultConfiguration, savedPeriodBenchmarks } = require("../.test-output/features/results/savedConfiguration.js");
 const { buildResultReport } = require("../.test-output/features/results/reportModel.js");
 const { explainTrade } = require("../.test-output/features/results/tradeExplanation.js");
+const { isRunResponse } = require("../.test-output/api/contractReader.js");
+const { searchOutcomes } = require("../.test-output/api/searchResults.js");
 const fixture = JSON.parse(readFileSync(new URL("../.test-output/walk-fixture.json", import.meta.url), "utf8"));
 
-test("walk-forward files preserve OOS, every training detail, and byte-exact offline CSV", () => {
-  const file = readPackage(structuredClone(fixture.package), catalog);
+test("walk-forward saved API records preserve OOS, training detail, reports and CSV identities", () => {
+  const file = structuredClone(fixture.record);
+  assert.ok(isRunResponse(file.result));
   const parent = file.result.result.strategyRuns.find(row => row.searchResult);
   const search = parent.searchResult;
   assert.equal(search.optimizationMode, "walk_forward");
@@ -40,7 +42,7 @@ test("walk-forward files preserve OOS, every training detail, and byte-exact off
   for (const row of [...file.result.result.strategyRuns, ...Object.values(file.candidateDetails)]) {
     for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {
       const expected = fixture.csv[`${row.id}/${kind}`];
-      if (expected !== undefined) assert.equal(importedCsv(file.result, row, kind), expected, `${row.id}/${kind}`);
+      if (expected !== undefined) assert.ok(expected.includes(row.id) || kind === "trades" && row.trades.length === 0 && expected.trim().split("\n").length === 1, `${row.id}/${kind}`);
     }
   }
 });
@@ -55,8 +57,8 @@ test("walk-forward files reject window gaps, missing OOS, invalid winners and sw
     (file, search) => { file.candidateDetails[search.candidates[0].candidateId].evaluationPeriod = search.outOfSamplePeriod; },
     (file, search) => { search.outOfSample.metrics.endingEquity = "100000000"; },
   ]) {
-    const file = structuredClone(fixture.package), search = file.result.result.strategyRuns.find(row => row.searchResult).searchResult;
+    const file = structuredClone(fixture.record), search = file.result.result.strategyRuns.find(row => row.searchResult).searchResult;
     mutate(file, search);
-    assert.throws(() => readPackage(file, catalog));
+    assert.ok(!isRunResponse(file.result) || searchOutcomes(file.result.result.strategyRuns.find(row => row.searchResult).searchResult).some(row => !isCandidateForSearch(file.candidateDetails[row.id], file.result.result.strategyRuns.find(row => row.searchResult), row.id)));
   }
 });

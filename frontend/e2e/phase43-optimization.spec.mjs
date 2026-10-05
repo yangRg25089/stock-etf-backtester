@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { savedRun } from "./helpers/reports.mjs";
-import { importPackage, installRunFixture } from "./helpers/runtime.mjs";
+import { restoreSavedRecord, fetchSavedRecord, installRunFixture } from "./helpers/runtime.mjs";
 
 test("Train/Test selection, matching baselines, modal boundaries and portable offline results", async ({ page }) => {
   const saved = await savedRun(page, "grid_search", {
@@ -12,9 +12,7 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   const grid = saved.result.strategyRuns.find(row => row.presetId === "grid_search");
   expect(grid.searchResult.optimizationMode).toBe("train_test");
   const candidate = grid.searchResult.candidates[0];
-  const packageResponse = await page.request.get(`/api/v1/runs/${saved.runId}/package`);
-  expect(packageResponse.ok()).toBe(true);
-  const file = await packageResponse.json();
+  const file = await fetchSavedRecord(page, saved);
   expect(Object.keys(file.candidateDetails)).toHaveLength(4);
   const csvs = {};
   for (const kind of ["summary", "daily-assets", "trades"]) {
@@ -54,14 +52,14 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   await page.getByRole("button", { name: "候補 #1 の検証結果を見る", exact: true }).click();
   await expect(page.locator(".search-test-select").first()).toHaveAttribute("aria-pressed", "true");
   await page.locator("#result-tab-trades").click();
-  await expect(page.locator(".result-trades-context")).toContainText("検証");
-  await expect(page.locator(".result-trades-context")).toContainText("2024-02-29 → 2024-03-01");
+  await expect(page.locator(".result-detail-name")).toContainText("検証");
+  await expect(page.locator(".result-detail-name")).toContainText("2024-02-29 → 2024-03-01");
   const main = page.locator(".chart-overlay");
   await expect(main).toContainText("検証");
   expect(await main.locator("[data-result-id]").count()).toBeGreaterThan(0);
   await page.locator("#result-tab-search").click();
   for (const language of ["日本語", "中文"]) {
-    await page.getByRole("button", { name: language, exact: true }).click();
+    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
@@ -72,8 +70,7 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   await page.locator(".search-results").screenshot({ path: test.info().outputPath("train-test.png") });
   let requests = 0;
   await page.route("**/api/v1/runs/**", route => { requests++; return route.abort(); });
-  await importPackage(page, file);
-  await page.locator("#result-tab-comparison").click();
+  await restoreSavedRecord(page, file);
   await page.locator(".comparison-table").getByRole("button", { name: "网格搜索", exact: true }).click();
   await page.locator("#result-tab-search").click();
   await page.getByRole("button", { name: "查看候选 #1 的测试结果", exact: true }).click();

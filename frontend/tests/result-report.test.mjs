@@ -10,7 +10,7 @@ const catalog = JSON.parse(readFileSync(new URL("../.test-output/catalog.json", 
 function saved() {
   const result = {
     id: "strategy-one", presetId: "vix_dca", role: "strategy", status: "completed", diagnostics: [],
-    metrics: { totalContributed: "100", actualInvested: "100", investmentBasis: "original_principal", endingEquity: "120", netProfit: "20", returnOnContributions: "0.2", capitalMultiple: "1.2", xirr: "0.1", maximumDrawdown: "0.05", currency: "USD" },
+    metrics: { totalContributed: "100", actualInvested: "100", investmentBasis: "original_principal", endingEquity: "120", netProfit: "20", returnOnContributions: "0.2", capitalMultiple: "1.2", xirr: "0.1", maximumDrawdown: "0.05", currency: "USD", analysis: { monthlyReturns: [{ year: 2024, month: 1, navReturn: "0.1", startDate: "2024-01-02", endDate: "2024-01-03" }], annualReturns: [{ year: 2024, navReturn: "0.1", startDate: "2024-01-02", endDate: "2024-01-03" }] } },
     dailyAssets: [
       { date: "2024-01-02", simulationPrice: "100", totalAsset: "100", totalContributed: "100", drawdown: "0", currency: "USD" },
       { date: "2024-01-03", simulationPrice: "110", totalAsset: "120", totalContributed: "100", drawdown: "-0.05", currency: "USD" },
@@ -29,6 +29,10 @@ function saved() {
 test("report uses saved metrics/config/full-range curves and detaches from later edits", () => {
   const { run, result, strategy } = saved();
   const report = buildResultReport(run, result, "zh", catalog);
+  assert.equal(report.periodReturns.yearTitle, "年");
+  assert.equal(report.periodReturns.annualTitle, "年度收益");
+  assert.notEqual(report.periodReturns.monthly, result.metrics.analysis.monthlyReturns);
+  assert.deepEqual(report.periodReturns.monthly, result.metrics.analysis.monthlyReturns);
   assert.ok(report);
   assert.equal(report.symbol, "QQQ");
   assert.equal(report.period, "2024-01-02 → 2024-01-03");
@@ -127,7 +131,7 @@ test("reports include frozen execution assumptions and saved costs without chang
   assert.match(execution.lines.join(" "), /0\.1 %/);
   assert.match(execution.lines.join(" "), /0\.2 %/);
   assert.match(execution.lines.join(" "), /已停用/);
-  assert.equal(costs.lines.length, 4);
+  assert.equal(costs.lines.length, 5);
   assert.match(costs.lines.at(-1), /US\$4\.50.*USD/);
   assert.equal(report.metrics.find(item => item.key === "netProfit").value, "US$20.00");
   const frozen = JSON.stringify(report.sections);

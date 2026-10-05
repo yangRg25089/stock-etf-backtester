@@ -15,7 +15,7 @@ test("final whole-page and strategy dialog audit includes all accessibility rule
     await page.locator(`.strategy-add-option[data-preset-id="${preset.id}"]`).click();
   }
   for (const locale of ["日本語", "中文"]) {
-    await page.getByRole("button", { name: locale, exact: true }).click();
+    await page.locator(".locale-select").selectOption(locale === "日本語" ? "ja" : locale === "中文" ? "zh" : "en");
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     for (let index = 0; index < presets.length; index++) {
       await page.locator(".strategy-card-open").nth(index).click();

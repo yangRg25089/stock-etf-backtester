@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 const require = createRequire(import.meta.url);
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
 const { buildSearchHeatmap, buildSearchNeighborhood, searchMetricValue, searchOutcomeId } = require("../.test-output/features/results/searchLabModel.js");
+const { SearchLab } = require("../.test-output/features/results/SearchLab.js");
 
 function savedSearch() {
   const candidates = [];
@@ -54,4 +57,18 @@ test("neighbor slice fixes all other values and reads Train/Test metrics indepen
   slice.candidates[0].testResult.status = "unavailable";
   assert.equal(searchMetricValue(slice.candidates[0], "test", "xirr"), null);
   assert.equal(searchOutcomeId(slice.candidates[0], "test"), null);
+});
+
+test("search heatmap axes and neighbor values expose accessible sorting controls", () => {
+  const result = savedSearch();
+  const matrix = renderToStaticMarkup(React.createElement(SearchLab, { result, locale: "en" }));
+  assert.match(matrix, /class="search-matrix-caption"/);
+  assert.match(matrix, /aria-label="Sort X axis descending"/);
+  assert.match(matrix, /aria-label="Sort Y axis descending"/);
+
+  const neighbors = renderToStaticMarkup(React.createElement(SearchLab, { result: {
+    ...result, dimensions: [result.dimensions[0]],
+  }, locale: "en" }));
+  assert.match(neighbors, /aria-label="Sort Index buy threshold ascending"/);
+  assert.match(neighbors, /aria-label="Sort XIRR descending"/);
 });

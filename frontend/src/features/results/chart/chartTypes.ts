@@ -36,6 +36,8 @@ export interface ResultsChartsProps {
   visibleSeriesIds: string[];
   onSeriesChange(id: string, visible: boolean): void;
   onTradeSelect?(resultId: string, index: number): void;
+  inspectedSeriesId?: string | null;
+  onInspectedSeriesChange?(id: string | null): void;
 }
 
 export interface SeriesDefinition {

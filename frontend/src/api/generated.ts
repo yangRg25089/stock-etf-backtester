@@ -15,21 +15,6 @@ export type AnalysisSettings = {
   riskFreeAnnualRatePct: string;
 };
 
-export type BacktestPackage = {
-  format?: "stock-etf-backtester";
-  schemaVersion?: 1;
-  type?: "backtest";
-  exportedAt: string;
-  engineVersion: string;
-  catalogVersion: string;
-  config: FrozenRunConfig;
-  result: RunResponse;
-  candidateDetails: {
-  [key: string]: StrategyRun;
-};
-  dataProvenance: RunDataProvenance;
-};
-
 export type Catalog = {
   version: string;
   parameters?: Array<ParameterDefinition>;
@@ -176,6 +161,7 @@ export type ExecutionSettings = {
   slippagePct: string;
   spreadPct: string;
   fractionalShares: boolean;
+  capitalGainsTaxEnabled?: boolean;
 };
 
 export type ExportKind = "summary" | "daily-assets" | "trades" | "search-results";
@@ -474,8 +460,8 @@ export type SignalEvaluation = {
 export type SignalState = "true" | "false" | "unavailable";
 
 export type StrategyLimits = {
-  maxCustomInstances?: number;
-  maxFixedInstances?: number;
+  maxInstancesPerPreset?: number;
+  maxTotalInstances?: number;
 };
 
 export type StrategyPresetId = "vix_dca" | "composite_dca" | "ma_trend" | "ma_buy_only" | "monthly_dca" | "lump_sum" | "grid_search" | "rsi_dca" | "ma_deviation_dca" | "bollinger_dca" | "rate_dca" | "pe_dca";
@@ -560,6 +546,7 @@ export type TradingCosts = {
   commission: string;
   slippageCost: string;
   spreadCost: string;
+  capitalGainsTax?: string | null;
   totalTradingCost: string;
 };
 

@@ -29,12 +29,13 @@ test("Ctrl and Cmd shortcuts reuse run/file actions and never escape editable mo
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   expect(submissions).toBe(1);
-  const backtestDownload = page.waitForEvent("download");
+  const secondStrategyDownload = page.waitForEvent("download");
   await page.locator(".brand-mark").click();
   await page.keyboard.press("Meta+e");
-  const backtest = JSON.parse(await readFile(await (await backtestDownload).path(), "utf8"));
-  expect(backtest.type).toBe("backtest");
-  expect(backtest.result.result.strategyRuns).toHaveLength(3);
+  const secondStrategy = JSON.parse(await readFile(await (await secondStrategyDownload).path(), "utf8"));
+  expect(secondStrategy.type).toBe("strategy");
+  expect(secondStrategy.draft.strategies).toHaveLength(1);
+  expect(secondStrategy).not.toHaveProperty("result");
   expect(downloads).toBe(2);
   expect(choosers).toBe(1);
   await page.locator(".shared-settings-open-button").click();

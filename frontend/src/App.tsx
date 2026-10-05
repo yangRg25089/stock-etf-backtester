@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Diagnostic, StrategyPresetId } from "./api/generated";
 import { useCatalog } from "./app/useCatalog";
 import { useWorkbenchLayout } from "./app/useWorkbenchLayout";
@@ -9,16 +9,32 @@ import { useRunController, validationDiagnostics } from "./features/runs/useRunC
 import { DiagnosticList, type DiagnosticFieldAction } from "./features/runs/DiagnosticList";
 import { applyMarketDateRecovery } from "./features/runs/dateRecovery";
 import { diagnosticTarget } from "./features/runs/diagnosticNavigation";
+import { SelectedStrategies } from "./features/results/SelectedStrategies";
 import { ResultViewer } from "./features/results/ResultViewer";
 import { useWorkspace } from "./features/strategies/useWorkspace";
 import { StrategyNavigator, type StrategyFieldNavigation } from "./features/strategies/StrategyWorkspace";
 import { interpolate, translate, type Locale } from "./i18n/messages";
+import { persistBrowserLocalePreference, readBrowserLocalePreference } from "./i18n/localePreference";
+import { ThemeControl } from "./shared/ui/ThemeControl";
 import { LocaleControl } from "./shared/ui/LocaleControl";
+import { ReturnColorControl } from "./shared/ui/ReturnColorControl";
+import { persistBrowserReturnColorPreference, readBrowserReturnColorPreference, resolveReturnColorPalette, type ReturnColorPalette } from "./shared/lib/returnColorPreference";
 import { WorkbenchDivider } from "./shared/ui/WorkbenchDivider";
 import { PackageControls } from "./features/files/PackageControls";
 
 function App() {
-  const [locale, setLocale] = useState<Locale>("ja");
+  const topbar = useRef<HTMLElement>(null);
+  const [topbarHeight, setTopbarHeight] = useState(55);
+  useEffect(() => {
+    const node = topbar.current;
+    if (!node) return;
+    const observer = new ResizeObserver(() => setTopbarHeight(node.getBoundingClientRect().height));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  const [locale, setLocale] = useState<Locale>(readBrowserLocalePreference);
+  const [returnColorPreference, setReturnColorPreference] = useState<ReturnColorPalette | null>(readBrowserReturnColorPreference);
+  const returnPalette = resolveReturnColorPalette(locale, returnColorPreference);
   const { catalog, catalogState, retryCatalog } = useCatalog();
   const { configCollapsed, setConfigCollapsed, mobilePanel, setMobilePanel, revealConfig } = useWorkbenchLayout();
   const [sharedSettingsDialogOpen, setSharedSettingsDialogOpen] = useState(false);
@@ -32,9 +48,19 @@ function App() {
   } = useRunController(catalog, workspace, setWorkspace);
 
   useEffect(() => {
-    document.documentElement.lang = locale === "ja" ? "ja" : "zh-Hans";
+    document.documentElement.lang = locale === "zh" ? "zh-Hans" : locale;
     document.title = translate(locale, "app.documentTitle");
   }, [locale]);
+
+  const handleLocaleChange = (nextLocale: Locale) => {
+    setLocale(nextLocale);
+    persistBrowserLocalePreference(nextLocale);
+  };
+
+  const handleReturnColorChange = (palette: ReturnColorPalette) => {
+    setReturnColorPreference(palette);
+    persistBrowserReturnColorPreference(palette);
+  };
 
   const handleAdd = (presetId: StrategyPresetId) => {
     if (isLocked()) return;
@@ -90,13 +116,14 @@ function App() {
 
 
   return (
-    <div className="app-frame" lang={locale === "ja" ? "ja" : "zh-Hans"}>
+    <div className="app-frame" lang={locale === "zh" ? "zh-Hans" : locale} data-return-palette={returnPalette}
+      style={{ "--app-topbar-height": `${topbarHeight}px` } as CSSProperties}>
       <a className="skip-link" href="#main-content">{translate(locale, "app.skipToMain")}</a>
-      <header className="app-topbar">
+      <header ref={topbar} className="app-topbar">
         <h1 className="sr-only">{translate(locale, "page.title")}</h1>
         <div className="topbar-brand">
           <div className="brand">
-            <span className="brand-mark" aria-hidden="true">B</span>
+            <img className="brand-mark" src="/brand.svg" alt="" aria-hidden="true" />
             <span className="brand-name">{translate(locale, "app.name")}</span>
           </div>
         </div>
@@ -115,10 +142,12 @@ function App() {
           />
         )}
         <div className="topbar-right">
-          {catalog && workspace && <PackageControls catalog={catalog} draft={workspace.draft} run={workspace.runResponse}
-            imported={workspace.importedBacktest} locale={locale} busy={runBusy} onImport={handleImport} />}
-          <LocaleControl locale={locale} onChange={setLocale} />
+          {catalog && workspace && <PackageControls catalog={catalog} draft={workspace.draft} locale={locale} busy={runBusy} onImport={handleImport} />}
+          <ThemeControl locale={locale} />
+          <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
+          <LocaleControl locale={locale} onChange={handleLocaleChange} />
         </div>
+        {workspace && <SelectedStrategies run={workspace.runResponse} ids={workspace.selectedResultIds} locale={locale} />}
       </header>
 
       <main id="main-content" className="main-content workbench-main">
@@ -252,6 +281,7 @@ function App() {
           </div>
         )}
       </main>
+      <footer className="app-footer">© 2026 Ronny Yang · <a href="https://opensource.org/license/mit" target="_blank" rel="noreferrer">MIT License</a></footer>
       {sharedSettingsDialogOpen && catalog && workspace && (
         <SharedSettingsDialog
           catalog={catalog}

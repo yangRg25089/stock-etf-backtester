@@ -5,7 +5,7 @@ export interface SharedDraft {
   contribution: { amount: string | null; day: number | null };
   currency?: string;
   analysis?: { riskFreeAnnualRatePct: string | null };
-  execution?: { commission: string | null; slippagePct: string | null; spreadPct: string | null; fractionalShares: boolean };
+  execution?: { commission: string | null; slippagePct: string | null; spreadPct: string | null; fractionalShares: boolean; capitalGainsTaxEnabled: boolean };
 }
 
 import type { SharedFieldKey } from "./fieldKeys";
@@ -28,6 +28,8 @@ export function createDefaultSharedDraft(catalog: Catalog): SharedDraft {
     const value = defaultFor(key);
     return typeof value === "string" || typeof value === "number" ? String(value) : null;
   };
+  const taxEnabled = defaultFor("execution.capitalGainsTaxEnabled");
+  if (typeof taxEnabled !== "boolean") throw new Error("Catalog tax default must be boolean");
   const fractional = defaultFor("execution.fractionalShares");
   if (typeof fractional !== "boolean") throw new Error("Catalog fractional shares default must be boolean");
   if (typeof symbol !== "string" || typeof startDate !== "string" || typeof endDate !== "string") {
@@ -42,6 +44,6 @@ export function createDefaultSharedDraft(catalog: Catalog): SharedDraft {
     currency: catalog.symbolSuggestions?.find(item => item.symbol === symbol)?.currency,
     analysis: { riskFreeAnnualRatePct: typeof riskFreeRate === "number" || typeof riskFreeRate === "string" ? String(riskFreeRate) : null },
     execution: { commission: decimalDefault("execution.commission"), slippagePct: decimalDefault("execution.slippagePct"),
-      spreadPct: decimalDefault("execution.spreadPct"), fractionalShares: fractional },
+      spreadPct: decimalDefault("execution.spreadPct"), fractionalShares: fractional, capitalGainsTaxEnabled: taxEnabled },
   };
 }

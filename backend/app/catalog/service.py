@@ -30,7 +30,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v16"
+CATALOG_VERSION: Final[str] = "catalog-v18"
 
 
 class SymbolSuggestion(DomainModel):
@@ -75,8 +75,10 @@ SYMBOL_SUGGESTIONS = (
 
 
 class StrategyLimits(DomainModel):
-    max_custom_instances: int = Field(default=10, alias="maxCustomInstances", ge=1)
-    max_fixed_instances: int = Field(default=1, alias="maxFixedInstances", ge=1)
+    max_instances_per_preset: int = Field(
+        default=5, alias="maxInstancesPerPreset", ge=1
+    )
+    max_total_instances: int = Field(default=10, alias="maxTotalInstances", ge=1)
 
 
 class Catalog(DomainModel):

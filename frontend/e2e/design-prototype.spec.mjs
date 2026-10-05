@@ -48,13 +48,20 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
   await expect(buy).toHaveAttribute("aria-checked", "false");
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
-  const comparisonRows = page.locator('[data-panel="comparison"] tbody tr');
+  const comparisonRows = page.locator(".comparison-primary tbody tr");
   const monthly = comparisonRows.filter({ hasText: "毎月定額積立" });
   await monthly.locator(".result-select").click();
+  await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "true");
+  await expect(monthly.locator(".result-select")).not.toHaveAttribute("aria-current");
+  await expect(monthly).toHaveClass(/is-selected/);
   await expect(monthly).toHaveCSS("translate", "0px -1px");
   expect(await monthly.evaluate(node => getComputedStyle(node).boxShadow)).not.toBe("none");
+  const selectedColor = await monthly.evaluate(node => getComputedStyle(node).backgroundColor);
+  expect(selectedColor.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, value) => sum + value, 0)).toBeGreaterThan(650);
   await monthly.locator(".result-select").click();
-  await expect(monthly).toHaveCSS("translate", "0px");
+  await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "false");
+  await expect(monthly).not.toHaveClass(/is-selected/);
+  await expect(monthly).toHaveCSS("translate", "4px");
   await expect(monthly).toHaveCSS("box-shadow", "none");
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations).toEqual([]);
@@ -62,16 +69,12 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
   await page.screenshot({ path: test.info().outputPath("formal-workbench-reference.png") });
 });
 
-test("the reference exposes readonly trade and data explanations with keyboard and focus return", async ({ page }) => {
+test("the reference exposes readonly trade explanations with keyboard and focus return", async ({ page }) => {
   const markup = await readFile(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
   await page.goto("about:blank");
   await page.setContent(`<html lang="ja"><head><title>Result explanations reference</title></head><body>${markup}</body></html>`);
   const dialog = page.locator(".prototype-inspector-dialog");
-  const data = page.getByRole("button", { name: "保存データ", exact: true });
-  await data.click();
-  await expect(dialog).toContainText("Yahoo Finance");
-  await page.keyboard.press("Escape");
-  await expect(data).toBeFocused();
+  await expect(page.getByRole("button", { name: "保存データ", exact: true })).toHaveCount(0);
   await page.getByRole("tab", { name: "取引明細", exact: true }).click();
   const entry = page.locator('[data-panel="trades"] [data-inspector="trade"]').first();
   await entry.click();
@@ -98,7 +101,9 @@ test("the reference separates risk-free inputs from saved NAV performance", asyn
   const panel = page.locator('[data-panel="performance"]');
   await expect(panel.locator(".performance-stat")).toHaveCount(11);
   await expect(panel.locator(".trading-cost-stat")).toHaveCount(4);
-  await expect(panel.locator(".annual-performance-table tbody tr")).toHaveCount(1);
+  await expect(panel.locator(".annual-performance-table")).toHaveCount(0);
+  await expect(panel.locator("th.heatmap-annual")).toHaveText("年計");
+  await expect(panel.locator(".heatmap-cell.heatmap-annual")).toHaveText("+12.4%");
   await expect(panel.locator(".drawdown-episodes-table tbody tr")).toHaveCount(1);
   await panel.locator(".heatmap-cell").first().focus();
   await expect(panel.locator(".heatmap-detail")).toHaveText("2024-01 · 2.12%");
@@ -117,6 +122,10 @@ test("the reference separates risk-free inputs from saved NAV performance", asyn
   await page.locator("#prototype-open-settings").click();
   await page.locator("#prototype-risk-free").fill("5");
   await expect(page.locator(".shared-dialog fieldset")).toHaveCount(5);
+  const taxSwitch = page.locator("#prototype-capital-gains-tax");
+  await expect(taxSwitch).toHaveAttribute("aria-checked", "false");
+  await taxSwitch.click();
+  await expect(taxSwitch).toHaveAttribute("aria-checked", "true");
   await page.locator("#prototype-commission").fill("2");
   await page.locator("#prototype-fractional").click();
   await expect(page.locator("#prototype-fractional")).toHaveAttribute("aria-checked", "false");

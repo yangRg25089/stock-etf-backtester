@@ -13,6 +13,8 @@ def combine_conditions(
     signal_id: str,
     operator: ConditionLogic,
     children: tuple[SignalEvaluation, ...],
+    *,
+    include_all_triggers: bool = False,
 ) -> SignalEvaluation:
     if any(child.state is SignalState.UNAVAILABLE for child in children):
         return SignalEvaluation(
@@ -32,6 +34,21 @@ def combine_conditions(
         if triggered
         else None
     )
+    triggered_signal_ids = (
+        tuple(
+            sorted(
+                {
+                    signal_id
+                    for child in hits
+                    for signal_id in child.triggered_signal_ids
+                }
+            )
+        )
+        if include_all_triggers and triggered
+        else winner.triggered_signal_ids
+        if winner is not None
+        else ()
+    )
     return SignalEvaluation(
         date=day,
         signalId=signal_id,
@@ -39,5 +56,5 @@ def combine_conditions(
         sellRatio=winner.sell_ratio
         if winner is not None and winner.sell_ratio is not None
         else Decimal("0"),
-        triggeredSignalIds=winner.triggered_signal_ids if winner is not None else (),
+        triggeredSignalIds=triggered_signal_ids,
     )

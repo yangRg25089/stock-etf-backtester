@@ -133,6 +133,7 @@
 }
 
 .strategy-remove svg,
+.strategy-copy svg,
 .condition-remove svg {
   width: 18px;
   height: 18px;
@@ -162,14 +163,11 @@
   transition: transform 120ms ease;
 }
 
-.strategy-nav-card .strategy-remove {
+.strategy-nav-card .strategy-remove,
+.strategy-nav-card .strategy-copy {
   min-width: 40px;
   min-height: 40px;
 }
-
-.strategy-more { min-width: 40px; min-height: 40px; font-size: 22px; line-height: 1; }
-.strategy-tools-dialog { width: min(420px, calc(100vw - 24px)); }
-.strategy-tools-actions { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 8px; }
 
 .strategy-nav-error {
   color: var(--app-red);

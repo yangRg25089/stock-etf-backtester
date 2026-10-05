@@ -228,7 +228,13 @@ def _response(*, trades: tuple[Trade, ...] = ()) -> RunResponse:
     )
 
 
-EXPECTED_COST_FIELDS = ("commission", "slippageCost", "spreadCost", "totalTradingCost")
+EXPECTED_COST_FIELDS = (
+    "commission",
+    "slippageCost",
+    "spreadCost",
+    "capitalGainsTax",
+    "totalTradingCost",
+)
 
 
 EXPECTED_ANALYSIS_FIELDS = (
@@ -323,10 +329,10 @@ def test_daily_assets_export_preserves_iso_dates_precision_and_currency() -> Non
     assert content == (
         "runId,resultId,date,cash,timingQuantity,fixedQuantity,simulationPrice,"
         "totalAsset,currency,unitNav,drawdown,dataSources,calendarAsOf,"
-        "marketDataThrough,totalContributed,actualInvested,investmentBasis,commission,slippageCost,spreadCost,totalTradingCost\n"
+        "marketDataThrough,totalContributed,actualInvested,investmentBasis,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost\n"
         "run-123,ordinary,2024-01-02,10.00,1.5,2,3.123456789,20.1851851835,"
         'USD,1.2345,-0.01,"[""sec:companyfacts"",""yahoo""]",2024-01-04,'
-        "2024-01-04,19.87654321,,buy_turnover,,,,\n"
+        "2024-01-04,19.87654321,,buy_turnover,,,,,\n"
     )
 
 
@@ -394,7 +400,7 @@ def test_successful_zero_trade_export_still_contains_a_header() -> None:
     assert content == (
         "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
         "signalId,dataSources,calendarAsOf,marketDataThrough,"
-        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,totalTradingCost\n"
+        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost\n"
     )
 
 
@@ -419,10 +425,10 @@ def test_trade_export_writes_stable_fields_without_rounding() -> None:
     assert content == (
         "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
         "signalId,dataSources,calendarAsOf,marketDataThrough,"
-        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,totalTradingCost\n"
+        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost\n"
         "run-123,ordinary,2024-01-03,buy,signal_buy,0.123456789,81.00000001,"
         '10.00000000,USD,vix.buy,"[""sec:companyfacts"",""yahoo""]",'
-        "2024-01-04,2024-01-04,,,,,,,,,,,\n"
+        "2024-01-04,2024-01-04,,,,,,,,,,,,\n"
     )
 
 

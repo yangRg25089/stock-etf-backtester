@@ -151,7 +151,7 @@ test("linked figures have one bottom date axis and no separate-layout controls",
   for (const visibleSeriesIds of [["price"], ["price", "drawdown"], ["price", "vix"], ["price", "drawdown", "vix"]]) {
     const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
       locale: "ja", dailyAssets, trades: [], visibleSeriesIds,
-      signals: [{ date: dailyAssets[0].date, signalId: "vix.buy", state: "false", observedValue: "20" }],
+      signals: dailyAssets.map(row => ({ date: row.date, signalId: "vix.buy", state: "false", observedValue: "20" })),
       onSeriesChange() {},
     }));
     assert.equal((html.match(/class="chart-axis-title chart-x-axis-title"/g) ?? []).length, 1);
@@ -178,14 +178,15 @@ test("half-height indicators retain accessible natural units without captions or
   for (const [locale, pointUnit] of [["ja", "ポイント"], ["zh", "点"]]) {
     const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
       locale, dailyAssets, trades: [], visibleSeriesIds: ["price", "drawdown", "vix"],
-      signals: [{ date: dailyAssets[0].date, signalId: "vix.buy", state: "false", observedValue: "20" }],
+      signals: dailyAssets.map(row => ({ date: row.date, signalId: "vix.buy", state: "false", observedValue: "20" })),
       onSeriesChange() {},
     }));
     const indicators = [...html.matchAll(/<figure class="chart-panel chart-(drawdown|vix) is-compact"[\s\S]*?<\/figure>/g)];
     assert.equal(indicators.length, 2);
     for (const [figure, id] of indicators) {
-      assert.doesNotMatch(figure, /<text class="chart-axis-title chart-y-axis-title"/);
-      assert.doesNotMatch(figure, /<figcaption|overlay-legend|chart-highlight-area/);
+      assert.match(figure, /<text class="chart-axis-title chart-y-axis-title"/);
+      assert.match(figure, /linearGradient/);
+      assert.doesNotMatch(figure, /<figcaption|overlay-legend/);
       assert.match(figure, /data-plot-top="8" data-plot-bottom="82"/);
       assert.ok(figure.match(/<title[^>]*>[\s\S]*?<\/title>/)[0].includes(id === "vix" ? pointUnit : "%"));
     }
@@ -454,6 +455,20 @@ test("trade details show execution fields and do not call failed results zero-tr
   }));
   assert.doesNotMatch(failed, /还没有交易/);
   assert.match(failed, /交易明细不可用/);
+});
+
+test("trade details translate a condition-specific volatility signal without falling back to a generic label", () => {
+  const specific = trades.map(trade => ({ ...trade, signalId: trade.side === "buy" ? "vix.buy:vix25" : trade.signalId }));
+  const html = renderToStaticMarkup(React.createElement(TradeTable, { locale: "zh", status: "completed", trades: specific }));
+  assert.match(html, /波动率买入信号/);
+  assert.doesNotMatch(html, /其他信号/);
+});
+
+test("trade columns are sortable while the initial execution order remains unchanged", () => {
+  const html = renderToStaticMarkup(React.createElement(TradeTable, { locale: "en", status: "completed", trades }));
+  assert.equal((html.match(/class="table-sort"/g) ?? []).length, 7);
+  assert.equal((html.match(/aria-sort=/g) ?? []).length, 0);
+  assert.ok(html.indexOf("2024-01-03") < html.indexOf("2024-01-04"));
 });
 
 test("trade height expansion is disabled for empty trades and while calculations run", () => {

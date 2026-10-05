@@ -2,10 +2,14 @@ import { useState } from "react";
 import type { SearchCandidate, SearchResult } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { DiagnosticList } from "../runs/DiagnosticList";
-import { formatCurrency, formatPercent } from "./format";
+import { formatCurrency } from "./format";
+import { ReturnPercent } from "./ReturnPercent";
 import { SearchLab } from "./SearchLab";
+import { SortableHeader } from "./SortableHeader";
+import { sortTableRows, type TableSort } from "./tableSorting";
 
 const INITIAL_CANDIDATE_LIMIT = 100;
+type CandidateSortKey = "sequence" | "status" | "parameters" | "endingEquity" | "maximumDrawdown" | "trainXirr" | "testXirr" | "diagnostics";
 
 interface SearchResultsProps {
   locale: Locale;
@@ -62,14 +66,14 @@ function CandidateRow({ locale, candidate, selectedCandidateId, onSelect, dimens
         </dl>
       </td>
       <td>{formatCurrency(metrics?.endingEquity, metrics?.currency, locale)}</td>
-      <td>{formatPercent(metrics?.maximumDrawdown, locale)}</td>
+      <td><ReturnPercent value={metrics?.maximumDrawdown} locale={locale} kind="drawdown" /></td>
       {split && <>
-        <td>{formatPercent(metrics?.xirr, locale)}</td>
+        <td><ReturnPercent value={metrics?.xirr} locale={locale} /></td>
         <td><button type="button" className="search-test-select" disabled={!candidate.testResult?.metrics}
           aria-pressed={selectedCandidateId === candidate.testResult?.resultId}
           aria-label={translate(locale, "search.viewTest", { number: String(candidate.sequence) })}
           onClick={event => { event.stopPropagation(); if (candidate.testResult) onSelect?.(candidate.testResult.resultId); }}>
-          {formatPercent(candidate.testResult?.metrics?.xirr, locale)} <span aria-hidden="true">↗</span>
+          <ReturnPercent value={candidate.testResult?.metrics?.xirr} locale={locale} /> <span aria-hidden="true">↗</span>
         </button>{candidate.testResult && !candidate.testResult.metrics && <span className="search-test-status">{translate(locale, `status.${candidate.testResult.status}`)}</span>}</td>
       </>}
       <td>
@@ -83,17 +87,33 @@ function CandidateRow({ locale, candidate, selectedCandidateId, onSelect, dimens
 export function SearchResults({ locale, searchResult, selectedCandidateId, onSelectCandidate, pending, errorKey }: SearchResultsProps) {
   const [showAll, setShowAll] = useState(false);
   const [windowIndex, setWindowIndex] = useState(0);
+  const [sort, setSort] = useState<TableSort<CandidateSortKey> | null>(null);
   const window = searchResult.walkForwardWindows?.[windowIndex] ?? searchResult.walkForwardWindows?.[0];
   const slice = { dimensions: searchResult.dimensions, optimizationMode: searchResult.optimizationMode,
     candidates: window ? searchResult.candidates.filter(item => window.candidateIds.includes(item.candidateId)) : searchResult.candidates,
     rankedCandidateIds: window?.rankedCandidateIds ?? searchResult.rankedCandidateIds };
-  const candidates = orderedCandidates(slice);
+  const rankedCandidates = orderedCandidates(slice);
+  const dimensions = searchResult.dimensions.map(item => item.key);
+  const candidates = sortTableRows(rankedCandidates, sort, (candidate, key) => {
+    if (key === "sequence") return candidate.sequence;
+    if (key === "status") return translate(locale, `status.${candidate.status}`);
+    if (key === "parameters") return candidateParameters(candidate, dimensions).map(([name, value]) =>
+      `${translate(locale, `parameters.${name}`)} ${typeof value === "string" ? value : JSON.stringify(value)}`).join(" · ");
+    if (key === "endingEquity") return candidate.metrics?.endingEquity;
+    if (key === "maximumDrawdown") return candidate.metrics?.maximumDrawdown;
+    if (key === "trainXirr") return candidate.metrics?.xirr;
+    if (key === "testXirr") return candidate.testResult?.metrics?.xirr;
+    return [...(candidate.diagnostics ?? []), ...(candidate.metrics?.diagnostics ?? []), ...(candidate.testResult?.diagnostics ?? [])]
+      .map(item => item.code).join(" · ");
+  }, locale);
   const displayed = showAll ? candidates : candidates.slice(0, INITIAL_CANDIDATE_LIMIT);
   const hiddenCount = candidates.length - displayed.length;
   const split = searchResult.optimizationMode === "train_test";
+  const sortable = (key: CandidateSortKey, label: string, firstDirection: "ascending" | "descending" = "ascending") =>
+    <SortableHeader locale={locale} label={label} sortKey={key} sort={sort} firstDirection={firstDirection} disabled={pending} onSort={setSort} />;
 
   return (
-    <section className="search-results" aria-labelledby="search-results-title">
+    <section className="search-results">
       <h3 className="sr-only" id="search-results-title">
         {translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}
       </h3>
@@ -128,19 +148,19 @@ export function SearchResults({ locale, searchResult, selectedCandidateId, onSel
           <caption className="sr-only">{translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}</caption>
           <thead>
             <tr>
-              <th scope="col">{translate(locale, "search.sequence")}</th>
-              <th scope="col">{translate(locale, "results.status")}</th>
-              <th scope="col">{translate(locale, "search.parameters")}</th>
-              <th scope="col">{translate(locale, "results.endingEquity")}</th>
-              <th scope="col">{translate(locale, "results.maximumDrawdown")}</th>
-              {split && <><th scope="col">{translate(locale, "search.trainXirr")}</th><th scope="col">{translate(locale, "search.testXirr")}</th></>}
-              <th scope="col">{translate(locale, "diagnostics.title")}</th>
+              {sortable("sequence", translate(locale, "search.sequence"))}
+              {sortable("status", translate(locale, "results.status"))}
+              {sortable("parameters", translate(locale, "search.parameters"))}
+              {sortable("endingEquity", translate(locale, "results.endingEquity"), "descending")}
+              {sortable("maximumDrawdown", translate(locale, "results.maximumDrawdown"), "ascending")}
+              {split && <>{sortable("trainXirr", translate(locale, "search.trainXirr"), "descending")}{sortable("testXirr", translate(locale, "search.testXirr"), "descending")}</>}
+              {sortable("diagnostics", translate(locale, "diagnostics.title"))}
             </tr>
           </thead>
           <tbody>
             {displayed.map((candidate) => (
               <CandidateRow key={candidate.candidateId} locale={locale} candidate={candidate}
-                selectedCandidateId={selectedCandidateId} dimensions={searchResult.dimensions.map(item => item.key)} split={split}
+                selectedCandidateId={selectedCandidateId} dimensions={dimensions} split={split}
                 onSelect={onSelectCandidate} />
             ))}
           </tbody>

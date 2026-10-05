@@ -303,6 +303,8 @@ schema migration
 
 # Task 101：策略 / 结果 Export & Import
 
+> **2026-10-06 状态更新：** 下方早期 Backtest Package / 结果导入设计已被Task218明确退役，不代表当前产品能力。当前仅支持策略草稿 JSON 导入/导出；回测结果保存在运行结果服务中，CSV与PNG从保存结果导出。不可按下文恢复结果JSON包、导入结果或离线候选旁路。
+
 我建议做两个文件类型。
 
 ### Strategy Package
@@ -335,174 +337,12 @@ schema migration
 
 ---
 
-### Backtest Package
+### Task 102–103：当前文件行为
 
-```text
-*.backtest.json
-```
-
-结构：
-
-```json
-{
-  "format": "stock-etf-backtester",
-  "schemaVersion": 1,
-  "type": "backtest",
-  "exportedAt": "...",
-
-  "engineVersion": "...",
-  "catalogVersion": "...",
-
-  "config": {},
-  "result": {},
-  "candidateDetails": {},
-  "dataProvenance": {}
-}
-```
-
-它必须使用**运行时冻结配置**，不能使用当前 Draft。
-
-也就是说：
-
-```text
-运行时：
-VIX = 25
-
-运行完以后用户改成：
-VIX = 30
-
-Export Result
-        ↓
-必须仍然导出：
-VIX = 25
-```
-
-保持你现在已有的 Draft / Result isolation。
-
----
-
-# Task 102：Import 设计
-
-右上角可以增加：
-
-```text
-⋯
-
-策略をエクスポート
-結果をエクスポート
-インポート
-```
-
-Import 后先 Preview：
-
-```text
-インポート
-
-QQQ
-2020-01-01 ～ 2026-10-01
-
-戦略
-────────────────
-VIX シグナル積立
-MA トレンド
-
-結果
-保存済み結果あり
-
-[キャンセル]       [読み込む]
-```
-
-Strategy Import：
-
-```text
-→ 替换当前 Draft
-→ 清除当前 Result
-```
-
-Backtest Import：
-
-```text
-→ 加载被冻结的 strategy 为当前 Draft
-→ 同时显示导入的 Result
-→ Result 标记为 imported
-```
-
-例如顶部轻量提示：
-
-```text
-Imported Result
-2026-10-03 に保存された結果
-```
-
-修改策略时：
-
-```text
-Imported Result 不改变
-```
-
-重新执行后：
-
-```text
-Imported Result → Live Result
-```
-
----
-
-# Task 103：Import schema migration 与安全校验
-
-这个不要省。
-
-不能直接：
-
-```ts
-JSON.parse();
-setWorkspace();
-```
-
-需要：
-
-```text
-Import File
-   ↓
-文件尺寸检查
-   ↓
-format 检查
-   ↓
-schemaVersion 检查
-   ↓
-migration
-   ↓
-runtime validation
-   ↓
-Catalog compatibility
-   ↓
-加载
-```
-
-规则：
-
-```text
-schemaVersion < current
-→ migration
-
-schemaVersion == current
-→ load
-
-schemaVersion > current
-→ 拒绝并提示版本过新
-```
-
-还需要限制：
-
-```text
-文件最大大小
-strategies 最大数量
-conditions 最大深度
-candidate 数量
-字符串长度
-```
-
-防止一个异常 JSON 把页面卡死。
+- `.strategy.json`只包含经schema、版本、目录兼容、策略数量与条件深度验证的草稿配置；导入先预览，确认后替换草稿。
+- 回测结果不打包进 JSON。比较、策略详情、网格候选以及CSV/PNG读取已保存的运行结果；草稿修改不改写冻结结果。
+- 结果 JSON 包、导入结果状态、离线候选及离线CSV旁路已在Task218完全删除。不要按早期草案重新添加这些入口或实现。
+- 当前验收记录见[阶段59实现与最终验收](phase59-navigation-results-implementation.md)，功能变化后的文件往返验收见任务清单Task210。
 
 ---
 

@@ -1,5 +1,7 @@
 # 全项目严格验收复审（2026-10-05）
 
+> **2026-10-06 状态说明：** 本文保留10月5日审计时的历史事实和证据。文中`fetchBacktestPackage`、回测JSON包、离线结果/候选等引用描述的是该日代码，不是当前支持的产品接口；这些结果包能力已由Task218完全退役。当前只保留策略草稿JSON导入/导出，结果仍由保存的运行结果API供界面和CSV/PNG读取。阶段59实施与验收见[记录](phase59-navigation-results-implementation.md)。
+
 ## 结论
 
 **全项目尚未全部完成。** 已实现能力重新验收，并确认、修复两处中等接口边界缺陷、一处过期说明及一处历史断链；ETF历史PE的正向接入、最新版本远端CI/发布和远端分支收敛仍未完成。原文明确低优先级的桌面Inspector维持暂缓。随后Task189已恢复并逐条核对两份旧RV原稿；阶段53已完成3项绩效修复、8项简化及770/317/161/1完整门禁，详见[实施与最终验收](phase53-simplification-implementation.md)。本记录下方的745/305/160/1保留为首次严格审计的历史证据。
@@ -10,7 +12,7 @@
 
 ### B51-01：响应结构合法，但身份不属于请求（中）
 
-- `fetchRun`、`stopRun`、`fetchCandidate`、`fetchBacktestPackage`原来只验证响应内部结构/身份一致，未绑定URL请求的runId/candidateId。
+- 当时的`fetchRun`、`stopRun`、`fetchCandidate`、`fetchBacktestPackage`只验证响应内部结构/身份一致，未绑定URL请求的runId/candidateId。`fetchBacktestPackage`随后随结果JSON包功能一起退役。
 - 用后端实际序列化回测包建立4条失败回归，修复前均报告`Missing expected rejection`。浏览器先选候选1，再请求候选2并返回候选1的合法结果，确认错误响应被接纳。
 - 浏览器故障注入必须断言实际命中一次请求；候选ID包含冒号，匹配URL须使用其编码形式。最初未编码的拦截未命中，不能作为有效复现；已纠正并重新取得修复前失败证据。
 - 统一API身份校验后拒绝异身份响应，沿用`invalid_response`。浏览器确认错误显示、原候选和曲线保持、正确重试恢复、CSV包含新候选ID且不包含旧候选ID，无页面异常。

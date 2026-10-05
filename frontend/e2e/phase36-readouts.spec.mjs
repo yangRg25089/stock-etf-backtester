@@ -46,7 +46,8 @@ test("the persistent readout replaces the caption and owns hover, pin, release a
   await expect(price).toContainText("USD");
   const strategy = readout.getByRole("button", { name: "ボラティリティ積立", exact: true });
   await expect(strategy).toContainText("元本");
-  await expect(core.locator(".chart-trade-marker")).toHaveCount(0);
+  await expect(strategy).toHaveAttribute("aria-pressed", "true");
+  await expect(core.locator(".chart-trade-marker")).toHaveCount(2);
   await strategy.hover();
   const appearance = () => core.evaluate(node => ({
     lines: [...node.querySelectorAll("polyline.is-highlighted")].map(line => line.getAttribute("points")),
@@ -59,9 +60,9 @@ test("the persistent readout replaces the caption and owns hover, pin, release a
   await strategy.click();
   await page.mouse.move(0, 0);
   await page.locator("#result-details-toggle").focus();
-  await expect(strategy).toHaveAttribute("aria-pressed", "true");
-  await expect(strategy).toHaveClass(/is-selected/);
-  expect(await appearance()).toEqual(hovering);
+  await expect(strategy).toHaveAttribute("aria-pressed", "false");
+  await expect(strategy).not.toHaveClass(/is-selected/);
+  await expect(core.locator(".chart-trade-marker, .chart-highlight-area")).toHaveCount(0);
   await price.click();
   await page.mouse.move(0, 0);
   await page.locator("#result-details-toggle").focus();
@@ -75,8 +76,9 @@ test("the persistent readout replaces the caption and owns hover, pin, release a
   await strategy.focus();
   await page.keyboard.press("Space");
   await page.locator("#result-details-toggle").focus();
+  await expect(strategy).toHaveAttribute("aria-pressed", "true");
   expect(await appearance()).toEqual(hovering);
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await expect(readout.getByRole("button", { name: "标的收盘价 (USD)", exact: true })).toBeVisible();
   for (const width of [1440, 1024, 768, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -91,33 +93,55 @@ test("the persistent readout replaces the caption and owns hover, pin, release a
 });
 
 test("comparison and trade tables pass vertical scrolling to the results area only at their boundaries", async ({ page }) => {
-  const saved = await savedRun(page, Array.from({ length: 10 }, (_, index) => ({
-    id: `custom-${index}`, presetId: "composite_dca", params: {},
-    rules: { buy: { type: "condition", id: `custom-vix-${index}`, kind: "vix", params: { "vix.symbol": "^VIX", "vix.buyThreshold": 25 } }, sell: null },
-  })));
+  const saved = await savedRun(page, [
+    ...Array.from({ length: 5 }, (_, index) => ({
+      id: `custom-${index}`, presetId: "composite_dca", params: {},
+      rules: { buy: { type: "condition", id: `custom-vix-${index}`, kind: "vix", params: { "vix.symbol": "^VIX", "vix.buyThreshold": 25 } }, sell: null },
+    })),
+    ...Array.from({ length: 4 }, (_, index) => ({ id: `volatility-copy-${index}`, presetId: "vix_dca", params: {} })),
+  ]);
   const primary = saved.result.strategyRuns[0];
   primary.trades = Array.from({ length: 80 }, (_, index) => ({
     date: primary.dailyAssets[index % primary.dailyAssets.length].date, side: "buy", reason: "signal_buy", quantity: "1",
     price: "100", cashAmount: "100", currency: "USD", signalId: "vix.buy",
   }));
   await openRun(page, saved);
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(12);
+  await expect(page.locator(".result-interactions")).not.toBeDisabled();
   const results = page.locator(".workbench-results");
   const outerTop = () => results.evaluate(node => node.scrollTop);
   const checkScroll = async selector => {
     const table = page.locator(selector);
     await table.scrollIntoViewIfNeeded();
+    // The last details card can already be at the parent's lower boundary.
+    await results.evaluate(node => { node.scrollTop = Math.max(0, node.scrollTop - 140); });
+    expect(await results.evaluate(node => node.scrollHeight - node.clientHeight - node.scrollTop)).toBeGreaterThanOrEqual(140);
     await table.evaluate(node => { node.scrollTop = 0; });
-    await table.hover({ position: { x: 140, y: 100 } });
+    const pointAtTable = async () => {
+      const box = await table.boundingBox();
+      const viewport = await results.boundingBox();
+      const point = { x: box.x + 140, y: Math.min(Math.max(box.y + 100, viewport.y + 10), viewport.y + viewport.height - 10) };
+      await page.mouse.move(point.x, point.y);
+      expect(await table.evaluate((node, point) => node.contains(document.elementFromPoint(point.x, point.y)), point)).toBe(true);
+    };
+    await pointAtTable();
     const before = await outerTop();
     await page.mouse.wheel(0, 120);
-    await expect.poll(() => table.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+    await expect.poll(() => table.evaluate(node => node.scrollTop)).toBeGreaterThanOrEqual(119);
     expect(await outerTop()).toBe(before);
-    await table.evaluate(node => { node.scrollTop = node.scrollHeight - node.clientHeight; });
+    await table.evaluate(node => {
+      // Let the browser clamp to its true endpoint, including fractional row sizes.
+      node.scrollTop = node.scrollHeight;
+      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    await expect.poll(() => table.evaluate(node => node.scrollHeight - node.clientHeight - node.scrollTop)).toBeLessThanOrEqual(1);
+    expect(await outerTop()).toBe(before);
+    await pointAtTable();
     await page.mouse.wheel(0, 140);
     await expect.poll(outerTop).toBeGreaterThan(before);
     // Keep the pointer on the same table after its parent has moved.
-    await table.hover({ position: { x: 140, y: 100 } });
     await table.evaluate(node => { node.scrollTop = 0; });
+    await pointAtTable();
     const atTop = await outerTop();
     expect(atTop).toBeGreaterThan(0);
     await page.mouse.wheel(0, -140);
@@ -127,4 +151,13 @@ test("comparison and trade tables pass vertical scrolling to the results area on
   await checkScroll(".comparison-table-scroll");
   await page.getByRole("tab", { name: "取引明細", exact: true }).click();
   await checkScroll(".trade-table-scroll");
+  await page.locator(".trade-table-scroll").evaluate(node => { node.scrollTop = node.scrollHeight; });
+  await results.evaluate(node => { node.scrollTop = node.scrollHeight; });
+  const tradeBox = await page.locator(".trade-table-scroll").boundingBox();
+  await page.mouse.move(tradeBox.x + 140, tradeBox.y + 100);
+  const end = await outerTop();
+  const pageTop = await page.evaluate(() => window.scrollY);
+  await page.mouse.wheel(0, 140);
+  await expect.poll(outerTop).toBe(end);
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageTop);
 });

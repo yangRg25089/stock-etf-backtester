@@ -48,11 +48,6 @@ export function RunActions({ locale, availability, busy, canStop = busy, stoppin
           </svg>
         )}
       </button>
-      <span className="run-stop-slot">{busy && canStop && <button type="button" className="button icon-only-button run-stop-button" disabled={stopping}
-        onClick={onStop} aria-label={translate(locale, stopping ? "run.stopping" : "run.stop")}
-        title={translate(locale, stopping ? "run.stopping" : "run.stop")}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>
-      </button>}</span>
       <button
         className="button icon-only-button run-reset-button"
         type="button"
@@ -64,6 +59,11 @@ export function RunActions({ locale, availability, busy, canStop = busy, stoppin
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
           <path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" />
         </svg>
+      </button>
+      <button type="button" className="button icon-only-button run-stop-button" disabled={!busy || !canStop || stopping}
+        onClick={onStop} aria-label={translate(locale, stopping ? "run.stopping" : "run.stop")}
+        title={translate(locale, stopping ? "run.stopping" : "run.stop")}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>
       </button>
       {reason && <span className="sr-only" id="run-disabled-reason">{reason}</span>}
       <span className="sr-only" role="status" aria-live="polite">{announcement}</span>

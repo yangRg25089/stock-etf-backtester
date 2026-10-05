@@ -596,6 +596,13 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
     ),
     # Shared accumulation settings.
     _d(
+        "execution.capitalGainsTaxEnabled",
+        ParameterType.BOOLEAN,
+        False,
+        level=ParameterLevel.SHARED,
+        group_id="execution",
+    ),
+    _d(
         "accumulation.cashSafetyLimit",
         ParameterType.DECIMAL,
         Decimal("1200"),

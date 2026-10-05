@@ -1110,43 +1110,26 @@ def test_new_runtime_has_no_completed_run_or_candidate_from_previous_store():
     assert fresh.get_candidate(accepted.run_id, candidate_id) is None
 
 
-def test_backtest_package_freezes_full_search_candidates_without_loading_data():
-    from app.export.packages import BacktestPackage, build_backtest_package
-
+def test_completed_search_candidate_records_remain_available_without_loading_data():
     store = InMemoryRunStore()
     executor = _ManualExecutor()
     manager = RunManager(
         store=store, data_provider=_FixtureProvider(), executor=executor
     )
     queued = manager.submit_run(
-        _grid_submission("grid-package"), idempotency_key="package"
+        _grid_submission("grid-record"), idempotency_key="record"
     )
-    with pytest.raises(ValueError, match="unfinished"):
-        build_backtest_package(
-            queued, lambda key: manager.get_candidate(queued.run_id, key)
-        )
     executor.run_next()
     completed = manager.get_run(queued.run_id)
     assert completed is not None and completed.result is not None
-    package = build_backtest_package(
-        completed, lambda key: manager.get_candidate(queued.run_id, key)
-    )
     search = completed.result.strategy_runs[0].search_result
     assert search is not None
-    assert set(package.candidate_details) == {
-        row.candidate_id for row in search.candidates
-    }
-    for key, detail in package.candidate_details.items():
-        assert detail == manager.get_candidate(queued.run_id, key)
-        assert detail.daily_assets and detail.metrics is not None
-    assert package.config is completed.snapshot.config
-    assert package.result is completed
-    restored = BacktestPackage.model_validate_json(
-        package.model_dump_json(by_alias=True)
-    )
-    assert restored.model_dump(mode="json", by_alias=True) == package.model_dump(
-        mode="json", by_alias=True
-    )
+    for row in search.candidates:
+        detail = manager.get_candidate(queued.run_id, row.candidate_id)
+        assert (
+            detail is not None and detail.daily_assets and detail.metrics == row.metrics
+        )
+    assert manager.get_run(queued.run_id) is completed
 
 
 def test_active_run_does_not_hide_earlier_job_when_latest_finishes():

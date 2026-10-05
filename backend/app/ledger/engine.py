@@ -34,7 +34,7 @@ from app.signals.evaluate import StrategySignalSeries
 from .execution import execute_trade
 from .types import LedgerResult
 
-LEDGER_METHOD_VERSION = "ledger-v5"
+LEDGER_METHOD_VERSION = "ledger-v6"
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +131,7 @@ def run_strategy(
     currency = snapshot.market.currency
     timing_cash = Decimal("0")
     timing_quantity = Decimal("0")
+    timing_cost_basis = Decimal("0")
     fixed_quantity = Decimal("0")
     trades: list[Trade] = []
     daily_assets: list[DailyAsset] = []
@@ -218,8 +219,16 @@ def run_strategy(
                         held_quantity=timing_quantity + fixed_quantity,
                         sell_quantity=timing_quantity * maximum_ratio,
                         settings=config.shared.execution,
+                        average_cost=timing_cost_basis / timing_quantity,
                     )
                     if trade is not None:
+                        timing_cost_basis = (
+                            Decimal(0)
+                            if trade.quantity == timing_quantity
+                            else timing_cost_basis
+                            * (timing_quantity - trade.quantity)
+                            / timing_quantity
+                        )
                         timing_quantity -= trade.quantity
                         timing_cash += trade.cash_amount
                         trades.append(trade)
@@ -227,9 +236,12 @@ def run_strategy(
 
             if not executed_sell:
                 buy_signal_id = _buy_signal_id(preset.execution_module)
-                if buy_signal_id is not None and _is_true(
+                buy_evaluation = (
                     evaluation_by_key.get((previous_day, buy_signal_id))
-                ):
+                    if buy_signal_id is not None
+                    else None
+                )
+                if buy_signal_id is not None and _is_true(buy_evaluation):
                     month_key = (day.year, day.month)
                     monthly_limit = _optional_integer_parameter(
                         previous_strategy.params, "accumulation.maxSignalBuysPerMonth"
@@ -242,7 +254,7 @@ def run_strategy(
                         timing_cash, timing_quantity = _buy_all(
                             day,
                             TradeReason.SIGNAL_BUY,
-                            buy_signal_id,
+                            _buy_trade_signal_id(buy_evaluation, buy_signal_id),
                             price,
                             currency,
                             timing_cash,
@@ -273,6 +285,15 @@ def run_strategy(
                     config.shared.execution,
                 )
 
+        timing_cost_basis += sum(
+            (
+                trade.cash_amount
+                for trade in trades[trade_start:]
+                if trade.side is TradeSide.BUY
+                and trade.reason is not TradeReason.FIXED_DCA
+            ),
+            Decimal(0),
+        )
         daily_assets.append(
             DailyAsset(
                 date=day,
@@ -480,6 +501,13 @@ def _buy_signal_id(module: ExecutionModule) -> str | None:
     return None
 
 
+def _buy_trade_signal_id(evaluation: SignalEvaluation | None, fallback: str) -> str:
+    """Keep the actual leaf for a single trigger; never invent one for a group."""
+    if evaluation is not None and len(evaluation.triggered_signal_ids) == 1:
+        return evaluation.triggered_signal_ids[0]
+    return fallback
+
+
 def _last_day_unexecuted_signals(
     strategy: FrozenStrategyInstance,
     parameter_keys: tuple[str, ...],
@@ -489,10 +517,17 @@ def _last_day_unexecuted_signals(
 ) -> tuple[UnexecutedSignal, ...]:
     signal_ids: set[str] = set()
     buy_signal_id = _buy_signal_id(module)
-    if buy_signal_id is not None and _is_true(
+    buy_evaluation = (
         evaluations.get((last_day, buy_signal_id))
-    ):
-        signal_ids.add(buy_signal_id)
+        if buy_signal_id is not None
+        else None
+    )
+    if buy_signal_id is not None and _is_true(buy_evaluation):
+        signal_ids.update(
+            buy_evaluation.triggered_signal_ids
+            if buy_evaluation is not None and buy_evaluation.triggered_signal_ids
+            else (buy_signal_id,)
+        )
     signal_ids.update(
         trigger.signal_id
         for trigger in _sell_triggers(strategy, parameter_keys, last_day, evaluations)

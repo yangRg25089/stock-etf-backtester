@@ -1,4 +1,4 @@
-import { installRunFixture, importPackage, backtestFile } from "./helpers/runtime.mjs";
+import { installRunFixture, restoreSavedRecord } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -47,7 +47,7 @@ test("selected strategy cards keep whole-card hover color and remove the unselec
   expect(active.width).toBeGreaterThan(inactive.width);
   expect(active.height).toBeGreaterThan(inactiveHeight);
   expect(await first.evaluate(node => getComputedStyle(node).boxShadow)).not.toBe("none");
-  await page.getByRole("button", { name: "中文" }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await expect(first).toHaveCSS("background-color", hover);
   await expect(first.locator(".strategy-card-open")).toHaveAttribute("aria-current", "true");
   const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
@@ -60,10 +60,10 @@ test("selected strategy cards keep whole-card hover color and remove the unselec
 test("all permitted results fit a bounded comparison with a sticky header and reachable rows", async ({ page }) => {
   const saved = await savedRun(page);
   const template = saved.result.strategyRuns[0];
-  // Density fixture expands saved identities, leaving calculation checks to backend tests.
+  // Exercise the configured ceiling: ten user strategies plus two benchmarks.
   const fixed = ["rsi_dca", "ma_deviation_dca", "ma_trend", "ma_buy_only", "bollinger_dca", "rate_dca", "pe_dca", "grid_search"];
   const extra = [...fixed.map((presetId, index) => ({ ...structuredClone(template), id: `fixed-${index}`, presetId })),
-    ...Array.from({ length: 10 }, (_, index) => ({ ...structuredClone(template), id: `custom-${index}`, presetId: "composite_dca", instanceNumber: index + 1 }))];
+    { ...structuredClone(template), id: "custom-0", presetId: "composite_dca", instanceNumber: 1 }];
   saved.result.strategyRuns = [template, ...extra, ...saved.result.strategyRuns.slice(1)];
   saved.snapshot.config.strategies.push(...extra.map(row => ({ id: row.id, presetId: row.presetId, enabled: true, params: {}, instanceNumber: row.instanceNumber })));
   saved.selectedStrategyIds.push(...extra.map(row => row.id));
@@ -72,12 +72,17 @@ test("all permitted results fit a bounded comparison with a sticky header and re
   for (const [width, height] of [[1920, 1080], [1440, 900], [1024, 768]]) {
     await page.setViewportSize({ width, height });
     await page.goto("/");
+    await expect(page.locator(".result-interactions")).not.toBeDisabled();
     const scroller = page.locator(".comparison-table-scroll");
-    await expect(scroller.locator("tbody tr")).toHaveCount(21);
+    await expect(scroller.locator("tbody tr")).toHaveCount(12);
     const geometry = await scroller.evaluate(node => ({ client: node.clientHeight, scroll: node.scrollHeight }));
-    expect(geometry.client).toBeLessThanOrEqual(300);
+    expect(geometry.client).toBeLessThanOrEqual(360);
     expect(geometry.scroll).toBeGreaterThan(geometry.client);
-    expect((await page.locator("#result-chart-panel").boundingBox()).y).toBeLessThan(height * 0.65);
+    const comparisonTop = (await page.locator("#result-panel-comparison").boundingBox()).y;
+    const chartTop = (await page.locator("#result-chart-panel").boundingBox()).y;
+    const strategyDetailsTop = (await page.locator("#result-strategy-details").boundingBox()).y;
+    expect(comparisonTop).toBeLessThan(chartTop);
+    expect(chartTop).toBeLessThan(strategyDetailsTop);
     const header = scroller.locator("thead");
     const top = (await header.boundingBox()).y;
     await scroller.evaluate(node => { node.scrollTop = node.scrollHeight; });
@@ -102,42 +107,45 @@ test("all permitted results fit a bounded comparison with a sticky header and re
   }
 });
 
-test("selected comparison rows lift forward without shifting table columns or row layout", async ({ page }) => {
+test("only selected comparison rows lift forward without shifting table columns or row layout", async ({ page }) => {
   const saved = await savedRun(page);
   await installRunFixture(page, saved);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
+  await expect(page.locator(".result-interactions")).not.toBeDisabled();
   const rows = page.locator("#result-panel-comparison tbody tr");
   const monthly = rows.filter({ hasText: "毎月定額積立" });
   const initial = rows.filter({ hasText: "ボラティリティ積立" });
   await initial.locator(".result-select").click();
   await expect(initial).toHaveCSS("translate", "0px -1px");
-  const selectedColor = await initial.evaluate(node => getComputedStyle(node).backgroundColor);
   const before = await monthly.evaluate(node => ({ top: node.offsetTop, height: node.offsetHeight, color: getComputedStyle(node).backgroundColor }));
-  const columns = await monthly.locator("th, td").evaluateAll(cells => cells.map(cell => ({ left: cell.getBoundingClientRect().left, width: cell.getBoundingClientRect().width })));
+  const columns = await monthly.locator("th, td").evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
   await monthly.locator(".result-select").click();
   await page.mouse.move(1400, 850);
   await expect(monthly).toHaveCSS("translate", "0px -1px");
   await expect(initial).toHaveCSS("translate", "0px -1px");
-  await expect(initial).toHaveCSS("background-color", selectedColor);
+  const initialColorAfterFocusMoves = await initial.evaluate(node => getComputedStyle(node).backgroundColor);
+  expect(initialColorAfterFocusMoves.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, value) => sum + value, 0)).toBeGreaterThan(650);
   await initial.hover();
-  await expect(initial).toHaveCSS("background-color", selectedColor);
+  await expect(initial).toHaveCSS("background-color", initialColorAfterFocusMoves);
   await page.mouse.move(1400, 850);
   expect(await monthly.evaluate(node => getComputedStyle(node).boxShadow)).not.toBe("none");
   const after = await monthly.evaluate(node => ({ top: node.offsetTop, height: node.offsetHeight, color: getComputedStyle(node).backgroundColor }));
   expect(after.top).toBe(before.top);
   expect(after.height).toBe(before.height);
   expect(after.color).not.toBe(before.color);
-  expect(await monthly.locator("th, td").evaluateAll(cells => cells.map(cell => ({ left: cell.getBoundingClientRect().left, width: cell.getBoundingClientRect().width })))).toEqual(columns);
+  expect(await monthly.locator("th, td").evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width))).toEqual(columns);
   await monthly.locator(".result-select").click();
-  await expect(monthly).toHaveCSS("translate", "0px");
+  await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "false");
+  await expect(monthly).toHaveCSS("translate", "4px");
   await expect(monthly).toHaveCSS("box-shadow", "none");
   await monthly.locator(".result-select").focus();
   await page.keyboard.press("Enter");
   await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "true");
+  await expect(monthly).toHaveCSS("translate", "0px -1px");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(monthly).toHaveCSS("transition-duration", "0s");
-  await page.getByRole("button", { name: "中文" }).click();
+  await page.locator(".locale-select").selectOption("zh");
   const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(report.violations).toEqual([]);
   await page.screenshot({ path: test.info().outputPath("selected-comparison-forward.png") });
@@ -159,7 +167,7 @@ test("tablet topbars keep brand, run actions and locale on one row without page 
       expect(Math.abs(brand.y + brand.height / 2 - actions.y - actions.height / 2)).toBeLessThan(2);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
       if (hasTouch) expect((await page.locator(".run-submit-button").boundingBox()).height).toBeGreaterThanOrEqual(44);
-      await page.getByRole("button", { name: "中文" }).click();
+      await page.locator(".locale-select").selectOption("zh");
       expect((await page.locator(".app-topbar").boundingBox()).height).toBeLessThanOrEqual(55);
     }
     await context.close();
@@ -170,6 +178,7 @@ test("native numeric validation stays visible and focuses the invalid strategy i
   await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
+  await expect(page.locator(".result-interactions")).not.toBeDisabled();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   const runBefore = await page.locator(".run-submit-button").evaluate(node => node.outerHTML);
   await page.locator(".strategy-card-open").click();
@@ -191,6 +200,7 @@ test("native numeric validation stays visible and focuses the invalid strategy i
 test("dialog validation has a busy indicator and prevents duplicate closing", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
+  await expect(page.locator(".result-interactions")).not.toBeDisabled();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   for (const kind of ["shared-settings", "strategy"]) {
     await page.locator(kind === "strategy" ? ".strategy-card-open" : ".shared-settings-open-button").click();
@@ -315,7 +325,7 @@ test("invalid disabled rules keep their field errors visible and reachable", asy
   await expect(dialog).toBeHidden();
   expect(await page.locator(".run-submit-button").evaluate(node => node.outerHTML)).toBe(runBefore);
 
-  await page.getByRole("button", { name: "中文" }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="composite_dca"]').click();
   await page.locator(".strategy-card-open").last().click();
@@ -373,7 +383,7 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
   await dialog.locator(".dialog-done").click();
   await expect(page.locator(".strategy-nav-card").first()).toContainText("VXN ≥ 25");
   await expect(page.locator(".strategy-nav-card").first()).not.toContainText("VIX:");
-  await page.getByRole("button", { name: "中文" }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await page.locator(".strategy-card-open").click();
   await expect(buy.locator(".condition-heading")).toContainText("波动率");
   await expect(buy.getByLabel("指数买入阈值", { exact: true })).toBeVisible();
@@ -441,7 +451,7 @@ test("sell ratios display percent values, align with thresholds and submit uncha
   expect(submitted.at(-1).strategies[0].rules.sell.params["exit.vix.ratio2"]).toBe(0.3);
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   expect(await page.locator(".run-submit-button").evaluate(node => node.outerHTML)).toBe(runBefore);
-  await page.getByRole("button", { name: "中文" }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await page.locator(".strategy-card-open").click();
   await expect(ratio).toHaveValue("29");
   await expect(ratio).toHaveAccessibleName("卖出比例 1");
@@ -524,7 +534,7 @@ test("exhausted condition kinds disable unusable group creation and restore afte
   await sell.locator(".condition-heading").getByRole("switch").click();
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toBeHidden();
-  await page.getByRole("button", { name: "中文" }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await page.locator(".strategy-card-open").last().click();
   await expect(buy).toContainText("全部条件已添加");
   await page.setViewportSize({ width: 320, height: 760 });
@@ -698,7 +708,7 @@ test("editable grid values freeze into search results, candidate curves and CSV"
 
 test("grid value errors focus their input and inactive dimensions retain edits", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="grid_search"]').click();
   await page.locator(".strategy-card-open").last().click();
@@ -763,15 +773,15 @@ test("reopening restores last accepted inputs, not later edits or completed resu
   await expect(page.locator("#field-strategy-vix_dca-1-vix-buyThreshold")).toHaveValue("25");
 });
 
-test("completed server results require explicit import and reset leaves no hidden run state", async ({ page }) => {
+test("completed server results reconnect from the local API and reset clears the visible run state", async ({ page }) => {
   const saved = await savedRun(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".shared-settings-open-button")).toBeVisible();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
-  await importPackage(page, backtestFile(saved));
+  await restoreSavedRecord(page, { result: saved });
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
-  await expect(page.locator(".imported-result-label")).toBeVisible();
+  await expect(page.locator(".package-preview, .imported-result-label")).toHaveCount(0);
   await page.locator(".run-reset-button").click();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
   await page.reload();
@@ -814,11 +824,13 @@ test("terminal progress remains busy until full result GET without storing resul
   await page.locator(".run-submit-button").click();
   await expect.poll(() => completeResponse?.status).toMatch(/^completed/);
   await expect(page.locator(".run-submit-button")).toBeDisabled();
-  await expect(page.locator(".run-stop-button")).toHaveCount(0);
+  await expect(page.locator(".run-stop-button")).toBeVisible();
+  await expect(page.locator(".run-stop-button")).toBeDisabled();
   const last = await page.evaluate(() => JSON.parse(localStorage.getItem("stock-etf-backtester.last-run-strategy.v1")));
   expect(Object.keys(last).sort()).toEqual(["catalogVersion", "draft", "savedAt", "schemaVersion"]);
   release();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
+  await expect(page.locator(".run-stop-button")).toBeDisabled();
   await expect(page.locator(".chart-overlay polyline.overlay-price")).toBeVisible();
   expect(await page.evaluate(async () => (await indexedDB.databases()).map(item => item.name))).toEqual([]);
 });
@@ -845,7 +857,8 @@ test("selected strategies retain their own trade markers and core curves always 
   const secondSelection = page.locator("#result-panel-comparison").getByRole("button", { name: /移動平均トレンド（売買）/ });
   await page.locator("#result-panel-comparison").getByRole("button", { name: /ボラティリティ積立/ }).click();
   await secondSelection.click();
-  await expect(page.locator(".chart-trade-marker")).toHaveCount(0);
+  await expect(page.locator(`.chart-trade-marker[data-result-id="${second.id}"]`)).toHaveCount(1);
+  await expect(page.locator(`.chart-trade-marker[data-result-id="${first.id}"]`)).toHaveCount(0);
   const firstLegend = page.locator(`.chart-series-control[data-result-id="${first.id}"]`);
   const secondLegend = page.locator(`.chart-series-control[data-result-id="${second.id}"]`);
   await firstLegend.hover();

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { savedRun } from "./helpers/reports.mjs";
-import { backtestFile, importPackage, installRunFixture } from "./helpers/runtime.mjs";
+import { fetchSavedRecord, restoreSavedRecord, installRunFixture } from "./helpers/runtime.mjs";
 
 test("saved execution costs, net fills and offline CSV stay independent of draft changes", async ({ page }) => {
   const execution = { commission: 2, slippagePct: 1, spreadPct: 2, fractionalShares: false };
@@ -25,7 +25,8 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   await page.locator("#result-tab-performance").click();
   const costPanel = page.locator("#result-panel-performance .trading-costs-panel");
   const currency = (value, locale = "ja-JP") => new Intl.NumberFormat(locale, { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(value));
-  await expect(costPanel.locator("dd")).toHaveText([costs.commission, costs.slippageCost, costs.spreadCost, costs.totalTradingCost].map(value => currency(value)));
+  await expect(costPanel.locator("dd")).toHaveText([costs.commission, costs.slippageCost, costs.spreadCost,
+    costs.capitalGainsTax, costs.totalTradingCost].map(value => currency(value)));
   const original = await costPanel.innerText();
   const play = page.getByRole("button", { name: "バックテストを実行", exact: true });
   await expect(play).toBeEnabled();
@@ -49,11 +50,11 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   await page.locator("#result-tab-trades").click();
   await page.locator(".trade-table .table-cell-action").first().click();
   const explanation = page.locator(".result-inspector-dialog");
-  await expect(explanation.locator(".trading-costs-panel dd")).toHaveCount(4);
+  await expect(explanation.locator(".trading-costs-panel dd")).toHaveCount(5);
   await expect(explanation).toContainText(currency(benchmark.trades[0].grossAmount));
   await page.keyboard.press("Escape");
   for (const name of ["日本語", "中文"]) {
-    await page.getByRole("button", { name, exact: true }).click();
+    await page.locator(".locale-select").selectOption(name === "日本語" ? "ja" : "zh");
     await page.locator("#result-tab-performance").click();
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
@@ -65,8 +66,7 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   await page.setViewportSize({ width: 1440, height: 900 });
   let requests = 0;
   await page.route("**/api/v1/runs/**", route => { requests++; return route.abort(); });
-  await importPackage(page, backtestFile(saved));
-  await page.locator("#result-tab-comparison").click();
+  await restoreSavedRecord(page, await fetchSavedRecord(page, saved));
   await page.locator(".comparison-table").getByRole("button", { name: "每月定额定投", exact: true }).click();
   await page.locator("#result-tab-performance").click();
   await expect(costPanel.locator("dd").last()).toHaveText(currency(costs.totalTradingCost, "zh-CN"));
@@ -74,7 +74,7 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
     const waiting = page.waitForEvent("download");
     await page.locator(`[data-export-kind='${kind}']`).click();
     const csv = await readFile(await (await waiting).path(), "utf8");
-    expect(csv.split("\n")[0]).toContain("commission,slippageCost,spreadCost,totalTradingCost");
+    expect(csv.split("\n")[0]).toContain("commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost");
     expect(csv).toBe(exports[kind]);
   }
   expect(requests).toBe(0);

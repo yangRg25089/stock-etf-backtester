@@ -93,6 +93,10 @@
   max-height: min(85dvh, calc(100dvh - 32px));
 }
 
+.strategy-dialog-shell.is-reset-confirming {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
 .strategy-dialog-heading,
 .strategy-dialog-footer {
   display: flex;
@@ -134,6 +138,34 @@
   color: var(--app-muted);
   background: var(--app-surface);
 }
+
+.strategy-dialog-reset {
+  color: var(--app-accent);
+  background: var(--app-surface);
+}
+
+.strategy-dialog-reset svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.strategy-reset-confirmation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-block: 1px solid var(--app-border);
+  background: var(--app-surface-muted);
+}
+
+.strategy-reset-confirmation p { margin: 0; }
+.strategy-reset-confirmation > div { display: flex; flex: 0 0 auto; gap: 8px; }
 
 .strategy-dialog-content {
   min-height: 0;

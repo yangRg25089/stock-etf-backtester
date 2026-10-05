@@ -78,7 +78,7 @@ test("selected saved MA, Bollinger and RSI show periods, exact readings, common 
   await comparison.getByRole("button", { name: /ボリンジャー積立/ }).click();
   await expect(core.locator('polyline[data-kind="bollinger"]')).toHaveCount(0);
   await expect(core.locator('polyline[data-kind="ma"]')).toHaveCount(1);
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await page.setViewportSize({ width: 320, height: 740 });
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   expect(errors).toEqual([]);

@@ -1,4 +1,4 @@
-"""Produce portable fixture files and CSV oracles for frontend contract tests."""
+"""Produce saved API records and exact backend CSV oracles for frontend tests."""
 
 import json
 import sys
@@ -10,7 +10,6 @@ from app.api.runs import _build_submission
 from app.api.types import RunSubmissionRequest
 from app.catalog.service import get_catalog
 from app.export.csv import ExportKind, export_csv
-from app.export.packages import build_backtest_package
 from app.runs.manager import RunManager
 from app.runs.store import InMemoryRunStore
 from e2e.fixture_provider import (
@@ -86,12 +85,33 @@ if "--walk-forward" in sys.argv:
 accepted = manager.submit_run(submission, idempotency_key="file-fixture")
 run = manager.get_run(accepted.run_id)
 assert run is not None and run.result is not None
-package = build_backtest_package(
-    run, lambda key: manager.get_candidate(run.run_id, key)
-)
-assert package.candidate_details, run.result.strategy_runs[0].diagnostics
+details = {}
+for parent in run.result.strategy_runs:
+    search = parent.search_result
+    if search is None:
+        continue
+    identifiers = [row.candidate_id for row in search.candidates]
+    identifiers += [
+        row.test_result.result_id
+        for row in search.candidates
+        if row.test_result is not None
+    ]
+    if search.out_of_sample is not None:
+        identifiers.append(search.out_of_sample.result_id)
+    for identifier in identifiers:
+        detail = manager.get_candidate(run.run_id, identifier)
+        assert detail is not None
+        details[identifier] = detail
+assert details, run.result.strategy_runs[0].diagnostics
+record = {
+    "result": run.model_dump(mode="json", by_alias=True),
+    "candidateDetails": {
+        key: detail.model_dump(mode="json", by_alias=True)
+        for key, detail in details.items()
+    },
+}
 exports = {}
-for result in (*run.result.strategy_runs, *package.candidate_details.values()):
+for result in (*run.result.strategy_runs, *details.values()):
     focused_run = run.model_copy(
         update={"result": run.result.model_copy(update={"strategy_runs": (result,)})}
     )
@@ -102,8 +122,4 @@ for result in (*run.result.strategy_runs, *package.candidate_details.values()):
             exports[f"{result.id}/{kind.value}"] = export_csv(
                 focused_run, kind=kind, focused_result_id=result.id
             )
-print(
-    json.dumps(
-        {"package": package.model_dump(mode="json", by_alias=True), "csv": exports}
-    )
-)
+print(json.dumps({"record": record, "csv": exports}))

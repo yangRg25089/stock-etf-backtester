@@ -2,7 +2,7 @@ import type { Locale } from "../../i18n/messages";
 import { expandDecimalDigits } from "../../shared/decimalText";
 
 export function languageTag(locale: Locale): string {
-  return locale === "ja" ? "ja-JP" : "zh-CN";
+  return locale === "ja" ? "ja-JP" : locale === "zh" ? "zh-CN" : "en-US";
 }
 
 export function numericValue(value: string | number | null | undefined): number | null {

@@ -4,7 +4,6 @@ import type {
   RunResponse,
   StrategyPresetId,
   StrategyRules,
-  BacktestPackage,
 } from "../../api/generated";
 import type { RunProgressEvent } from "../../api/runs";
 import { runDataContext, sameJson } from "../../api/contractReader";
@@ -32,8 +31,7 @@ export interface WorkspaceState {
   selectedResultIds: string[];
   showChart: boolean;
   visibleSeriesIds: string[];
-  nextCustomNumber: number;
-  importedBacktest?: BacktestPackage | null;
+  nextInstanceNumberByPreset: Partial<Record<StrategyPresetId, number>>;
   resultRevision?: number;
 }
 
@@ -109,8 +107,34 @@ export function createStrategyDraft(
   return { id, presetId, params, rules: structuredClone(preset.defaultRules) };
 }
 
+export function strategyInstanceLimit(catalog: Catalog): number | undefined {
+  return catalog.strategyLimits?.maxInstancesPerPreset;
+}
+
+export function canAddStrategy(
+  catalog: Catalog,
+  strategies: StrategyDraft[],
+  presetId: StrategyPresetId,
+): boolean {
+  const perPresetLimit = strategyInstanceLimit(catalog);
+  const totalLimit = catalog.strategyLimits?.maxTotalInstances;
+  return perPresetLimit !== undefined && totalLimit !== undefined
+    && strategies.length < totalLimit
+    && strategies.filter(strategy => strategy.presetId === presetId).length < perPresetLimit;
+}
+
+function nextInstanceNumber(state: WorkspaceState, presetId: StrategyPresetId): number {
+  const saved = state.nextInstanceNumberByPreset[presetId];
+  if (saved !== undefined) return saved;
+  const numbers = state.draft.strategies
+    .filter(strategy => strategy.presetId === presetId)
+    .map(strategy => strategy.instanceNumber ?? 1);
+  return Math.max(0, ...numbers) + 1;
+}
+
 export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
   const initialStrategy = createStrategyDraft(catalog, "vix_dca", "strategy-vix_dca-1");
+  initialStrategy.instanceNumber = 1;
   const shared = createDefaultSharedDraft(catalog);
   return {
     draft: {
@@ -123,14 +147,8 @@ export function createInitialWorkspaceState(catalog: Catalog): WorkspaceState {
     selectedResultIds: [],
     showChart: uiBooleanDefault(catalog, "display.showChart", true),
     visibleSeriesIds: ["price", "totalAsset", "drawdown", "vix"],
-    nextCustomNumber: 1,
+    nextInstanceNumberByPreset: { vix_dca: 2 },
   };
-}
-
-export function strategyInstanceLimit(catalog: Catalog, presetId: StrategyPresetId): number | undefined {
-  return presetId === "composite_dca"
-    ? catalog.strategyLimits?.maxCustomInstances
-    : catalog.strategyLimits?.maxFixedInstances;
 }
 
 export function workspaceReducer(
@@ -144,15 +162,13 @@ export function workspaceReducer(
         ? { ...state, activeStrategyId: action.id }
         : state;
     case "strategy.add": {
-      if (!catalog) return state;
-      const count = state.draft.strategies.filter(item => item.presetId === action.presetId).length;
-      const custom = action.presetId === "composite_dca";
-      const maximum = strategyInstanceLimit(catalog, action.presetId);
-      if (maximum === undefined || count >= maximum || state.draft.strategies.some(item => item.id === action.id)) return state;
-      const strategy = createStrategyDraft(catalog, action.presetId, action.id);
-      if (custom) strategy.instanceNumber = state.nextCustomNumber;
+      if (!catalog || !canAddStrategy(catalog, state.draft.strategies, action.presetId)
+        || state.draft.strategies.some(item => item.id === action.id)) return state;
+      const number = nextInstanceNumber(state, action.presetId);
+      const strategy = { ...createStrategyDraft(catalog, action.presetId, action.id), instanceNumber: number };
       return { ...state, draft: { ...state.draft, strategies: [...state.draft.strategies, strategy] },
-        activeStrategyId: strategy.id, nextCustomNumber: state.nextCustomNumber + (custom ? 1 : 0) };
+        activeStrategyId: strategy.id,
+        nextInstanceNumberByPreset: { ...state.nextInstanceNumberByPreset, [action.presetId]: number + 1 } };
     }
     case "strategy.remove": {
       const strategies = state.draft.strategies.filter((strategy) => strategy.id !== action.id);
@@ -164,13 +180,13 @@ export function workspaceReducer(
     }
     case "strategy.duplicate": {
       const source = state.draft.strategies.find(item => item.id === action.sourceId);
-      if (!catalog || !source || source.presetId !== "composite_dca") return state;
-      const maximum = strategyInstanceLimit(catalog, source.presetId);
-      if (maximum === undefined || state.draft.strategies.filter(item => item.presetId === source.presetId).length >= maximum
+      if (!catalog || !source || !canAddStrategy(catalog, state.draft.strategies, source.presetId)
         || state.draft.strategies.some(item => item.id === action.id)) return state;
-      const copied = { ...structuredClone(source), id: action.id, instanceNumber: state.nextCustomNumber };
+      const number = nextInstanceNumber(state, source.presetId);
+      const copied = { ...structuredClone(source), id: action.id, instanceNumber: number };
       return { ...state, draft: { ...state.draft, strategies: [...state.draft.strategies, copied] },
-        activeStrategyId: copied.id, nextCustomNumber: state.nextCustomNumber + 1 };
+        activeStrategyId: copied.id,
+        nextInstanceNumberByPreset: { ...state.nextInstanceNumberByPreset, [source.presetId]: number + 1 } };
     }
     case "strategy.reset": {
       const source = state.draft.strategies.find(item => item.id === action.id);
@@ -219,7 +235,6 @@ export function workspaceReducer(
         runResponse: null,
         focusedResultId: null,
         selectedResultIds: [],
-        importedBacktest: null,
       };
     case "run.update": {
       let draft = state.draft;
@@ -247,7 +262,6 @@ export function workspaceReducer(
         ...state,
         draft,
         runResponse: action.value,
-        importedBacktest: sameRun ? state.importedBacktest : null,
         focusedResultId,
         selectedResultIds,
         ...(!sameRun ? {

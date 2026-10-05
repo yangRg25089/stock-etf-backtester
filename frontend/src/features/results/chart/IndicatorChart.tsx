@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { DailyAsset } from "../../../api/generated";
 import { translate, type Locale } from "../../../i18n/messages";
 import { ChartCrosshair, type ChartCursor } from "../ChartCrosshair";
@@ -9,6 +10,7 @@ import type { IndicatorSeriesDefinition, IndicatorComparison } from "./chartType
 import { CHART, COMPACT_CHART, chartScale, lineCoordinates, xPosition } from "./chartScale";
 import { axisTitle, seriesLabel, formatAxisValue } from "./chartFormat";
 import { ChartAxes } from "./ChartAxes";
+import { HighlightArea } from "./ChartSeries";
 
 export function IndicatorChart({
   locale,
@@ -35,6 +37,7 @@ export function IndicatorChart({
   cursor: ChartCursor | null;
   comparisons?: IndicatorComparison[];
 }) {
+  const fillId = useId();
   const geometry = COMPACT_CHART;
   if (samples.length === 0) return null;
   const range = visibleIndexRange(assets.length, viewport);
@@ -95,6 +98,12 @@ export function IndicatorChart({
             </clipPath>
           </defs>
           <g clipPath={`url(#${plotClipId})`}>
+            {chartSegments(points).map((segment, index) => <HighlightArea key={`fill-${index}`} points={segment}
+              color={series.color} gradientId={`${fillId}-${index}`} bottom={geometry.height - geometry.bottom} />)}
+            {comparisons.flatMap((comparison, comparisonIndex) => chartSegments(lineCoordinates(
+              samplesInViewport(comparison.samples, viewport, assets.length), scale, assets.length, viewport,
+            )).map((segment, index) => <HighlightArea key={`comparison-fill-${comparisonIndex}-${index}`} points={segment}
+              color={comparison.color} gradientId={`${fillId}-${comparisonIndex}-${index}-comparison`} bottom={geometry.height - geometry.bottom} />))}
             {comparisons.flatMap(comparison => {
               const line = lineCoordinates(samplesInViewport(comparison.samples, viewport, assets.length), scale, assets.length, viewport);
               return chartSegments(line).filter(segment => segment.length > 1).map((segment, index) => <polyline key={`${comparison.label}-${index}`} className="chart-series-line"

@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { backtestFile, importPackage, installRunFixture } from "./helpers/runtime.mjs";
+import { restoreSavedRecord, installRunFixture } from "./helpers/runtime.mjs";
 
 async function savedRun(page) {
   const accepted = await page.request.post("/api/v1/runs", {
@@ -46,10 +46,9 @@ test("trade rows and chart markers open the same saved balances and T+1 observat
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(entry).toBeFocused();
-  await page.locator("#result-tab-comparison").click();
   await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
   const chart = page.locator(".chart-overlay");
-  await chart.locator(".chart-strategy-readout").click();
+  await expect(chart.locator(".chart-strategy-readout")).toHaveAttribute("aria-pressed", "true");
   const windowBefore = await chart.getAttribute("data-window-start");
   const marker = chart.locator(".chart-trade-action").first();
   await marker.focus();
@@ -68,7 +67,7 @@ test("trade rows and chart markers open the same saved balances and T+1 observat
 
 test("unexecuted signals retain their saved reason in bilingual narrow accessible dialogs", async ({ page }) => {
   const { result } = await savedRun(page);
-  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await page.locator(".locale-select").selectOption("zh");
   await page.locator("#result-tab-trades").click();
   await page.locator(".unexecuted-signals summary").click();
   const entry = page.locator(".unexecuted-signals .table-cell-action").first();
@@ -89,39 +88,18 @@ test("unexecuted signals retain their saved reason in bilingual narrow accessibl
   await expect(dialog).toHaveCount(0);
 });
 
-test("the compact data tool reports saved coverage and dates, keeps draft edits separate and restores focus", async ({ page }) => {
-  const { saved, result } = await savedRun(page);
-  const button = page.getByRole("button", { name: "保存データ", exact: true });
-  await button.click();
-  const dialog = page.locator(".result-inspector-dialog");
-  await expect(dialog).toBeVisible();
-  await expect(dialog.locator(".saved-data-values")).toContainText(saved.snapshot.config.shared.run.startDate);
-  await expect(dialog.locator(".saved-data-values")).toContainText(result.dailyAssets[0].date);
-  await expect(dialog.locator(".saved-data-values")).toContainText("USD");
-  await expect(dialog.locator(".saved-data-series")).toContainText("^VIX");
-  await expect(dialog.locator(".saved-data-series")).toContainText("100%");
-  const before = await dialog.locator(".result-inspector-content").innerText();
-  await page.keyboard.press("Escape");
-  await expect(button).toBeFocused();
-  await page.locator(".shared-settings-summary").click();
-  const field = page.locator(".shared-settings-dialog #field-run-startDate");
-  await field.fill("2024-02-01");
-  await page.locator(".shared-settings-dialog .dialog-done").click();
-  await expect(page.locator(".shared-settings-dialog")).toHaveCount(0);
-  await button.click();
-  expect(await dialog.locator(".result-inspector-content").innerText()).toBe(before);
-  for (const width of [1440, 320]) {
-    await page.setViewportSize({ width, height: 700 });
-    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
-  }
-  await dialog.screenshot({ path: test.info().outputPath("saved-data-dialog.png") });
+test("the result viewer omits the retired saved-data information tool", async ({ page }) => {
+  await savedRun(page);
+  await expect(page.getByRole("button", { name: "保存データ", exact: true })).toHaveCount(0);
+  await expect(page.locator(".saved-data-button, .saved-data-values, .saved-data-series")).toHaveCount(0);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
 });
 
-test("imported explanations remain usable without the original job or supplier services", async ({ page }) => {
+test("saved trade explanations remain usable without the original job or supplier services", async ({ page }) => {
   const { saved, result } = await savedRun(page);
   let requests = 0;
   await page.route("**/api/v1/runs/**", route => { requests += 1; return route.abort(); });
-  await importPackage(page, backtestFile(saved));
+  await restoreSavedRecord(page, { result: saved });
   await page.locator("#result-tab-trades").click();
   await page.locator(".trade-table .table-cell-action").first().click();
   const dialog = page.locator(".result-inspector-dialog");
@@ -129,7 +107,5 @@ test("imported explanations remain usable without the original job or supplier s
   await expect(dialog.locator(".explanation-observation")).toContainText("≥ 10");
   await expect(dialog.locator(".explanation-values").last()).toContainText("$100.00");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "保存データ", exact: true }).click();
-  await expect(dialog.locator(".saved-data-series")).toContainText("100%");
   expect(requests).toBe(0);
 });

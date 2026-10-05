@@ -61,7 +61,7 @@ test("today, ETF choices and quote currency stay inside the validated dialog", a
   await done(page, ".shared-settings-dialog");
 });
 
-test("custom strategy ordinals survive deletion, cap at ten, and prevent nested duplicate conditions", async ({ page }) => {
+test("strategy ordinals survive deletion, per-type limits combine up to ten user strategies, and duplicate conditions stay blocked", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   const heading = await page.locator(".strategy-navigator-heading").boundingBox();
@@ -69,10 +69,12 @@ test("custom strategy ordinals survive deletion, cap at ten, and prevent nested 
   expect(plus.x + plus.width).toBeCloseTo(heading.x + heading.width, 0);
   await expect(page.locator(".strategy-navigator-heading")).toContainText("戦略一覧");
   await expect(page.locator(".strategy-card [role='switch'], .strategy-card .status-tag")).toHaveCount(0);
-  for (let index = 0; index < 10; index++) await add(page, "composite_dca");
-  await expect(page.locator(".strategy-card")).toHaveCount(11);
-  await expect(page.locator(".strategy-card-name").nth(1)).toHaveText("カスタム戦略 1");
-  await expect(page.locator(".strategy-card-name").last()).toHaveText("カスタム戦略 10");
+  for (let index = 0; index < 5; index++) await add(page, "composite_dca");
+  for (let index = 0; index < 4; index++) await add(page, "rsi_dca");
+  await expect(page.locator(".strategy-card")).toHaveCount(10);
+  await expect(page.locator(".strategy-card-name").nth(1)).toHaveText("カスタム戦略");
+  await expect(page.locator(".strategy-card-name").nth(5)).toHaveText("カスタム戦略5");
+  await expect(page.locator(".strategy-card-name").last()).toHaveText("RSI シグナル積立4");
   await page.locator(".add-strategy-button").click();
   await expect(page.locator('[data-preset-id="composite_dca"]')).toBeDisabled();
   await expect(page.locator('[data-preset-id="vix_dca"]')).toBeDisabled();
@@ -80,10 +82,10 @@ test("custom strategy ordinals survive deletion, cap at ten, and prevent nested 
   await page.locator(".strategy-card").nth(1).hover();
   await page.locator(".strategy-card .strategy-remove").nth(1).click();
   await add(page, "composite_dca");
-  await expect(page.locator(".strategy-card-name").nth(1)).toHaveText("カスタム戦略 2");
-  await expect(page.locator(".strategy-card-name").last()).toHaveText("カスタム戦略 11");
+  await expect(page.locator(".strategy-card-name").nth(1)).toHaveText("カスタム戦略2");
+  await expect(page.locator(".strategy-card-name").last()).toHaveText("カスタム戦略6");
   await page.locator(".strategy-card-open").last().click();
-  await expect(page.locator("#strategy-editor-heading")).toHaveText("カスタム戦略 11");
+  await expect(page.locator("#strategy-editor-heading")).toHaveText("カスタム戦略6");
   const buy = page.locator('[data-rule-side="buy"]');
   await buy.locator(".condition-add-select").first().selectOption("rsi");
   await buy.locator(".condition-add-select").first().selectOption("group");
@@ -149,7 +151,7 @@ test("grid best and non-best candidates display saved curves and export the sele
     expect(selected.dailyAssets.length).toBe(grid.dailyAssets.length);
     const candidate = grid.searchResult.candidates.find(item => item.candidateId === selected.id);
     await page.getByRole("tab", { name: "取引明細", exact: true }).click();
-    await expect(page.locator(".result-trades-context")).toHaveText(`グリッド検索 · #${candidate.sequence}`);
+    await expect(page.locator(".result-detail-name")).toHaveText(`グリッド検索 · #${candidate.sequence}`);
     await page.getByRole("tab", { name: "検索結果", exact: true }).click();
   }
   const downloadPromise = page.waitForEvent("download");
@@ -214,7 +216,8 @@ test("stop action preserves completed rows and presents running and waiting indi
   await expect(page.locator(".result-stopped")).toHaveCount(2);
   await expect(rows.filter({ hasText: "毎月定額積立" })).toContainText("$");
   expect(stopRequests).toBe(1);
-  await expect(page.locator(".run-stop-button, .run-status-panel, .run-controls")).toHaveCount(0);
+  await expect(page.locator(".run-status-panel, .run-controls")).toHaveCount(0);
+  await expect(page.locator(".run-stop-button")).toBeDisabled();
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations).toEqual([]);
 });

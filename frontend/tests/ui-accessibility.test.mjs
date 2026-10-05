@@ -8,17 +8,19 @@ const { renderToStaticMarkup } = require("react-dom/server");
 const { LocaleControl } = require("../.test-output/shared/ui/LocaleControl.js");
 const { ParameterField } = require("../.test-output/shared/ui/ParameterField.js");
 
-test("locale selector exposes the current language as a pressed state", () => {
+test("locale selector exposes the current language as the selected dropdown option", () => {
   const japanese = renderToStaticMarkup(
     React.createElement(LocaleControl, { locale: "ja", onChange() {} }),
   );
   const chinese = renderToStaticMarkup(
     React.createElement(LocaleControl, { locale: "zh", onChange() {} }),
   );
-  assert.match(japanese, /role="group" aria-label="表示言語"/);
-  assert.match(japanese, /日本語<\/button>/);
-  assert.match(japanese, /aria-pressed="true">日本語/);
-  assert.match(chinese, /aria-pressed="true">中文/);
+  assert.match(japanese, /<select class="locale-select" aria-label="表示言語">/);
+  assert.match(japanese, /<option value="ja" selected="">日本語<\/option>/);
+  assert.match(japanese, /<option value="zh">中文<\/option>/);
+  assert.match(japanese, /<option value="en">English<\/option>/);
+  assert.match(chinese, /<select class="locale-select" aria-label="显示语言">/);
+  assert.match(chinese, /<option value="zh" selected="">中文<\/option>/);
 });
 
 test("boolean parameters keep the catalog label attached to the checkbox", () => {

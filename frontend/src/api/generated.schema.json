@@ -56,71 +56,6 @@
     ],
     "title": "AnalysisSettings"
   },
-  "BacktestPackage": {
-    "properties": {
-      "format": {
-        "type": "string",
-        "const": "stock-etf-backtester",
-        "title": "Format",
-        "default": "stock-etf-backtester"
-      },
-      "schemaVersion": {
-        "type": "integer",
-        "const": 1,
-        "title": "Schemaversion",
-        "default": 1
-      },
-      "type": {
-        "type": "string",
-        "const": "backtest",
-        "title": "Type",
-        "default": "backtest"
-      },
-      "exportedAt": {
-        "type": "string",
-        "format": "date-time",
-        "title": "Exportedat"
-      },
-      "engineVersion": {
-        "type": "string",
-        "minLength": 1,
-        "title": "Engineversion"
-      },
-      "catalogVersion": {
-        "type": "string",
-        "minLength": 1,
-        "title": "Catalogversion"
-      },
-      "config": {
-        "$ref": "#/components/schemas/FrozenRunConfig"
-      },
-      "result": {
-        "$ref": "#/components/schemas/RunResponse"
-      },
-      "candidateDetails": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/StrategyRun"
-        },
-        "type": "object",
-        "title": "Candidatedetails"
-      },
-      "dataProvenance": {
-        "$ref": "#/components/schemas/RunDataProvenance"
-      }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-      "exportedAt",
-      "engineVersion",
-      "catalogVersion",
-      "config",
-      "result",
-      "candidateDetails",
-      "dataProvenance"
-    ],
-    "title": "BacktestPackage"
-  },
   "Catalog": {
     "properties": {
       "version": {
@@ -1054,6 +989,11 @@
       "fractionalShares": {
         "type": "boolean",
         "title": "Fractionalshares"
+      },
+      "capitalGainsTaxEnabled": {
+        "type": "boolean",
+        "title": "Capitalgainstaxenabled",
+        "default": false
       }
     },
     "additionalProperties": false,
@@ -3111,17 +3051,17 @@
   },
   "StrategyLimits": {
     "properties": {
-      "maxCustomInstances": {
+      "maxInstancesPerPreset": {
         "type": "integer",
         "minimum": 1.0,
-        "title": "Maxcustominstances",
-        "default": 10
+        "title": "Maxinstancesperpreset",
+        "default": 5
       },
-      "maxFixedInstances": {
+      "maxTotalInstances": {
         "type": "integer",
         "minimum": 1.0,
-        "title": "Maxfixedinstances",
-        "default": 1
+        "title": "Maxtotalinstances",
+        "default": 10
       }
     },
     "additionalProperties": false,
@@ -3693,6 +3633,18 @@
         "type": "string",
         "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "title": "Spreadcost"
+      },
+      "capitalGainsTax": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Capitalgainstax"
       },
       "totalTradingCost": {
         "type": "string",

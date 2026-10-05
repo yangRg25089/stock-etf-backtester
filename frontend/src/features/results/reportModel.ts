@@ -1,4 +1,4 @@
-import type { Catalog, ConditionGroup, ConditionLeaf, RunResponse, StrategyRun } from "../../api/generated";
+import type { Catalog, ConditionGroup, ConditionLeaf, PeriodReturn, RunResponse, StrategyRun } from "../../api/generated";
 import { runDataContext } from "../../api/contractReader";
 import { searchOutcomes } from "../../api/searchResults";
 import { isSuccessfulRunStatus } from "../../api/runStatus";
@@ -26,6 +26,7 @@ export interface ResultReport {
   funding: string;
   metrics: { key: string; label: string; value: string }[];
   sections: { title: string; lines: string[] }[];
+  periodReturns: { title: string; annualTitle: string; yearTitle: string; monthly: PeriodReturn[]; annual: PeriodReturn[]; empty: string };
   lines: ReportLine[];
   drawdown: { date: string; index: number; value: number }[];
   chartTitle: string;
@@ -189,6 +190,10 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
     title, heading: translate(locale, "report.heading"), symbol, period, funding,
     metrics: metricValues.map(([key, value]) => ({ key, label: translate(locale, `results.${key}`), value })),
     sections, lines,
+    periodReturns: { title: translate(locale, "performance.monthly"), annualTitle: translate(locale, "performance.annual"),
+      yearTitle: translate(locale, "performance.year"),
+      monthly: (result.metrics.analysis?.monthlyReturns ?? []).map(row => ({ ...row })), annual: (result.metrics.analysis?.annualReturns ?? []).map(row => ({ ...row })),
+      empty: translate(locale, "performance.periodsNotSaved") },
     drawdown: rows.flatMap((row, index) => row.drawdown == null || !Number.isFinite(Number(row.drawdown)) ? []
       : [{ date: row.date, index, value: Number(row.drawdown) * 100 }]),
     chartTitle: translate(locale, "chart.overlayTitle"), chartAxis: translate(locale, "chart.overlayAxis"),

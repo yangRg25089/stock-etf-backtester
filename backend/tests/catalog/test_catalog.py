@@ -75,6 +75,7 @@ EXPECTED_PARAMETER_KEYS = {
     "execution.slippagePct",
     "execution.spreadPct",
     "execution.fractionalShares",
+    "execution.capitalGainsTaxEnabled",
     "accumulation.cashSafetyLimit",
     "accumulation.maxSignalBuysPerMonth",
     "accumulation.conditionLogic",
@@ -123,7 +124,7 @@ EXPECTED_PARAMETER_KEYS = {
 
 
 def test_catalog_version_tracks_retired_scope_and_explicit_default_rate_unit() -> None:
-    assert CATALOG_VERSION == "catalog-v16"
+    assert CATALOG_VERSION == "catalog-v18"
     assert "run.scope" not in PARAMETER_DEFINITIONS
     assert PARAMETER_DEFINITIONS["search.optimizationMode"].allowed_values == (
         "full_period",

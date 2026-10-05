@@ -46,9 +46,9 @@ export function ChartAxes({
           <line className="chart-gridline chart-gridline-vertical" x1={x} y1={geometry.top} x2={x} y2={plotBottom} />
         </g>
       ))}
-      {!compact && <text className="chart-axis-title chart-y-axis-title" transform={`translate(20 ${(geometry.top + plotBottom) / 2}) rotate(-90)`} textAnchor="middle">
-        {axisTitle(locale, seriesId, currency)}
-      </text>}
+      <text className="chart-axis-title chart-y-axis-title" transform={`translate(20 ${(geometry.top + plotBottom) / 2}) rotate(-90)`} textAnchor="middle">
+        {axisTitle(locale, seriesId, currency, compact)}
+      </text>
     </g>
   );
 }

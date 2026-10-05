@@ -30,16 +30,18 @@ test("monthly inspection stays compact and expands height only; saved metric exp
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   expect(await table.evaluate(node => getComputedStyle(node).maxHeight)).not.toBe("none");
-  for (const language of ["日本語", "中文"]) {
-    await page.getByRole("button", { name: language, exact: true }).click();
+  for (const language of ["日本語", "中文", "English"]) {
+    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     const cards = panel.locator(".performance-stat");
     await expect(cards).toHaveCount(11);
     for (const card of await cards.all()) {
       await card.hover();
-      await expect(card).toHaveAttribute("title", /\S/);
+      const tooltip = card.locator(".performance-help-tooltip");
+      await expect(tooltip).toHaveCSS("visibility", "visible");
+      await expect(tooltip).not.toBeEmpty();
       await card.focus();
       const description = await card.getAttribute("aria-describedby");
-      expect(await page.locator(`[id="${description}"]`).innerText()).toBe(await card.getAttribute("title"));
+      expect(await page.locator(`[id="${description}"]`).innerText()).toBe(await tooltip.innerText());
     }
     for (const viewportWidth of [320, 768, 1024, 1440]) {
       await page.setViewportSize({ width: viewportWidth, height: 900 });

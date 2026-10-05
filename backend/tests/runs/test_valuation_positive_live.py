@@ -159,9 +159,9 @@ def test_real_msft_historical_pe_trade_search_and_saved_csv():
                 _verify_result(
                     config["shared"], cfg, detail.json(), provider.observed["pe-real"]
                 )
-            package = await client.get(f"/api/v1/runs/{run_id}/package")
-            assert package.status_code == 200
-            assert len(package.json()["candidateDetails"]) == 2
+            assert (
+                await client.get(f"/api/v1/runs/{run_id}/package")
+            ).status_code == 404
 
     try:
         asyncio.run(verify())

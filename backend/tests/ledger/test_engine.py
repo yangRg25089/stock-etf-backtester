@@ -85,6 +85,7 @@ def test_execution_costs_are_budgeted_and_saved_for_planned_trades(preset: str) 
     )
     ledger = _run(config, days, ("10", "10"))
     trade = ledger.trades[0]
+    assert trade.signal_id is None
     assert trade.execution_base_price == 10
     assert trade.price == trade.execution_price == Decimal("10.2")
     assert trade.quantity == 10
@@ -701,6 +702,7 @@ def test_month_end_safety_trade_has_saved_balances() -> None:
     )
     trade = _run(config, dates, ("10", "20")).trades[0]
     assert trade.reason is TradeReason.SAFETY_VALVE
+    assert trade.signal_id is None
     assert (
         trade.cash_before,
         trade.cash_after,
@@ -882,6 +884,26 @@ def test_signal_buy_executes_on_the_next_session_at_that_session_price() -> None
     assert result.daily_assets[0].timing_quantity == 0
     assert result.daily_assets[1].timing_quantity == Decimal("5")
     assert result.daily_assets[-1].total_asset == Decimal("150")
+
+
+def test_signal_buy_trade_keeps_the_triggering_condition_identity() -> None:
+    dates = (date(2024, 1, 2), date(2024, 1, 3))
+    config = _config(start=dates[0], end=dates[-1], contribution_day=2)
+    signals = _signals(config, dates, {dates[0]: {"accumulation.buy": True}})
+    signals = signals.model_copy(
+        update={
+            "evaluations": tuple(
+                item.model_copy(update={"triggered_signal_ids": ("vix.buy",)})
+                if item.date == dates[0] and item.signal_id == "accumulation.buy"
+                else item
+                for item in signals.evaluations
+            )
+        }
+    )
+
+    result = _run(config, dates, ("10", "10"), signals=signals)
+
+    assert result.trades[0].signal_id == "vix.buy"
 
 
 def test_trend_buy_and_full_exit_share_the_same_next_session_ledger() -> None:
@@ -1182,6 +1204,26 @@ def test_final_day_signal_is_recorded_without_being_filled() -> None:
     assert result.unexecuted_signals[0].signal_id == "accumulation.buy"
 
 
+def test_final_day_unexecuted_buy_uses_its_triggering_condition_identity() -> None:
+    dates = (date(2024, 1, 2), date(2024, 1, 3))
+    config = _config(start=dates[0], end=dates[-1], contribution_day=2)
+    signals = _signals(config, dates, {dates[-1]: {"accumulation.buy": True}})
+    signals = signals.model_copy(
+        update={
+            "evaluations": tuple(
+                item.model_copy(update={"triggered_signal_ids": ("vix.buy",)})
+                if item.date == dates[-1] and item.signal_id == "accumulation.buy"
+                else item
+                for item in signals.evaluations
+            )
+        }
+    )
+
+    result = _run(config, dates, ("10", "10"), signals=signals)
+
+    assert result.unexecuted_signals[0].signal_id == "vix.buy"
+
+
 def test_required_unavailable_signal_stops_the_whole_strategy_ledger() -> None:
     dates = (date(2024, 1, 2), date(2024, 1, 3))
     config = _config(start=dates[0], end=dates[-1], contribution_day=2)
@@ -1320,3 +1362,56 @@ def test_lump_sum_invests_the_plan_total_on_the_first_session(preset: str) -> No
     assert result.trades[0].reason is TradeReason.UPFRONT
     assert result.trades[0].cash_amount == Decimal("300")
     assert result.daily_assets[0].timing_quantity == Decimal("30")
+
+
+def test_reinvestment_tax_tracks_remaining_basis_and_original_principal():
+    days = tuple(date(2024, 1, day) for day in (2, 3, 4, 5, 8))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        params={
+            "accumulation.cashSafetyLimit": 10000,
+            "accumulation.maxSignalBuysPerMonth": None,
+            "exit.enabled": True,
+            "exit.vix.ratio1": Decimal("0.5"),
+            "exit.vix.ratio2": 1,
+        },
+        execution={"capitalGainsTaxEnabled": True},
+    )
+    ledger = _run(
+        config,
+        days,
+        ("10", "10", "20", "15", "20"),
+        signals=_signals(
+            config,
+            days,
+            {
+                days[0]: {"accumulation.buy": True},
+                days[1]: {"vix.exit.low1": True},
+                days[2]: {"accumulation.buy": True},
+                days[3]: {"vix.exit.low2": True},
+            },
+        ),
+    )
+    assert ledger.available
+    assert [trade.side for trade in ledger.trades] == ["buy", "sell", "buy", "sell"]
+    assert [trade.trading_costs.capital_gains_tax for trade in ledger.trades] == [
+        0,
+        10,
+        0,
+        16,
+    ]
+    assert ledger.daily_assets[-1].cash == ledger.daily_assets[-1].total_asset == 204
+    assert ledger.daily_assets[-1].timing_quantity == 0
+    metrics = calculate_metrics(
+        MetricsInput(
+            strategy=config.strategies[0],
+            schedule=schedule(config.shared, _calendar(days)),
+            ledger=ledger,
+            data_fingerprint="tax-cycle",
+        )
+    )
+    assert metrics.summary.trading_costs.capital_gains_tax == 26
+    assert metrics.summary.trading_costs.total_trading_cost == 26
+    assert metrics.summary.total_contributed == metrics.summary.actual_invested == 100
+    assert metrics.summary.net_profit == 104

@@ -73,7 +73,7 @@ test("sell explanations use saved ratios and legacy files show missing values wi
 
 test("unexecuted explanations select their exact signal date and retain the saved no-following-session reason", () => {
   const { run, result } = saved();
-  const signal = { signalDate: "2024-02-01", signalId: "accumulation.buy", reason: "no_following_backtest_session" };
+  const signal = { signalDate: "2024-02-01", signalId: "vix.buy:buy-vix", reason: "no_following_backtest_session" };
   const explanation = explainUnexecutedSignal(run, result, signal, "zh");
   assert.equal(explanation.signal, signal);
   assert.equal(explanation.conditions[0].children[0].children[0].expression, "10 ≥ 25");

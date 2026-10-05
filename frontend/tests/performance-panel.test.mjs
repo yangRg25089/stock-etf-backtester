@@ -43,17 +43,18 @@ test("every saved performance card and calculation basis exposes a localized exp
     annualizedReturn: "0.12", annualizedVolatility: "0.2", sharpeRatio: "0.6", sortinoRatio: null, calmarRatio: "2",
     maximumDrawdownDuration: 42, recoveryDuration: null, buyCount: 3, sellCount: 2, turnover: "1.5", averageCashRatio: "0.25",
     unavailableReasons: { sortinoRatio: "no_downside", recoveryDuration: "not_recovered" } };
-  for (const locale of ["ja", "zh"]) {
+  for (const locale of ["ja", "zh", "en"]) {
     const html = renderToStaticMarkup(React.createElement(PerformancePanel, { locale, result }));
     const cards = [...html.matchAll(/<div class="performance-stat"[^>]*>/g)].map(match => match[0]);
     assert.equal(cards.length, 11);
     for (const card of cards) {
-      assert.match(card, /title="[^"]+"/);
       assert.match(card, /tabindex="0"/);
       const description = card.match(/aria-describedby="([^"]+)"/)[1];
       assert.ok(html.includes(`id="${description}"`));
     }
-    assert.match(html, /class="performance-basis"[^>]*title="[^"]+"/);
+    assert.equal([...html.matchAll(/<span class="performance-help-tooltip" aria-hidden="true">[^<]+<\/span>/g)].length, 12);
+    assert.match(html, /class="performance-basis"[^>]*tabindex="0"[^>]*aria-describedby="[^"]+"/);
+    assert.match(html, /class="performance-basis"[^>]*>[\s\S]*?class="performance-help-tooltip" aria-hidden="true">[^<]+<\/span>/);
     assert.doesNotMatch(html, /title="performance\.help\./);
   }
 });
