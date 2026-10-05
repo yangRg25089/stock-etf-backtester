@@ -35,13 +35,19 @@ export class RunApiError extends Error {
   }
 }
 
-export function fetchInstrument(symbol: string, signal?: AbortSignal): Promise<InstrumentMetadata> {
-  return requestJson(`/api/v1/instruments/${encodeURIComponent(symbol)}`, { method: "GET" }, signal, "InstrumentMetadata");
+export async function fetchInstrument(symbol: string, signal?: AbortSignal): Promise<InstrumentMetadata> {
+  const response = await requestJson<InstrumentMetadata>(`/api/v1/instruments/${encodeURIComponent(symbol)}`, { method: "GET" }, signal, "InstrumentMetadata");
+  assertRequestedIdentity(response.symbol, symbol.trim().toUpperCase());
+  return response;
 }
 
 function fallbackError(status: number | null): RunApiError {
   const error = fallbackApiError(status);
   return new RunApiError(error.code, error.messageKey, error.diagnostics, status);
+}
+
+function assertRequestedIdentity(actual: string, requested: string): void {
+  if (actual !== requested) throw new RunApiError("invalid_response", "api.errors.invalid_response");
 }
 
 async function requestJson<T>(
@@ -125,13 +131,15 @@ export function submitRun(
   );
 }
 
-export function fetchRun(runId: string, signal?: AbortSignal): Promise<RunResponse> {
-  return requestJson<RunResponse>(
+export async function fetchRun(runId: string, signal?: AbortSignal): Promise<RunResponse> {
+  const response = await requestJson<RunResponse>(
     `/api/v1/runs/${encodeURIComponent(runId)}`,
     { method: "GET" },
     signal,
     "RunResponse",
   );
+  assertRequestedIdentity(response.runId, runId);
+  return response;
 }
 
 export async function subscribeToRunEvents(
@@ -249,14 +257,20 @@ export function createIdempotencyKey(): string {
   return `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function stopRun(runId: string, signal?: AbortSignal): Promise<RunResponse> {
-  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" }, signal, "RunResponse");
+export async function stopRun(runId: string, signal?: AbortSignal): Promise<RunResponse> {
+  const response = await requestJson<RunResponse>(`/api/v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" }, signal, "RunResponse");
+  assertRequestedIdentity(response.runId, runId);
+  return response;
 }
 
-export function fetchCandidate(runId: string, candidateId: string, signal?: AbortSignal): Promise<StrategyRun> {
-  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/candidates/${encodeURIComponent(candidateId)}`, { method: "GET" }, signal, "StrategyRun");
+export async function fetchCandidate(runId: string, candidateId: string, signal?: AbortSignal): Promise<StrategyRun> {
+  const response = await requestJson<StrategyRun>(`/api/v1/runs/${encodeURIComponent(runId)}/candidates/${encodeURIComponent(candidateId)}`, { method: "GET" }, signal, "StrategyRun");
+  assertRequestedIdentity(response.id, candidateId);
+  return response;
 }
 
-export function fetchBacktestPackage(runId: string, signal?: AbortSignal): Promise<BacktestPackage> {
-  return requestJson(`/api/v1/runs/${encodeURIComponent(runId)}/package`, { method: "GET" }, signal, "BacktestPackage");
+export async function fetchBacktestPackage(runId: string, signal?: AbortSignal): Promise<BacktestPackage> {
+  const response = await requestJson<BacktestPackage>(`/api/v1/runs/${encodeURIComponent(runId)}/package`, { method: "GET" }, signal, "BacktestPackage");
+  assertRequestedIdentity(response.result.runId, runId);
+  return response;
 }

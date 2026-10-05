@@ -1067,8 +1067,8 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - [x] Task 178–179（原124–125）：策略复制及确认重置。
 - [x] Task 180（原126）：快捷键。
 - [ ] Task 181（原127）：可选桌面 Inspector（原文明确低优先级）。
-- [ ] Task 182–183（原131–132）：CI、完整验收和 release；既有远端确认保持。
-- [x] Task 185：修复保存配置刷新/文件导入后再次运行的数值格式回归，全部12个模板往返等值，并通过实际8000/5173服务三次刷新重跑；累积未提交差异仍待Task183集成与提交验收。
+- [ ] Task 182–183（原131–132）：CI配置、完整本地验收和累积代码提交已完成；最新版本远端CI、main同步/分支收敛和release仍未完成，既有远端确认保持。
+- [x] Task 185：修复保存配置刷新/文件导入后再次运行的数值格式回归，全部12个模板往返等值，并通过实际8000/5173服务三次刷新重跑；累积差异已以610fcb9完成本地集成提交，远端验收归Task183。
 - [x] Task 186：审查确认导入候选参数类型和运行总状态/子结果完整性缺口；8项失败用例复现后，修复序列化Schema及读取边界，68项后端与293项前端、24项专项浏览器及前端类型/lint/build通过；总状态核对使用后端生成表，不复制聚合规则。
 
 新功能文档作为最新路线覆盖旧持久化规则；旧任务编号不重用。完整映射、依赖与阶段35验收在 plan 中。用户追加Task184先于Task155执行，其余依赖顺序保留。用户新增的原文文件及上轮审计记录保留；本轮不是阶段34无差别重构。
@@ -1185,3 +1185,13 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - ETF原生XML边界追加10项回归：先复现无效数值抛出未规范化异常、超限科学指数仍被接纳，再统一为有界ValueError；18项原生XML检查通过，完整后端745 passed（66.89秒），Ruff/148文件格式/mypy82通过。未将ETF能力标为完成。
 - 最终前端298、完整浏览器158（5.0分钟）、真实生产1（13.6秒）、typecheck/lint/build通过，132模块构建成功；差异检查通过。
 - 追加条件恢复回归：先复现局部失败配置无法写入浏览器记录，随后复用有界失败草稿读取；失败策略标记验证归属/唯一性/数量，成功运行移除，导入和弹窗修改不覆盖上次运行条件。299项前端、完整158项浏览器（5.1分钟）和真实生产三次刷新重跑1项（13.8秒）通过；typecheck/lint/build和差异检查通过。后端未改，745项完整门禁仍适用。日志：/tmp/backtester-partial-storage-green.log、/tmp/backtester-partial-storage-browser.log、/tmp/backtester-storage-final-browser.log、/tmp/backtester-storage-final-live.log、/tmp/backtester-storage-final-build.log。
+
+## 阶段51：全项目严格验收复审（2026-10-05）
+
+- [x] Task188：重新核对全部要求、遗漏/未完成验收和可复现缺陷，重跑完整门禁并记录准确结论。
+- 确认并修复B51-01/B51-02：查询、停止、候选、回测包和标的元数据的合法HTTP响应未绑定请求身份，可能串用曲线/对象或币种。新增失败回归及实际命中的浏览器故障注入后共用API校验；异响应保留旧配置/曲线，错误可见、正确响应可重试，规范化代码兼容不变。弹窗准确保留API错误说明。README的全部SEC未接入说明已更正，ETF仍明确未完成。
+- 最终真实后端745 passed（64.60秒，46条既有yfinance弃用提示）、前端305 passed（无skip）、完整浏览器160 passed（5.0分钟）及真实生产QQQ/VIX三次刷新重跑/冻结CSV 1 passed（12.9秒）。Ruff/148文件格式/mypy82、前端type/lint/build通过，79模式生成无差异；实际共通/窄屏策略dialog、150%原生缩放、Walk-forward和身份错误/恢复截图复看，差异/简化复审通过。
+- 只读远端核实仍为main及两条旧feature，旧main仍跟踪agent配置；本地仅main且这些路径不跟踪，发布tag不存在。Task135（ETF身份映射/正向估值）、可选181、182–183及Task102/检查点W/120的远端部分保持未完成。没有把本轮审计关闭当作全项目完成；未停止用户服务、读取私人数据库或发布联系人。
+- 准确需求映射、失败证据/测试前提纠正、最终命令和未执行范围见`docs/design/20261005-strict-acceptance-audit.md`；日志`/tmp/backtester-strict-audit-backend.log`、`/tmp/backtester-strict-instrument-green.log`、`/tmp/backtester-strict-audit-browser-complete.log`、`/tmp/backtester-strict-audit-live-final.log`。
+- 文档最终检查修正B51-04历史断链；原简化审计中退役文件链接保持原字节并注明当前入口。两份旧RV原稿不可追溯，不把现有对应表当作原稿逐字验收。
+- [ ] Task189：恢复/确认`docs/design/2026102_rv.md`及`2026102_rv_backend.md`原稿的可追溯来源，再核对是否存在对应表未保留的指摘；当前目录/可见Git历史均未找到，不伪造原文。

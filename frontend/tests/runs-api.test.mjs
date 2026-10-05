@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { wireRun } from "./helpers/contracts.mjs";
@@ -7,6 +8,10 @@ const require = createRequire(import.meta.url);
 const {
   fetchActiveRun,
   fetchRun,
+  fetchInstrument,
+  fetchCandidate,
+  fetchBacktestPackage,
+  stopRun,
   RunApiError,
   submitRun,
   subscribeToRunEvents,
@@ -19,6 +24,39 @@ function response(payload, status = 200) {
     headers: { "Content-Type": "application/json" },
   });
 }
+
+for (const operation of ["run", "stop", "candidate", "package"]) {
+  test(`${operation} API rejects a valid response belonging to another requested identity`, async () => {
+    const file = JSON.parse(readFileSync(new URL("../.test-output/portable-fixture.json", import.meta.url), "utf8")).package;
+    const detail = Object.values(file.candidateDetails)[0];
+    const payload = operation === "package" ? file : operation === "candidate" ? detail : file.result;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => response(payload);
+    try {
+      const request = operation === "run" ? fetchRun(`${file.result.runId}-foreign`)
+        : operation === "stop" ? stopRun(`${file.result.runId}-foreign`)
+          : operation === "candidate" ? fetchCandidate(file.result.runId, `${detail.id}-foreign`)
+            : fetchBacktestPackage(`${file.result.runId}-foreign`);
+      await assert.rejects(request, error => error instanceof RunApiError && error.code === "invalid_response");
+    } finally { globalThis.fetch = originalFetch; }
+  });
+}
+
+test("instrument metadata rejects another symbol before its currency can be used", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => response({ symbol: "7203.T", currency: "JPY", diagnostics: [] });
+  try {
+    await assert.rejects(fetchInstrument("QQQ"), error => error instanceof RunApiError && error.code === "invalid_response");
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("instrument identity accepts the backend normalization of whitespace and letter case", async () => {
+  const originalFetch = globalThis.fetch;
+  const metadata = { symbol: "7203.T", currency: "JPY", diagnostics: [] };
+  globalThis.fetch = async () => response(metadata);
+  try { assert.deepEqual(await fetchInstrument(" 7203.t "), metadata); }
+  finally { globalThis.fetch = originalFetch; }
+});
 
 test("run API sends all strategies without an editing identity and preserves idempotency and saved statuses", async () => {
   const originalFetch = globalThis.fetch;

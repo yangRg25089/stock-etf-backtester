@@ -84,7 +84,7 @@ export function useDialogValidation() {
       if (!combined.some(item => item.severity === "error")) commit();
     } catch (error) {
       if (!controller.signal.aborted) setErrors(error instanceof RunApiError && error.diagnostics.length ? error.diagnostics : [{
-        code: "provider_request_failed", severity: "error", messageKey: "api.errors.connection_failed",
+        code: "provider_request_failed", severity: "error", messageKey: error instanceof RunApiError ? error.messageKey : "api.errors.connection_failed",
       }]);
     } finally {
       if (controllerRef.current === controller) {

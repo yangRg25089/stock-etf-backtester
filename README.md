@@ -58,4 +58,4 @@ npm run test:e2e
 
 外部 notebook の出典ハッシュと安定キーへの入力対応は [`docs/fixtures/notebook-mapping.md`](docs/fixtures/notebook-mapping.md) と JSON マニフェストに記録しています。アプリケーションの実行時に notebook パスを読み込むことはありません。実データの回帰は全量 `pytest` に含まれます。接続だけを確認する場合は `--live` を付けた単独 smoke も使えます。
 
-アーキテクチャ、fixture の更新手順、PE の既知制限、live smoke と通常の検証コマンドは [`docs/development.md`](docs/development.md) を参照してください。通常のバックテスト実行では Yahoo から標的の日足データと有効な指数/金利データを取得します。外部ネットワーク接続はユーザーが実行を開始した後に行います。PE の SEC 取得経路は未接続のため、対象戦略にはデータ不可診断が表示されます。
+アーキテクチャ、fixture の更新手順、PE の既知制限、live smoke と通常の検証コマンドは [`docs/development.md`](docs/development.md) を参照してください。通常のバックテスト実行では Yahoo から標的の日足データと有効な指数/金利データを取得します。外部ネットワーク接続はユーザーが実行を開始した後に行います。個別株の履歴 PE は SEC 取得経路を接続済みで、MSFT の実データ検証に合格しています。ETF の履歴 PE は未接続で、証拠が不足する対象には正確なデータ不可診断を返します。SEC の利用には本機の連絡先設定が必要です。

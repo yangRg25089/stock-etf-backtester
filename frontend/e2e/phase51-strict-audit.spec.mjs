@@ -1,0 +1,82 @@
+import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { savedRun } from "./helpers/reports.mjs";
+import { installRunFixture } from "./helpers/runtime.mjs";
+
+test("a candidate response with another identity preserves saved curves and can be retried", async ({ page }) => {
+  const saved = await savedRun(page, "grid_search", {
+    "search.dimensions": ["vix.buyThreshold"], "search.values.vix.buyThreshold": [20, 30],
+  }, rules => { rules.buy = rules.buy.children.find(item => item.kind === "vix"); rules.sell = null; });
+  const grid = saved.result.strategyRuns.find(row => row.presetId === "grid_search");
+  const [firstId, nextId] = grid.searchResult.rankedCandidateIds;
+  expect(firstId).toBeTruthy(); expect(nextId).toBeTruthy();
+  expect(firstId).not.toBe(nextId);
+  const first = await (await page.request.get(`/api/v1/runs/${saved.runId}/candidates/${firstId}`)).json();
+  await installRunFixture(page, saved);
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.locator(".comparison-table").getByRole("button", { name: "グリッド検索", exact: true }).click();
+  await page.locator("#result-tab-search").click();
+  const candidates = page.locator(".search-table .result-select:not(:disabled)");
+  await candidates.first().click();
+  await expect(candidates.first()).toHaveAttribute("aria-pressed", "true");
+  const before = await page.locator(".chart-overlay polyline.overlay-totalAsset").getAttribute("points");
+  const endpoint = `**/api/v1/runs/${saved.runId}/candidates/${encodeURIComponent(nextId)}`;
+  let faultRequests = 0;
+  await page.route(endpoint, route => { faultRequests++; return route.fulfill({ json: first }); });
+  await candidates.nth(1).click();
+  await expect.poll(() => faultRequests).toBe(1);
+  await expect(page.locator(".search-results .field-error")).toHaveText("API の応答を読み取れませんでした。");
+  await expect(candidates.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(candidates.nth(1)).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveAttribute("points", before);
+  await page.unroute(endpoint);
+  await candidates.nth(1).click();
+  await expect(candidates.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".search-results .field-error")).toHaveCount(0);
+  const download = page.waitForEvent("download");
+  await page.locator('[data-export-kind="daily-assets"]').click();
+  const csv = await readFile(await (await download).path(), "utf8");
+  expect(csv).toContain(nextId);
+  expect(csv).not.toContain(firstId);
+  await page.screenshot({ path: test.info().outputPath("identity-recovery.png") });
+  expect(errors).toEqual([]);
+});
+
+test("foreign instrument metadata keeps the editor open and preserves the saved currency and curve", async ({ page }) => {
+  const saved = await savedRun(page);
+  const metadata = await (await page.request.get("/api/v1/instruments/QQQ")).json();
+  expect(metadata).toMatchObject({ symbol: "QQQ", currency: "USD" });
+  await installRunFixture(page, saved);
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto("/");
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+  const summary = page.locator(".shared-settings-open-button");
+  const beforeSummary = await summary.innerText();
+  const curve = page.locator(".chart-overlay polyline.overlay-price");
+  const beforeCurve = await curve.getAttribute("points");
+  let faultRequests = 0;
+  const endpoint = "**/api/v1/instruments/QQQ";
+  await page.route(endpoint, route => {
+    faultRequests++;
+    return route.fulfill({ json: { ...metadata, symbol: "7203.T", currency: "JPY" } });
+  });
+  await summary.click();
+  const dialog = page.locator(".shared-settings-dialog");
+  await dialog.locator(".dialog-done").click();
+  await expect.poll(() => faultRequests).toBe(1);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".diagnostic-list li > div > span")).toHaveText("API の応答を読み取れませんでした。");
+  await expect(summary).toHaveText(beforeSummary, { useInnerText: true });
+  await expect(curve).toHaveAttribute("points", beforeCurve);
+  await page.screenshot({ path: test.info().outputPath("invalid-instrument-response.png") });
+  await page.unroute(endpoint);
+  await dialog.locator(".dialog-done").click();
+  await expect(dialog).toBeHidden();
+  await expect(summary).toHaveText(beforeSummary, { useInnerText: true });
+  await expect(curve).toHaveAttribute("points", beforeCurve);
+  expect(errors).toEqual([]);
+});
