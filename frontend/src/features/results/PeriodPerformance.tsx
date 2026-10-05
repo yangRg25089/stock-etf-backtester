@@ -42,14 +42,14 @@ function DrawdownTable({ locale, episodes }: { locale: Locale; episodes: Drawdow
   </section>;
 }
 
-export function PeriodPerformance({ locale, result, benchmark }: { locale: Locale; result: StrategyRun | null; benchmark?: StrategyRun | null }) {
+export function PeriodPerformance({ locale, result, benchmark, busy = false }: { locale: Locale; result: StrategyRun | null; benchmark?: StrategyRun | null; busy?: boolean }) {
   const analysis = result?.metrics?.analysis;
   if (!analysis) return null;
   if (analysis.annualReturns == null && analysis.monthlyReturns == null && analysis.drawdownEpisodes == null)
     return <p className="metric-empty">{translate(locale, "performance.periodsNotSaved")}</p>;
   return <div className="period-performance">
     {analysis.annualReturns && <AnnualReturns locale={locale} values={analysis.annualReturns} benchmark={benchmark} />}
-    {analysis.monthlyReturns && <MonthlyHeatmap key={result?.id} locale={locale} values={analysis.monthlyReturns} />}
+    {analysis.monthlyReturns && <MonthlyHeatmap key={result?.id} locale={locale} values={analysis.monthlyReturns} busy={busy} />}
     {analysis.drawdownEpisodes != null ? <DrawdownTable locale={locale} episodes={analysis.drawdownEpisodes} />
       : <p className="metric-empty">{translate(locale, `performance.reason.${analysis.unavailableReasons?.drawdownEpisodes ?? "missing_nav"}`)}</p>}
   </div>;

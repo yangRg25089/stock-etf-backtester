@@ -221,7 +221,7 @@ export function ResultDetails({
                 <h4 className="performance-owner">{tradeOwnerName}{candidateNumber && <span> · #{candidateNumber}</span>}{phaseLabel}</h4>
                 <PerformancePanel locale={locale} result={displayedResult} />
                 {displayedResult?.metrics && <TradingCostsPanel locale={locale} currency={displayedResult.metrics.currency} costs={displayedResult.metrics.tradingCosts} />}
-                <PeriodPerformance locale={locale} result={displayedResult} benchmark={run && displayedResult ? savedPeriodBenchmarks(run, displayedResult, focusedResult).find(row => row.presetId === "monthly_dca") : undefined} />
+                <PeriodPerformance locale={locale} result={displayedResult} busy={busy || candidatePending} benchmark={run && displayedResult ? savedPeriodBenchmarks(run, displayedResult, focusedResult).find(row => row.presetId === "monthly_dca") : undefined} />
               </>}
 
               {tab === "search" && searchAvailable && focusedResult?.searchResult && (

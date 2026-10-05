@@ -7,6 +7,25 @@ const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { PeriodPerformance } = require("../.test-output/features/results/PeriodPerformance.js");
 const { formatExactPercent } = require("../.test-output/features/results/format.js");
+const { MonthlyHeatmap } = require("../.test-output/features/results/MonthlyHeatmap.js");
+
+test("monthly inspection uses compact percentages while preserving exact saved values in the tooltip", () => {
+  const values = [{ year: 2023, month: 11, startDate: "2023-11-01", endDate: "2023-11-30",
+    navReturn: "0.108188106783985417959598754055960775191", priceReturn: null }];
+  const before = JSON.stringify(values);
+  for (const locale of ["ja", "zh"]) {
+    const html = renderToStaticMarkup(React.createElement(MonthlyHeatmap, { locale, values }));
+    assert.match(html, /aria-label="2023-11 · 10\.82%"/);
+    assert.match(html, /title="2023-11 · 10\.8188106783985417959598754055960775191% · 2023-11-01 → 2023-11-30"/);
+    assert.match(html, /class="icon-only-button table-expand-button"/);
+    assert.match(html, /aria-expanded="false"/);
+    const controls = html.match(/aria-controls="([^"]+)"/)[1];
+    assert.ok(html.includes(`id="${controls}"`));
+  }
+  assert.equal(JSON.stringify(values), before);
+  const busy = renderToStaticMarkup(React.createElement(MonthlyHeatmap, { locale: "zh", values, busy: true }));
+  assert.match(busy, /class="icon-only-button table-expand-button"[^>]*disabled=""/);
+});
 
 test("period returns and episodes display frozen values and saved DCA without recomputing assets", () => {
   const result = wireRun().result.strategyRuns[0];

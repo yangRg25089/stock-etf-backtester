@@ -1,17 +1,24 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { PeriodReturn } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatExactPercent, formatPercent } from "./format";
+import { TableExpandButton } from "./TableExpandButton";
 
-export function MonthlyHeatmap({ locale, values }: { locale: Locale; values: PeriodReturn[] }) {
+export function MonthlyHeatmap({ locale, values, busy = false }: { locale: Locale; values: PeriodReturn[]; busy?: boolean }) {
   const [inspected, setInspected] = useState<PeriodReturn | null>(null);
+  const [heightExpanded, setHeightExpanded] = useState(false);
+  const tableId = useId();
   const years = [...new Set(values.map(row => row.year))];
   const cells = new Map(values.map(row => [`${row.year}-${row.month}`, row]));
   const months = Array.from({ length: 12 }, (_, index) => index + 1);
-  const label = (row: PeriodReturn) => `${row.year}-${String(row.month).padStart(2, "0")} · ${formatExactPercent(row.navReturn)}${row.unavailableReason ? ` · ${translate(locale, `performance.reason.${row.unavailableReason}`)}` : ""}`;
+  const label = (row: PeriodReturn, percent = formatPercent(row.navReturn, locale)) => `${row.year}-${String(row.month).padStart(2, "0")} · ${percent}${row.unavailableReason ? ` · ${translate(locale, `performance.reason.${row.unavailableReason}`)}` : ""}`;
   return <section className="performance-group monthly-performance" aria-labelledby="performance-monthly-heading">
-    <h4 id="performance-monthly-heading">{translate(locale, "performance.monthly")}</h4>
-    <div className="data-table-scroll performance-table-scroll" role="region" tabIndex={0} aria-label={translate(locale, "performance.monthly")}>
+    <div className="performance-group-heading">
+      <h4 id="performance-monthly-heading">{translate(locale, "performance.monthly")}</h4>
+      <TableExpandButton locale={locale} tableName={translate(locale, "performance.monthly")} controls={tableId}
+        expanded={heightExpanded} disabled={busy} onToggle={() => setHeightExpanded(value => !value)} />
+    </div>
+    <div id={tableId} className={`data-table-scroll performance-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} role="region" tabIndex={0} aria-label={translate(locale, "performance.monthly")}>
       <table className="data-table heatmap-table">
         <caption className="sr-only">{translate(locale, "performance.monthly")}</caption>
         <thead><tr><th scope="col">{translate(locale, "performance.year")}</th>{months.map(month => <th scope="col" key={month}>{translate(locale, "performance.month", { month: String(month) })}</th>)}</tr></thead>
@@ -21,7 +28,7 @@ export function MonthlyHeatmap({ locale, values }: { locale: Locale; values: Per
           const exact = formatExactPercent(row.navReturn);
           const tone = row.navReturn == null ? "missing" : exact === "0%" ? "neutral" : exact.startsWith("-") ? "negative" : "positive";
           return <td key={month}><button type="button" className={`heatmap-cell is-${tone}${inspected === row ? " is-inspected" : ""}`}
-            aria-label={label(row)} title={`${label(row)} · ${row.startDate} → ${row.endDate}`}
+            aria-label={label(row)} title={`${label(row, exact)} · ${row.startDate} → ${row.endDate}`}
             onMouseEnter={() => setInspected(row)} onFocus={() => setInspected(row)} onClick={() => setInspected(row)}>
             {tone === "positive" ? "+" : ""}{formatPercent(row.navReturn, locale)}
           </button></td>;
