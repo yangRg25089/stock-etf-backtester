@@ -1194,7 +1194,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - 只读远端核实仍为main及两条旧feature，旧main仍跟踪agent配置；本地仅main且这些路径不跟踪，发布tag不存在。Task135（ETF身份映射/正向估值）、可选181、182–183及Task102/检查点W/120的远端部分保持未完成。没有把本轮审计关闭当作全项目完成；未停止用户服务、读取私人数据库或发布联系人。
 - 准确需求映射、失败证据/测试前提纠正、最终命令和未执行范围见`docs/design/20261005-strict-acceptance-audit.md`；日志`/tmp/backtester-strict-audit-backend.log`、`/tmp/backtester-strict-instrument-green.log`、`/tmp/backtester-strict-audit-browser-complete.log`、`/tmp/backtester-strict-audit-live-final.log`。
 - 文档最终检查修正B51-04历史断链；原简化审计中退役文件链接保持原字节并注明当前入口。两份旧RV原稿不可追溯，不把现有对应表当作原稿逐字验收。
-- [ ] Task189：恢复/确认`docs/design/2026102_rv.md`及`2026102_rv_backend.md`原稿的可追溯来源，再核对是否存在对应表未保留的指摘；当前目录/可见Git历史均未找到，不伪造原文。
+- [x] Task189：从本会话原始完整cat输出恢复两份RV读取文本；前端394行14976字节、后端185行12556字节，后端两次独立读取逐字节一致。10项前端/7项UI建议/13项后端及重复建议逐条核对，无遗漏的独立指摘。原稿/来源元数据在本机`.local/recovered-rv/`保持原字节、不提交私人会话；追溯和覆盖记录见`docs/design/20261005-rv-source-verification.md`。不把源文件系统时间戳视作已恢复，ETF/远端/Inspector仍独立。
 
 ## 阶段52：前后端代码简化复审（2026-10-05）
 
