@@ -1,6 +1,6 @@
 # Stock ETF Backtester
 
-本リポジトリは、ローカルで動作する株式・ETF の履歴バックテストアプリです。V1 は FastAPI バックエンドと React/TypeScript フロントエンドを別プロセスで起動します。アプリの起動と純計算の決定性テストは外部ネットワークへ接続しません。バックテストを実行すると Yahoo からデータを取得します。バックエンドの全量テストにも実際の QQQ/VIX 取得を検証する回帰テストが含まれます。証券口座や注文には接続しません。
+本リポジトリは、ローカルまたは共有 Basic Auth で保護された単一 Render Web Service で動作する株式・ETF の履歴バックテストアプリです。ローカル開発では FastAPI バックエンドと React/TypeScript フロントエンドを別プロセスで起動し、Render では FastAPI が React の production build も配信します。アプリの起動と純計算の決定性テストは外部ネットワークへ接続しません。バックテストを実行すると Yahoo からデータを取得します。バックエンドの全量テストにも実際の QQQ/VIX 取得を検証する回帰テストが含まれます。証券口座や注文には接続しません。
 
 ## 前提環境
 
@@ -49,6 +49,7 @@ npm test
 npm run typecheck
 npm run lint
 npm run build
+npm run test:production-smoke
 npm run test:e2e
 ```
 
@@ -63,6 +64,6 @@ npm run test:e2e
 ## License and publication
 
 Copyright © 2026 Ronny Yang. This project is available under the [MIT License](LICENSE).
-The UI includes an SVG app icon, metadata and robots.txt. A public deployment should set its own canonical URL, sitemap and translated metadata; this repository does not assume a production hostname.
-The backend currently serves local use. Keep supplier credentials and SEC contact configuration on the server, and review authentication, request limits and data-provider terms before exposing it to the public.
+The hosted shared build sets `noindex, nofollow` and does not assume a public product hostname. Revisit the robots metadata, canonical URL, sitemap and translated metadata before a public launch.
+The optional Render deployment is for a trusted shared audience: one Python web service in Singapore, one instance, in-memory runs, and shared HTTP Basic Auth. It does not provide per-user accounts or durable run storage. Follow [`docs/deploy/render.md`](docs/deploy/render.md) for the service settings, build/start commands, and limitations. Keep the shared password and SEC contact configuration in Render secrets; do not commit them.
 The optional 20% tax model deducts tax on each profitable sale using average holding cost including fees. Losses do not offset gains, and unsold holdings are not taxed. It is a simplified simulation rather than a regional tax calculation.

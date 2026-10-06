@@ -15,7 +15,6 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   page.on("pageerror", error => errors.push(error.message));
   let runRequests = 0;
   await page.route("**/api/v1/runs/**", route => {
-    if (new URL(route.request().url()).pathname === "/api/v1/runs/active") return route.fulfill({ status: 204 });
     runRequests++; return route.abort();
   });
   await page.setViewportSize({ width: 1440, height: 900 });

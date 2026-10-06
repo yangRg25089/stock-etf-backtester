@@ -6,7 +6,6 @@ import { wireRun } from "./helpers/contracts.mjs";
 
 const require = createRequire(import.meta.url);
 const {
-  fetchActiveRun,
   fetchRun,
   fetchInstrument,
   fetchCandidate,
@@ -89,28 +88,6 @@ test("run API sends all strategies without an editing identity and preserves ide
     assert.deepEqual(JSON.parse(calls[0].init.body), { draft, scope: "all_enabled" });
     assert.equal(calls[1].url, "/api/v1/runs/run-local-1");
     assert.equal(isPartialSuccess(saved), true);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("run API reconnects an active job or leaves an empty result", async () => {
-  const originalFetch = globalThis.fetch;
-  const calls = [];
-  const saved = wireRun("run-restored", "running");
-  const payloads = [saved, null];
-  globalThis.fetch = async (url, init) => {
-    calls.push({ url: String(url), init });
-    return response(payloads.shift());
-  };
-  try {
-    assert.deepEqual(await fetchActiveRun(), saved);
-    assert.equal(await fetchActiveRun(), null);
-    assert.deepEqual(calls.map(({ url }) => url), [
-      "/api/v1/runs/active",
-      "/api/v1/runs/active",
-    ]);
-    assert.deepEqual(calls.map(({ init }) => init.method), ["GET", "GET"]);
   } finally {
     globalThis.fetch = originalFetch;
   }

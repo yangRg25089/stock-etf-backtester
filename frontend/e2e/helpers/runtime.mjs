@@ -11,11 +11,26 @@ export async function installRunFixture(page, saved) {
     completedStrategies: active.result.strategyRuns.length - 1,
     currentStrategyId: running.id,
   });
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: active }));
+  const fixtureMarkerKey = "__e2e-initialized-run-id";
+  if (page.url() !== "about:blank") {
+    await page.evaluate(markerKey => sessionStorage.removeItem(markerKey), fixtureMarkerKey);
+  }
+  await page.addInitScript(({ key, markerKey, runId }) => {
+    if (sessionStorage.getItem(markerKey) === runId) return;
+    sessionStorage.setItem(key, runId);
+    sessionStorage.setItem(markerKey, runId);
+  }, {
+    key: "stock-etf-backtester.active-run-id.v1",
+    markerKey: fixtureMarkerKey,
+    runId: saved.runId,
+  });
+  let runReads = 0;
+  await page.route(`**/api/v1/runs/${saved.runId}`, route => route.fulfill({
+    json: runReads++ % 2 === 0 ? active : saved,
+  }));
   await page.route(`**/api/v1/runs/${saved.runId}/events`, route => route.fulfill({ contentType: "text/event-stream", body:
     `event: terminal\ndata: ${JSON.stringify({ runId: saved.runId, status: saved.status, progress: saved.progress ?? null,
       strategyStatuses: Object.fromEntries(saved.result.strategyRuns.map(row => [row.id, row.status])) })}\n\n` }));
-  await page.route(`**/api/v1/runs/${saved.runId}`, route => route.fulfill({ json: saved }));
 }
 
 export async function openSaved(page, saved) {

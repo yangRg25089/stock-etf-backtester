@@ -6,7 +6,6 @@ from json import dumps
 from threading import Event
 
 import httpx
-import pytest
 from fastapi.encoders import jsonable_encoder
 
 from app.api.runs import RunSubmission
@@ -55,21 +54,6 @@ class _FakeRunService:
 
     def get_run(self, run_id: str) -> RunResponse | None:
         return self.responses.get(run_id)
-
-    def get_active_run(self) -> RunResponse | None:
-        return next(
-            (
-                record
-                for record in reversed(tuple(self.responses.values()))
-                if record.status
-                in {
-                    StrategyStatus.QUEUED,
-                    StrategyStatus.LOADING,
-                    StrategyStatus.RUNNING,
-                }
-            ),
-            None,
-        )
 
 
 class _ConflictingRunService(_FakeRunService):
@@ -265,45 +249,8 @@ def test_active_run_ignores_errors_from_unselected_instances() -> None:
     assert submission.strategy_validations[0].diagnostics == ()
     assert service.idempotency_keys == ["active-run-intent"]
     lookup = _request("GET", "/api/v1/runs/run-1", service=service)
-    active = _request("GET", "/api/v1/runs/active", service=service)
     assert lookup.status_code == 200
     assert lookup.json()["runId"] == "run-1"
-    assert active.status_code == 200
-    assert active.json()["runId"] == "run-1"
-
-
-def test_active_run_is_null_when_no_run_has_been_submitted() -> None:
-    response = _request("GET", "/api/v1/runs/active", service=_FakeRunService())
-
-    assert response.status_code == 200
-    assert response.json() is None
-
-
-@pytest.mark.parametrize("status", tuple(StrategyStatus))
-def test_active_endpoint_returns_only_unfinished_runs(status: StrategyStatus) -> None:
-    service = _FakeRunService()
-    accepted = _request(
-        "POST",
-        "/api/v1/runs",
-        service=service,
-        headers={"Idempotency-Key": "active-query"},
-        json_body={"draft": _draft([_strategy("vix")]), "scope": "all_enabled"},
-    )
-    assert accepted.status_code == 202
-    original = service.responses["run-1"]
-    service.responses["run-1"] = original.model_copy(update={"status": status})
-    response = _request("GET", "/api/v1/runs/active", service=service)
-    assert response.status_code == 200
-    if status in {
-        StrategyStatus.QUEUED,
-        StrategyStatus.LOADING,
-        StrategyStatus.RUNNING,
-    }:
-        assert response.json()["status"] == status.value
-    else:
-        assert response.json() is None
-    retired = _request("GET", "/api/v1/runs/latest", service=service)
-    assert retired.status_code == 404
 
 
 def test_run_events_endpoint_emits_terminal_status_without_full_result() -> None:
@@ -415,10 +362,6 @@ def test_http_acceptance_and_stop_do_not_wait_for_market_data() -> None:
                 )
                 assert terminal.status_code == 200
                 assert '"status":"cancelled"' in terminal.text
-                assert (
-                    _request("GET", "/api/v1/runs/active", service=service).json()
-                    is None
-                )
             finally:
                 release.set()
         worker.shutdown(wait=True)

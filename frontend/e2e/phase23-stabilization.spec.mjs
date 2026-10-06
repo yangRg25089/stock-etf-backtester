@@ -2,6 +2,8 @@ import { installRunFixture, restoreSavedRecord } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+const activeRunSessionKey = "stock-etf-backtester.active-run-id.v1";
+
 async function savedRun(page) {
   const accepted = await page.request.post("/api/v1/runs", { headers: { "Idempotency-Key": `phase23-${Date.now()}` }, data: {
     draft: { shared: { run: { symbol: "QQQ", startDate: "2024-01-31", endDate: "2024-03-01" }, contribution: { amount: 100, day: 1 } },
@@ -15,7 +17,6 @@ async function savedRun(page) {
 }
 
 test("selected strategy cards keep whole-card hover color and remove the unselected indent", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
@@ -69,7 +70,10 @@ test("all permitted results fit a bounded comparison with a sticky header and re
   saved.selectedStrategyIds.push(...extra.map(row => row.id));
   saved.progress.totalStrategies = saved.progress.completedStrategies = saved.result.strategyRuns.length;
   await installRunFixture(page, saved);
-  for (const [width, height] of [[1920, 1080], [1440, 900], [1024, 768]]) {
+  for (const [index, [width, height]] of [[1920, 1080], [1440, 900], [1024, 768]].entries()) {
+    if (index > 0) {
+      await page.evaluate(() => sessionStorage.removeItem("__e2e-initialized-run-id"));
+    }
     await page.setViewportSize({ width, height });
     await page.goto("/");
     await expect(page.locator(".result-interactions")).not.toBeDisabled();
@@ -155,7 +159,6 @@ test("tablet topbars keep brand, run actions and locale on one row without page 
   for (const hasTouch of [false, true]) {
     const context = await browser.newContext({ hasTouch });
     const page = await context.newPage();
-    await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
     for (const width of [768, 1024, 1279]) {
       await page.setViewportSize({ width, height: 768 });
       await page.goto("/");
@@ -175,7 +178,6 @@ test("tablet topbars keep brand, run actions and locale on one row without page 
 });
 
 test("native numeric validation stays visible and focuses the invalid strategy input", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".result-interactions")).not.toBeDisabled();
@@ -291,7 +293,6 @@ test("disabled rules stay compact, retain their parameters and expand from their
 });
 
 test("invalid disabled rules keep their field errors visible and reachable", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   const runBefore = await page.locator(".run-submit-button").evaluate(node => node.outerHTML);
@@ -367,7 +368,6 @@ test("invalid disabled rules keep their field errors visible and reachable", asy
 });
 
 test("volatility condition names remain accurate for VXN and VXD", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".strategy-card-open").click();
   const dialog = page.locator(".strategy-dialog");
@@ -406,7 +406,6 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
 });
 
 test("sell ratios display percent values, align with thresholds and submit unchanged ratios", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   const submitted = [];
   await page.route("**/api/v1/config/validate", async route => {
     submitted.push(route.request().postDataJSON().draft);
@@ -466,7 +465,6 @@ test("sell ratios display percent values, align with thresholds and submit uncha
 });
 
 test("shared percentage editors preserve independent buy coverage and sell ratios", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   let submitted;
   await page.route("**/api/v1/config/validate", async route => {
     submitted = route.request().postDataJSON().draft;
@@ -503,7 +501,6 @@ test("shared percentage editors preserve independent buy coverage and sell ratio
 });
 
 test("exhausted condition kinds disable unusable group creation and restore after removal", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   const catalog = await (await page.request.get("/api/v1/catalog")).json();
   await page.locator(".add-strategy-button").click();
@@ -548,7 +545,6 @@ test("exhausted condition kinds disable unusable group creation and restore afte
 });
 
 test("keyboard condition deletion restores focus within its surviving group", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="composite_dca"]').click();
@@ -597,7 +593,6 @@ test("custom group choices reserve space for a usable child at catalog limits", 
     catalog.conditionLimits.maxNodes = maxNodes;
     await route.fulfill({ json: catalog });
   });
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="composite_dca"]').click();
@@ -630,7 +625,6 @@ test("custom group choices reserve space for a usable child at catalog limits", 
 });
 
 test("buy-only templates keep a passive sell section while custom strategies keep both editors", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
   await page.locator('[data-preset-id="ma_buy_only"]').click();
@@ -681,7 +675,7 @@ test("editable grid values freeze into search results, candidate curves and CSV"
   await expect(editor.locator(".search-combination-count")).toContainText("2");
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toBeHidden();
-  const finished = page.waitForResponse(r => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(r.url()));
+  const finished = page.waitForResponse(r => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await finished).json();
   const grid = saved.result.strategyRuns.find(item => item.presetId === "grid_search");
@@ -815,7 +809,7 @@ test("terminal progress remains busy until full result GET without storing resul
   const hold = new Promise(resolve => { release = resolve; });
   let completeResponse;
   await page.route("**/api/v1/runs/*", async route => {
-    if (route.request().method() !== "GET" || route.request().url().endsWith("/active")) { await route.continue(); return; }
+    if (route.request().method() !== "GET") { await route.continue(); return; }
     const response = await route.fetch();
     completeResponse = await response.json();
     await hold;
@@ -823,6 +817,9 @@ test("terminal progress remains busy until full result GET without storing resul
   });
   await page.locator(".run-submit-button").click();
   await expect.poll(() => completeResponse?.status).toMatch(/^completed/);
+  const activeRunId = await page.evaluate(key => sessionStorage.getItem(key), activeRunSessionKey);
+  expect(activeRunId).toBe(completeResponse.runId);
+  expect(await page.evaluate(() => Object.values(localStorage))).not.toContain(activeRunId);
   await expect(page.locator(".run-submit-button")).toBeDisabled();
   await expect(page.locator(".run-stop-button")).toBeVisible();
   await expect(page.locator(".run-stop-button")).toBeDisabled();
@@ -830,6 +827,7 @@ test("terminal progress remains busy until full result GET without storing resul
   expect(Object.keys(last).sort()).toEqual(["catalogVersion", "draft", "savedAt", "schemaVersion"]);
   release();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
+  expect(await page.evaluate(key => sessionStorage.getItem(key), activeRunSessionKey)).toBeNull();
   await expect(page.locator(".run-stop-button")).toBeDisabled();
   await expect(page.locator(".chart-overlay polyline.overlay-price")).toBeVisible();
   expect(await page.evaluate(async () => (await indexedDB.databases()).map(item => item.name))).toEqual([]);

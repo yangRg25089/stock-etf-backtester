@@ -64,8 +64,6 @@ class RunService(Protocol):
 
     def instrument_metadata(self, symbol: str) -> InstrumentMetadata: ...
 
-    def get_active_run(self) -> RunResponse | None: ...
-
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float
     ) -> RunChange | None: ...
@@ -126,17 +124,6 @@ def submit_run(
 )
 def read_instrument(symbol: str, request: Request) -> InstrumentMetadata:
     return _run_service(request).instrument_metadata(symbol.strip().upper())
-
-
-@router.get(
-    "/runs/active",
-    response_model=RunResponse | None,
-    responses={503: {"model": APIErrorResponse}},
-)
-def read_active_run(request: Request) -> RunResponse | None:
-    """Reconnect only a queued, loading or running job in this API process."""
-
-    return _run_service(request).get_active_run()
 
 
 @router.get(

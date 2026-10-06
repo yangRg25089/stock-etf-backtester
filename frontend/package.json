@@ -11,7 +11,8 @@
     "generate:api": "python scripts/generate_api_types.py",
     "test": "node scripts/run-tests.mjs",
     "test:e2e": "playwright test --config=playwright.config.mjs",
-    "test:e2e:live": "playwright test --config=playwright.live.config.mjs"
+    "test:e2e:live": "playwright test --config=playwright.live.config.mjs",
+    "test:production-smoke": "node scripts/production-smoke.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

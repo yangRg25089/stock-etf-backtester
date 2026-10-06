@@ -17,7 +17,6 @@ test("queued acceptance and loading remain stoppable before any data or metrics 
   for (const row of stopped.result.strategyRuns) Object.assign(row, { status: "cancelled", diagnostics: [{ code: "run_cancelled", messageKey: "runs.cancelled", severity: "info" }] });
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/runs", route => route.fulfill({ status: 202, json: queued }));
   await page.route(`**/api/v1/runs/${saved.runId}/stop`, route => route.fulfill({ json: stopped }));
   let gets = 0;
@@ -68,7 +67,6 @@ test("a stop requested before 202 stays subscribed after rejection and can be re
   stopped.status = stopped.result.status = "cancelled";
   stopped.progress.completedStrategies = 3;
   for (const row of stopped.result.strategyRuns) Object.assign(row, { status: "cancelled", diagnostics: [{ code: "run_cancelled", messageKey: "runs.cancelled", severity: "info" }] });
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route(`**/api/v1/runs/${queued.runId}`, route => route.fulfill({ json: stopped }));
   await page.addInitScript(({ queued, stopped }) => {
     const original = window.fetch;

@@ -37,6 +37,7 @@ test("partial API failures preserve results while strategy exports remain draft-
 
   // The run snapshot restores the malformed API strategy independently from
   // the valid one-strategy workspace package exported above.
+  await installRunFixture(page, saved);
   await page.reload();
   await expect(page.locator(".strategy-card-open")).toHaveCount(2);
   await page.locator(".strategy-card-open").first().click();
@@ -49,6 +50,7 @@ test("partial API failures preserve results while strategy exports remain draft-
   await expect(dialog).toHaveCount(0);
   await expect(page.locator(".comparison-table")).toHaveText(prior);
 
+  await installRunFixture(page, saved);
   await page.reload();
   await expect(page.locator(".strategy-card-open")).toHaveCount(2);
   await page.locator(".strategy-card-open").first().click();

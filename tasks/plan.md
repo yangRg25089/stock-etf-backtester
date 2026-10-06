@@ -13,9 +13,9 @@
 
 ## 目标与范围
 
-交付一个仅本机运行的 FastAPI + React/TypeScript 应用：首次打开即能运行 QQQ 的 VIX 信号定投；可编辑、启停和组合七类策略；以统一注资日历、三态信号、账本、指标、基准、搜索和不可变运行快照保证结果一致；支持日文默认/中文切换、结果查看及四类 CSV 导出。PE、利率和 ETF 历史估值按设计稿真实参与信号，数据不可用必须透明报告。
+交付一个可本机运行、也可由用户显式部署为共享密码保护单实例 Render Web Service 的 FastAPI + React/TypeScript 应用：首次打开即能运行 QQQ 的 VIX 信号定投；可编辑、启停和组合七类策略；以统一注资日历、三态信号、账本、指标、基准、搜索和不可变运行快照保证结果一致；支持日文默认/中文切换、结果查看及四类 CSV 导出。PE、利率和 ETF 历史估值按设计稿真实参与信号，数据不可用必须透明报告。
 
-不包含券商/实盘、账户系统、云端同步、期权/空头/完整税费滑点、多标的组合和公网部署。
+不包含券商/实盘、个人账户系统、云端同步、期权/空头/完整税费滑点和多标的组合。Hosted 部署只允许单实例共享密码访问，不支持匿名公网计算。
 
 ## 架构决策
 
@@ -23,7 +23,7 @@
 2. **单一契约来源**：后端 `ParameterDefinition` 注册表维护默认值、类型、单位、边界、适用目录、依赖、可搜索性和翻译键；OpenAPI/生成流程提供前端类型，前端不复制默认值与范围。
 3. **数据隔离**：Yahoo/SEC 适配器只负责供应商转换、缓存、时间对齐和诊断；内核只读取规范化 `MarketSnapshot`/`ValuationSnapshot`。fixture 适配器与 live 适配器接口相同，常规测试不访问网络。
 4. **统一执行**：日历、信号、账本、指标是唯一入口；普通策略、基准和搜索候选都调用同一实现。信号在 t 形成、t+1 成交，全部规则遵守统一日内顺序。
-5. **运行隔离与恢复**：提交时生成不可变 `RunSnapshot`，每条 `StrategyRun` 独立状态和诊断；`RunStore` 使用本机 SQLite 保存完整运行响应和幂等记录，服务重启后恢复已保存结果。重启时仍处于非终态的运行转为带明确诊断的失败，不假装继续执行。
+5. **运行隔离与恢复**：提交时生成不可变 `RunSnapshot`，每条 `StrategyRun` 独立状态和诊断；当前运行状态由单个进程内存保存，重启清空。浏览器只将所属 Tab 的活动 `runId` 写入 sessionStorage 并按 ID 重连；全局活动运行查询已退役。服务端不对外提供跨进程/多实例保证。
 6. **可验证性优先**：先建立确定性 fixture 和纯内核测试，再接网络适配器和 UI；live smoke 只作为可选检查，不进入默认测试门禁。
 
 ## 依赖图
@@ -2314,6 +2314,29 @@ Task207–209验收（2026-10-05）：纯简化原有345项测试不修改即通
 - 原文件安全边界、策略数量/条件校验和取消不变；迁移回归用例至live保存结果接口，保留CSV/PNG/候选的数值验证。最后完成策略JSON、四类CSV、PNG的受影响流程验收。
 
 验收：每个切片先失败测试，再实现/复审/简化；类型、lint、构建、相关前后端测试与真实浏览器/axe通过。同步UI原型/唯一规范和todo；已确认的新规则完全替代旧行为及其死代码，不因测试前提过期而保留删除功能。
+
+## 阶段60：受保护的 Render 单实例托管（2026-10-06 用户确认）
+
+本阶段依据用户提供的 Render 部署讨论执行，覆盖“仅本机运行”的旧范围。保留 FastAPI + React、单进程 `InMemoryRunStore` 和当前串行作业处理，不引入数据库、磁盘、worker、cron 或云端结果持久化。部署为单个 Render Python Native Web Service，使用 Singapore/Free/main/一个实例；FastAPI 同源提供 React build。生产 Basic Auth 由两项 Render secret 启用，`/health` 免认证。受保护的共享入口不提供个人账户、每用户运行授权或匿名计算；服务休眠/重启/部署会清除进程内运行。
+
+### Task219：按浏览器 Tab 隔离活动运行恢复
+
+- 删除全局 `/api/v1/runs/active` 接口与消费方；受理时仅将活动 runId 写入当前 Tab 的 sessionStorage，刷新后按具体 ID 查询并只对活动状态重连 SSE。终态/404/用户重置清除此键；`localStorage` 继续保存上次受理策略，不保存运行 ID 或结果。
+- 确定性 API/控制器测试以及双独立 Playwright browser contexts 覆盖各自只读取自己的 runId；重启后404清除键，仍允许正常提交新运行。
+
+### Task220：生产同源前端、共享认证及启动配置
+
+- FastAPI 可由显式环境变量启用 `frontend/dist` StaticFiles；本机开发默认关闭。可选 Basic Auth 保护前端、静态资产、API 与文档；两项认证变量必须同时提供，`/health` 保持公开。
+- 增加 Python 3.11、Node 22 版本约束和生产构建/启动命令，单服务监听 `0.0.0.0:$PORT`。生产 smoke 要实际启动 Uvicorn 并检查认证、根 HTML、静态 JS/CSS、health 与 catalog。
+- 将生产 smoke 加入 GitHub Actions，并验证原本的本机开发、Yahoo QQQ/VIX live gate、构建与浏览器测试。
+
+Task219/220本地验收（2026-10-07）：后端全量含 Yahoo/SEC 实时测试783 passed；Ruff、152文件格式检查和mypy 82文件通过。前端353单测、typecheck、lint、build、完整Playwright/axe 177项、真实 QQQ/VIX 浏览器流程1项及生产 Uvicorn smoke通过。Smoke核对 Basic Auth、公开 `/health`、受保护 React/JS/CSS/catalog及`noindex, nofollow`。Vite主JS 531.08 kB有非阻断拆分建议。部署前唯一剩余输入是共享 Basic Auth 用户名/密码；Render service create API 不暴露 health check 与 AutoDeploy触发模式；完成服务创建后核对 Dashboard设置。Task221仍待提交主分支、CI和线上验证。
+
+### Task221：Render 首次创建与线上验收
+
+- 检查唯一确认的 Render workspace 中没有同仓库服务后，创建一个 Python Native Web Service：`main`、Singapore、Free、单实例、无数据库/Key Value/disk/worker/cron；先禁用自动部署。
+- 配置同源前端开关、health path、共享 Basic Auth secrets。完成首次部署后检查 `/health`、受保护 UI/API/static assets、实时 QQQ/VIX 运行、SSE、停止及 CSV/PNG，并检查日志、CPU/内存、冷启动和重启后旧 run 404。
+- 若 Render MCP 不能设置健康检查或 CI-gated auto-deploy，使用项目说明记录所需 Dashboard 项；期望值为 `/health` 与 `After CI Checks Pass`。提交部署说明和核对后的服务身份/URL。
 
 - [x] Task211–218：按上述范围完成导航与结果体验、报告、每笔卖出已实现盈利20%税金、开源声明及结果JSON功能退役。
 - Task211–218验收（2026-10-06）：前端351/351、Playwright/axe 176/176、策略/CSV/PNG定向浏览器4/4、后端787 passed；typecheck、lint、build、Ruff、150文件格式检查、mypy 81文件及`git diff --check`通过。Vite提示主JS 530.54 kB，属于非阻断拆分建议。详细实现与范围记录见`docs/design/phase59-navigation-results-implementation.md`。

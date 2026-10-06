@@ -8,7 +8,6 @@ for (const [fieldPath, dialog, field, returnFocus] of [
     await page.setViewportSize({ width: 1440, height: 900 });
     let injectError = true;
     let submissions = 0;
-    await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
     await page.route("**/api/v1/runs", route => { submissions++; return route.abort(); });
     await page.route("**/api/v1/config/validate", async route => {
       const response = await route.fetch();

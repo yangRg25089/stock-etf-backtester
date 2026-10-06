@@ -75,6 +75,7 @@ test("monthly return colors follow locale defaults, keep manual choices, and exp
   await page.locator(".locale-select").selectOption("en");
   await expect(page.locator(".app-frame")).toHaveAttribute("data-return-palette", "red-up");
   expect(await page.evaluate(() => localStorage.getItem("stock-etf-backtester.heatmap-palette.v1"))).toBe("red-up");
+  await installRunFixture(page, saved);
   await page.reload();
   await page.locator("#result-tab-performance").click();
   await expect(page.locator(".app-frame")).toHaveAttribute("data-return-palette", "red-up");

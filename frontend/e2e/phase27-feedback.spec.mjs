@@ -131,7 +131,6 @@ test("wheel over permanent chart readings scrolls results in either zoom mode an
 });
 
 test("native dialogs prevent background scrolling and overscroll while their own content remains scrollable", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.setViewportSize({ width: 1440, height: 480 });
   await page.goto("/");
   await page.locator(".add-strategy-button").click();
@@ -166,7 +165,6 @@ test("touch dialog swipes remain inside the modal at both content edges", async 
   const context = await browser.newContext({ viewport: { width: 375, height: 600 }, hasTouch: true, isMobile: true });
   try {
     const page = await context.newPage();
-    await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
     await page.goto(baseURL);
     await page.locator(".workbench-mobile-view").first().tap();
     await expect(page.locator(".workbench-config")).toBeVisible();
@@ -204,7 +202,6 @@ test("touch dialog swipes remain inside the modal at both content edges", async 
 test("all strategy dialogs keep three ordered blocks with applicable limits across locales and viewports", async ({ page }) => {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   const presets = ["vix_dca", "ma_trend", "ma_buy_only", "rsi_dca", "ma_deviation_dca", "bollinger_dca", "rate_dca", "pe_dca", "composite_dca", "grid_search"];

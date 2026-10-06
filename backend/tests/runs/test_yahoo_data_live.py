@@ -824,14 +824,13 @@ def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> Non
         executor=_InlineExecutor(),
     )
 
-    async def restore_and_export() -> tuple[dict[str, Any], None, str, str]:
+    async def restore_and_export() -> tuple[dict[str, Any], str, str]:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app),
             base_url="http://live-yahoo-restored-test",
         ) as client:
             run_id = result["runId"]
             restored = await client.get(f"/api/v1/runs/{run_id}")
-            active = await client.get("/api/v1/runs/active")
             summary = await client.get(
                 f"/api/v1/runs/{run_id}/export/summary",
                 params={"focusedResultId": "live-yahoo-qqq-vix-fixed"},
@@ -841,21 +840,17 @@ def test_live_fixed_qqq_vix_run_matches_the_reported_date_range(tmp_path) -> Non
                 params={"focusedResultId": "live-yahoo-qqq-vix-fixed"},
             )
             assert restored.status_code == 200, restored.text
-            assert active.status_code == 200, active.text
             assert summary.status_code == 200, summary.text
             assert daily_assets.status_code == 200, daily_assets.text
-            return restored.json(), active.json(), summary.text, daily_assets.text
+            return restored.json(), summary.text, daily_assets.text
 
     try:
-        restored, active, summary_csv, daily_assets_csv = asyncio.run(
-            restore_and_export()
-        )
+        restored, summary_csv, daily_assets_csv = asyncio.run(restore_and_export())
     finally:
         app.state.run_service = previous_service
 
     assert result["snapshot"]["config"]["shared"]["run"]["endDate"] == "2026-09-28"
     assert restored == result
-    assert active is None
     summary_row = next(csv.DictReader(io.StringIO(summary_csv)))
     assert summary_row["runId"] == result["runId"]
     assert summary_row["resultId"] == "live-yahoo-qqq-vix-fixed"

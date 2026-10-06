@@ -22,7 +22,7 @@ async function period(page) {
   await done(page, ".shared-settings-dialog");
 }
 async function runSaved(page) {
-  const response = page.waitForResponse(r => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(r.url()));
+  const response = page.waitForResponse(r => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   return (await response).json();
 }
@@ -97,7 +97,6 @@ test("strategy ordinals survive deletion, per-type limits combine up to ten user
 });
 
 test("no strategies disables execution with an accessible reason and submits no job", async ({ page }) => {
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await page.locator(".strategy-card").hover();
   await page.locator(".strategy-remove").click();
@@ -195,7 +194,6 @@ test("stop action preserves completed rows and presents running and waiting indi
   let release;
   const stopGate = new Promise(resolve => { release = resolve; });
   let stopRequests = 0;
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/runs", route => route.fulfill({ status: 202, json: pending }));
   await page.route(`**/api/v1/runs/${saved.runId}`, route => route.fulfill({ json: stopped }));
   await page.route(`**/api/v1/runs/${saved.runId}/events`, async route => { await stopGate; await route.fulfill({ contentType: "text/event-stream", body: `event: terminal\ndata: ${JSON.stringify({ runId: saved.runId, status: "cancelled", progress: stopped.progress, strategyStatuses: Object.fromEntries(stopped.result.strategyRuns.map(row => [row.id,row.status])) })}\n\n` }); });

@@ -3,7 +3,6 @@ import { expect, test } from "@playwright/test";
 
 test("Ctrl and Cmd shortcuts reuse run/file actions and never escape editable modal guards", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   let downloads = 0, choosers = 0, submissions = 0;

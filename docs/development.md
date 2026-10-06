@@ -2,7 +2,7 @@
 
 ## 当前运行边界
 
-这是本机历史模拟应用。前端只消费 FastAPI 契约；`catalog` 和 `config` 提供目录与验证，`data` 负责供应商适配、规范化和快照，`signals`、`ledger`、`metrics` 与 `search` 负责计算，`runs` 冻结配置并协调独立结果，`export` 只从保存的结果快照导出。
+这是可本机运行、也可由用户显式部署的共享密码历史模拟应用。前端只消费 FastAPI 契约；`catalog` 和 `config` 提供目录与验证，`data` 负责供应商适配、规范化和快照，`signals`、`ledger`、`metrics` 与 `search` 负责计算，`runs` 冻结配置并协调独立结果，`export` 只从保存的结果快照导出。
 
 应用启动不访问外部网络。纯计算确定性测试使用固定数据；后端的默认 Yahoo provider 回归测试会实际请求 Yahoo 和交易所日历，覆盖 QQQ 与 `^VIX`、`^VXN`、`^VXD`，另验收 QQQ/USD 和 7203.T/JPY 真实报价币种。用户提交回测后，默认 API provider 调用 Yahoo 获取标的日线及启用条件所需的指数/利率序列；数据先经过现有适配器规范化，再进入快照和回测。共通弹窗选择目录以外的代码时，通过 `/api/v1/instruments/{symbol}` 读取供应商元数据确认币种；不推测币种或做汇率换算。当前交易所日历映射覆盖美国 NASDAQ、NYSE、AMEX/ARCA 与 OTC 常用代码；未知交易所会返回未支持诊断。Yahoo 请求失败会返回限流、超时或请求错误诊断。浏览器 E2E 使用仓库 fixture provider，`live smoke` 是独立的只读连通性检查。
 
@@ -12,13 +12,13 @@
 
 后台加载后的 `RunDataContext.dataProvenance` 冻结来源列表、日历截止日和行情最新报价日。汇总、每日资产、交易、搜索结果四类 CSV 都从这个保存上下文附带 `dataSources`、`calendarAsOf`、`marketDataThrough`，导出不读取当前草稿或重新请求数据。`marketDataThrough` 表示行情报价覆盖，不代表宏观或 SEC 数据也更新到该日；这些数据的观察日/公开时间保留在数据快照和诊断中。运行完成日志以结构化字段记录相同来源与日期，不输出配置值或供应商响应。
 
-运行记录默认使用 `InMemoryRunStore`，不创建数据库或处理数据库路径环境变量。作业、冻结快照、候选和幂等键只在 API 进程中存在，服务重启清空。页面只通过 `/api/v1/runs/active` 重连 queued/loading/running 作业，经一条 SSE 连接接收进度，结束后读取一次完整响应；断开页面订阅不会终止运行。完成页刷新后结果为空。
+运行记录默认使用 `InMemoryRunStore`，不创建数据库或处理数据库路径环境变量。作业、冻结快照、候选和幂等键只在 API 进程中存在，服务重启清空。页面从所属 Tab 的 sessionStorage 读取活动 runId，通过 `/api/v1/runs/{runId}` 查询 queued/loading/running 作业，经一条 SSE 连接接收进度，结束后读取一次完整响应；断开页面订阅不会终止运行。终态和404会清除该 Tab 的活动 runId；完成页刷新后结果为空。
 
 SSE 的 JSON 数据使用后端 `RunProgressEvent` / `RunStrategySummary` 契约及同一 `StrategyStatus` 枚举生成前端类型。读取边界验证 runId、事件名与终态一致性、进度计数和已完成摘要；坏事件不交给页面。前端成功/执行中/终态分类集中于 `api/runStatus.ts`。受理前点击停止会保留意图；202 到达后先展示并订阅作业，停止失败仍继续接收进度且允许重试。终态后的完整 GET 期间编辑仍锁定，停止入口已撤下，不增加独立运行状态面板。
 
 HTTP读取还校验查询/停止的runId和候选的candidateId与请求相同。标的元数据的symbol必须匹配输入经trim/upper规范化后的代码，不能把另一标的的币种写入设置。身份错误复用invalid_response；候选错误保留原曲线并可重试，弹窗保留原配置/结果且准确显示API错误，不降为连接失败。专项故障注入和完整验收见[严格验收复审](design/20261005-strict-acceptance-audit.md)。结果 JSON 与回测包接口已删除。
 
-浏览器在运行校验通过并被接受后向 `localStorage["stock-etf-backtester.last-run-strategy.v1"]` 保存配置、版本和时间，加载得到实际日期后从同一已保存运行更新该记录；不保存编辑中草稿、运行 ID、结果、图表或语言。部分失败时，终态中明确失败的用户策略 ID 作为可选 `failedStrategyIds` 保存，用于恢复有界的错误输入供修正；后续成功运行移除该标记，目录、结构、深度和身份校验保持。损坏、不兼容或超限记录回到默认配置。编辑及文件导入不写入上次运行记录。长期文件仅保存/导入 `.strategy.json`；运行结果和候选仅在本机进程内，需下载时使用四类 CSV 或报告 PNG。
+浏览器在运行校验通过并被接受后向 `localStorage["stock-etf-backtester.last-run-strategy.v1"]` 保存配置、版本和时间，加载得到实际日期后从同一已保存运行更新该记录；不保存编辑中草稿、运行结果或活动运行 ID。活动运行 ID 仅写入所属 Tab 的 `sessionStorage["stock-etf-backtester.active-run-id.v1"]`，刷新后按该 ID 查询并恢复，终态或 404 时清除。部分失败时，终态中明确失败的用户策略 ID 作为可选 `failedStrategyIds` 保存，用于恢复有界的错误输入供修正；后续成功运行移除该标记，目录、结构、深度和身份校验保持。损坏、不兼容或超限记录回到默认配置。编辑及文件导入不写入上次运行记录。长期文件仅保存/导入 `.strategy.json`；运行结果和候选仅在服务进程内，需下载时使用四类 CSV 或报告 PNG。
 
 顶栏一直显示策略文件下载与导入按钮，不收进「⋯」菜单。下载只取当前合法草稿并生成 `.strategy.json`；导入最多64 MiB，先检查版本、目录和结构，再预览并显式载入；取消不改变当前工作区，确认后替换草稿并清空结果。结果 JSON、回测文件、`/api/v1/runs/{runId}/package` 及离线结果导入已删除。完整预算见[复用规范](design/reuse-and-organization.md#文件与读取边界阶段35)。旧个人运行文件未被开发测试读取或删除。
 
@@ -197,7 +197,7 @@ SEC_USER_AGENT='Stock ETF Backtester contact@example.com' \
 
 Yahoo 失败诊断区分通用请求失败、超时和限流，并只记录异常类型等有限元数据。缓存日志只记录命中、未命中、刷新/绕过及 provider 名称；运行日志记录运行/策略 ID、状态、诊断码以及 `data_sources`、`calendar_as_of`、`market_data_through`。不记录配置金额、原始响应、异常消息或环境变量。后端还会通过稳定的 `messageKey` 返回可读诊断，由日中词典显示。
 
-V1 不连接券商或提交真实订单，不提供投资建议，不做公网部署、账户/云端同步或跨进程并发保证；运行结果与规范化数据缓存只在进程内，策略配置可通过 `.strategy.json` 显式保存。live smoke 只做显式的只读数据检查。
+应用可本机运行或由用户显式部署为带共享 HTTP Basic Auth 的单实例 Render Web Service。未配置认证变量时本机开发不要求密码；生产只配置用户名或密码之一时启动失败。`/health` 免认证，其余前端静态文件与 API 均受保护。共享密码不等同个人账户系统，运行记录仍只在一个进程内存中，重启、休眠或部署会清空运行结果；在引入共享存储与所有权校验前，不支持多实例或匿名公网计算。应用不连接券商或提交真实订单，不提供投资建议。策略配置可通过 `.strategy.json` 显式保存；live smoke 只做显式的只读数据检查。
 
 ## 成交假设与交易费用
 

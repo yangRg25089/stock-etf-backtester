@@ -75,6 +75,9 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+      - name: Production FastAPI static serving and Basic Auth smoke
+        run: npm run test:production-smoke
+        working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - name: Complete browser regression suite

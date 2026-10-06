@@ -10,7 +10,7 @@ import type {
   StrategyRun,
 } from "./generated";
 import { isRunProgressEvent, isRunResponse, isStrategyRun, matchesContract } from "./contractReader";
-import { isActiveRunStatus, isTerminalRunStatus } from "./runStatus";
+import { isTerminalRunStatus } from "./runStatus";
 export type { RunProgressEvent } from "./generated";
 
 export class RunApiError extends Error {
@@ -49,12 +49,10 @@ function assertRequestedIdentity(actual: string, requested: string): void {
   if (actual !== requested) throw new RunApiError("invalid_response", "api.errors.invalid_response");
 }
 
-type ResponseContract = "RunResponse" | "ActiveRun" | "StrategyRun" | "InstrumentMetadata" | "DraftValidationResponse";
+type ResponseContract = "RunResponse" | "StrategyRun" | "InstrumentMetadata" | "DraftValidationResponse";
 
 function isResponseForContract(contract: ResponseContract, payload: unknown): boolean {
   switch (contract) {
-    case "ActiveRun":
-      return payload === null || (isRunResponse(payload) && isActiveRunStatus(payload.status));
     case "RunResponse":
       return isRunResponse(payload);
     case "StrategyRun":
@@ -252,15 +250,6 @@ export async function subscribeToRunEvents(
   }
 
   if (!terminalReceived && !signal?.aborted) throw fallbackError(null);
-}
-
-export function fetchActiveRun(signal?: AbortSignal): Promise<RunResponse | null> {
-  return requestJson<RunResponse | null>(
-    "/api/v1/runs/active",
-    { method: "GET" },
-    signal,
-    "ActiveRun",
-  );
 }
 
 export function createIdempotencyKey(): string {

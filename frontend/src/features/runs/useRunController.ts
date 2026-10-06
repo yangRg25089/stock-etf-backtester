@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Catalog, RunDateAdjustment, RunResponse } from "../../api/generated";
 import { runDataContext } from "../../api/contractReader";
-import { isActiveRunStatus } from "../../api/runStatus";
+import { isActiveRunStatus, isTerminalRunStatus } from "../../api/runStatus";
 import {
-  createIdempotencyKey, fetchActiveRun,
+  createIdempotencyKey, fetchRun,
   RunApiError, submitRun, validateDraft, stopRun, type RunProgressEvent,
 } from "../../api/runs";
 import {
@@ -16,6 +16,7 @@ import { packageDraft, type PackageFile } from "../files/packageModel";
 import { observeRun } from "./observeRun";
 import { asRunApiError } from "./runErrors";
 import { useDraftValidation } from "./useDraftValidation";
+import { clearActiveRunId, readActiveRunId, saveActiveRunId } from "./activeRunSession";
 
 export { validationDiagnostics } from "./useDraftValidation";
 
@@ -51,9 +52,11 @@ export function useRunController(
     activeRunController.current = controller;
 
     const reconnectActiveRun = async () => {
+      const requestedRunId = readActiveRunId();
+      if (!requestedRunId) return;
       try {
-        const restore = (value: Awaited<ReturnType<typeof fetchActiveRun>>) => {
-          if (!value || controller.signal.aborted || submittedRunRef.current) return;
+        const restore = (value: RunResponse) => {
+          if (controller.signal.aborted || submittedRunRef.current) return;
           rememberRun(value);
           setDateAdjustments(runDataContext(value.snapshot)?.dateAdjustments ?? []);
           setWorkspace((current) => {
@@ -64,8 +67,12 @@ export function useRunController(
         };
 
         if (controller.signal.aborted || submittedRunRef.current) return;
-        const response = await fetchActiveRun(controller.signal);
-        if (!response || submittedRunRef.current) return;
+        const response = await fetchRun(requestedRunId, controller.signal);
+        if (controller.signal.aborted || submittedRunRef.current) return;
+        if (!isActiveRunStatus(response.status)) {
+          clearActiveRunId(requestedRunId);
+          return;
+        }
 
         const restoreProgress = (value: RunProgressEvent) => {
           if (submittedRunRef.current) return;
@@ -76,15 +83,20 @@ export function useRunController(
         };
 
         restore(response);
-        if (!isActiveRunStatus(response.status)) return;
-
         activeRunId.current = response.runId;
         runSubmissionLocked.current = true;
         setRunBusy(true);
         const completed = await observeRun(response.runId, restoreProgress, controller.signal,
           () => !submittedRunRef.current);
-        restore(completed);
+        if (completed && isTerminalRunStatus(completed.status)) {
+          clearActiveRunId(response.runId);
+          restore(completed);
+        }
       } catch (error) {
+        if (error instanceof RunApiError && error.status === 404) {
+          clearActiveRunId(requestedRunId);
+          return;
+        }
         if (!controller.signal.aborted && !submittedRunRef.current) {
           setRunError(asRunApiError(error));
         }
@@ -139,6 +151,7 @@ export function useRunController(
     try {
       const response = await stopRun(runId, controller.signal);
       if (!isCurrentRun()) return;
+      if (isTerminalRunStatus(response.status)) clearActiveRunId(runId);
       setRunError(null);
       dispatch({ type: "run.update", value: response });
     } catch (error) {
@@ -164,6 +177,7 @@ export function useRunController(
     setRunError(null);
     setDateAdjustments([]);
 
+    let acceptedRunId: string | null = null;
     try {
       const validation = await validateDraft(apiDraft, controller.signal);
       acceptValidation(submittedDraft, validation);
@@ -184,7 +198,9 @@ export function useRunController(
         createIdempotencyKey(),
         controller.signal,
       );
+      acceptedRunId = accepted.runId;
       activeRunId.current = accepted.runId;
+      saveActiveRunId(accepted.runId);
       rememberRun(accepted, submittedDraft.shared.currency);
       setDateAdjustments(runDataContext(accepted.snapshot)?.dateAdjustments ?? []);
       dispatch({
@@ -200,12 +216,16 @@ export function useRunController(
         controller.signal,
       );
       if (completed) {
+        if (isTerminalRunStatus(completed.status)) clearActiveRunId(accepted.runId);
         rememberRun(completed, submittedDraft.shared.currency);
         setDateAdjustments(runDataContext(completed.snapshot)?.dateAdjustments ?? []);
         dispatch({ type: "run.update", value: completed, applyResolvedDates: true });
       }
     } catch (error) {
       if (controller.signal.aborted) return;
+      if (acceptedRunId && error instanceof RunApiError && error.status === 404) {
+        clearActiveRunId(acceptedRunId);
+      }
       setRunError(asRunApiError(error));
     } finally {
       if (activeRunController.current === controller) activeRunController.current = null;
@@ -230,6 +250,7 @@ export function useRunController(
     if (runBusy) return;
     submittedRunRef.current = true;
     dispatch({ type: "run.reset" });
+    clearActiveRunId();
     setRunError(null);
     setDateAdjustments([]);
   };

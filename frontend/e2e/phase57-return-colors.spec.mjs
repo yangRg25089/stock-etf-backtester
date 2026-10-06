@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { openSaved, savedRun } from "./helpers/reports.mjs";
+import { installRunFixture } from "./helpers/runtime.mjs";
 
 const GREEN = "rgb(8, 116, 67)";
 const RED = "rgb(183, 28, 28)";
@@ -69,6 +70,7 @@ test("one global return convention follows locale until a manual choice and surv
   await expect(frame).toHaveAttribute("data-return-palette", "red-up");
   expect(await page.locator(".comparison-table .return-value").allTextContents()).toEqual(comparisonValues);
   expect(submissions).toBe(0);
+  await installRunFixture(page, saved);
   await page.reload();
   await expect(frame).toHaveAttribute("data-return-palette", "red-up");
   await expect(control.getByRole("button", { name: "上昇は赤、下落は緑" })).toHaveAttribute("aria-pressed", "true");

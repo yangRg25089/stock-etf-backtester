@@ -1270,3 +1270,12 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 - [x] Task217：薄荷主题、品牌/favicon图标、MIT及copyright/SEO说明。
 - [x] Task218：完全移除结果JSON功能和相关实现，保留并验收策略JSON及CSV/PNG真实下载。
 - Task211–218最终验收（2026-10-06）：前端单测351/351、类型检查、lint、production build通过；全量Playwright/axe 176/176通过，文件导出同步简化后相关浏览器用例再次4/4通过。完整后端真实行情/API/账本套件787 passed（70.14秒、46条既有yfinance弃用提示）；Ruff、150文件格式检查、mypy 81文件和`git diff --check`通过。生成主JS 530.54 kB，仍有Vite建议拆分的非阻断提示。详细记录见`docs/design/phase59-navigation-results-implementation.md`。
+
+## 阶段60：受保护的 Render 单实例托管（2026-10-06）
+
+用户确认按提供的部署讨论部署 Render：单个 Python Native Web Service、Singapore、Free、main、一个实例、前后端同源、`InMemoryRunStore`、共享 Basic Auth、无数据库/Key Value/disk/worker/cron。当前唯一 Render workspace 为 `individual`，尚无该仓库服务。工作分支 `feature/render-production-deploy`；用户提供的未跟踪部署资料保持原样且不纳入提交。
+
+- [x] Task219：移除全局活动运行恢复，改为 Tab 级 sessionStorage 和基于 runId 的恢复；覆盖双 browser contexts。
+- [x] Task220：生产同源 StaticFiles、可选 Basic Auth、Python/Node 版本锁定、实际 Uvicorn production smoke 与 CI。
+- [ ] Task221：Render 创建、密钥配置、main 部署及线上功能/资源/冷启动验收；等待 main CI 及共享 Basic Auth 凭据。
+- Task219/220验收（2026-10-07）：后端全量含 Yahoo/SEC 实时测试783/783、Ruff、152文件格式检查、mypy 82文件通过；前端单测353/353、Playwright/axe 177/177、真实 QQQ/VIX 浏览器流程1/1、production smoke（Basic Auth、health、JS/CSS、catalog、noindex）通过；typecheck、lint、build及`git diff --check`通过。构建主JS 531.08 kB，Vite 有非阻断拆分建议。Render 插件已检查唯一 `individual` workspace 当前无本仓库服务；create-service 接口不能配置 health check 与 CI-gated auto-deploy。

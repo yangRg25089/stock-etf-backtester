@@ -9,7 +9,7 @@ test("Decimal text budgets use effective exponent including fractional places", 
   for (const value of ["0.1e-4096", `0.${"0".repeat(4096)}1`, "1e-4097", "NaN", " 1 "]) assert.equal(isNumericSearchValue(value), false, value.slice(0, 30));
   for (const value of ["1e-4096", "0.1e-4095", `0.${"0".repeat(4095)}1`, "1.00e-4094", "25.00"]) assert.equal(isNumericSearchValue(value), true, value.slice(0, 30));
 });
-const { fetchRun, fetchActiveRun, RunApiError } = require("../.test-output/api/runs.js");
+const { fetchRun, RunApiError } = require("../.test-output/api/runs.js");
 
 test("response aggregate status and selected strategy outcomes are checked at the wire boundary", () => {
   const good = wireRun();
@@ -148,15 +148,13 @@ test("historical descriptions fit the bound without accepting arbitrarily large 
   run.snapshot.config.strategies[0].params["future.note"] = "x".repeat(65_537);
   assert.equal(isRunResponse(run), false);
 });
-test("successful HTTP JSON is checked before entering result state; active never restores terminal data", async () => {
+test("successful HTTP JSON is checked before entering result state", async () => {
   const previous = globalThis.fetch;
   try {
     for (const payload of [{}, { ...wireRun(), result: { runId: "test-run", strategyRuns: [{ id: "one" }] } }]) {
       globalThis.fetch = async () => new Response(JSON.stringify(payload));
       await assert.rejects(fetchRun("test-run"), error => error instanceof RunApiError && error.code === "invalid_response");
     }
-    globalThis.fetch = async () => new Response(JSON.stringify(wireRun()));
-    await assert.rejects(fetchActiveRun(), error => error instanceof RunApiError && error.code === "invalid_response");
   } finally { globalThis.fetch = previous; }
 });
 

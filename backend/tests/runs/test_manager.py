@@ -453,7 +453,6 @@ def test_acceptance_does_not_wait_for_market_data_and_loading_can_be_stopped() -
                     row.status is StrategyStatus.CANCELLED
                     for row in _runs(stopped).values()
                 )
-                assert store.get_active() is None
             finally:
                 release.set()
         worker.shutdown(wait=True)
@@ -1130,22 +1129,6 @@ def test_completed_search_candidate_records_remain_available_without_loading_dat
             detail is not None and detail.daily_assets and detail.metrics == row.metrics
         )
     assert manager.get_run(queued.run_id) is completed
-
-
-def test_active_run_does_not_hide_earlier_job_when_latest_finishes():
-    executor = _ManualExecutor()
-    manager = RunManager(
-        store=InMemoryRunStore(), data_provider=_FixtureProvider(), executor=executor
-    )
-    first = manager.submit_run(_submission("vix-first"), idempotency_key="first-active")
-    second = manager.submit_run(
-        _submission("vix-second"), idempotency_key="second-active"
-    )
-    assert manager.get_active_run().run_id == second.run_id
-    manager.stop_run(second.run_id)
-    assert manager.get_active_run().run_id == first.run_id
-    executor.run_next()
-    assert manager.get_active_run() is None
 
 
 def test_stop_and_candidate_http_contracts_use_saved_results(monkeypatch) -> None:

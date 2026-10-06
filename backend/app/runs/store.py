@@ -9,7 +9,6 @@ from typing import Protocol
 from uuid import uuid4
 
 from app.domain.contracts import StrategyRun
-from app.domain.status import StrategyStatus
 from app.runs.types import RunResponse
 
 
@@ -53,8 +52,6 @@ class RunStore(Protocol):
     def update(self, response: RunResponse) -> None: ...
 
     def get(self, run_id: str) -> RunResponse | None: ...
-
-    def get_active(self) -> RunResponse | None: ...
 
     def save_candidate(self, run_id: str, candidate: StrategyRun) -> None: ...
 
@@ -176,23 +173,6 @@ class InMemoryRunStore:
     def get(self, run_id: str) -> RunResponse | None:
         with self._lock:
             return self._records.get(run_id)
-
-    def get_active(self) -> RunResponse | None:
-        """Return the most recently accepted run that is still executing."""
-        with self._lock:
-            return next(
-                (
-                    record
-                    for record in reversed(tuple(self._records.values()))
-                    if record.status
-                    in {
-                        StrategyStatus.QUEUED,
-                        StrategyStatus.LOADING,
-                        StrategyStatus.RUNNING,
-                    }
-                ),
-                None,
-            )
 
     def wait_for_change(
         self, run_id: str, after_version: int, timeout_seconds: float

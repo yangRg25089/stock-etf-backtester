@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 
 test("the app composition layer does not own the run protocol or workspace reducer", () => {
   const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(app, /\b(?:createIdempotencyKey|fetchActiveRun|fetchRun|subscribeToRunEvents|serializeDraftForApi|workspaceReducer)\s*\(/);
+  assert.doesNotMatch(app, /\b(?:createIdempotencyKey|fetchRun|subscribeToRunEvents|serializeDraftForApi|workspaceReducer)\s*\(/);
   assert.match(app, /useRunController\(/);
   assert.match(app, /useWorkspace\(/);
 });

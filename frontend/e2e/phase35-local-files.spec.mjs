@@ -77,7 +77,11 @@ for (const kind of ["search", "signal", "aggregate", "candidate"]) test(`malform
   else if (kind === "signal") delete primary.signals[0].signalId;
   else if (kind === "candidate") primary.searchResult.candidates[0].parameterValues = null;
   else { saved.status = "completed"; saved.result.status = "queued"; }
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: saved }));
+  await page.addInitScript(({ key, runId }) => sessionStorage.setItem(key, runId), {
+    key: "stock-etf-backtester.active-run-id.v1",
+    runId: saved.runId,
+  });
+  await page.route(`**/api/v1/runs/${saved.runId}`, route => route.fulfill({ json: saved }));
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("/");
   await expect(page.getByText("API の応答を読み取れませんでした。", { exact: true })).toBeVisible();

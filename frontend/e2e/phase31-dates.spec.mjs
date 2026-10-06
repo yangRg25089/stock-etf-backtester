@@ -26,7 +26,6 @@ test("worker-resolved dates survive refresh; unsubmitted edits and completed res
   Object.assign(queued.snapshot, { dataContext: null, dataFingerprint: null, dataProvenance: {}, dateAdjustments: [] });
   queued.progress = { completedStrategies: 0, totalStrategies: 3, currentStrategyId: null };
   for (const row of queued.result.strategyRuns) Object.assign(row, { status: "queued", metrics: null, dailyAssets: [], trades: [], signals: [], technicalIndicators: [] });
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/runs", route => route.fulfill({ status: 202, json: queued }));
   await page.route(`**/api/v1/runs/${runId}`, route => route.fulfill({ json: saved }));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -88,7 +87,6 @@ test("a period before listing offers explicit recovery without running or replac
           suggestedStartDate: "2021-06-11", suggestedEndDate: "2026-10-02" } }] });
   }
   let submissions = 0;
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/runs", route => { submissions++; return route.fulfill({ status: 202, json: saved }); });
   await page.route(`**/api/v1/runs/${runId}`, route => route.fulfill({ json: saved }));
   await page.route("**/api/v1/instruments/SOXQ", route => route.fulfill({ json: { symbol: "SOXQ", currency: "USD", diagnostics: [] } }));

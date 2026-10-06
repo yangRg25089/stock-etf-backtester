@@ -101,9 +101,9 @@
 
 作业及每条策略的状态码由后端给出：`queued | loading | running | completed | completed_with_warning | unavailable | failed | cancelled`。`empty` 是结果页没有作业时的显示状态，不伪装成失败；零交易但指标完整仍是 `completed`。前端不可从“是否含 PE”自行推断失败，必须展示统一诊断码。全体失败与部分成功分别呈现。结果保留策略身份，保存标的/期间在按需信息入口可查；草稿变化不改变右侧显示或诊断，不生成旧输入提醒。配置校验仅归属设置侧；播放或显式文件导入更新结果，重置只清空当前页面显示。
 
-运行响应、幂等认领及候选详情只保存在后端进程内存；服务重启全部清空。页面初始化查询 `/runs/active`，仅接回 queued/loading/running 作业；终态运行不自动恢复。
+运行响应、幂等认领及候选详情只保存在后端进程内存；服务重启全部清空。每个浏览器 Tab 只在 `sessionStorage["stock-etf-backtester.active-run-id.v1"]` 保存自己受理的活动 runId，页面重开按 `/runs/{runId}` 查询并仅接回 queued/loading/running 作业；终态或404清除该键。全局 `/runs/active` 已退役；终态运行不自动恢复。
 
-浏览器在成功受理后写入 `stock-etf-backtester.last-run-strategy.v1`；后台加载得到日期解析后，用同一已保存运行的实际区间更新该配置记录，不能从当前草稿取值。终态中明确失败的用户策略附带可选 `failedStrategyIds`，允许保留该策略有界的非法标量参数或重复类型供修正；标记必须唯一且属于保存配置，不放宽目录、结构、深度、数量或身份限制，后续成功运行移除标记。编辑和策略文件导入不写入。运行 ID、结果、编辑身份、图表选择和语言均不持久化。损坏、不兼容或超出上述限制的配置记录回到默认值，写入失败有简短提示。结果只存在当前页面及本机进程内，长期导出仅支持 `.strategy.json`，结果用 CSV/PNG 下载。
+浏览器在成功受理后向 `localStorage["stock-etf-backtester.last-run-strategy.v1"]` 写入配置；后台加载得到日期解析后，用同一已保存运行的实际区间更新该配置记录，不能从当前草稿取值。活动运行 ID 只写入所属 Tab 的 `sessionStorage["stock-etf-backtester.active-run-id.v1"]`，不写入 localStorage。终态中明确失败的用户策略附带可选 `failedStrategyIds`，允许保留该策略有界的非法标量参数或重复类型供修正；标记必须唯一且属于保存配置，不放宽目录、结构、深度、数量或身份限制，后续成功运行移除标记。编辑和策略文件导入不写入。结果、编辑身份和图表选择不持久化。损坏、不兼容或超出上述限制的配置记录回到默认值，写入失败有简短提示。结果只存在当前页面及服务进程内，长期导出仅支持 `.strategy.json`，结果用 CSV/PNG 下载。
 
 页面使用 `/runs/{runId}/events` 的单一 SSE 连接接收真实进度、策略状态及完成指标，结束后读取一次完整运行响应；断开订阅不影响计算，刷新可重新订阅未完成作业。计算失败诊断只给出可翻译的阶段、策略 ID 和运行 ID，不回传异常消息或内部字段路径。
 
@@ -144,13 +144,13 @@ POST /runs 验证并冻结配置后立即发布 queued/202，后台进入 loadin
 | `ledger` | `runStrategy(config, schedule, signals, prices)`：统一交易顺序、每日总资产及交易 | 纯输入，不自行下载 |
 | `metrics` | `summarize(trace, schedule)`：统一绩效指标 | `ledger` 输出 |
 | `search` | `runGridSearch(baseConfig, dimensions, snapshot)`：按稳定候选序号枚举并复用 `config/ledger/metrics`；无效候选保留诊断但不排名；排名依次按期末资产降序、绝对最大回撤升序和候选序号；指纹包含目录/算法版本及所有计算输入，复用时仍保留候选 ID 和 `strategy` 角色 | 纯配置、共享数据快照 |
-| `runs` | `createRun(snapshot)`、`getRun(id)` 与 `getActiveRun()`：编排、进度、局部失败及进程内结果 | 上述模块 |
-| `api` | `/api/v1/catalog`、`/contracts`、`/config/validate`、`/runs`、`/runs/active`、`/runs/{id}`、`/runs/{id}/events`：Pydantic/OpenAPI 契约、结构化字段诊断、范围选择、轻量 SSE 进度事件及 `Idempotency-Key` | `catalog`、`config`、`runs` |
+| `runs` | `createRun(snapshot)`、`getRun(id)`：编排、进度、局部失败及进程内结果 | 上述模块 |
+| `api` | `/api/v1/catalog`、`/contracts`、`/config/validate`、`/runs`、`/runs/{id}`、`/runs/{id}/events`：Pydantic/OpenAPI 契约、结构化字段诊断、范围选择、轻量 SSE 进度事件及 `Idempotency-Key` | `catalog`、`config`、`runs` |
 | `export` | `exportRun(runId, kind, focusedResultId)`：从已存结果生成 CSV | `runs` 结果，不重新计算 |
 
 建议目录按职责放置：`backend/app/catalog`、`config`、`data`、`domain`、`runs`、`export`；`frontend/src/features/config`、`strategies`、`runs`、`results`、`i18n`；统一表单控件放 `frontend/src/shared/ui`。这些是组织边界，不要求每个目录包装一个透传模块。领域契约只接收已物化的数据设置，不反向导入 catalog；注册表默认值与适用边界由 catalog/config 边界提供。数据供应商更换只改适配器，策略逻辑与 UI 契约不变。
 
-前端组合层使用 `useWorkspace` 管理默认/上次运行配置、草稿和编号，使用 `useRunController` 管理提交校验、API/SSE、未完成作业重连、停止和锁定。两者共享既有 `WorkspaceState` 与纯 reducer，App 只组合 UI 与导航，不复制运行协议或结果推导。缺失 root 由启动边界显式报错；共享焦点、控件选择及错误样式使用语义颜色 token。
+前端组合层使用 `useWorkspace` 管理默认/上次运行配置、草稿和编号，使用 `useRunController` 管理提交校验、API/SSE、按当前 Tab runId 的未完成作业重连、停止和锁定。两者共享既有 `WorkspaceState` 与纯 reducer，App 只组合 UI 与导航，不复制运行协议或结果推导。缺失 root 由启动边界显式报错；共享焦点、控件选择及错误样式使用语义颜色 token。
 
 目录请求/重试/取消归属 `app/useCatalog`，响应式侧栏与移动视图归属 `app/useWorkbenchLayout`，诊断字段路径由 `runs/diagnosticNavigation` 纯解析为共享字段、策略/条件/搜索数组字段或日期恢复目标；App只执行打开、聚焦、显示侧栏等UI动作。表单字段标识和catalog元数据共用，不另建参数默认值或导航状态副本。
 

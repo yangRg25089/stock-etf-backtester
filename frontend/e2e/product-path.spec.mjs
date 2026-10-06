@@ -273,7 +273,7 @@ test("one fixed topbar owns run and reset without a scope selector", async ({ pa
     request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
   );
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -291,7 +291,6 @@ test("one fixed topbar owns run and reset without a scope selector", async ({ pa
 
 test("legacy execution panels never mount during restored progress, failure, or warnings", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.route("**/api/v1/runs/active", route => route.fulfill({ json: null }));
   await page.goto("/");
   await openSharedSettings(page);
   await page.getByLabel("開始日").fill("2024-01-31");
@@ -299,7 +298,7 @@ test("legacy execution panels never mount during restored progress, failure, or 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const completedResponse = page.waitForResponse(async response => {
-    if (!/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()) || response.url().endsWith("/runs/active") || !response.ok()) return false;
+    if (!/\/api\/v1\/runs\/[^/]+$/.test(response.url()) || !response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"].includes((await response.json()).status);
   });
   await page.locator(".run-submit-button").click();
@@ -319,8 +318,15 @@ test("legacy execution panels never mount during restored progress, failure, or 
     pending.result.status = status;
     pending.progress.completedStrategies = 1;
     pending.result.strategyRuns.slice(1).forEach(result => { result.status = status; result.metrics = null; });
-    await page.unroute("**/api/v1/runs/active");
-    await page.route("**/api/v1/runs/active", route => route.fulfill({ json: pending }));
+    let restoredReads = 0;
+    const restoredRunPath = `**/api/v1/runs/${saved.runId}`;
+    await page.route(restoredRunPath, route => route.fulfill({
+      json: restoredReads++ === 0 ? pending : saved,
+    }));
+    await page.evaluate(({ key, runId }) => sessionStorage.setItem(key, runId), {
+      key: "stock-etf-backtester.active-run-id.v1",
+      runId: saved.runId,
+    });
     const eventUrl = `**/api/v1/runs/${saved.runId}/events`;
     await page.route(eventUrl, async route => {
       await new Promise(resolve => setTimeout(resolve, 2500));
@@ -343,8 +349,9 @@ test("legacy execution panels never mount during restored progress, failure, or 
     await expect(button).toHaveAttribute("aria-busy", "false");
     await expect(page.locator(removed)).toHaveCount(0);
     await page.unroute(eventUrl);
+    await page.unroute(restoredRunPath);
   }
-  expect(resultGets).toHaveLength(3);
+  expect(resultGets).toHaveLength(6);
   for (const status of ["completed_with_warning", "unavailable", "failed"]) {
     const terminal = structuredClone(saved);
     terminal.status = status;
@@ -357,7 +364,6 @@ test("legacy execution panels never mount during restored progress, failure, or 
       details: { stage: "strategy", strategyId: terminal.result.strategyRuns[0].id, runId: saved.runId },
     }];
     }
-    await page.unroute("**/api/v1/runs/active");
     await installRunFixture(page, terminal);
     await page.reload();
     await expect(page.locator(".diagnostic-list")).toBeVisible();
@@ -600,7 +606,7 @@ test("shared summary follows the single form and strategy editing preserves inde
 
   await addStrategy(page, "ma_buy_only");
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -660,7 +666,7 @@ test("editing a strategy leaves the active run target and run scope unchanged", 
     request.method() === "POST" && request.url().endsWith("/api/v1/runs"),
   );
   const completed = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -770,8 +776,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     }
     if (
       request.method() === "GET" &&
-      !request.url().endsWith("/api/v1/runs/active") &&
-      /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(request.url())
+      /\/api\/v1\/runs\/[^/]+$/.test(request.url())
     ) {
       runStatusRequests.push(request.url());
     }
@@ -787,7 +792,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await closeSharedSettings(page);
 
   const completedResponse = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) {
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) {
       return false;
     }
     if (!response.ok()) return false;
@@ -1331,7 +1336,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(restoredExport.endingEquity).toBe(String(restoredStrategy.metrics.endingEquity));
 
   const nextSavedResponse = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()) || !response.ok()) {
+    if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url()) || !response.ok()) {
       return false;
     }
     return ["completed", "completed_with_warning", "unavailable", "failed"]
@@ -1361,9 +1366,10 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     progress: saved.progress,
     strategyStatuses,
   };
-  await page.route("**/api/v1/runs/active", (route) =>
-    route.fulfill({ json: pending }),
-  );
+  let resumedRunReads = 0;
+  await page.route(`**/api/v1/runs/${saved.runId}`, route => route.fulfill({
+    json: resumedRunReads++ === 0 ? pending : saved,
+  }));
   await page.route(`**/api/v1/runs/${saved.runId}/events`, (route) =>
     route.fulfill({
       status: 200,
@@ -1385,10 +1391,17 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     response.request().method() === "GET" &&
     response.url().endsWith(`/api/v1/runs/${saved.runId}`),
   );
+  await page.evaluate(({ key, runId }) => sessionStorage.setItem(key, runId), {
+    key: "stock-etf-backtester.active-run-id.v1",
+    runId: saved.runId,
+  });
+  expect(await page.evaluate(key => sessionStorage.getItem(key), "stock-etf-backtester.active-run-id.v1"))
+    .toBe(saved.runId);
   await page.reload();
-  await resumedResultResponse;
-  expect(resumedEvents).toHaveLength(1);
-  expect(resumedResultGets).toHaveLength(1);
+  const resumedResponse = await resumedResultResponse;
+  expect((await resumedResponse.json()).status).toBe("running");
+  await expect.poll(() => resumedEvents.length).toBe(1);
+  await expect.poll(() => resumedResultGets.length).toBe(2);
   await expect(page.locator(".run-status-panel")).toHaveCount(0);
 
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -1448,8 +1461,8 @@ test("desktop workbench keeps the header, strategy list, and results in independ
   await expect(page.getByRole("button", { name: "バックテストを実行" })).toBeEnabled();
 
   const finalRun = page.waitForResponse(async (response) => {
-    if (response.request().method() !== "GET" || response.url().endsWith("/active") ||
-        !/\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url())) return false;
+    if (response.request().method() !== "GET" ||
+        !/\/api\/v1\/runs\/[^/]+$/.test(response.url())) return false;
     if (!response.ok()) return false;
     return ["completed", "completed_with_warning", "unavailable", "failed"]
       .includes((await response.json()).status);
@@ -1513,7 +1526,7 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
   const resultResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await resultResponse).json();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
@@ -1544,7 +1557,7 @@ test("draft dialogs never mutate saved result content and reset survives refresh
   await expect(page.locator(".empty-results")).toBeVisible();
   await expect(page.locator(".comparison-table")).toHaveCount(0);
   const nextResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const next = await (await nextResponse).json();
   expect(next.runId).not.toBe(saved.runId);
@@ -1662,7 +1675,7 @@ test("multi-selected curves match row colors while focus, CSV and the shared win
 
   await page.locator("#field-run-endDate").fill("2024-03-01");
   await closeSharedSettings(page);
-  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
@@ -1765,7 +1778,7 @@ test("many selected strategies naturally expand readings and scroll the results 
 
   await page.locator("#field-run-endDate").fill("2024-03-01");
   await closeSharedSettings(page);
-  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+  const response = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const extended = structuredClone(saved);
@@ -1823,7 +1836,7 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   const resultResponse = page.waitForResponse((response) => response.ok() &&
-    response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+    response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await resultResponse).json();
   // Exercise long-list rendering independently of the fixture provider's short history.
@@ -1874,7 +1887,7 @@ test("linked figures share widths, halve indicator height, and highlight legends
 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   await completed;
   await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
@@ -2021,7 +2034,7 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   await page.setViewportSize({ width: 1440, height: 700 });
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
-  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse((response) => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   await completed;
   await page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" }).locator("button").click();
@@ -2139,7 +2152,7 @@ test("fixed and custom dialogs reuse condition cards, nest independent groups an
   await page.screenshot({ path: test.info().outputPath("custom-condition-dialog.png") });
   await closeStrategyDialog(page);
   const submitted = page.waitForRequest(request => request.method() === "POST" && request.url().endsWith("/api/v1/runs"));
-  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await page.locator(".run-submit-button").click();
   const payload = (await submitted).postDataJSON();
@@ -2284,7 +2297,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(r.url()));
+  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const price = page.locator('.legend-toggle[data-series="price"]');
@@ -2336,7 +2349,7 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
 
   await page.locator("#field-run-endDate").fill("2024-02-02");
   await closeSharedSettings(page);
-  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(r.url()));
+  const response = page.waitForResponse((r) => r.ok() && r.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(r.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await response).json();
   const result = saved.result.strategyRuns.find((r) => r.presetId === "vix_dca");
@@ -2435,7 +2448,7 @@ test("result info is absent and trade context remains readable in a narrow touch
   await openSharedSettings(page);
   await page.locator("#field-run-startDate").fill("2024-01-31");
   await closeSharedSettings(page);
-  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/(?!active$)[^/]+$/.test(response.url()));
+  const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
   await page.locator(".run-submit-button").click();
   const saved = await (await completed).json();
   await expect(page.locator(".run-submit-button")).toBeEnabled();

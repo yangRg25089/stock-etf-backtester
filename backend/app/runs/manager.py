@@ -209,9 +209,6 @@ class RunManager:
             ),
         )
 
-    def get_active_run(self) -> RunResponse | None:
-        return self._store.get_active()
-
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float
     ) -> RunChange | None:
