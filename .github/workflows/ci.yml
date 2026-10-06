@@ -36,8 +36,6 @@ jobs:
       - run: backend/.venv/bin/mypy --config-file backend/pyproject.toml backend/app
       - name: Complete deterministic and Yahoo regression suite
         working-directory: backend
-        env:
-          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
         run: .venv/bin/python -m pytest
 
   frontend:

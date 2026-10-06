@@ -204,7 +204,7 @@ test("all strategy dialogs keep three ordered blocks with applicable limits acro
   page.on("pageerror", error => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const presets = ["vix_dca", "ma_trend", "ma_buy_only", "rsi_dca", "ma_deviation_dca", "bollinger_dca", "rate_dca", "pe_dca", "composite_dca", "grid_search"];
+  const presets = ["vix_dca", "ma_trend", "ma_buy_only", "rsi_dca", "ma_deviation_dca", "bollinger_dca", "rate_dca",  "composite_dca", "grid_search"];
   for (const preset of presets.slice(1)) {
     await page.locator(".add-strategy-button").click();
     await page.locator(`.strategy-add-option[data-preset-id="${preset}"]`).click();

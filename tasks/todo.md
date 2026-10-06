@@ -1277,5 +1277,7 @@ Task 21 的 smoke 与 PE 限制、Task 25 的 Yahoo 真实数据回归，以及�
 
 - [x] Task219：移除全局活动运行恢复，改为 Tab 级 sessionStorage 和基于 runId 的恢复；覆盖双 browser contexts。
 - [x] Task220：生产同源 StaticFiles、可选 Basic Auth、Python/Node 版本锁定、实际 Uvicorn production smoke 与 CI。
-- [ ] Task221：Render 创建、密钥配置、main 部署及线上功能/资源/冷启动验收；等待 main CI 及共享 Basic Auth 凭据。
-- Task219/220验收（2026-10-07）：后端全量含 Yahoo/SEC 实时测试783/783、Ruff、152文件格式检查、mypy 82文件通过；前端单测353/353、Playwright/axe 177/177、真实 QQQ/VIX 浏览器流程1/1、production smoke（Basic Auth、health、JS/CSS、catalog、noindex）通过；typecheck、lint、build及`git diff --check`通过。构建主JS 531.08 kB，Vite 有非阻断拆分建议。Render 插件已检查唯一 `individual` workspace 当前无本仓库服务；create-service 接口不能配置 health check 与 CI-gated auto-deploy。
+- [x] Task222：完整删除 PE 与 SEC 回测/数据处理功能，保留 Yahoo QQQ/VIX 与其它非 SEC 策略；同步目录、契约、规范、测试和生成类型。
+- [ ] Task221：Render 创建、密钥配置、main 部署及线上功能/资源/冷启动验收；等待绿色 main CI 及共享 Basic Auth 凭据。
+- Task219/220本地验收（2026-10-07）：后端全量含 Yahoo/SEC 实时测试783/783、Ruff、152文件格式检查、mypy 82文件通过；前端单测353/353、Playwright/axe 177/177、真实 QQQ/VIX 浏览器流程1/1、production smoke（Basic Auth、health、JS/CSS、catalog、noindex）通过；typecheck、lint、build及`git diff --check`通过。GitHub Actions Run #3 因缺SEC_USER_AGENT导致2项SEC live测试失败；前端唯一失败是pe_dca覆盖率编辑用例（176通过）。用户明确要求删除相关回测功能；修复范围见Task222。Render尚无此仓库服务；create-service接口不能配置 health check 与 CI-gated auto-deploy。
+- Task222本地最终验收（2026-10-07）：后端全量665/665（真实 Yahoo QQQ/VIX）、Ruff/134文件格式/mypy 74文件通过；前端353/353、typecheck、lint、build、Playwright/axe 176/176、生产模式真实 QQQ/VIX 流程1/1、production smoke 和`git diff --check`通过。PE/SEC运行链路和CI secret引用已删；目录更新为catalog-v19，共11类。GitHub CI及Render部署仍待Task221。

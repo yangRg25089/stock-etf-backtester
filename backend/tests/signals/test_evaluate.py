@@ -10,7 +10,6 @@ from app.domain.contracts import (
     MacroObservation,
     MarketBar,
     MarketSnapshot,
-    ValuationSnapshot,
 )
 from app.domain.status import DiagnosticCode, SignalState
 from app.signals.evaluate import StrategySignalSeries, evaluate_signals
@@ -74,27 +73,21 @@ def _config_for_strategies(
 def _snapshot(
     prices: tuple[str | None, ...],
     *,
-    valuation_prices: tuple[str, ...] | None = None,
     vix_values: dict[date, str] | None = None,
     rate_values: dict[date, str] | None = None,
-    pe_values: dict[date, str] | None = None,
     vix_unit: str = "index_points",
     rate_unit: str = "percent_point",
 ) -> DataSnapshot:
-    valuation_prices = prices if valuation_prices is None else valuation_prices
     bars = tuple(
         MarketBar(
             date=day,
             symbol="QQQ",
             simulationPrice=Decimal(value),
-            valuationPrice=Decimal(valuation_price),
             currency="USD",
             source="fixture",
             observedAt=datetime.combine(day, datetime.min.time(), UTC),
         )
-        for day, value, valuation_price in zip(
-            _SESSIONS, prices, valuation_prices, strict=True
-        )
+        for day, value in zip(_SESSIONS, prices, strict=True)
         if value is not None
     )
     macros = tuple(
@@ -113,20 +106,6 @@ def _snapshot(
         if values is not None
         for day, value in values.items()
     )
-    valuations = tuple(
-        {
-            "date": day,
-            "symbol": "QQQ",
-            "valuationPrice": Decimal("100"),
-            "eps": Decimal("4"),
-            "pe": Decimal(value),
-            "currency": "USD",
-            "method": "fixture",
-            "source": "fixture",
-            "asOf": day,
-        }
-        for day, value in ({} if pe_values is None else pe_values).items()
-    )
     return DataSnapshot(
         market=MarketSnapshot(
             symbol="QQQ",
@@ -136,15 +115,6 @@ def _snapshot(
             fingerprint="market-fixture",
         ),
         macro=macros,
-        valuation=(
-            None
-            if pe_values is None
-            else ValuationSnapshot(
-                symbol="QQQ",
-                observations=valuations,
-                fingerprint="valuation-fixture",
-            )
-        ),
         fingerprint="snapshot-fixture",
     )
 
@@ -166,7 +136,6 @@ def test_vix_boundary_is_inclusive_and_aggregate_buy_uses_the_enabled_set() -> N
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": False,
         }
     )
@@ -203,7 +172,6 @@ def test_rsi_buy_threshold_is_inclusive_and_uses_rolling_average() -> None:
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": False,
         }
     )
@@ -229,7 +197,6 @@ def test_ma_deviation_buy_threshold_is_inclusive() -> None:
             "ma.buyDeviationPct": Decimal("0"),
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": False,
         }
     )
@@ -254,7 +221,6 @@ def test_bollinger_buy_and_sell_use_inclusive_price_edges_and_vix_ceiling() -> N
             "bollinger.period": 3,
             "bollinger.stddev": Decimal("1"),
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": True,
             "exit.bollinger.enabled": True,
             "exit.bollinger.vixCeiling": Decimal("20"),
@@ -290,7 +256,6 @@ def test_vix_sell_levels_check_the_lower_tier_first() -> None:
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": True,
         }
     )
@@ -329,7 +294,6 @@ def test_vix_exit_priority_follows_threshold_values(
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": True,
             "exit.vix.low1": Decimal(first_threshold),
             "exit.vix.low2": Decimal(second_threshold),
@@ -357,7 +321,6 @@ def test_rsi_sell_threshold_is_inclusive_when_rsi_buy_is_disabled() -> None:
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": True,
             "exit.rsi.enabled": True,
             "exit.rsi.threshold": Decimal("100"),
@@ -384,7 +347,6 @@ def test_unnormalized_rate_unit_is_unavailable_instead_of_guessed() -> None:
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": True,
-            "pe.buyEnabled": False,
             "exit.enabled": False,
         }
     )
@@ -411,8 +373,7 @@ def test_unavailable_signal_only_marks_the_strategy_that_depends_on_it() -> None
         "rsi.buyEnabled": False,
         "ma.buyEnabled": False,
         "bollinger.buyEnabled": False,
-        "rate.buyEnabled": False,
-        "pe.buyEnabled": True,
+        "rate.buyEnabled": True,
         "exit.enabled": False,
     }
     config = _config_for_strategies(
@@ -456,8 +417,7 @@ def test_any_enabled_unavailable_buy_blocks_the_whole_strategy_even_with_vix_tru
             "rsi.buyEnabled": False,
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
-            "rate.buyEnabled": False,
-            "pe.buyEnabled": True,
+            "rate.buyEnabled": True,
             "exit.enabled": False,
         }
     )
@@ -474,7 +434,7 @@ def test_any_enabled_unavailable_buy_blocks_the_whole_strategy_even_with_vix_tru
     series = result.strategies[0]
     states = _states(series, day)
     assert states["vix.buy"] is SignalState.TRUE
-    assert states["pe.buy"] is SignalState.UNAVAILABLE
+    assert states["rate.buy"] is SignalState.UNAVAILABLE
     assert states["accumulation.buy"] is SignalState.UNAVAILABLE
     assert series.available is False
     assert any(
@@ -492,7 +452,6 @@ def test_no_enabled_buy_signals_evaluates_false_without_creating_dependencies() 
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": False,
         }
     )
@@ -518,7 +477,6 @@ def test_buy_switch_does_not_disable_an_independent_vix_sell_signal() -> None:
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": True,
         }
     )
@@ -540,10 +498,7 @@ def test_buy_switch_does_not_disable_an_independent_vix_sell_signal() -> None:
 def test_trend_uses_simulation_price_and_requires_price_above_average() -> None:
     day = _SESSIONS[2]
     config = _config(preset="ma_trend", params={"ma.period": 2})
-    snapshot = _snapshot(
-        ("10", "12", "11", "15", "16", "17", "18"),
-        valuation_prices=("100", "100", "1000", "100", "100", "100", "100"),
-    )
+    snapshot = _snapshot(("10", "12", "11", "15", "16", "17", "18"))
 
     result = evaluate_signals(config, snapshot, sessions=_SESSIONS)
 
@@ -551,82 +506,6 @@ def test_trend_uses_simulation_price_and_requires_price_above_average() -> None:
     assert states["ma.trend"] is SignalState.FALSE
     assert states["ma.trend.sell"] is SignalState.TRUE
     assert result.strategies[0].available is True
-
-
-def test_rate_and_pe_use_normalized_values_and_inclusive_thresholds() -> None:
-    day = _SESSIONS[2]
-    config = _config(
-        params={
-            "vix.buyEnabled": False,
-            "rsi.buyEnabled": False,
-            "ma.buyEnabled": False,
-            "bollinger.buyEnabled": False,
-            "rate.buyEnabled": True,
-            "pe.buyEnabled": True,
-            "rate.thresholdPct": Decimal("2.5"),
-            "pe.threshold": Decimal("25"),
-            "exit.enabled": False,
-        }
-    )
-    snapshot = _snapshot(
-        ("10", "11", "12", "13", "14", "15", "16"),
-        rate_values={day: "2.5"},
-        pe_values={day: "25"},
-    )
-
-    result = evaluate_signals(config, snapshot, sessions=_SESSIONS)
-
-    states = _states(result.strategies[0], day)
-    assert states["rate.buy"] is SignalState.TRUE
-    assert states["pe.buy"] is SignalState.TRUE
-    assert states["accumulation.buy"] is SignalState.TRUE
-
-
-def test_valuation_snapshot_for_a_different_symbol_is_unavailable() -> None:
-    day = _SESSIONS[2]
-    config = _config(
-        params={
-            "vix.buyEnabled": False,
-            "rsi.buyEnabled": False,
-            "ma.buyEnabled": False,
-            "bollinger.buyEnabled": False,
-            "rate.buyEnabled": False,
-            "pe.buyEnabled": True,
-            "exit.enabled": False,
-        }
-    )
-    snapshot = _snapshot(
-        ("10", "11", "12", "13", "14", "15", "16"),
-        pe_values={session: "20" for session in _SESSIONS[2:]},
-    )
-    market = snapshot.market.model_copy(
-        update={
-            "symbol": "SPY",
-            "bars": tuple(
-                bar.model_copy(update={"symbol": "SPY"}) for bar in snapshot.market.bars
-            ),
-        }
-    )
-    valuation = snapshot.valuation
-    assert valuation is not None
-    snapshot = DataSnapshot(
-        market=market,
-        macro=snapshot.macro,
-        valuation=valuation.model_copy(
-            update={
-                "symbol": "SPY",
-                "observations": tuple(
-                    observation.model_copy(update={"symbol": "SPY"})
-                    for observation in valuation.observations
-                ),
-            }
-        ),
-        fingerprint="other-symbol-snapshot",
-    )
-
-    result = evaluate_signals(config, snapshot, sessions=_SESSIONS)
-
-    assert _states(result.strategies[0], day)["pe.buy"] is SignalState.UNAVAILABLE
 
 
 def test_missing_market_session_is_unavailable_instead_of_silently_skipped() -> None:

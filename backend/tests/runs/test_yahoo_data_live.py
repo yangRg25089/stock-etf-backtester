@@ -973,7 +973,6 @@ def test_live_user_grid_values_freeze_trades_curves_and_csv_in_memory(tmp_path):
                                     "ma.buyEnabled": False,
                                     "bollinger.buyEnabled": False,
                                     "rate.buyEnabled": False,
-                                    "pe.buyEnabled": False,
                                     "accumulation.cashSafetyLimit": 100000000,
                                     "accumulation.maxSignalBuysPerMonth": None,
                                 },

@@ -364,11 +364,8 @@ def _calendar(
 def _snapshot(
     dates: tuple[date, ...],
     prices: tuple[str, ...],
-    valuation_prices: tuple[str, ...] | None = None,
     ohlc: tuple[tuple[str, str, str], ...] | None = None,
 ) -> DataSnapshot:
-    if valuation_prices is None:
-        valuation_prices = prices
     bars = tuple(
         MarketBar(
             date=day,
@@ -377,14 +374,11 @@ def _snapshot(
             simulationOpen=None if ohlc is None else Decimal(ohlc[index][0]),
             simulationHigh=None if ohlc is None else Decimal(ohlc[index][1]),
             simulationLow=None if ohlc is None else Decimal(ohlc[index][2]),
-            valuationPrice=Decimal(valuation_price),
             currency="USD",
             source="fixture",
             observedAt=datetime.combine(day, datetime.min.time(), UTC),
         )
-        for index, (day, price, valuation_price) in enumerate(
-            zip(dates, prices, valuation_prices, strict=True)
-        )
+        for index, (day, price) in enumerate(zip(dates, prices, strict=True))
     )
     return DataSnapshot(
         market=MarketSnapshot(
@@ -430,12 +424,11 @@ def _run(
     *,
     signals: StrategySignalSeries | None = None,
     calendar: ExchangeCalendar | None = None,
-    valuation_prices: tuple[str, ...] | None = None,
     ohlc: tuple[tuple[str, str, str], ...] | None = None,
 ):
     exchange_calendar = _calendar(dates) if calendar is None else calendar
     contribution_schedule = schedule(config.shared, exchange_calendar)
-    data = _snapshot(dates, prices, valuation_prices, ohlc)
+    data = _snapshot(dates, prices, ohlc)
     signal_series = (
         _signals(config, contribution_schedule.trading_dates)
         if signals is None
@@ -868,7 +861,6 @@ def test_signal_buy_executes_on_the_next_session_at_that_session_price() -> None
         dates,
         ("10", "20", "30"),
         signals=signals,
-        valuation_prices=("100", "200", "300"),
     )
 
     assert result.available is True
@@ -1009,7 +1001,6 @@ def test_sell_precedes_buy_and_safety_and_uses_only_the_largest_exit_ratio() -> 
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": True,
             "exit.rsi.enabled": True,
             "exit.rsi.ratio": Decimal("0.5"),
@@ -1058,7 +1049,6 @@ def test_contribution_precedes_sell_and_stays_in_timing_cash_on_sell_day() -> No
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": True,
             "exit.rsi.enabled": True,
             "exit.rsi.ratio": Decimal("0.5"),
@@ -1302,7 +1292,6 @@ def test_no_signal_custom_strategy_keeps_principal_while_benchmark_buys_monthly(
                         "ma.buyEnabled": False,
                         "bollinger.buyEnabled": False,
                         "rate.buyEnabled": False,
-                        "pe.buyEnabled": False,
                         "exit.enabled": False,
                     },
                 },

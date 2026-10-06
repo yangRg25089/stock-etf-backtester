@@ -16,8 +16,9 @@ The first and third source hashes are the concatenated code-cell source. The
 `compare_strategies` source hash is the SHA-256 of newline-joined cell source
 strings. The full manifest records every explicit CONFIG key and its current
 catalog mapping or retirement, including derived contracts (preset identity,
-search dimensions, `rate.sourceUnit`, `pe.etfMinCoverage`, and the explicit
-Bollinger VIX ceiling).
+search dimensions, `rate.sourceUnit`, and the explicit Bollinger VIX ceiling).
+The notebook's PE controls and ETF coverage threshold remain in the manifest
+only as retired inputs; they have no active catalog mapping.
 
 The former strategy-mode input maps to preset identity only. The current UI
 always runs all added strategies; its scope parameter, selector, and state were
@@ -28,8 +29,8 @@ removed. The backend retains historical request compatibility.
 The notebooks are historical inputs, not executable specifications. V1 does
 not reproduce their conflicting behavior:
 
-- `simulationPrice` and `valuationPrice` remain separate; PE cannot substitute
-  one price basis for the other.
+- The current market contract exposes the adjusted close used for simulation;
+  it has no separate valuation-price contract.
 - Missing VIX is unavailable; it is not forward-filled or silently skipped.
 - The configured contribution day (1–31) and same-month exchange-calendar
   roll are used instead of `today.day <= 7`; partial ranges are not backfilled
@@ -38,9 +39,8 @@ not reproduce their conflicting behavior:
   final-day signal is retained as unexecuted.
 - Actual exchange month-end drives the cash safety valve; a truncated final
   day is not treated as month-end.
-- Point-in-time disclosure, missing PE, split bases, and ETF coverage are
-  represented by repository-owned offline fixtures and later provider
-  adapters.
+- PE and ETF coverage inputs from the notebook are retired and have no runtime
+  implementation. Macro observations retain their existing as-of rules.
 - Phase 21 removes the notebook's fixed contribution ratio and its search
   dimension. Their provenance remains as `retiredInput` records without active
   parameter mappings. Monthly DCA and lump sum remain automatic benchmarks.

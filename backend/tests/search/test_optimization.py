@@ -56,7 +56,6 @@ def split_source(*, cutoff="2024-01-31", final_price="10.15") -> GridSearchInput
                         "ma.buyEnabled": False,
                         "bollinger.buyEnabled": False,
                         "rate.buyEnabled": False,
-                        "pe.buyEnabled": False,
                         "exit.enabled": False,
                     },
                 }
@@ -79,7 +78,6 @@ def split_source(*, cutoff="2024-01-31", final_price="10.15") -> GridSearchInput
                 currency="USD",
                 source="fixture",
                 simulationPrice=Decimal(price),
-                valuationPrice=Decimal(price),
                 observedAt=datetime.combine(day, datetime.min.time(), UTC),
             )
             for day, price in zip(dates, prices, strict=True)

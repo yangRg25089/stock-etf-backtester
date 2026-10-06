@@ -198,7 +198,6 @@ export const resultsMessages: Record<string, string> = {
   "trade.signal.ma.buy": "移动均线买入信号",
   "trade.signal.bollinger.buy": "布林带买入信号",
   "trade.signal.rate.buy": "利率买入信号",
-  "trade.signal.pe.buy": "市盈率买入信号",
   "trade.signal.vix.exit.low1": "波动率分档卖出 1",
   "trade.signal.vix.exit.low2": "波动率分档卖出 2",
   "trade.signal.rsi.exit": "RSI 卖出信号",

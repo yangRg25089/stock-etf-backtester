@@ -197,7 +197,6 @@ export const resultsMessages: Record<string, string> = {
   "trade.signal.ma.buy": "Moving-average buy signal",
   "trade.signal.bollinger.buy": "Bollinger buy signal",
   "trade.signal.rate.buy": "Interest-rate buy signal",
-  "trade.signal.pe.buy": "P/E buy signal",
   "trade.signal.vix.exit.low1": "Index staged sell 1",
   "trade.signal.vix.exit.low2": "Index staged sell 2",
   "trade.signal.rsi.exit": "RSI sell signal",

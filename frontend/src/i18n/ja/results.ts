@@ -198,7 +198,6 @@ export const resultsMessages: Record<string, string> = {
   "trade.signal.ma.buy": "移動平均買付シグナル",
   "trade.signal.bollinger.buy": "ボリンジャー買付シグナル",
   "trade.signal.rate.buy": "金利買付シグナル",
-  "trade.signal.pe.buy": "PER 買付シグナル",
   "trade.signal.vix.exit.low1": "指数段階売却 1",
   "trade.signal.vix.exit.low2": "指数段階売却 2",
   "trade.signal.rsi.exit": "RSI 売却シグナル",

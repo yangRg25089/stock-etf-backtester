@@ -63,7 +63,6 @@ def source(*, final_price=7, future_training_price=5):
                         "ma.buyEnabled": False,
                         "bollinger.buyEnabled": False,
                         "rate.buyEnabled": False,
-                        "pe.buyEnabled": False,
                         "exit.enabled": False,
                     },
                 }
@@ -82,7 +81,6 @@ def source(*, final_price=7, future_training_price=5):
                 date=day,
                 symbol="QQQ",
                 simulationPrice=price,
-                valuationPrice=price,
                 currency="USD",
                 source="fixture",
                 observedAt=datetime.combine(day, datetime.min.time(), UTC),

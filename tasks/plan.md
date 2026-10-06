@@ -2332,6 +2332,21 @@ Task207–209验收（2026-10-05）：纯简化原有345项测试不修改即通
 
 Task219/220本地验收（2026-10-07）：后端全量含 Yahoo/SEC 实时测试783 passed；Ruff、152文件格式检查和mypy 82文件通过。前端353单测、typecheck、lint、build、完整Playwright/axe 177项、真实 QQQ/VIX 浏览器流程1项及生产 Uvicorn smoke通过。Smoke核对 Basic Auth、公开 `/health`、受保护 React/JS/CSS/catalog及`noindex, nofollow`。Vite主JS 531.08 kB有非阻断拆分建议。部署前唯一剩余输入是共享 Basic Auth 用户名/密码；Render service create API 不暴露 health check 与 AutoDeploy触发模式；完成服务创建后核对 Dashboard设置。Task221仍待提交主分支、CI和线上验证。
 
+## 阶段61：移除 SEC PE 回测能力（2026-10-07 用户要求）
+
+用户要求删除解决 SEC 联系配置门禁所涉及的 PE 回测代码。按完整移除 SEC-backed PE 范围执行：删掉个股 PE 与 ETF SEC 持仓 PE、`pe_dca`/PE 条件和参数、估值 provider/domain/snapshot/诊断/说明、SEC 实时与 fixture 测试及 SEC smoke；保留 Yahoo 行情、VIX、利率和真实 QQQ/VIX CI 回归。无需将 SEC_USER_AGENT 配到 Render 或 GitHub Actions。同步更新唯一设计稿、复用规范、开发说明、目录版本和运行契约；遗留策略文件若含已删除 preset/condition 由现有严格目录校验拒绝，不做隐式迁移。
+
+### Task222：移除 PE 与 SEC 数据链路
+
+- 先更新主设计、复用规范、README/开发与 Render 说明，再以目录/契约测试确认 PE preset、条件、参数、DataKind.VALUATION 和财务/持仓有效期配置均不可见。
+- 删除 SEC CompanyFacts/N-PORT adapters、估值计算、SECUA/issuer resolution 与 PE observation 集成；移除 PE 搜索/交易说明/导出和中日英文案。移除仅服务于估值的 `valuationPrice` 双价格契约，保留 Yahoo 调整后模拟价格和币种证据。
+- 删除 SEC 供应商 live/fixture 测试与 smoke，不设置或虚构 SEC 联系信息；保留 Yahoo 真实供应商检查、纯行情/宏观 fixture、配置/信号/账本/搜索/导出回归。重新生成 OpenAPI/TypeScript/schema/exports。
+- 全量后端、前端、类型/lint/build、Playwright/axe、真实 QQQ/VIX 和生产 smoke 均通过后，更新部署门禁状态并继续 Task221。
+
+验收：CI Run #3 后端有781通过、2个SEC live失败，前端176通过、1个PE editor测试失败；此结果只作为发现与移除范围的证据，不能视为验收。用户选择删除该功能后，以 Task222 全量验证的新结果为准。
+
+Task222 本地最终验收（2026-10-07）：后端虚拟环境全量 665/665（含真实 Yahoo QQQ/VIX 回归）；Ruff、134 个 Python 文件格式检查、mypy 74 文件通过。前端单测 353/353、typecheck、lint、production build 通过；Playwright/axe 176/176、生产模式 Yahoo QQQ/VIX 浏览器流程 1/1、FastAPI production smoke 全部通过。`git diff --check` 通过。PE/SEC provider、估值合同、条件/参数/预设、专用测试及 CI 联系 secret 引用已移除；当前目录版本 `catalog-v19`、11 类。GitHub CI 和 Render 部署仍属于 Task221。
+
 ### Task221：Render 首次创建与线上验收
 
 - 检查唯一确认的 Render workspace 中没有同仓库服务后，创建一个 Python Native Web Service：`main`、Singapore、Free、单实例、无数据库/Key Value/disk/worker/cron；先禁用自动部署。

@@ -33,7 +33,6 @@ function conditionText(kind: ConditionKind, side: "buy" | "sell", params: Record
     else if (/\.low[12]$/.test(signal?.signalId ?? "")) expression = `${value} ≤ ${threshold(`exit.vix.low${signal!.signalId.at(-1)}`)}`;
   } else if (kind === "rsi") expression = `${value} ${buy ? "≤" : "≥"} ${threshold(buy ? "rsi.buyThreshold" : "exit.rsi.threshold")}`;
   else if (kind === "rate") expression = `${value} ${buy ? "≤" : "≥"} ${threshold("rate.thresholdPct")} %`;
-  else if (kind === "pe") expression = `${value} ${buy ? "≤" : "≥"} ${threshold("pe.threshold")}`;
   else if (kind === "ma_deviation") {
     label = `MA(${threshold("ma.period")}) · ${label}`;
     expression = `${value} % ${buy ? "≤" : "≥"} ${threshold("ma.buyDeviationPct")} %`;
@@ -78,7 +77,7 @@ function explainNode(node: ConditionLeaf | ConditionGroup, side: "buy" | "sell",
 function legacyConditions(signals: SignalEvaluation[], params: Record<string, unknown>, side: "buy" | "sell", locale: Locale): ExplanationCondition[] {
   return signals.filter(signal => side === "buy" ? /(?:\.buy|ma\.trend$)/.test(signal.signalId) : /\.exit|ma\.trend\.sell/.test(signal.signalId)).flatMap(signal => {
     const base = signal.signalId.split(".")[0];
-    const kind: ConditionKind | undefined = signal.conditionKind ?? (base === "ma" ? signal.signalId.startsWith("ma.trend") ? "ma_trend" : "ma_deviation" : ["vix", "rsi", "bollinger", "rate", "pe"].includes(base) ? base as ConditionKind : undefined);
+    const kind: ConditionKind | undefined = signal.conditionKind ?? (base === "ma" ? signal.signalId.startsWith("ma.trend") ? "ma_trend" : "ma_deviation" : ["vix", "rsi", "bollinger", "rate"].includes(base) ? base as ConditionKind : undefined);
     const text = kind && !signal.conditionKind && ["ma_trend", "ma_deviation", "bollinger"].includes(kind)
       ? { label: translate(locale, `conditions.${kind}`), expression: signal.observedValue ?? "—" }
       : kind ? conditionText(kind, side, params, signal, locale) : null;

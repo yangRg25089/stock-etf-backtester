@@ -67,9 +67,6 @@ def test_manifest_contains_every_explicit_compare_input_mapping() -> None:
         "rate.symbol",
         "rate.thresholdPct",
         "rate.sourceUnit",
-        "pe.buyEnabled",
-        "pe.threshold",
-        "pe.etfMinCoverage",
         "exit.enabled",
         "exit.vix.low1",
         "exit.vix.ratio1",
@@ -113,7 +110,14 @@ def test_strategy_mode_mapping_does_not_reintroduce_a_run_scope_ui_parameter():
 
 
 def test_retired_notebook_inputs_have_no_active_parameter_mapping() -> None:
-    retired = {"启用固定比例定投", "固定定投比例", "网格固定比例列表"}
+    retired = {
+        "启用固定比例定投",
+        "固定定投比例",
+        "网格固定比例列表",
+        "启用PE",
+        "PE阈值",
+        "PE ETF覆盖率(V1新增)",
+    }
     mappings = [
         item for item in _manifest()["mappings"] if item["sourceKey"] in retired
     ]

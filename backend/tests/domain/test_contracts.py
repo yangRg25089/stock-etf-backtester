@@ -8,7 +8,6 @@ from app.catalog.service import default_data_settings
 from app.domain.contracts import (
     ContributionSettings,
     DailyAsset,
-    DataSnapshot,
     MarketBar,
     MarketSnapshot,
     MetricSummary,
@@ -27,8 +26,6 @@ from app.domain.contracts import (
     Trade,
     TradeReason,
     TradeSide,
-    ValuationObservation,
-    ValuationSnapshot,
 )
 from app.domain.status import (
     Diagnostic,
@@ -238,19 +235,17 @@ def test_run_scope_and_preset_ids_are_stable_machine_values() -> None:
         "ma_deviation_dca",
         "bollinger_dca",
         "rate_dca",
-        "pe_dca",
     ]
     assert _draft_config().model_dump(by_alias=True)["strategies"][0]["presetId"] == (
         "vix_dca"
     )
 
 
-def test_market_snapshot_keeps_simulation_and_valuation_prices_separate() -> None:
+def test_market_snapshot_retains_the_normalized_simulation_price() -> None:
     bar = MarketBar(
         date=date(2024, 1, 2),
         symbol="QQQ",
         simulationPrice=Decimal("400"),
-        valuationPrice=Decimal("398"),
         currency="USD",
         source="fixture",
         observedAt=datetime(2024, 1, 2, tzinfo=UTC),
@@ -264,55 +259,7 @@ def test_market_snapshot_keeps_simulation_and_valuation_prices_separate() -> Non
     )
 
     assert snapshot.bars[0].simulation_price == Decimal("400")
-    assert snapshot.bars[0].valuation_price == Decimal("398")
     assert snapshot.model_dump_json()
-
-
-def test_valuation_snapshot_rejects_non_positive_pe_and_mismatched_symbols() -> None:
-    with pytest.raises(ValidationError):
-        ValuationObservation(
-            date=date(2024, 1, 2),
-            symbol="QQQ",
-            valuationPrice=Decimal("400"),
-            eps=Decimal("10"),
-            pe=Decimal("0"),
-            currency="USD",
-            method="annual_report",
-            source="fixture",
-            asOf=date(2024, 1, 1),
-        )
-
-    observation = ValuationObservation(
-        date=date(2024, 1, 2),
-        symbol="SPY",
-        valuationPrice=Decimal("400"),
-        eps=Decimal("10"),
-        pe=Decimal("40"),
-        currency="USD",
-        method="annual_report",
-        source="fixture",
-        asOf=date(2024, 1, 1),
-    )
-    with pytest.raises(ValidationError):
-        ValuationSnapshot(
-            symbol="QQQ",
-            observations=[observation],
-            fingerprint="valuation-1",
-        )
-
-    market = MarketSnapshot(
-        symbol="QQQ",
-        currency="USD",
-        source="fixture",
-        fingerprint="market-1",
-    )
-    valuation = ValuationSnapshot(
-        symbol="SPY",
-        observations=[],
-        fingerprint="valuation-1",
-    )
-    with pytest.raises(ValidationError):
-        DataSnapshot(market=market, valuation=valuation, fingerprint="data-1")
 
 
 def test_completed_zero_trade_strategy_and_partial_result_are_representable() -> None:

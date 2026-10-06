@@ -902,11 +902,6 @@ def _data_provenance(
         market_dates = [bar.date for bar in market.bars]
         market_data_through_dates.append(max(market_dates, default=None))
         sources.update(observation.source for observation in item.snapshot.macro)
-        if item.snapshot.valuation is not None:
-            sources.update(
-                observation.source
-                for observation in item.snapshot.valuation.observations
-            )
     return RunDataProvenance(
         sources=tuple(sources),
         calendarAsOf=(min(calendar_as_of_dates) if calendar_as_of_dates else None),

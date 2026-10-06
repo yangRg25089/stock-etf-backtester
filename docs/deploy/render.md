@@ -37,7 +37,7 @@ Configure these environment variables:
 | `APP_BASIC_AUTH_USERNAME` | Shared login name; set as a secret |
 | `APP_BASIC_AUTH_PASSWORD` | Strong shared password; set as a secret |
 
-Do not set `PORT`; Render supplies it. Add `SEC_USER_AGENT` as a secret only when enabling SEC-backed individual-stock data. Never commit secret values.
+Do not set `PORT`; Render supplies it. Never commit secret values.
 
 ## Deployment behavior and limits
 

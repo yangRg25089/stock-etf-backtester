@@ -33,13 +33,12 @@ from .yahoo_frames import (
     normalize_macro_frame,
     normalize_market_frame,
 )
-from .yahoo_splits import StockSplitEvidence, normalize_split_history
 
 TickerFactory = Callable[[str], object]
 _LOGGER = logging.getLogger(__name__)
 
-_YAHOO_DUAL_PRICE_BASIS = "adj-close-simulation+split-close-valuation-v1"
-_NORMALIZER_VERSION = "yfinance-adapter-v3"
+_YAHOO_PRICE_BASIS = "adjusted-close-simulation-v1"
+_NORMALIZER_VERSION = "yfinance-adapter-v4"
 
 
 class YahooFinanceAdapter:
@@ -82,7 +81,7 @@ class YahooFinanceAdapter:
             request,
             provider=self.provider,
             data_version=self.data_version,
-            price_basis=_YAHOO_DUAL_PRICE_BASIS,
+            price_basis=_YAHOO_PRICE_BASIS,
         )
 
     def macro_cache_identity(
@@ -112,43 +111,6 @@ class YahooFinanceAdapter:
         except Exception as error:
             return None, _provider_error(error, symbol)
         return _quote_currency(ticker, symbol)
-
-    def split_evidence(
-        self,
-        symbol: str,
-        *,
-        sessions: tuple[Date, ...],
-    ) -> tuple[StockSplitEvidence | None, Diagnostic | None]:
-        """Return checked actions and split-adjusted closes, never raw frames."""
-        if not sessions:
-            raise ValueError("split evidence requires exchange sessions")
-        try:
-            ticker = self._ticker(symbol)
-        except Exception as error:
-            return None, _provider_error(error, symbol)
-        frame, diagnostic = _fetch_history(
-            ticker,
-            symbol=symbol,
-            start=sessions[0],
-            end=sessions[-1],
-            frequency="1d",
-            actions=True,
-            timeout_seconds=self._request_timeout_seconds,
-        )
-        if diagnostic is not None:
-            return None, diagnostic
-        assert frame is not None
-        try:
-            return normalize_split_history(
-                frame, sessions=sessions, symbol=symbol
-            ), None
-        except ValueError:
-            return None, Diagnostic(
-                code=DiagnosticCode.PRICE_BASIS_UNAVAILABLE,
-                messageKey="valuation.split_basis_unavailable",
-                source=self.provider,
-                details={"symbol": symbol},
-            )
 
     def exchange_code(self, symbol: str) -> tuple[str | None, Diagnostic | None]:
         """Read Yahoo's exchange identifier without retaining vendor objects."""

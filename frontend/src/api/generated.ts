@@ -41,7 +41,7 @@ export type ConditionGroup = {
   children?: Array<ConditionLeaf | ConditionGroup>;
 };
 
-export type ConditionKind = "vix" | "rsi" | "ma_deviation" | "ma_trend" | "bollinger" | "rate" | "pe";
+export type ConditionKind = "vix" | "rsi" | "ma_deviation" | "ma_trend" | "bollinger" | "rate";
 
 export type ConditionLeaf = {
   type?: "condition";
@@ -90,7 +90,7 @@ export type DailyAsset = {
   tradingCosts?: TradingCosts | null;
 };
 
-export type DataKind = "market" | "macro" | "valuation";
+export type DataKind = "market" | "macro";
 
 export type DataRequirement = {
   strategyId: string;
@@ -107,8 +107,6 @@ export type DataRequirement = {
 
 export type DataSettings = {
   macroStalenessSessions: number;
-  financialFactMaxAgeDays: number;
-  etfHoldingsMaxAgeDays: number;
 };
 
 export type Diagnostic = {
@@ -464,7 +462,7 @@ export type StrategyLimits = {
   maxTotalInstances?: number;
 };
 
-export type StrategyPresetId = "vix_dca" | "composite_dca" | "ma_trend" | "ma_buy_only" | "monthly_dca" | "lump_sum" | "grid_search" | "rsi_dca" | "ma_deviation_dca" | "bollinger_dca" | "rate_dca" | "pe_dca";
+export type StrategyPresetId = "vix_dca" | "composite_dca" | "ma_trend" | "ma_buy_only" | "monthly_dca" | "lump_sum" | "grid_search" | "rsi_dca" | "ma_deviation_dca" | "bollinger_dca" | "rate_dca";
 
 export type StrategyRules = {
   buy?: ConditionLeaf | ConditionGroup | null;

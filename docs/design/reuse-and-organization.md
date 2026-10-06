@@ -42,7 +42,6 @@
 | `ma.buyEnabled`, `ma.period`, `ma.buyDeviationPct` | 启用200日均线 / 多条件默认开；均线周期 / `200`；价格低于均线百分比阈值 / `-1` | 策略实例；`buyEnabled` 和偏离阈值只适用多条件，趋势策略必需 `ma.period` 并使用同一均线实现 |
 | `bollinger.buyEnabled`, `bollinger.period`, `bollinger.stddev` | 启用布林带 / 多条件默认开；周期 / `20`；标准差倍数 / `2` | 策略实例；上下轨由同一指标模块给买卖规则 |
 | `rate.buyEnabled`, `rate.symbol`, `rate.thresholdPct`, `rate.sourceUnit` | 启用利率 / 关；利率代码 / `^TNX`；利率阈值 / `2.5`；默认来源单位明确配置为百分数值 | 策略实例；可选 auto，但未识别时准确报单位错误，不按代码猜倍率；配置和快照记录单位 |
-| `pe.buyEnabled`, `pe.threshold`, `pe.etfMinCoverage` | 启用PE / 关；PE阈值 / `25`；ETF 覆盖率 / `0.80` | 策略实例；适用能力由数据诊断决定；阈值最小值/步长同为 `0.000001`，保持正值范围与原生输入有效性 |
 | `exit.enabled`, `exit.vix.low1`, `exit.vix.ratio1`, `exit.vix.low2`, `exit.vix.ratio2` | 启用卖出策略 / 开；VIX卖出阈值1 / `12`、比例1 / `0.20`；阈值2 / `10`、比例2 / `0.30` | 策略实例；仅多条件策略；VIX 信号定投预设默认关 |
 | `exit.rsi.enabled`, `exit.rsi.threshold`, `exit.rsi.ratio` | 启用RSI卖出 / 关；RSI卖出阈值 / `70`；比例 / `0.25` | 策略实例；即使 RSI 买入关，卖出开仍依赖 RSI 数据 |
 | `exit.bollinger.enabled`, `exit.bollinger.ratio`, `exit.bollinger.vixCeiling` | 启用布林卖出 / 关；卖出比例 / `0.25`；原硬编码 VIX 20 | 策略实例；VIX 上限新增为显式可调字段 |
@@ -56,7 +55,7 @@
 
 ## 草稿、作业与结果状态
 
-股票代码的格式是共享领域约束 `SYMBOL_PATTERN`（1–32 个 ASCII 字母、数字及 `.^=_-`），catalog 的 symbol 字段通过 `pattern` 暴露同一约束；运行/数据契约共用 `Symbol`，不各自维护 regex。注册日期只接受 date，不接受 datetime；搜索列表必须非空且唯一。目录版本为 `catalog-v13`，已保存旧运行保留原目录指纹和原结果；v12 仅缺新增共享分析配置，显式迁移时只填入可编辑草稿默认值。
+股票代码的格式是共享领域约束 `SYMBOL_PATTERN`（1–32 个 ASCII 字母、数字及 `.^=_-`），catalog 的 symbol 字段通过 `pattern` 暴露同一约束；运行/数据契约共用 `Symbol`，不各自维护 regex。注册日期只接受 date，不接受 datetime；搜索列表必须非空且唯一。当前目录为 `catalog-v19`；删除 PE/SEC 能力属于破坏性变更，v12–v18 的策略文件和旧工作区配置不迁移，按不兼容输入拒绝；已保存结果仍保留原样。
 
 ### 阶段 21 的当前约束（数量限制由阶段 55 更新）
 
@@ -78,10 +77,10 @@
 阶段35运行预校验：已确认的工作区配置变更后300ms调用同一验证API，迟到响应按草稿身份和取消信号丢弃；弹窗内部缓冲不参与预校验。预校验仅控制运行入口及左侧诊断，不修改或清空已保存结果；点击运行仍通过后端受理校验。此规则落实新路线Task105，保留用户要求的弹窗与运行结果隔离。
 
 - 策略增加可选 `rules: {buy, sell}`。根节点和子节点复用同一条件对象：叶节点 `{type:condition, id, kind, enabled, params}`；分组 `{type:group, id, enabled, operator:AND|OR, children}`。买入/卖出树独立；组表达括号，不根据控件排列猜测运算优先级。空树/空组为 false，停用子节点不参与布尔组合或数据依赖；任何启用必需叶节点 unavailable 仍阻断该策略，OR 不跳过它。
-- 条件种类为 VIX、RSI、均线偏离、均线趋势、布林带、利率和 PE。同一买入树或卖出树内，条件类型不可重复；买卖两侧可各用一次，`id` 在同一策略买卖树内唯一；结构上限统一为 8 层、96 节点，目录返回限制，前后端共享。参数继续使用注册表稳定键、类型、边界、单位和默认值；叶节点只可使用其种类/方向允许的键，不能塞入其它策略字段。
-- 基础目录新增 `rsi_dca`、`ma_deviation_dca`、`bollinger_dca`、`rate_dca`、`pe_dca`，与既有 VIX/MA 买卖/MA 只买共同提供固定模板：不可添加类型、AND/OR 或分组，只调整该模板参数/买卖启停。两个自动基准仍不可选，搜索继续使用共享规则。
-- `composite_dca` 稳定 ID 改为用户可见「自定义策略」，不再提供旧复合编辑器；固定和自定义均用同一条件对象、ConditionCard 和评估入口。目录为十二类而非早期七类；旧结果身份、参数和算法指纹保留，不在恢复时重算。旧平面输入仅在配置边界物化成条件对象。
-- 卖出树只在整棵树为 true 时成交：AND 汇总全部命中叶节点，OR 汇总为 true 的分支；取其中最大卖出比例，不相加。VIX 叶节点仍在低档优先规则下给出一档比例；RSI/布林沿用原公式/比例，MA 趋势固定模板退出全部择时仓。自定义新增的均线偏离/利率/PE 卖出分别使用买入比较的反向 `>=`（有效正 PE），通过共享 `exit.ratio` 配置比例；买入与卖出依赖/参数完全独立。
+- 条件种类为 VIX、RSI、均线偏离、均线趋势、布林带和利率。同一买入树或卖出树内，条件类型不可重复；买卖两侧可各用一次，`id` 在同一策略买卖树内唯一；结构上限统一为 8 层、96 节点，目录返回限制，前后端共享。参数继续使用注册表稳定键、类型、边界、单位和默认值；叶节点只可使用其种类/方向允许的键，不能塞入其它策略字段。
+- 基础目录新增 `rsi_dca`、`ma_deviation_dca`、`bollinger_dca`、`rate_dca` 四个固定模板，与既有 VIX/MA 买卖/MA 只买共同提供可编辑单条件模板。PE 条件与模板已从当前目录删除。模板不可添加类型、AND/OR 或分组，只调整该模板参数/买卖启停。两个自动基准仍不可选，搜索继续使用共享规则。
+- `composite_dca` 稳定 ID 改为用户可见「自定义策略」，不再提供旧复合编辑器；固定和自定义均用同一条件对象、ConditionCard 和评估入口。当前目录共十一类（七个稳定 ID、四个单条件模板）；旧结果身份、参数和算法指纹保留，不在恢复时重算。旧平面输入仅在配置边界物化成条件对象。
+- 卖出树只在整棵树为 true 时成交：AND 汇总全部命中叶节点，OR 汇总为 true 的分支；取其中最大卖出比例，不相加。VIX 叶节点仍在低档优先规则下给出一档比例；RSI/布林沿用原公式/比例，MA 趋势固定模板退出全部择时仓。自定义新增的均线偏离/利率卖出使用买入比较的反向阈值，通过共享 `exit.ratio` 配置比例；买入与卖出依赖/参数完全独立。
 - 提交冻结完整条件树、独立参数、catalog/data/engine 指纹；进程内冻结叶节点 Decimal，文件使用统一 JSON 契约。验证错误路径包含节点 ID/参数稳定键，UI 可定位，导出来自保存结果。普通运行、固定模板、自定义和搜索复用条件评估/账本；搜索所选稳定参数键在候选条件树中覆盖该键的所有适用叶节点，未选键保持各叶节点原值。
 - 配置校验边界按注册表类型读取精确 Decimal JSON 字符串，包括平面参数、买卖条件和搜索数值列表；保存、刷新、导入后再次运行复用同一解析函数，不经 JavaScript 浮点转换。合法数值文本使用十进制/科学计数法，Decimal 实际指数（显式指数减小数位数）绝对值≤4096；空值、空白、NaN、无穷、布尔或含单位的文本仍给出字段诊断；代码、枚举、整数和布尔不按外观猜测类型。
 
@@ -99,7 +98,7 @@
 
 “运行结果”卡片保留错误/诊断和常驻策略比较表；资产走势卡片紧随其后；交易、绩效及可用搜索放在另一个“策略详情”卡片中。比较行只有多选状态（`aria-pressed`），点击切换曲线和图例读数，不留下最近点击行焦点；点击图例可更新策略详情目标。表格滚动容器共享 `--result-table-max-height: min(360px, 45dvh)`；用户展开表格时才解除高度限制，详情、弹窗和策略导航的滚动容器不套用此上限。
 
-作业及每条策略的状态码由后端给出：`queued | loading | running | completed | completed_with_warning | unavailable | failed | cancelled`。`empty` 是结果页没有作业时的显示状态，不伪装成失败；零交易但指标完整仍是 `completed`。前端不可从“是否含 PE”自行推断失败，必须展示统一诊断码。全体失败与部分成功分别呈现。结果保留策略身份，保存标的/期间在按需信息入口可查；草稿变化不改变右侧显示或诊断，不生成旧输入提醒。配置校验仅归属设置侧；播放或显式文件导入更新结果，重置只清空当前页面显示。
+作业及每条策略的状态码由后端给出：`queued | loading | running | completed | completed_with_warning | unavailable | failed | cancelled`。`empty` 是结果页没有作业时的显示状态，不伪装成失败；零交易但指标完整仍是 `completed`。前端不根据特定信号字段推断失败，必须展示统一诊断码。全体失败与部分成功分别呈现。结果保留策略身份，保存标的/期间在按需信息入口可查；草稿变化不改变右侧显示或诊断，不生成旧输入提醒。配置校验仅归属设置侧；播放或显式文件导入更新结果，重置只清空当前页面显示。
 
 运行响应、幂等认领及候选详情只保存在后端进程内存；服务重启全部清空。每个浏览器 Tab 只在 `sessionStorage["stock-etf-backtester.active-run-id.v1"]` 保存自己受理的活动 runId，页面重开按 `/runs/{runId}` 查询并仅接回 queued/loading/running 作业；终态或404清除该键。全局 `/runs/active` 已退役；终态运行不自动恢复。
 
@@ -119,7 +118,7 @@ HTTP查询运行、停止及候选详情的响应身份必须分别匹配URL请�
 
 选定结束日保持冻结，实际计算窗口以有效行情报价确定。若交易日已收盘但 Yahoo 尚未提供完整有效行情，回测窗口缩至最后完整报价日，不显示来源延迟警告。每段只缺一个交易日的行情缺口会从所有策略共用的交易日历中移除，不合成或前填价格；连续缺失两个或更多交易日仍阻断依赖该区间的策略。
 
-`RunDataContext.dataProvenance` 保存已读取数据的去重排序来源 `sources`、最早日历截止日 `calendarAsOf` 和已加载行情快照中最早的最新报价日 `marketDataThrough`。任一已加载行情快照没有报价时，`marketDataThrough` 为 `null`。四类 CSV 都从保存上下文追加 `dataSources`、`calendarAsOf`、`marketDataThrough`；行情截至日期只表示行情报价覆盖，宏观和 SEC 数据的观察/公开日期仍由各自数据诊断说明。schema-1 快照的 dataFingerprint/dataProvenance/dateAdjustments 兼容字段是上下文的只读投影；不一致的导入被拒绝，旧无 dataContext 文件仍可读取。
+`RunDataContext.dataProvenance` 保存已读取数据的去重排序来源 `sources`、最早日历截止日 `calendarAsOf` 和已加载行情快照中最早的最新报价日 `marketDataThrough`。任一已加载行情快照没有报价时，`marketDataThrough` 为 `null`。四类 CSV 都从保存上下文追加 `dataSources`、`calendarAsOf`、`marketDataThrough`；行情截至日期只表示行情报价覆盖，宏观数据的观察/公开日期仍由各自数据诊断说明。schema-1 快照的 dataFingerprint/dataProvenance/dateAdjustments 兼容字段是上下文的只读投影；不一致的导入被拒绝，旧无 dataContext 文件仍可读取。
 
 ## 模块接口与目录组织
 
@@ -138,8 +137,7 @@ POST /runs 验证并冻结配置后立即发布 queued/202，后台进入 loadin
 | `catalog` | `get_catalog()`：预设、字段元数据、默认值、翻译键、可搜索字段 | 无业务 I/O |
 | `config` | `validateDraft(draft, catalog)`：结构化字段错误及必要数据清单；在构造领域契约前用注册表物化 `DataSettings` 默认值 | `catalog` |
 | `calendar` | `schedule(runSettings, exchangeCalendar)`：有效注资日期及金额 | `exchange_calendars` 提供 Yahoo 交易所会话；运行快照记录覆盖日和最近完整报价日 |
-| `market-data` | `loadMarket(spec)`：统一行情、两种价格口径、VIX/利率、币种及时间戳；`compose_data_snapshot` 将分离加载的供应商结果组合为同一 `DataSnapshot`；预热行情不改变回测日历，宏观源请求额外覆盖陈旧期回看 session，宏观原始日期/发布时间与对齐 session 分字段保存 | Yahoo 适配器；测试用固定 fixture 适配器；用户提交回测后加载，规范化结果经具备完整身份的有界缓存复用 |
-| `fundamentals` | `loadValuation(spec)`：已公开财务/持仓、覆盖率、来源及公开时间 | SEC 适配器；测试用固定 fixture 适配器 |
+| `market-data` | `loadMarket(spec)`：统一调整后行情、VIX/利率、币种及时间戳；`compose_data_snapshot` 将分离加载的供应商结果组合为同一 `DataSnapshot`；预热行情不改变回测日历，宏观源请求额外覆盖陈旧期回看 session，宏观原始日期/发布时间与对齐 session 分字段保存 | Yahoo 适配器；测试用固定 fixture 适配器；用户提交回测后加载，规范化结果经具备完整身份的有界缓存复用 |
 | `signals` | `evaluate(config, snapshot)`：逐日 `true/false/unavailable` 与诊断 | 规范化数据、指标计算 |
 | `ledger` | `runStrategy(config, schedule, signals, prices)`：统一交易顺序、每日总资产及交易 | 纯输入，不自行下载 |
 | `metrics` | `summarize(trace, schedule)`：统一绩效指标 | `ledger` 输出 |
@@ -174,7 +172,7 @@ POST /runs 验证并冻结配置后立即发布 queued/202，后台进入 loadin
 | --- | --- |
 | `ParameterField` / `FieldGroup` | 按注册表渲染唯一标签、数字/日期/代码输入、内嵌单位、依赖、校验信息；数字编辑输出 number，日期/代码输出 string，清空为 null；全界面同尺寸/焦点/错误样式，说明文字位于控件下方 |
 | `SharedSettingsForm` | 标的、区间、注资金额和日期；不在策略编辑器重复 |
-| `StrategyListRow` / `StrategyCatalogMenu` | 每个策略实例独立卡片，切换编辑对象、唯一启用开关、左侧加号打开右侧十类可选目录菜单，点击即添加，键盘方向键/Escape 和焦点恢复；月度 DCA/一次投入为必选自动基准，后端保留十二类 |
+| `StrategyListRow` / `StrategyCatalogMenu` | 每个策略实例独立卡片，切换编辑对象、唯一启用开关、左侧加号打开右侧九类可选目录菜单，点击即添加，键盘方向键/Escape 和焦点恢复；月度 DCA/一次投入为必选自动基准，后端保留十一类 |
 | `StrategyEditorDialog` / `ConditionEditor` | 买入与卖出各为大卡片，根开关放标题右侧；原子条件与嵌套组共用卡片及注册字段。固定模板只改参数；自定义可增删/嵌套/独立开关；同组卡片间的居中 AND/OR 实线连接器改变该组整体逻辑 |
 | `RunActions` | 顶栏的播放/重置图标；忙碌和进度由按钮及辅助技术表达，禁用原因可访问；不生成独立运行条、短暂完成文字或状态面板 |
 | `DiagnosticList` / `ResultDetails` | 运行结果卡片中的实际错误/覆盖诊断与翻译，保存诊断去重并在折叠时可读；策略比较是常驻主视图。焦点行与曲线多选分开呈现；比较表不显示角色或状态，机器契约/CSV 保留 |
@@ -235,8 +233,8 @@ AND/OR 的简短提示在两种语言中明确仅指本组已开启的条件，�
 
 | 顺序 | 交付内容 | 在下一阶段开始前可检查的条件 |
 | --- | --- | --- |
-| 1. 契约 | 策略目录、字段注册表、快照/结果结构、固定测试数据 | 原七类稳定目录及新增五个单条件模板与共享条件有明确映射；notebook 显式输入有一一映射；普通/搜索字段无第二份定义 |
-| 2. 数据与时间 | 交易所日历、贡献计划、行情与 SEC 适配器、公开时间及两种价格口径 | 固定 fixture 能重现缺行情、披露晚于收盘、拆股基准、ETF 覆盖边界 |
+| 1. 契约 | 策略目录、字段注册表、快照/结果结构、固定测试数据 | 原七类稳定目录及新增四个单条件模板与共享条件有明确映射；notebook 保留输入有一一映射、已删除 PE 输入明确标为退役；普通/搜索字段无第二份定义 |
+| 2. 数据与时间 | 交易所日历、贡献计划、Yahoo 行情与宏观适配器、单位和公开时间 | 固定 fixture 能重现缺行情、宏观发布延迟、单位和缺失边界 |
 | 3. 纯回测 | 信号、统一账本、绩效、基准和搜索包装 | 相同配置不同入口结果一致；无信号时策略保留现金，自动 DCA 独立买入；t 信号只在 t+1 执行 |
 | 4. 应用与画面 | FastAPI 作业/目录/结果/导出，React 的共享组件与 i18n | 全部实例运行、停止、弹窗缓冲、局部失败、结果聚焦与 CSV 共用一套状态 |
 | 5. 集成验收 | 固定数据端到端、320/768/1024px 画面与可选实时数据检查 | 回测结果和图表、表格、CSV 相同；所有验收用例通过 |

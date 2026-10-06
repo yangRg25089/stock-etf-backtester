@@ -493,7 +493,7 @@ test("Japanese and Chinese first screens pass axe and expose a semantic Chromium
 
 test("catalog lists all presets, independent condition toggles, and locale changes", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".strategy-add-option")).toHaveCount(10);
+  await expect(page.locator(".strategy-add-option")).toHaveCount(9);
   await expect(page.locator(".strategy-add-menu")).toBeHidden();
   await expect(page.locator(".strategy-parameter-group")).toHaveCount(0);
   await page.locator(".strategy-card-open").first().click();
@@ -1599,7 +1599,7 @@ test("strategy heading menu opens below its plus, supports arrows, dismisses out
 test("optional strategy cards reveal actions on hover, bound duplicates and run all enabled", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.locator(".strategy-add-option")).toHaveCount(10);
+  await expect(page.locator(".strategy-add-option")).toHaveCount(9);
   await expect(page.locator('.strategy-add-option[data-preset-id="monthly_dca"], .strategy-add-option[data-preset-id="lump_sum"]')).toHaveCount(0);
   await expect(page.locator('.strategy-add-option[data-preset-id="vix_dca"]')).toBeEnabled();
   await expect(page.locator(".strategy-run-target, .workbench-divider-grip, .local-tag, #run-scope-select")).toHaveCount(0);

@@ -139,7 +139,7 @@ def test_or_does_not_hide_missing_enabled_data_and_disabled_groups_need_no_data(
             "entry",
             "OR",
             leaf("vix", "vix"),
-            group("optional", "AND", leaf("valuation", "pe"), enabled=not disabled),
+            group("optional", "AND", leaf("interest", "rate"), enabled=not disabled),
         )
         frozen, validation = config(buy)
         snapshot = _snapshot(
@@ -155,10 +155,9 @@ def test_or_does_not_hide_missing_enabled_data_and_disabled_groups_need_no_data(
             SignalState.TRUE if disabled else SignalState.UNAVAILABLE
         )
         assert series.available is disabled
-        assert (
-            any(item.kind.value == "valuation" for item in validation.data_requirements)
-            is not disabled
-        )
+        assert sum(
+            item.kind.value == "macro" for item in validation.data_requirements
+        ) == (1 if disabled else 2)
 
 
 def test_sell_tree_uses_maximum_ratio_only_when_the_whole_group_is_true():
@@ -318,52 +317,6 @@ def test_leaf_dependencies_keep_independent_periods_codes_and_units():
     assert _macro_key(
         strategy, next(item for item in requirements if item.condition_id == "yield")
     ) == ("^TNX", "rate", "decimal")
-
-
-def test_each_pe_leaf_checks_its_own_etf_coverage_minimum():
-    # The same reusable PE component runs independently in separate strategies.
-    for minimum, expected in (
-        ("0.6", SignalState.TRUE),
-        ("0.9", SignalState.UNAVAILABLE),
-    ):
-        frozen, _ = config(
-            leaf("coverage", "pe", {"pe.etfMinCoverage": Decimal(minimum)})
-        )
-        snapshot = _snapshot(
-            ("10",) * 7, pe_values={day: "20" for day in _SESSIONS[2:]}
-        )
-        valuation = snapshot.valuation
-        assert valuation is not None
-        snapshot = snapshot.model_copy(
-            update={
-                "valuation": valuation.model_copy(
-                    update={
-                        "observations": tuple(
-                            item.model_copy(
-                                update={
-                                    "coverage": Decimal("0.8"),
-                                    "method": "etf_equity_earnings_yield",
-                                }
-                            )
-                            for item in valuation.observations
-                        )
-                    }
-                )
-            }
-        )
-        series = evaluate_signals(frozen, snapshot, sessions=_SESSIONS).strategies[0]
-        signals = {
-            item.signal_id: item
-            for item in series.evaluations
-            if item.date == _SESSIONS[2]
-        }
-        assert signals["pe.buy:coverage"].state is expected
-        assert signals["accumulation.buy"].state is expected
-        if expected is SignalState.UNAVAILABLE:
-            assert (
-                signals["pe.buy:coverage"].diagnostics[0].details["minimumCoverage"]
-                == minimum
-            )
 
 
 def test_nested_sell_rules_control_actual_next_day_trades():

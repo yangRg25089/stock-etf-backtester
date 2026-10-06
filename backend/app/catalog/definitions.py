@@ -91,9 +91,6 @@ PARAMETER_GROUP_DEFINITIONS: Final[tuple[ParameterGroupDefinition, ...]] = (
         id="interest_rate", translationKey="parameterGroups.interest_rate"
     ),
     ParameterGroupDefinition(
-        id="valuation", translationKey="parameterGroups.valuation"
-    ),
-    ParameterGroupDefinition(
         id="sell_signals", translationKey="parameterGroups.sell_signals"
     ),
     ParameterGroupDefinition(id="trend", translationKey="parameterGroups.trend"),
@@ -384,7 +381,6 @@ _SINGLE_CONDITION_PRESETS: Final[tuple[StrategyPresetId, ...]] = (
     StrategyPresetId.MA_DEVIATION_DCA,
     StrategyPresetId.BOLLINGER_DCA,
     StrategyPresetId.RATE_DCA,
-    StrategyPresetId.PE_DCA,
 )
 
 
@@ -406,8 +402,6 @@ def _condition_applicability(key: str) -> tuple[StrategyPresetId, ...]:
         return (StrategyPresetId.BOLLINGER_DCA,)
     if key.startswith("rate."):
         return (StrategyPresetId.RATE_DCA,)
-    if key.startswith("pe."):
-        return (StrategyPresetId.PE_DCA,)
     if key.startswith("exit.vix."):
         return (StrategyPresetId.VIX_DCA,)
     if key == "vix.symbol":
@@ -521,26 +515,6 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         group_id="data",
         unit="exchange_session",
         minimum=0,
-        step=1,
-        level=ParameterLevel.SHARED,
-    ),
-    _d(
-        "data.financialFactMaxAgeDays",
-        ParameterType.INTEGER,
-        550,
-        group_id="data",
-        unit="calendar_day",
-        minimum=1,
-        step=1,
-        level=ParameterLevel.SHARED,
-    ),
-    _d(
-        "data.etfHoldingsMaxAgeDays",
-        ParameterType.INTEGER,
-        180,
-        group_id="data",
-        unit="calendar_day",
-        minimum=1,
         step=1,
         level=ParameterLevel.SHARED,
     ),
@@ -790,36 +764,6 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
         allowed_values=("auto", "percent_point", "decimal", "basis_points"),
         dependencies=("rate.buyEnabled",),
     ),
-    _d(
-        "pe.buyEnabled",
-        ParameterType.BOOLEAN,
-        False,
-        group_id="valuation",
-        presets=_COMPOSITE_PRESETS,
-        dependencies=("pe.threshold", "pe.etfMinCoverage"),
-    ),
-    _d(
-        "pe.threshold",
-        ParameterType.DECIMAL,
-        Decimal("25"),
-        group_id="valuation",
-        presets=_COMPOSITE_PRESETS,
-        unit="multiple",
-        minimum="0.000001",
-        maximum=1000,
-        step="0.000001",
-    ),
-    _d(
-        "pe.etfMinCoverage",
-        ParameterType.RATIO,
-        Decimal("0.80"),
-        group_id="valuation",
-        presets=_COMPOSITE_PRESETS,
-        unit="ratio",
-        minimum=0,
-        maximum=1,
-        step="0.01",
-    ),
     # Exit settings.  Buy and sell switches remain separate dependencies.
     _d(
         "exit.enabled",
@@ -955,7 +899,6 @@ _DEFINITION_LIST: tuple[ParameterDefinition, ...] = (
             *_TREND_PRESETS,
             StrategyPresetId.MA_DEVIATION_DCA,
             StrategyPresetId.RATE_DCA,
-            StrategyPresetId.PE_DCA,
         ),
     ),
     _d(

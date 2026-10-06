@@ -297,12 +297,16 @@
     {
       "sourceId": "compare_strategies",
       "sourceKey": "启用PE",
-      "targetKey": "pe.buyEnabled"
+      "targetKey": [],
+      "mappingKind": "retiredInput",
+      "reason": "PE backtesting and its SEC processing chain were removed from the current product."
     },
     {
       "sourceId": "compare_strategies",
       "sourceKey": "PE阈值",
-      "targetKey": "pe.threshold"
+      "targetKey": [],
+      "mappingKind": "retiredInput",
+      "reason": "PE backtesting and its SEC processing chain were removed from the current product."
     },
     {
       "sourceId": "compare_strategies",
@@ -418,15 +422,16 @@
     {
       "sourceId": "compare_strategies",
       "sourceKey": "PE ETF覆盖率(V1新增)",
-      "targetKey": "pe.etfMinCoverage",
-      "mappingKind": "derived"
+      "targetKey": [],
+      "mappingKind": "retiredInput",
+      "reason": "ETF PE coverage was part of the removed PE valuation feature."
     }
   ],
   "explicitDifferences": [
     {
       "topic": "price_basis",
       "source": "Both notebooks request yfinance auto_adjust=False and use Adj Close/Close fallback.",
-      "v1": "The normalized contract keeps simulationPrice and valuationPrice separate; PE never substitutes one for the other."
+      "v1": "The current normalized market contract exposes the adjusted close used for simulation; it has no separate valuation-price contract."
     },
     {
       "topic": "vix_missing_values",
@@ -459,9 +464,9 @@
       "v1": "They are explicit registered fields/search dimensions, with maxCombinations capped at 1000 by default and 10000 hard."
     },
     {
-      "topic": "point_in_time",
-      "source": "The notebooks do not model public disclosure timing, ETF holdings, or PE coverage.",
-      "v1": "Fixtures and later adapters preserve as-of dates, missing PE, split bases, and ETF coverage diagnostics."
+      "topic": "removed_valuation_inputs",
+      "source": "The comparison notebook includes PE enable/threshold and ETF coverage inputs.",
+      "v1": "These notebook inputs are retained only as provenance and marked retired; no PE/SEC valuation fields or processing are present in the current product."
     }
   ],
   "unreferenced_sources": [

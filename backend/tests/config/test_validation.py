@@ -13,7 +13,6 @@ from app.domain.contracts import (
     MacroObservation,
     MarketBar,
     MarketSnapshot,
-    ValuationSnapshot,
 )
 from app.domain.status import Diagnostic, DiagnosticCode
 
@@ -53,9 +52,7 @@ def _requirement_signals(result: DraftValidationResult) -> set[str]:
     return {requirement.signal_id for requirement in result.data_requirements}
 
 
-def _data_snapshot(
-    *, macro_symbols: tuple[str, ...] = (), include_valuation: bool = False
-) -> DataSnapshot:
+def _data_snapshot(*, macro_symbols: tuple[str, ...] = ()) -> DataSnapshot:
     market = MarketSnapshot(
         symbol="QQQ",
         currency="USD",
@@ -64,7 +61,6 @@ def _data_snapshot(
                 date=date(2024, 1, 2),
                 symbol="QQQ",
                 simulationPrice=Decimal("400"),
-                valuationPrice=Decimal("400"),
                 currency="USD",
                 source="fixture",
                 observedAt=datetime(2024, 1, 2, tzinfo=UTC),
@@ -84,19 +80,9 @@ def _data_snapshot(
         )
         for symbol in macro_symbols
     )
-    valuation = (
-        ValuationSnapshot(
-            symbol="QQQ",
-            observations=(),
-            fingerprint="valuation-1",
-        )
-        if include_valuation
-        else None
-    )
     return DataSnapshot(
         market=market,
         macro=macro,
-        valuation=valuation,
         fingerprint="data-1",
     )
 
@@ -107,7 +93,6 @@ def test_validation_materializes_defaults_and_keeps_percent_points() -> None:
     assert result.valid is True
     config = result.config_for(("strategy-1",))
     assert config is not None
-    assert config.shared.data.financial_fact_max_age_days == 550
     assert config.strategies[0].params["rate.thresholdPct"] == Decimal("2.5")
 
 
@@ -117,14 +102,14 @@ def test_python_field_names_are_not_overwritten_by_catalog_alias_defaults() -> N
     assert isinstance(shared, dict)
     data = shared["data"]
     assert isinstance(data, dict)
-    data.pop("financialFactMaxAgeDays")
-    data["financial_fact_max_age_days"] = 123
+    data.pop("macroStalenessSessions")
+    data["macro_staleness_sessions"] = 2
 
     result = validate_draft(draft)
 
     config = result.config_for(("strategy-1",))
     assert config is not None
-    assert config.shared.data.financial_fact_max_age_days == 123
+    assert config.shared.data.macro_staleness_sessions == 2
 
 
 def test_ordinary_and_grid_configs_share_ratio_boundaries_and_error_paths() -> None:
@@ -332,7 +317,6 @@ def test_enabled_signal_requirements_do_not_depend_on_and_or_logic() -> None:
         "ma.buyEnabled": False,
         "bollinger.buyEnabled": False,
         "rate.buyEnabled": True,
-        "pe.buyEnabled": True,
         "exit.enabled": True,
         "exit.rsi.enabled": True,
         "exit.bollinger.enabled": False,
@@ -348,7 +332,6 @@ def test_enabled_signal_requirements_do_not_depend_on_and_or_logic() -> None:
         "rsi.buy",
         "rsi.exit",
         "rate.buy",
-        "pe.buy",
     }
     assert disjunction.valid is True
     assert conjunction.valid is True
@@ -367,7 +350,6 @@ def test_disabling_buy_does_not_disable_an_independent_sell_dependency() -> None
                 "bollinger.buyEnabled": False,
                 "exit.rsi.enabled": True,
                 "rate.buyEnabled": False,
-                "pe.buyEnabled": False,
             }
         )
     )
@@ -394,14 +376,13 @@ def test_disabled_vix_signal_creates_no_macro_requirement() -> None:
     assert diagnose_capabilities(result, snapshot) == ()
 
 
-def test_or_does_not_hide_missing_enabled_rate_or_pe_capabilities() -> None:
+def test_or_does_not_hide_missing_enabled_rate_capability() -> None:
     result = validate_draft(
         _draft(
             params={
                 "accumulation.conditionLogic": "OR",
                 "vix.buyEnabled": True,
                 "rate.buyEnabled": True,
-                "pe.buyEnabled": True,
             }
         )
     )
@@ -413,7 +394,6 @@ def test_or_does_not_hide_missing_enabled_rate_or_pe_capabilities() -> None:
 
     assert {diagnostic.field_path for diagnostic in diagnostics} == {
         "strategies[0].rules.buy.children[4].params.rate.symbol",
-        "strategies[0].rules.buy.children[5].params.pe.threshold",
     }
     assert all(
         diagnostic.code is DiagnosticCode.REQUIRED_DATA_UNAVAILABLE
@@ -423,7 +403,7 @@ def test_or_does_not_hide_missing_enabled_rate_or_pe_capabilities() -> None:
 
 def test_provider_failure_and_diagnostics_have_a_stable_json_contract() -> None:
     provider_error = provider_request_failed(
-        source="sec:companyfacts",
+        source="yahoo",
         field_path="run.symbol",
     )
     diagnostic_schema = Diagnostic.model_json_schema(by_alias=True)

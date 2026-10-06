@@ -60,7 +60,7 @@ test("selected volatility survives focus, column sorting preserves colors and as
 test("all timing dialogs expose buy limits first and selected cards retain hover styling", async ({ page }) => {
   await page.setViewportSize({ width:1440, height:900 });
   await page.goto("/");
-  const presets = ["ma_trend","ma_buy_only","rsi_dca","ma_deviation_dca","bollinger_dca","rate_dca","pe_dca","composite_dca","grid_search"];
+  const presets = ["ma_trend","ma_buy_only","rsi_dca","ma_deviation_dca","bollinger_dca","rate_dca","composite_dca","grid_search"];
   for (const preset of presets) {
     await page.locator(".add-strategy-button").click();
     await page.locator(`.strategy-add-option[data-preset-id="${preset}"]`).click();

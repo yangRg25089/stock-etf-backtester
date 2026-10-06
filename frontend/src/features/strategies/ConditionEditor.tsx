@@ -111,7 +111,7 @@ function ConditionNodeEditor(props: NodeProps) {
         {(keys ?? []).filter(key => !(fixedTrend && side === "sell" && key === "exit.ratio")).map(key => {
           const definition = catalog.parameters?.find(item => item.key === key);
           if (!definition) return null;
-          const reverseThreshold = side === "sell" && ["ma.buyDeviationPct", "rate.thresholdPct", "pe.threshold"].includes(key);
+          const reverseThreshold = side === "sell" && ["ma.buyDeviationPct", "rate.thresholdPct"].includes(key);
           return <ParameterField key={key} definition={definition} value={params[key]} locale={locale}
             id={parameterFieldId(key, conditionFieldOwner(strategyId, node))} errors={nodeErrors}
             disabled={disabled} respectDependencies={false} currency={props.currency}

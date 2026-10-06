@@ -240,7 +240,6 @@ def _snapshot() -> DataSnapshot:
             date=day,
             symbol="QQQ",
             simulationPrice=Decimal("100"),
-            valuationPrice=Decimal("100"),
             currency="USD",
             source="fixture",
             observedAt=datetime.combine(day, datetime.min.time(), UTC),

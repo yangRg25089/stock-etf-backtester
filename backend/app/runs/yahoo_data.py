@@ -25,7 +25,6 @@ from app.data.market_data import (
     MarketDataRequest,
     compose_data_snapshot,
 )
-from app.data.providers.sec_valuation import SecValuationProvider, ValuationLoad
 from app.data.providers.yahoo import YahooFinanceAdapter
 from app.data.run_planning import (
     _indicator_lookback,
@@ -35,7 +34,6 @@ from app.data.run_planning import (
 from app.domain.contracts import (
     FrozenStrategyInstance,
     InstrumentMetadata,
-    MarketSnapshot,
     RunDateAdjustment,
     SharedSettings,
 )
@@ -88,7 +86,6 @@ class YahooRunDataProvider:
         calendar_factory: CalendarFactory | None = None,
         clock: Clock | None = None,
         catalog: Catalog | None = None,
-        valuation_provider: SecValuationProvider | None = None,
     ) -> None:
         self._adapter = adapter or YahooFinanceAdapter()
         self._calendar_factory = calendar_factory
@@ -97,9 +94,6 @@ class YahooRunDataProvider:
         self._cache = InMemoryDataCache(max_entries=128)
         self._market = CachedMarketDataProvider(self._adapter, self._cache)
         self._macro = CachedMacroDataProvider(self._adapter, self._cache)
-        self._valuation = valuation_provider or SecValuationProvider(
-            adapter=self._adapter
-        )
         self._exchange_codes: dict[str, str] = {}
         self._exchange_lock = RLock()
         try:
@@ -187,7 +181,6 @@ class YahooRunDataProvider:
                     details={"reason": "clock_timezone_unavailable"},
                 ),
             )
-        now_utc = now.astimezone(UTC)
         as_of_date = now.date()
         calendar_start = shared.run.start_date - timedelta(
             days=max(14, calendar_lookback * 2 + 14)
@@ -234,13 +227,7 @@ class YahooRunDataProvider:
         request = plan.request
         calendar_dates = plan.calendar_dates
         latest_closed_session = plan.latest_closed_session
-        needs_valuation = any(
-            requirement.kind is DataKind.VALUATION
-            for rows in strategy_requirements.values()
-            for requirement in rows
-        )
-        # EPS must be checked against the same current split basis as prices.
-        market_result = self._market.load(request, refresh=needs_valuation)
+        market_result = self._market.load(request)
         base_snapshot = market_result.snapshot
         if base_snapshot is None:
             diagnostics = market_result.diagnostics or (
@@ -291,21 +278,6 @@ class YahooRunDataProvider:
         macro_results = self._load_macro_results(
             effective_request, strategies, strategy_requirements
         )
-        valuation_result = (
-            self._load_valuation(
-                request=effective_request,
-                market=base_snapshot.market,
-                max_fact_age_days=shared.data.financial_fact_max_age_days,
-                session_closes={
-                    day: closing
-                    for day, closing in sessions
-                    if day in final_calendar.trading_dates
-                },
-                now=now_utc,
-            )
-            if needs_valuation
-            else None
-        )
         return self._build_strategy_loads(
             strategies=strategies,
             strategy_requirements=strategy_requirements,
@@ -316,44 +288,7 @@ class YahooRunDataProvider:
             market_diagnostics=effective_market_diagnostics,
             macro_results=macro_results,
             date_adjustments=date_adjustments,
-            valuation_result=valuation_result,
         )
-
-    def _load_valuation(
-        self,
-        *,
-        request: MarketDataRequest,
-        market: MarketSnapshot,
-        max_fact_age_days: int,
-        session_closes: Mapping[Date, datetime],
-        now: datetime,
-    ) -> ValuationLoad:
-        try:
-            return self._valuation.load(
-                request=request,
-                market=market,
-                max_fact_age_days=max_fact_age_days,
-                session_closes=session_closes,
-                now=now,
-            )
-        except Exception as error:
-            _LOGGER.warning(
-                "SEC normalization failed",
-                extra={
-                    "event": "sec_normalization_failed",
-                    "exception_type": type(error).__name__,
-                },
-            )
-            return ValuationLoad(
-                diagnostics=(
-                    Diagnostic(
-                        code=DiagnosticCode.CALCULATION_FAILED,
-                        messageKey="data.sec_processing_failed",
-                        source="sec",
-                        details={"stage": "sec_normalization"},
-                    ),
-                )
-            )
 
     def _exchange_code(self, symbol: str) -> tuple[str | None, Diagnostic | None]:
         with self._exchange_lock:
@@ -413,7 +348,6 @@ class YahooRunDataProvider:
         market_diagnostics: tuple[Diagnostic, ...],
         macro_results: Mapping[MacroKey, MacroDataResult],
         date_adjustments: tuple[RunDateAdjustment, ...] = (),
-        valuation_result: ValuationLoad | None = None,
     ) -> Mapping[str, StrategyDataLoad]:
         loaded: dict[str, StrategyDataLoad] = {}
         run_macros = tuple(
@@ -425,7 +359,6 @@ class YahooRunDataProvider:
             shared_snapshot = compose_data_snapshot(
                 market_result,
                 run_macros,
-                valuation=valuation_result.snapshot if valuation_result else None,
             )
         except (TypeError, ValueError):
             # A conflicting unit/source for the same ticker must not block
@@ -473,34 +406,6 @@ class YahooRunDataProvider:
                         diagnostics.append(diagnostic)
                     if not result.observations and not result.diagnostics:
                         diagnostics.append(_required_macro_diagnostic(requirement))
-                elif requirement.kind is DataKind.VALUATION:
-                    valuation_diagnostics = (
-                        valuation_result.diagnostics
-                        if valuation_result
-                        else (
-                            Diagnostic(
-                                code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
-                                messageKey="data.sec_request_unavailable",
-                                source="sec",
-                            ),
-                        )
-                    )
-                    for diagnostic in valuation_diagnostics:
-                        diagnostics.append(
-                            diagnostic.model_copy(
-                                update={
-                                    "field_path": requirement.field_path,
-                                    "details": freeze_mapping(
-                                        {
-                                            **dict(diagnostic.details or {}),
-                                            "symbol": requirement.symbol,
-                                            "strategyId": strategy.id,
-                                        }
-                                    ),
-                                }
-                            )
-                        )
-
             try:
                 snapshot = (
                     shared_snapshot
@@ -508,9 +413,6 @@ class YahooRunDataProvider:
                     else compose_data_snapshot(
                         market_result,
                         macros,
-                        valuation=valuation_result.snapshot
-                        if valuation_result
-                        else None,
                     )
                 )
             except (TypeError, ValueError) as error:
