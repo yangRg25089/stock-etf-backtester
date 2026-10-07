@@ -1,3 +1,4 @@
+import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
@@ -6,7 +7,8 @@ import { formatCurrency, formatMultiple } from "./format";
 import { ReturnPercent } from "./ReturnPercent";
 import { resultColor } from "./colors";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
-import { COMPARISON_COLUMNS, DEFAULT_COMPARISON_SORT, sortedComparisons, type ComparisonSort } from "./comparisonModel";
+import { hasTaxColumn, COMPARISON_COLUMNS, DEFAULT_COMPARISON_SORT, sortedComparisons, type ComparisonSort } from "./comparisonModel";
+import { TaxValue } from "./TaxValue";
 import { TableExpandButton } from "./TableExpandButton";
 import { SortableHeader } from "./SortableHeader";
 
@@ -35,7 +37,10 @@ export function ResultComparison({
   const scrollId = useId();
   const rows = useRef(new Map<string, HTMLTableRowElement>());
   const previousTops = useRef(new Map<string, number>());
-  const ordered = sortedComparisons(strategyRuns, sort, locale);
+  const showTax = hasTaxColumn(strategyRuns);
+  const effectiveSort = !showTax && sort.key === "capitalGainsTax" ? DEFAULT_COMPARISON_SORT : sort;
+  const ordered = sortedComparisons(strategyRuns, effectiveSort, locale);
+  useEffect(() => { if (!showTax && sort.key === "capitalGainsTax") onSortChange(DEFAULT_COMPARISON_SORT); }, [showTax, sort.key, onSortChange]);
   useRowLayoutEffect(() => {
     const nextTops = new Map<string, number>();
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -58,8 +63,8 @@ export function ResultComparison({
     <caption className="sr-only">{translate(locale, "results.comparisonTitle")}</caption>
     <thead>
       <tr>
-        {COMPARISON_COLUMNS.map(column => <SortableHeader key={column.key} locale={locale} label={translate(locale, column.labelKey)}
-          sortKey={column.key} sort={sort} disabled={busy} className="comparison-sort"
+        {COMPARISON_COLUMNS.filter(column => showTax || column.key !== "capitalGainsTax").map(column => <SortableHeader key={column.key} locale={locale} label={translate(locale, column.labelKey)}
+          sortKey={column.key} sort={effectiveSort} disabled={busy} className="comparison-sort"
           firstDirection={column.key === "strategy" || column.key === "maximumDrawdown" ? "ascending" : "descending"}
           onSort={onSortChange} />)}
       </tr>
@@ -112,7 +117,7 @@ export function ResultComparison({
             <td>{formatMultiple(metrics?.capitalMultiple, locale)}</td>
             <td><ReturnPercent value={metrics?.xirr} locale={locale} /></td>
             <td><ReturnPercent value={metrics?.maximumDrawdown} locale={locale} kind="drawdown" /></td>
-            <td>{formatCurrency(metrics?.tradingCosts?.capitalGainsTax, metrics?.currency, locale)}</td>
+            {showTax && <td><TaxValue value={metrics?.tradingCosts?.capitalGainsTax} currency={metrics?.currency} locale={locale} /></td>}
           </tr>
         );
       })}
@@ -120,14 +125,14 @@ export function ResultComparison({
   </table>;
   return (
     <div className={`table-height-region comparison-table-region${heightExpanded ? " is-height-expanded" : ""}`}>
-      <div className="table-height-controls">
+      <div className="table-height-controls"><h4 className="table-height-controls-title">{translate(locale, "results.tab.comparison")}</h4>
         <TableExpandButton locale={locale} tableName={translate(locale, "results.tab.comparison")}
           controls={scrollId} expanded={heightExpanded} disabled={busy}
           onToggle={() => setHeightExpanded(previous => !previous)} />
       </div>
       <div id={scrollId} className={`comparison-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} tabIndex={0} role="region"
         aria-label={translate(locale, "results.comparisonTitle")}>
-        {heightExpanded ? <div className="table-expanded-overflow">{table}</div> : table}
+        {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
       </div>
     </div>
   );

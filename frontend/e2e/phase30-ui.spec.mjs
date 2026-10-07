@@ -182,7 +182,7 @@ test("comparison and trade tables expand all rows vertically and retain their wi
     expect(buttonBox.y).toBeLessThanOrEqual(parentBox.y + 8);
   };
   await check(comparison, comparison.locator("table"), "戦略比較");
-  await page.getByRole("tab", { name: "詳細", exact: true }).click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   const trades = page.locator(".trade-table-region");
   await check(trades, trades.locator("table"), "取引明細");
   expect(runRequests).toBe(0);

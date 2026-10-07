@@ -131,7 +131,7 @@ test("grid best and non-best candidates display saved curves and export the sele
   expect(grid.dailyAssets.length).toBeGreaterThan(0);
   await page.locator(".comparison-table tbody tr").filter({ hasText: "グリッド検索" }).click();
   await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toBeVisible();
-  await page.getByRole("tab", { name: "検索結果", exact: true }).click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   const candidates = page.locator(".search-table .result-select:not(:disabled)");
   await expect(candidates).toHaveCount(grid.searchResult.rankedCandidateIds.length);
   let recalculations = 0;
@@ -149,9 +149,9 @@ test("grid best and non-best candidates display saved curves and export the sele
     expect(await curve.evaluate(node => node.getBBox().width)).toBeGreaterThan(0);
     expect(selected.dailyAssets.length).toBe(grid.dailyAssets.length);
     const candidate = grid.searchResult.candidates.find(item => item.candidateId === selected.id);
-    await page.getByRole("tab", { name: "詳細", exact: true }).click();
+    await expect(page.locator("#result-panel-performance")).toBeVisible();
     await expect(page.locator(".result-detail-name")).toHaveText(`グリッド検索 · #${candidate.sequence}`);
-    await page.getByRole("tab", { name: "検索結果", exact: true }).click();
+    await expect(page.locator(".result-search-section")).toBeVisible();
   }
   const downloadPromise = page.waitForEvent("download");
   await page.locator('[data-export-kind="daily-assets"]').click();

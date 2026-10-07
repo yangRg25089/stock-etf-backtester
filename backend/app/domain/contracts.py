@@ -581,6 +581,9 @@ class Trade(DomainModel):
     signal_id: str | None = Field(default=None, alias="signalId")
     cash_before: Decimal | None = Field(default=None, alias="cashBefore", ge=0)
     cash_after: Decimal | None = Field(default=None, alias="cashAfter", ge=0)
+    total_asset_after: Decimal | None = Field(
+        default=None, alias="totalAssetAfter", ge=0
+    )
     quantity_before: Decimal | None = Field(default=None, alias="quantityBefore", ge=0)
     quantity_after: Decimal | None = Field(default=None, alias="quantityAfter", ge=0)
     execution_base_price: Decimal | None = Field(

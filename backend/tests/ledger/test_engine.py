@@ -1401,6 +1401,42 @@ def test_reinvestment_tax_tracks_remaining_basis_and_original_principal():
         )
     )
     assert metrics.summary.trading_costs.capital_gains_tax == 26
+    held = Decimal(0)
+    prices = {row.date: row.simulation_price for row in ledger.daily_assets}
+    for trade in ledger.trades:
+        held += trade.quantity if trade.side is TradeSide.BUY else -trade.quantity
+        assert trade.total_asset_after == trade.cash_after + held * prices[trade.date]
+
     assert metrics.summary.trading_costs.total_trading_cost == 26
     assert metrics.summary.total_contributed == metrics.summary.actual_invested == 100
     assert metrics.summary.net_profit == 104
+
+
+@pytest.mark.parametrize("preset", ["monthly_dca", "lump_sum", "vix_dca"])
+def test_each_fill_saves_whole_account_value_at_simulation_price(preset: str) -> None:
+    days = (date(2024, 1, 2), date(2024, 2, 1), date(2024, 2, 2))
+    config = _config(
+        start=date(2024, 1, 1),
+        end=days[-1],
+        preset=preset,
+        params={"accumulation.cashSafetyLimit": 1} if preset == "vix_dca" else None,
+        execution={
+            "commission": 2,
+            "slippagePct": 1,
+            "spreadPct": 2,
+            "fractionalShares": True,
+        },
+    )
+    ledger = _run(config, days, ("10", "20", "30"))
+    quantity = Decimal(0)
+    prices = dict(zip(days, map(Decimal, ("10", "20", "30")), strict=True))
+    assert ledger.trades
+    for trade in ledger.trades:
+        quantity += trade.quantity if trade.side is TradeSide.BUY else -trade.quantity
+        assert (
+            trade.total_asset_after == trade.cash_after + quantity * prices[trade.date]
+        )
+        assert (
+            trade.model_dump(by_alias=True)["totalAssetAfter"]
+            == trade.total_asset_after
+        )

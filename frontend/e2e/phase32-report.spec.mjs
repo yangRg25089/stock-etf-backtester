@@ -82,7 +82,7 @@ test("a saved search candidate downloads its own rank, condition and metrics", a
   expect(entry.status).toMatch(/^completed(?:_with_warning)?$/);
   await openSaved(page, saved);
   await page.locator(".comparison-table .result-select").filter({ hasText: "グリッド検索" }).click();
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   await page.locator(".search-results").getByRole("button", { name: "2", exact: true }).click();
   await expect(page.locator(".search-results .result-select[aria-pressed=true]")).toHaveText("2");
   const download = await pngDownload(page, "candidate-report.png");

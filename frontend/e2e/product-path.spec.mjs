@@ -823,7 +823,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".run-status-panel")).toHaveCount(0);
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
 
-  await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
+  await expect(page.locator(".comparison-table thead th")).toHaveCount(8);
   await expect(page.locator(".comparison-table")).toContainText("投入済み元本");
   await expect(page.locator("#result-details")).toBeVisible();
   await expect(page.locator(".result-run-id, #result-focus-select, .metric-card")).toHaveCount(0);
@@ -929,7 +929,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".chart-range-label")).toContainText("全図共通");
   for (const selector of [".chart-drawdown", ".chart-vix"]) {
     const size = await page.locator(`${selector} svg.result-chart`).evaluate(svg => ({ width: svg.getBoundingClientRect().width, height: svg.getBoundingClientRect().height }));
-    expect(size.height).toBeCloseTo(size.width * 90 / 800, 1);
+    expect(size.height).toBeGreaterThanOrEqual(64);
+    expect(size.height).toBeLessThanOrEqual(80);
     expect(await plotHeight(selector)).toBeGreaterThan(30);
   }
   await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
@@ -944,7 +945,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   }));
   expect(shortScreenLayout.documentHeight).toBeLessThanOrEqual(602);
   expect(shortScreenLayout.scrollHeight).toBeGreaterThan(shortScreenLayout.clientHeight);
-  expect(await plotHeight(".chart-panel.chart-overlay")).toBeCloseTo(mainPlotHeight, 0);
+  expect(await plotHeight(".chart-panel.chart-overlay")).toBeGreaterThanOrEqual(212);
+  expect(await plotHeight(".chart-panel.chart-overlay")).toBeLessThanOrEqual(mainPlotHeight);
   await expect(page.locator(".chart-layout-controls")).toHaveCount(0);
   await expect(page.locator(".chart-range-controls")).toBeInViewport();
 
@@ -1018,7 +1020,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator('[data-export-kind="summary"]')).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(detailsToggle).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByRole("tablist", { name: "実行結果" })).toBeVisible();
+  await expect(page.getByRole("tablist")).toHaveCount(0);
   await expect(page.locator("#result-panel-comparison .comparison-table")).toBeVisible();
   await expect(page.locator("#result-panel-metrics, #result-panel-overview")).toHaveCount(0);
   await page.locator(".workbench-results").evaluate((element) => element.scrollTo(0, 0));
@@ -1153,7 +1155,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
       scale: window.visualViewport?.scale,
     }));
     await page.mouse.wheel(0, plainWheelDelta);
-    await expect.poll(() => resultsPane.evaluate((element) => element.scrollTop)).not.toBe(scrollBeforePlainWheel);
+    const expectedPlainScroll = Math.max(0, Math.min(plainWheel.maxScroll, scrollBeforePlainWheel + plainWheelDelta));
+    await expect.poll(() => resultsPane.evaluate((element) => element.scrollTop)).toBe(expectedPlainScroll);
     const afterPlainWheel = await expectSynchronizedWindows();
     expect(afterPlainWheel.start).toBe(beforePlainWheel.start);
     expect(afterPlainWheel.end).toBe(beforePlainWheel.end);
@@ -1252,25 +1255,20 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   }));
   expect(chartLayout.document, JSON.stringify(chartLayout)).toBeLessThanOrEqual(chartLayout.viewport);
   await benchmarkButton.click();
-  const tradeTab = page.getByRole("tab", { name: "詳細" });
-  await tradeTab.focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("tab", { name: "詳細" })).toBeFocused();
-  await expect(page.getByRole("tab", { name: "詳細" })).toHaveAttribute("aria-selected", "true");
-  await page.keyboard.press("ArrowRight");
-  await expect(tradeTab).toBeFocused();
-  await page.keyboard.press("Home");
-  await expect(tradeTab).toHaveAttribute("aria-selected", "true");
-  await tradeTab.click();
-  await expect(tradeTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  const tradeControl = page.locator(".trade-table-region .table-expand-button");
+  await tradeControl.focus();
+  await page.keyboard.press("Enter");
+  await expect(tradeControl).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Space");
+  await expect(tradeControl).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#result-panel-trades .result-display-heading, #result-panel-trades .display-toggle")).toHaveCount(0);
   await expect(page.getByRole("table").last()).toBeVisible();
   await chartToggle.click();
   await expect(page.locator(".trade-table")).toBeVisible();
   await chartToggle.click();
   await expect(page.locator("#result-panel-comparison .comparison-table")).toHaveCount(1);
-  await tradeTab.click();
-  await expect(page.getByRole("table").last()).toBeVisible();
+  await expect(page.locator("#result-panel-trades .trade-table")).toBeVisible();
 
   await expect(page.locator("[data-export-kind]")).toHaveCount(4);
   await expect(page.locator('[data-export-kind="summary"]')).toBeEnabled();
@@ -1852,13 +1850,13 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   await page.reload();
   await expect(page.locator("#result-panel-comparison .comparison-table")).toBeVisible();
   await expect(page.locator("#result-focus-select, #result-tab-overview, #result-tab-metrics, .metric-card")).toHaveCount(0);
-  await expect(page.locator(".comparison-table thead th")).toHaveCount(9);
+  await expect(page.locator(".comparison-table thead th")).toHaveCount(8);
   const benchmark = saved.result.strategyRuns.find((result) => result.presetId === "monthly_dca" && result.role === "benchmark");
   const row = page.locator(".comparison-table tbody tr").filter({ hasText: "毎月定額積立" });
   await row.locator("td").last().click();
   await expect(row.locator("button")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".result-snapshot-info")).toHaveCount(0);
-  await page.getByRole("tab", { name: "詳細" }).click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toHaveText("毎月定額積立");
   const scroll = page.locator(".trade-table-scroll");
   await expect(scroll).toBeVisible();
@@ -1883,7 +1881,7 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   expect(content).toContain(String(benchmark.metrics.endingEquity));
 });
 
-test("linked figures share widths, halve indicator height, and highlight legends without gaps", async ({ page }) => {
+test("linked figures share widths, use bounded plot heights, and highlight legends without gaps", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
@@ -1904,8 +1902,12 @@ test("linked figures share widths, halve indicator height, and highlight legends
     }));
     expect(sizes).toHaveLength(3);
     expect(Math.max(...sizes.map((size) => size.width)) - Math.min(...sizes.map((size) => size.width))).toBeLessThanOrEqual(3);
-    expect(sizes[0].height).toBeCloseTo(sizes[0].width * 274 / 800, 1);
-    for (const size of sizes.slice(1)) expect(size.height).toBeCloseTo(size.width * 180 / 800 / 2, 1);
+    expect(sizes[0].height).toBeGreaterThanOrEqual(240);
+    expect(sizes[0].height).toBeLessThanOrEqual(360);
+    for (const size of sizes.slice(1)) {
+      expect(size.height).toBeGreaterThanOrEqual(64);
+      expect(size.height).toBeLessThanOrEqual(80);
+    }
     const gaps = await page.locator(".chart-linked-stack figure").evaluateAll(figures => figures.slice(1).map((figure,index) => figure.getBoundingClientRect().top - figures[index].getBoundingClientRect().bottom));
     for (const gap of gaps) expect(Math.abs(gap)).toBeLessThanOrEqual(1);
     await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
@@ -1942,17 +1944,16 @@ test("linked figures share widths, halve indicator height, and highlight legends
     expect(marker.difference).not.toBeNull();
     expect(marker.difference).toBeLessThan(0.001);
   }
-  const mainPlotHeight = await core.locator("svg.result-chart").evaluate(svg =>
-    Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop));
   for (const [seriesId, bottomChart] of [["vix", "drawdown"], ["drawdown", "overlay"], ["drawdown", "drawdown"], ["vix", "vix"]]) {
     await page.locator(`.chart-legend .legend-toggle[data-series="${seriesId}"]`).click();
     await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
     await expect(page.locator(".chart-date-axis .chart-x-axis-title")).toHaveCount(1);
     await expect(page.locator(`[data-chart-id="${bottomChart}"] .chart-x-axis-title`)).toHaveCount(0);
-    const plots = await page.locator(".chart-panel.is-compact svg.result-chart").evaluateAll(charts => charts.map(chart => Number(chart.dataset.plotBottom) - Number(chart.dataset.plotTop)));
-    for (const height of plots) expect(height).toBe(74);
-    expect(await core.locator("svg.result-chart").evaluate(svg =>
-      Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop))).toBe(mainPlotHeight);
+    const plotPixels = svg => (Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop)) / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height;
+    const plots = await page.locator(".chart-panel.is-compact svg.result-chart").evaluateAll(charts => charts.map(svg => (Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop)) / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height));
+    for (const height of plots) { expect(height).toBeGreaterThanOrEqual(48); expect(height).toBeLessThanOrEqual(64); }
+    const main = await core.locator("svg.result-chart").evaluate(plotPixels);
+    expect(main).toBeGreaterThanOrEqual(212); expect(main).toBeLessThanOrEqual(332);
   }
   const initialWindow = await core.getAttribute("data-window-start");
   const priceLegend = core.locator('.chart-series-control[data-series="price"]');
@@ -2060,7 +2061,10 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
     expect(box.right).toBeLessThanOrEqual(800);
   }
   await expect(indicator.locator("svg.result-chart")).toHaveAccessibleName(/ドローダウン.*%/);
-  await expect(indicator.locator("svg.result-chart")).toHaveAttribute("viewBox", "0 0 800 90");
+  const indicatorGeometry = await indicator.locator("svg.result-chart").evaluate(el => ({width:el.viewBox.baseVal.width, height:el.getBoundingClientRect().height}));
+  expect(indicatorGeometry.width).toBe(800);
+  expect(indicatorGeometry.height).toBeGreaterThanOrEqual(64);
+  expect(indicatorGeometry.height).toBeLessThanOrEqual(80);
   const sizes = await stack.locator("svg.result-chart").evaluateAll((charts) => charts.map((chart) => {
     const b = chart.getBoundingClientRect();
     return { width: b.width, height: b.height };
@@ -2403,7 +2407,8 @@ test("crosshair links saved dates, shows exact readings and follows compact geom
   await hoverPlot(vixSvg, 0.25);
   await expect(core.locator(".chart-cursor-horizontal")).toHaveCount(0);
   const horizontal = vix.locator(".chart-cursor-horizontal");
-  expect(Number(await horizontal.getAttribute("y1"))).toBeCloseTo(26.5, 1);
+  const expectedCursorY = await vixSvg.evaluate(el => Number(el.dataset.plotTop) + (Number(el.dataset.plotBottom) - Number(el.dataset.plotTop)) * .25);
+  expect(Number(await horizontal.getAttribute("y1"))).toBeCloseTo(expectedCursorY, 1);
   await expect(stack.locator(".chart-cursor-date")).toHaveCount(1);
   await expect(stack.locator(".chart-date-axis .chart-cursor-date")).toHaveCount(1);
   const vixValue = result.signals.find((signal) => signal.date === day.date && signal.signalId === "vix.buy").observedValue;
@@ -2461,7 +2466,7 @@ test("result info is absent and trade context remains readable in a narrow touch
   await expect(page.locator(".topbar-functions")).toBeHidden();
   await page.locator(".workbench-mobile-view").last().click();
   await expect(page.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
-  await page.getByRole("tab", { name: "詳細", exact: true }).click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toHaveText("ボラティリティ積立");
   const bounds = await page.locator(".result-detail-name").boundingBox();
   expect(bounds.x).toBeGreaterThanOrEqual(0);
@@ -2474,7 +2479,7 @@ test("result info is absent and trade context remains readable in a narrow touch
     await expect(touchPage.locator(".comparison-table tbody tr")).toHaveCount(3);
     await touchPage.locator(".workbench-mobile-view").last().tap();
     await expect(touchPage.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
-    const tab = touchPage.getByRole("tab", { name: "詳細", exact: true });
+    const tab = touchPage.locator(".trade-table-region .table-expand-button");
     const size = await tab.boundingBox();
     expect(size.height).toBeGreaterThanOrEqual(44);
     await tab.tap();

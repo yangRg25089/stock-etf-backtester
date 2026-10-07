@@ -334,14 +334,14 @@ test("request and partial failures stay visible while draft edits do not add res
   assert.doesNotMatch(staleHtml, /result-snapshot-info|QQQ · 2020-01-01 — 2024-02-02/);
 });
 
-test("comparison remains primary while trades and performance share one details tab and search is gated", () => {
+test("comparison remains primary, direct performance precedes trades and search is conditional", () => {
   const state = workspaceWithRun();
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "ja",
     state,
     dispatch() {},
   }));
-  assert.match(html, /role="tablist" aria-label="実行結果の詳細"/);
+  assert.doesNotMatch(html, /role="tablist"|role="tab"|role="tabpanel"/);
   assert.match(html, /id="result-details"[^>]*tabindex="-1"/);
   assert.match(html, /id="result-strategy-details"[^>]*tabindex="-1"/);
   assert.ok(resultViewerSource.includes('key={`run-results:${run?.runId ?? "empty"}`}'));
@@ -350,13 +350,12 @@ test("comparison remains primary while trades and performance share one details 
   const comparisonStart = html.indexOf('id="result-panel-comparison"');
   const detailCardStart = html.indexOf('id="result-strategy-details"');
   const detailTargetStart = html.indexOf('class="result-detail-target"');
-  const tabsStart = html.indexOf('role="tablist" aria-label="実行結果の詳細"');
+  const tabsStart = html.indexOf('id="result-panel-performance"');
   assert.ok(summaryCardStart < comparisonStart && comparisonStart < detailCardStart && detailCardStart < detailTargetStart && detailTargetStart < tabsStart);
   assert.doesNotMatch(html.slice(summaryCardStart, detailCardStart), /id="result-tab-details"/);
   assert.doesNotMatch(html.slice(detailCardStart), /id="result-panel-comparison"/);
   assert.doesNotMatch(html, /id="result-tab-comparison"|role="tab"[^>]*>戦略比較/);
-  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>詳細/);
-  assert.equal((html.match(/role="tab"/g) ?? []).length, 1);
+  assert.ok(html.indexOf('id="result-panel-performance"') < html.indexOf('id="result-panel-trades"'));
   assert.match(html, /id="result-panel-trades"/);
   assert.match(html, /id="result-panel-performance"/);
   assert.doesNotMatch(html, /id="result-panel-(?:trades|performance)"[^>]*hidden/);
@@ -381,7 +380,7 @@ test("comparison remains primary while trades and performance share one details 
     state,
     dispatch() {},
   }));
-  assert.match(searchHtml, /role="tab"[^>]*>検索結果/);
+  assert.match(searchHtml, /result-search-section/);
 });
 
 test("detail focus has no last-click comparison-row treatment or chart selection", () => {
@@ -523,7 +522,7 @@ test("comparison withholds failed metrics without role or status columns", () =>
   const render = () => renderToStaticMarkup(React.createElement(ResultViewer, { locale: "zh", state, dispatch() {}, error: null }));
   const partial = render();
   assert.doesNotMatch(partial, /status-tag/);
-  assert.equal((partial.match(/>—(?:<\/span>)?<\/td>/g) ?? []).length, 9);
+  assert.equal((partial.match(/>—(?:<\/span>)?<\/td>/g) ?? []).length, 10);
   assert.doesNotMatch(partial, /run-status-panel|run-strategy-statuses|部分策略已完成/);
   state.runResponse.status = "failed";
   state.runResponse.result.strategyRuns[1].status = "failed";
@@ -572,7 +571,7 @@ test("result errors announce one localized reason when the API title duplicates 
   }));
   assert.doesNotMatch(html, /result-focus-select|result-panel-overview|result-panel-metrics/);
   assert.doesNotMatch(html, /id="result-tab-comparison"/);
-  assert.ok(html.indexOf('id="result-panel-comparison"') < html.indexOf('id="result-tab-details"'));
+  assert.ok(html.indexOf('id="result-panel-comparison"') < html.indexOf('id="result-panel-performance"'));
   assert.match(html, /汇总.csv/);
   assert.match(html, /class="export-download-icon"/);
 });

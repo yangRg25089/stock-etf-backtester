@@ -19,12 +19,12 @@ interface ChartControlsProps {
   visibleEndDate: string;
   onSeriesChange(id: string, visible: boolean): void;
   onTechnicalToggle(kind: string, visible: boolean): void;
-  interaction: Pick<ReturnType<typeof useChartInteraction>, "viewport" | "wheelZoomEnabled" | "toggleWheelZoom" | "zoomAt" | "resetRange">;
+  interaction: Pick<ReturnType<typeof useChartInteraction>, "cursor" | "touchMode" | "selectTouchMode" | "viewport" | "wheelZoomEnabled" | "toggleWheelZoom" | "zoomAt" | "resetRange">;
 }
 
 export function ChartControls({ locale, currency, busy, available, selected, savedLines, hiddenTechnicalKinds,
   priceVisible, visibleStartDate, visibleEndDate, onSeriesChange, onTechnicalToggle, interaction }: ChartControlsProps) {
-  const { viewport, wheelZoomEnabled, toggleWheelZoom, zoomAt, resetRange } = interaction;
+  const { touchMode, selectTouchMode, viewport, wheelZoomEnabled, toggleWheelZoom, zoomAt, resetRange } = interaction;
   const viewportSpan = viewport.end - viewport.start;
   const technicalKinds = [...new Set(savedLines.map(line => line.kind))];
   return (<div className="chart-toolbar">
@@ -72,6 +72,10 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
             })}
           </div>
         </div>
+        <div className="chart-touch-controls" role="group" aria-label={translate(locale, "chart.touchMode")}>
+          {(["inspect", "pan"] as const).map(mode => <button type="button" key={mode} disabled={busy} aria-pressed={touchMode === mode}
+            onClick={() => selectTouchMode(mode)}>{translate(locale, `chart.touch.${mode}`)}</button>)}
+        </div>
         <div className="chart-range-controls" role="group" aria-label={translate(locale, "chart.rangeControls")}>
           {wheelZoomEnabled && (
             <span className="chart-wheel-zoom-status" role="status">
@@ -102,7 +106,7 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
           <button type="button" aria-label={translate(locale, "chart.zoomIn")} title={translate(locale, "chart.zoomIn")} disabled={viewportSpan <= MIN_CHART_VIEWPORT_SPAN + 1e-6} onClick={() => zoomAt(0.8)}>
             <span aria-hidden="true">+</span>
           </button>
-          <button className="icon-only-button chart-range-reset" type="button" aria-label={translate(locale, "chart.resetRange")} title={translate(locale, "chart.resetRange")} disabled={viewportSpan >= 1} onClick={resetRange}>
+          <button className="icon-only-button chart-range-reset" type="button" aria-label={translate(locale, "chart.resetRange")} title={translate(locale, "chart.resetRange")} disabled={busy || (viewportSpan >= 1 && !interaction.cursor)} onClick={resetRange}>
             <span aria-hidden="true">↺</span>
           </button>
         </div>

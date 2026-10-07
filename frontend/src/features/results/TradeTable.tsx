@@ -1,3 +1,4 @@
+import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
 import { useId, useState } from "react";
 import type { StrategyStatus, Trade, UnexecutedSignal } from "../../api/generated";
 import { isSuccessfulRunStatus } from "../../api/runStatus";
@@ -8,7 +9,7 @@ import { SortableHeader } from "./SortableHeader";
 import { sortTableRows, type TableSort, type TableSortDirection } from "./tableSorting";
 import { signalLabel } from "./tradeSignalLabel";
 
-type TradeSortKey = "date" | "side" | "reason" | "quantity" | "price" | "cashAmount" | "signal";
+type TradeSortKey = "date" | "side" | "reason" | "quantity" | "price" | "cashAmount" | "totalAssetAfter";
 
 interface TradeTableProps {
   busy?: boolean;
@@ -32,7 +33,6 @@ export function TradeTable({ locale, status, trades, busy = false, onTradeSelect
   const orderedTrades = sortTableRows(indexedTrades, sort, ({ trade }, key) => {
     if (key === "side") return translate(locale, `trade.side.${trade.side}`);
     if (key === "reason") return translate(locale, `trade.reason.${trade.reason}`);
-    if (key === "signal") return trade.signalId ? signalLabel(locale, trade.signalId) : null;
     return trade[key];
   }, locale);
   const sortable = (key: TradeSortKey, label: string, firstDirection: TableSortDirection = "ascending") =>
@@ -46,26 +46,26 @@ export function TradeTable({ locale, status, trades, busy = false, onTradeSelect
       <tr>
         {sortable("date", translate(locale, "trade.date"))}
         {sortable("side", translate(locale, "trade.side"))}
-        {sortable("reason", translate(locale, "trade.reason"))}
+        {sortable("reason", translate(locale, "trade.reasonSignal"))}
         {sortable("quantity", translate(locale, "trade.quantity"))}
         {sortable("price", translate(locale, "trade.price"))}
         {sortable("cashAmount", translate(locale, "trade.cashAmount"))}
-        {sortable("signal", translate(locale, "trade.signal"))}
+        {sortable("totalAssetAfter", translate(locale, "trade.totalAssetAfter"))}
       </tr>
     </thead>
     <tbody>
       {orderedTrades.map(({ trade, index }) => (
-        <tr key={`${trade.date}-${trade.side}-${index}`} className={onTradeSelect ? "is-inspectable" : undefined}
+        <tr key={`${trade.date}-${trade.side}-${index}`} className={`is-${trade.side}${onTradeSelect ? " is-inspectable" : ""}`}
           onClick={() => { if (!busy) onTradeSelect?.(index); }}>
           <td>{onTradeSelect ? <button className="table-cell-action" type="button" disabled={busy}
             aria-label={translate(locale, "trade.explain.open", { date: trade.date, side: translate(locale, `trade.side.${trade.side}`) })}
             onClick={event => { event.stopPropagation(); onTradeSelect(index); }}>{trade.date}</button> : trade.date}</td>
           <td>{translate(locale, `trade.side.${trade.side}`)}</td>
-          <td>{translate(locale, `trade.reason.${trade.reason}`)}</td>
+          <td className="trade-reason"><span>{translate(locale, `trade.reason.${trade.reason}`)}</span>{trade.signalId && signalLabel(locale, trade.signalId) !== translate(locale, `trade.reason.${trade.reason}`) && <small>{signalLabel(locale, trade.signalId)}</small>}</td>
           <td>{formatQuantity(trade.quantity, locale)}</td>
           <td>{formatCurrency(trade.price, trade.currency, locale)}</td>
           <td>{formatCurrency(trade.cashAmount, trade.currency, locale)}</td>
-          <td>{signalLabel(locale, trade.signalId)}</td>
+          <td title={translate(locale, "trade.totalAssetAfterHelp")}>{formatCurrency(trade.totalAssetAfter, trade.currency, locale)}</td>
         </tr>
       ))}
     </tbody>
@@ -83,7 +83,7 @@ export function TradeTable({ locale, status, trades, busy = false, onTradeSelect
         tabIndex={0}
         role="region"
         aria-label={translate(locale, "trade.tableTitle", { count: String(trades.length) })}>
-          {heightExpanded ? <div className="table-expanded-overflow">{table}</div> : table}
+          {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
         </div>
       </div>
       {trades.length === 0 && (

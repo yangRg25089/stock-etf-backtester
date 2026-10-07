@@ -1,3 +1,4 @@
+import { expectedHeatmapColor } from "./helpers/heatmap.mjs";
 import { expect, test } from "@playwright/test";
 import { savedRun } from "./helpers/reports.mjs";
 import { installRunFixture } from "./helpers/runtime.mjs";
@@ -55,20 +56,20 @@ test("monthly return colors follow locale defaults, keep manual choices, and exp
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   await page.locator(".comparison-table .result-select").first().click();
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await page.locator(".locale-select").selectOption("ja");
 
   const panel = page.locator("#result-panel-performance");
   const monthly = panel.locator(".monthly-performance");
   const positive = panel.locator(".heatmap-cell.is-positive").first();
-  const negative = panel.locator(".heatmap-cell.is-negative").first();
+  const negative = panel.locator("td:not(.heatmap-annual) .heatmap-cell.is-negative").first();
   await expect(positive).toBeVisible();
   await expect(negative).toBeVisible();
   await expect(page.locator(".app-frame")).toHaveAttribute("data-return-palette", "green-up");
-  await expect(positive).toHaveCSS("background-color", "rgb(8, 116, 67)");
-  await expect(positive).toHaveCSS("color", "rgb(255, 255, 255)");
-  await expect(negative).toHaveCSS("background-color", "rgb(183, 28, 28)");
-  await expect(negative).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(positive).toHaveCSS("background-color", await expectedHeatmapColor(page, "rgb(8, 116, 67)", .05));
+  await expect(positive).toHaveCSS("color", "rgb(37, 60, 109)");
+  await expect(negative).toHaveCSS("background-color", await expectedHeatmapColor(page, "rgb(183, 28, 28)", .04));
+  await expect(negative).toHaveCSS("color", "rgb(37, 60, 109)");
 
   await page.locator(".return-color-control").getByRole("button", { name: "上昇は赤、下落は緑" }).click();
   await expect(page.locator(".app-frame")).toHaveAttribute("data-return-palette", "red-up");
@@ -77,7 +78,7 @@ test("monthly return colors follow locale defaults, keep manual choices, and exp
   expect(await page.evaluate(() => localStorage.getItem("stock-etf-backtester.heatmap-palette.v1"))).toBe("red-up");
   await installRunFixture(page, saved);
   await page.reload();
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(page.locator(".app-frame")).toHaveAttribute("data-return-palette", "red-up");
 
   const firstCard = panel.locator(".performance-stat").first();
@@ -110,7 +111,7 @@ test("trade and annual performance tables sort by their displayed columns", asyn
   await page.goto("/");
   await page.locator(".comparison-table tbody tr").filter({ hasText: "ボラティリティ積立" }).locator(".result-select").click();
 
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   const tradeTable = page.locator(".trade-table");
   const dateHeader = tradeTable.locator("thead th").nth(0);
   await dateHeader.locator("button").click();
@@ -124,7 +125,7 @@ test("trade and annual performance tables sort by their displayed columns", asyn
   await expect(dateHeader).toHaveAttribute("aria-sort", "descending");
   await expect(tradeTable.locator("tbody tr").first().locator("td").first()).toContainText("2024-02-03");
 
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   const annual = page.locator(".heatmap-table");
   const navHeader = annual.locator("thead th").last();
   await navHeader.locator("button").click();
@@ -167,7 +168,7 @@ test("expanded table headings stick to the results viewport and release after th
   await expect(comparison.locator(".table-height-controls")).toHaveCSS("position", "sticky");
   await comparisonButton.click();
 
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   const tradeRegion = page.locator(".trade-table-region");
   const tradeButton = tradeRegion.locator(".table-expand-button");
   await tradeButton.click();
@@ -175,7 +176,7 @@ test("expanded table headings stick to the results viewport and release after th
   await expect(tradeRegion.locator(".table-height-controls")).toHaveCSS("position", "sticky");
   await tradeButton.click();
 
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await results.evaluate(node => { node.scrollTop = 0; });
   const groups = page.locator("#result-panel-performance .performance-group:has(.table-expand-button)");
   await expect(groups).toHaveCount(2);

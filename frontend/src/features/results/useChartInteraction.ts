@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefCallback } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefCallback } from "react";
 import type { ChartCursor } from "./ChartCrosshair";
 import { FULL_CHART_VIEWPORT, nearestChartIndex, panChartViewport, visibleIndexRange, wheelZoomFactor, zoomChartViewport, type ChartViewport } from "./chartViewport";
 
@@ -7,7 +7,7 @@ export interface ChartInteractionProps {
   onPointerMove(event: ReactPointerEvent<SVGSVGElement>): void;
   onPointerUp(event: ReactPointerEvent<SVGSVGElement>): void;
   onPointerCancel(event: ReactPointerEvent<SVGSVGElement>): void;
-  onPointerLeave(): void;
+  onPointerLeave(event: ReactPointerEvent<SVGSVGElement>): void;
   onBlur(): void;
   onKeyDown(event: ReactKeyboardEvent<SVGSVGElement>): void;
 }
@@ -28,10 +28,14 @@ interface ChartGeometry {
 }
 
 export function useChartInteraction(count: number, baseGeometry: ChartGeometry, disabled = false) {
+  const [touchMode, setTouchMode] = useState<"inspect" | "pan">("inspect");
+  const touchPointer = useRef<number | null>(null);
+  const retainedTouchCursor = useRef(false);
   const [viewport, setViewport] = useState<ChartViewport>(FULL_CHART_VIEWPORT);
   const [wheelZoomEnabled, setWheelZoomEnabled] = useState(false);
   const [cursor, setCursor] = useState<ChartCursor | null>(null);
   const dragState = useRef<PointerDragState | null>(null);
+  useEffect(() => { if (disabled) { dragState.current = null; touchPointer.current = null; retainedTouchCursor.current = false; setCursor(null); } }, [disabled]);
   const plotWidth = baseGeometry.width - baseGeometry.left - baseGeometry.right;
   const pointerPosition = (event: ReactPointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -48,15 +52,28 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (disabled) return;
     if (event.button !== 0) return;
+    if (event.pointerType !== "touch") retainedTouchCursor.current = false;
     const position = pointerPosition(event);
     if (position.ratio < 0 || position.ratio > 1 || position.y < position.plotTop || position.y > position.plotBottom) return;
-    event.preventDefault();
+    if (event.pointerType === "touch") {
+      if (!event.isPrimary) { touchPointer.current = null; dragState.current = null; return; }
+      touchPointer.current = event.pointerId;
+      retainedTouchCursor.current = true;
+      if (touchMode === "inspect") {
+        const index = nearestChartIndex(count, viewport, position.ratio);
+        setCursor(index === null ? null : {index, chartId: event.currentTarget.dataset.chartId ?? "overlay", yRatio: (position.y - position.plotTop) / (position.plotBottom - position.plotTop)});
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
+    } else event.preventDefault();
     setCursor(null);
     dragState.current = { pointerId: event.pointerId, startRatio: position.ratio, viewport };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (disabled) return;
+    if (event.pointerType === "touch" && (!event.isPrimary || touchPointer.current !== event.pointerId)) return;
+    if (event.pointerType !== "touch") retainedTouchCursor.current = false;
     const activeDrag = dragState.current;
     const position = pointerPosition(event);
     if (!activeDrag) {
@@ -74,7 +91,8 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
     setViewport(nextViewport);
   };
   const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (dragState.current?.pointerId !== event.pointerId) return;
+    if (dragState.current?.pointerId !== event.pointerId && touchPointer.current !== event.pointerId) return;
+    touchPointer.current = null;
     dragState.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -82,6 +100,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
   };
   const onPointerCancel = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (dragState.current?.pointerId === event.pointerId) dragState.current = null;
+    if (touchPointer.current === event.pointerId) touchPointer.current = null;
   };
   const zoomAt = (factor: number, anchorRatio = 0.5) => {
     if (disabled) return;
@@ -155,13 +174,14 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
     onPointerMove,
     onPointerUp,
     onPointerCancel,
-    onPointerLeave: () => setCursor(null),
+    onPointerLeave: event => { if (event.pointerType !== "touch" && !retainedTouchCursor.current) setCursor(null); },
     onBlur: () => setCursor(null),
     onKeyDown,
   };
-  const resetRange = () => { setCursor(null); setViewport(FULL_CHART_VIEWPORT); };
+  const resetRange = () => { retainedTouchCursor.current = false; setCursor(null); setViewport(FULL_CHART_VIEWPORT); };
   return {
-    viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps, zoomAt, resetRange,
+    viewport, cursor, wheelZoomEnabled, touchMode,
+    selectTouchMode: (mode: "inspect" | "pan") => { retainedTouchCursor.current = false; dragState.current = null; touchPointer.current = null; setCursor(null); setTouchMode(mode); }, chartContainerRef, chartInteractionProps, zoomAt, resetRange,
     toggleWheelZoom: () => setWheelZoomEnabled((enabled) => !enabled),
   };
 }

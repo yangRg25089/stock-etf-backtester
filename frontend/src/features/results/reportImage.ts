@@ -1,3 +1,4 @@
+import { heatmapIntensity } from "./heatmapIntensity";
 import { formatPercent } from "./format";
 import { returnTone } from "./returnTone";
 import { reportBitmapSize, wrapReportText, type ResultReport } from "./reportModel";
@@ -167,11 +168,16 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
       const tone = returnTone(row?.navReturn);
       const x = MARGIN + column * cellWidth;
       const fill = tone === "positive" ? color("--return-positive") : tone === "negative" ? color("--return-negative") : palette.soft;
+      context.fillStyle = palette.background; context.fillRect(x + 2, y, cellWidth - 4, 34);
+      const minimum = parseFloat(color("--heatmap-min")) / 100;
+      const range = parseFloat(color("--heatmap-range")) / 100;
+      context.globalAlpha = tone === "positive" || tone === "negative" ? minimum + heatmapIntensity(row?.navReturn, column === 13) * range : 1;
       context.fillStyle = fill; context.fillRect(x + 2, y, cellWidth - 4, 34);
+      context.globalAlpha = 1;
       if (column === 13) { context.strokeStyle = palette.accent; context.lineWidth = 2; context.strokeRect(x + 2, y, cellWidth - 4, 34); }
       const value = `${tone === "positive" ? "+" : ""}${formatPercent(row?.navReturn, "en")}`;
       const size = Math.max(10, Math.min(14, 14 * (cellWidth - 8) / Math.max(1, (() => { font(14, 600); return context.measureText(value).width; })())));
-      text(value, x + 6, y + 10, size, tone === "positive" || tone === "negative" ? "#ffffff" : palette.muted, 600);
+      text(value, x + 6, y + 10, size, tone === "positive" || tone === "negative" ? palette.text : palette.muted, 600);
     }
     y += 42;
   }

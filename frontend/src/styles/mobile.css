@@ -49,7 +49,6 @@
   .topbar-right { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .topbar-setting { display: flex; align-items: center; justify-content: space-between; min-width: 0; min-height: 44px; gap: 12px; }
   .topbar-setting-label { display: block; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
-  .theme-select { grid-area: auto; width: 140px; }
   .return-color-control, .locale-select-control { grid-area: auto; }
   .locale-select-control .locale-select { min-width: 0; width: 140px; padding-inline: 6px 20px; }
   .package-controls { grid-area: auto; justify-self: stretch; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--app-border); }
@@ -145,15 +144,23 @@
 }
 
 @media (pointer: coarse) {
-  .package-action, .theme-select { min-height: 44px; }
+  .appearance-controls .button { min-height: 44px; min-width: 44px; }
+  .package-action { min-height: 44px; }
   .locale-select-control .locale-select { min-height: 44px; }
   .selected-strategy-chip { min-height: 44px; }
 }
 
 @media (pointer: coarse) and (max-width: 767px) {
-  .theme-select,
   .locale-select-control .locale-select { font-size: 16px; }
   .execution-actions .button { width: 44px; min-width: 44px; min-height: 44px; flex-basis: 44px; }
   .chart-range-controls button { min-width: 44px; }
   .chart-trade-hit-area { r: calc(28px * var(--chart-text-scale, 1)); }
+}
+
+@media (max-width: 767px) {
+  .workbench-results .chart-toolbar { display: flex; flex-wrap: wrap; align-items: center; column-gap: 2px; }
+  .workbench-results .chart-controls { flex-basis: 100%; }
+  .chart-touch-controls { gap: 0; }
+  .chart-touch-controls button { padding-inline: 2px; font-size: 11px; }
+  .chart-range-controls { gap: 2px; }
 }

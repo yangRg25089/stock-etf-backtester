@@ -25,7 +25,7 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   await page.locator(".comparison-table").getByRole("button", { name: "グリッド検索", exact: true }).click();
   await page.locator(".comparison-table").getByRole("button", { name: "毎月定額積立", exact: true }).click();
   await page.locator(".comparison-table").getByRole("button", { name: "グリッド検索", exact: true }).click();
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   const runButton = page.getByRole("button", { name: "バックテストを実行", exact: true });
   await expect(runButton).toBeEnabled();
   const periodsBefore = await page.locator(".search-periods").textContent();
@@ -51,13 +51,13 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   await expect(page.locator(".search-table thead")).toContainText("検証 XIRR");
   await page.getByRole("button", { name: "候補 #1 の検証結果を見る", exact: true }).click();
   await expect(page.locator(".search-test-select").first()).toHaveAttribute("aria-pressed", "true");
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toContainText("検証");
   await expect(page.locator(".result-detail-name")).toContainText("2024-02-29 → 2024-03-01");
   const main = page.locator(".chart-overlay");
   await expect(main).toContainText("検証");
   expect(await main.locator("[data-result-id]").count()).toBeGreaterThan(0);
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   for (const language of ["日本語", "中文"]) {
     await selectHeaderLocale(page, language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
@@ -72,7 +72,7 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   await page.route("**/api/v1/runs/**", route => { requests++; return route.abort(); });
   await restoreSavedRecord(page, file);
   await page.locator(".comparison-table").getByRole("button", { name: "网格搜索", exact: true }).click();
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   await page.getByRole("button", { name: "查看候选 #1 的测试结果", exact: true }).click();
   for (const kind of ["summary", "daily-assets", "trades"]) {
     const download = page.waitForEvent("download");

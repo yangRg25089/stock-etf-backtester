@@ -23,22 +23,22 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await page.locator(".comparison-table").getByRole("button", { name: "グリッド検索", exact: true }).click();
   await expect(page.locator(".comparison-period").filter({ hasText: "ローリング検証" })).toBeVisible();
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   await expect(page.locator(".search-window-select option")).toHaveCount(2);
   await expect(page.locator(".search-table tbody tr")).toHaveCount(2);
   await expect(page.locator(".search-periods")).toContainText("2015-01-01 → 2019-12-31");
   await page.locator(".search-table .result-select").first().click();
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "false");
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toContainText("学習");
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   await page.locator(".search-window-select").selectOption("1");
   await expect(page.locator(".search-periods")).toContainText("2016-01-01 → 2020-12-31");
   await page.locator(".search-table .result-select").first().click();
   await page.locator(".search-oos-select").click();
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".chart-overlay [data-result-id]").first()).toBeVisible();
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toContainText("ローリング検証");
   await expect(page.locator(".result-detail-name")).toContainText("2020-01-01 → 2021-02-05");
   for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {
@@ -51,7 +51,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   const report = page.waitForEvent("download");
   await page.locator("[data-report-kind=png]").click();
   expect((await report).suggestedFilename()).toMatch(/\.png$/);
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   for (const language of ["日本語", "中文"]) {
     await selectHeaderLocale(page, language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {

@@ -10,7 +10,7 @@ test("comparison stays primary and focused details stay distinct from chart sele
   const resultCard = page.locator("#result-details");
   const detailCard = page.locator("#result-strategy-details");
   const detailsTarget = page.locator(".result-detail-target");
-  const tabs = page.getByRole("tablist", { name: "実行結果の詳細" });
+  const tabs = page.getByRole("tablist");
   await expect(resultCard).toHaveCount(1);
   await expect(comparison).toHaveCount(1);
   await expect(detailCard).toHaveCount(1);
@@ -24,14 +24,13 @@ test("comparison stays primary and focused details stay distinct from chart sele
     const chartTop = document.querySelector("#result-chart-panel").getBoundingClientRect().top;
     const detailTop = document.querySelector("#result-strategy-details").getBoundingClientRect().top;
     const targetTop = document.querySelector(".result-detail-target").getBoundingClientRect().top;
-    const tabsTop = document.querySelector(".result-tabs").getBoundingClientRect().top;
+    const tabsTop = document.querySelector("#result-panel-performance").getBoundingClientRect().top;
     return comparisonTop < chartTop && chartTop < detailTop && detailTop < targetTop && targetTop < tabsTop;
   })).toBe(true);
-  await expect(tabs.getByRole("tab", { name: "詳細" })).toHaveAttribute("aria-selected", "true");
-  await expect(tabs.getByRole("tab")).toHaveCount(1);
+  await expect(tabs).toHaveCount(0);
   await expect(page.locator("#result-panel-trades")).toBeVisible();
   await expect(page.locator("#result-panel-performance")).toBeVisible();
-  await expect(detailsTarget).toContainText("明細対象");
+  await expect(detailsTarget).toHaveAttribute("aria-label", "明細対象");
 
   await expect(page.locator(".comparison-table .is-focused, .comparison-table [aria-current]")).toHaveCount(0);
   const selectedButton = page.locator(".comparison-table .result-select").filter({ hasText: "ボラティリティ" });
@@ -55,7 +54,7 @@ test("comparison stays primary and focused details stay distinct from chart sele
   const brightness = selectedColor.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, channel) => sum + channel, 0);
   expect(brightness).toBeGreaterThan(650);
 
-  await page.getByRole("tab", { name: "詳細" }).click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(detailsTarget).toContainText("毎月定額積立");
   const scrollers = await page.locator(".comparison-table-scroll, .trade-table-scroll, .performance-table-scroll, .search-table-scroll, .search-lab-scroll")
     .evaluateAll(elements => elements.map(element => getComputedStyle(element).maxHeight));
@@ -75,10 +74,10 @@ test("comparison stays primary and focused details stay distinct from chart sele
     { value: "en", tabs: "Result details", detailsHeading: "Strategy details", target: "Details for", strategy: "Monthly fixed-amount DCA", performance: "Details" },
   ]) {
     await page.locator(".locale-select").selectOption(locale.value);
-    await expect(page.getByRole("tablist", { name: locale.tabs })).toBeVisible();
+    await expect(page.getByRole("tablist")).toHaveCount(0);
     await expect(detailCard).toContainText(locale.detailsHeading);
-    await expect(detailsTarget).toContainText(locale.target);
+    await expect(detailsTarget).toHaveAttribute("aria-label", locale.target);
     await expect(page.locator(".result-detail-name")).toHaveText(locale.strategy);
-    await expect(page.getByRole("tab", { name: locale.performance })).toBeVisible();
+    await expect(page.locator("#result-panel-performance")).toBeVisible();
   }
 });

@@ -39,6 +39,7 @@ export function ResultsCharts({
   const interaction = useChartInteraction(dailyAssets.length, CHART, busy);
   const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps } = interaction;
   const rootElement = useRef<HTMLDivElement | null>(null);
+  const [plotHeights, setPlotHeights] = useState({main: 340, auxiliary: 72});
   const [renderedChartWidth, setRenderedChartWidth] = useState(CHART.width);
   const containerRef = useCallback((element: HTMLDivElement | null) => {
     chartContainerRef(element);
@@ -93,6 +94,30 @@ export function ResultsCharts({
     observer.observe(svg);
     return () => observer.disconnect();
   }, [dailyAssets.length, selected.length]);
+  const auxiliaryCount = indicatorSeries.length + (rsiLines.length > 0 ? 1 : 0);
+  useEffect(() => {
+    const element = rootElement.current;
+    if (!element || renderedChartWidth < 680) return;
+    const viewportElement = element.closest(".workbench-results");
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const viewportHeight = viewportElement?.clientHeight ?? window.innerHeight;
+      const toolbar = element.querySelector(".chart-toolbar")?.getBoundingClientRect().height ?? 0;
+      const readout = element.querySelector(".chart-crosshair-readout")?.getBoundingClientRect().height ?? 0;
+      const dateAxis = element.querySelector(".chart-date-axis")?.getBoundingClientRect().height ?? 40;
+      const overhead = toolbar + readout + dateAxis + 90;
+      const available = viewportHeight - overhead;
+      const auxiliary = Math.max(64, Math.min(80, (available - 320) / Math.max(1, auxiliaryCount)));
+      const main = Math.max(240, Math.min(360, available - auxiliary * auxiliaryCount));
+      setPlotHeights(previous => previous.main === main && previous.auxiliary === auxiliary ? previous : {main, auxiliary});
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
+    const observer = new ResizeObserver(schedule);
+    for (const target of [viewportElement, element.querySelector(".chart-toolbar"), element.querySelector(".chart-crosshair-readout")]) if (target) observer.observe(target);
+    window.addEventListener("resize", schedule); update();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", schedule); };
+  }, [renderedChartWidth, auxiliaryCount, comparisonSeries.length, strategyOrder.length]);
   const currency = dailyAssets[0]?.currency;
   const thresholdValue = numericValue(vixThreshold);
   const hasBuySignalObservations = signals.some((signal) =>
@@ -104,7 +129,7 @@ export function ResultsCharts({
   const visibleEndDate = dailyAssets[Math.round(range.end)]?.date ?? "—";
   const visibleComparisons = selected.some(series => series.id === "totalAsset") ? comparisonNormalized : [];
   return (
-    <div className={`charts-content${wheelZoomEnabled ? " is-wheel-zoom-active" : ""}`} ref={containerRef}>
+    <div className={`charts-content touch-mode-${interaction.touchMode}${wheelZoomEnabled ? " is-wheel-zoom-active" : ""}`} ref={containerRef}>
       <ChartControls locale={locale} currency={currency} busy={busy} available={available} selected={selected}
         savedLines={savedLines} hiddenTechnicalKinds={hiddenTechnicalKinds} priceVisible={priceVisible}
         visibleStartDate={visibleStartDate} visibleEndDate={visibleEndDate} onSeriesChange={onSeriesChange} interaction={interaction}
@@ -119,6 +144,7 @@ export function ResultsCharts({
           {(coreSeries.length > 0 || visibleComparisons.length > 0) && (
             <OverlayChart
               renderedWidth={renderedChartWidth}
+              pixelHeight={plotHeights.main}
               locale={locale}
               assets={dailyAssets}
               trades={trades}
@@ -142,6 +168,7 @@ export function ResultsCharts({
           {indicatorSeries.map((series) => (
             <IndicatorChart
               renderedWidth={renderedChartWidth}
+              pixelHeight={plotHeights.auxiliary}
               key={series.id}
               locale={locale}
               assets={dailyAssets}
@@ -158,6 +185,7 @@ export function ResultsCharts({
           ))}
           {rsiLines[0] && <IndicatorChart locale={locale} assets={dailyAssets}
             renderedWidth={renderedChartWidth}
+            pixelHeight={plotHeights.auxiliary}
             series={{ id: "rsi", color: rsiLines[0].color, labelKey: "chart.rsiAxis", label: rsiLines[0].label }}
             samples={rsiLines[0].samples} comparisons={rsiLines.slice(1)} thresholdValue={null} hasBuySignalObservations={false}
             viewport={viewport} chartInteractionProps={chartInteractionProps} cursor={cursor} />}

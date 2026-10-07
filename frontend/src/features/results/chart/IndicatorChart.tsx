@@ -14,6 +14,7 @@ import { HighlightArea } from "./ChartSeries";
 
 export function IndicatorChart({
   renderedWidth = CHART.width,
+  pixelHeight,
   locale,
   assets,
   series,
@@ -27,6 +28,7 @@ export function IndicatorChart({
   comparisons = [],
 }: {
   renderedWidth?: number;
+  pixelHeight?: number;
   locale: Locale;
   assets: DailyAsset[];
   series: IndicatorSeriesDefinition;
@@ -40,7 +42,7 @@ export function IndicatorChart({
   comparisons?: IndicatorComparison[];
 }) {
   const fillId = useId();
-  const geometry = responsiveChartGeometry(COMPACT_CHART, renderedWidth);
+  const geometry = responsiveChartGeometry(COMPACT_CHART, renderedWidth, pixelHeight);
   if (samples.length === 0) return null;
   const range = visibleIndexRange(assets.length, viewport);
   const visibleSamples = samples.filter((point) => point.index >= range.start && point.index <= range.end);

@@ -60,7 +60,7 @@ test('native browser zoom at 100, 125 and 150 percent keeps the saved workbench 
           axisPixelHeight: svg.querySelector(".chart-y-tick").getBoundingClientRect().height * devicePixelRatio,
           ordinaryPixelFont: parseFloat(getComputedStyle(document.querySelector(".strategy-navigator h2")).fontSize) * devicePixelRatio,
           toolsHeight: document.querySelector(".chart-toolbar").getBoundingClientRect().height,
-          layout: Object.fromEntries([".app-topbar", "#result-details", "#result-strategy-details", "#result-strategy-details .result-tabs", "#result-strategy-details .result-tab-panel", "#result-chart-panel", ".chart-toolbar", ".chart-overlay", ".result-chart"].map(selector => { const r = document.querySelector(selector).getBoundingClientRect(); return [selector, {top:r.top,height:r.height}]; })),
+          layout: Object.fromEntries([".app-topbar", "#result-details", "#result-strategy-details", "#result-strategy-details .result-detail-target", "#result-panel-performance", "#result-chart-panel", ".chart-toolbar", ".chart-overlay", ".result-chart"].map(selector => { const r = document.querySelector(selector).getBoundingClientRect(); return [selector, {top:r.top,height:r.height}]; })),
         };
       });
       measurements.push({ factor, actual, ...geometry });

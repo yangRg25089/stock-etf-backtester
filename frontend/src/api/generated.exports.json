@@ -96,7 +96,8 @@
     "slippageCost",
     "spreadCost",
     "capitalGainsTax",
-    "totalTradingCost"
+    "totalTradingCost",
+    "totalAssetAfter"
   ],
   "search-results": [
     "runId",
@@ -372,6 +373,7 @@
     "spreadCost",
     "timingQuantity",
     "totalAsset",
+    "totalAssetAfter",
     "totalContributed",
     "totalTradingCost",
     "turnover",

@@ -25,3 +25,13 @@ test("wide, unmeasured and invalid widths retain the existing geometry", () => {
     assert.deepEqual(responsiveChartGeometry(COMPACT_CHART, width), COMPACT_CHART);
   }
 });
+
+test('measured wide plots use actual pixel height instead of growing with width', () => {
+  for (const width of [800, 1100, 1360]) {
+    const main=responsiveChartGeometry(MAIN_WITHOUT_DATES,width,340);
+    const auxiliary=responsiveChartGeometry(COMPACT_CHART,width,72);
+    assert.equal(Math.round(main.height*width/CHART.width),340);
+    assert.equal(Math.round(auxiliary.height*width/CHART.width),72);
+    assert.ok(main.height>main.top+main.bottom);
+  }
+});

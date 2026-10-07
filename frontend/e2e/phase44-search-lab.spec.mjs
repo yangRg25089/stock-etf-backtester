@@ -8,7 +8,7 @@ async function openSearch(page, saved) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await page.locator(".comparison-table").getByRole("button", { name: "グリッド検索", exact: true }).click();
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   await page.locator(".search-lab > summary").click();
   return page.locator(".search-lab");
 }
@@ -82,7 +82,7 @@ test("saved heatmap fixes the third dimension, switches stages/metrics and opens
   await page.route("**/api/v1/runs/**", route => { requests++; return route.abort(); });
   await restoreSavedRecord(page, file);
   await page.locator(".comparison-table").getByRole("button", { name: "网格搜索", exact: true }).click();
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   await page.locator(".search-lab > summary").click();
   await lab.getByLabel("指标", { exact: true }).selectOption("drawdown");
   await lab.getByLabel("评估期间", { exact: true }).selectOption("test");

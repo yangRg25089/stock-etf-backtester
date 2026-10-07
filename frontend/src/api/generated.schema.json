@@ -3508,6 +3508,18 @@
         ],
         "title": "Cashafter"
       },
+      "totalAssetAfter": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Totalassetafter"
+      },
       "quantityBefore": {
         "anyOf": [
           {

@@ -1,4 +1,5 @@
-import { useId, useState } from "react";
+import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
+import { useId, useState, type CSSProperties } from "react";
 import type { PeriodReturn } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatExactPercent, formatPercent } from "./format";
@@ -6,6 +7,7 @@ import { TableExpandButton } from "./TableExpandButton";
 import { SortableHeader } from "./SortableHeader";
 import { sortTableRows, type TableSort, type TableSortDirection } from "./tableSorting";
 import { ReturnPercent } from "./ReturnPercent";
+import { heatmapIntensity } from "./heatmapIntensity";
 import { returnTone } from "./returnTone";
 
 type MonthlySortKey = "year" | "annual" | `month-${number}`;
@@ -28,6 +30,7 @@ export function MonthlyHeatmap({ locale, values, annualValues = [], busy = false
     if (!row) return <td key={key} className={`heatmap-unobserved${annual ? " heatmap-annual" : ""}`}><span aria-hidden="true">—</span><span className="sr-only">{translate(locale, "performance.noObservation")}</span></td>;
     const tone = returnTone(row.navReturn);
     return <td key={key} className={annual ? "heatmap-annual" : undefined}><button type="button" className={`heatmap-cell is-${tone}${inspected === row ? " is-inspected" : ""}`}
+      style={{ "--return-intensity": heatmapIntensity(row.navReturn, annual) } as CSSProperties}
       aria-label={label(row)} title={`${label(row, formatExactPercent(row.navReturn))} · ${row.startDate} → ${row.endDate}`}
       onMouseEnter={() => setInspected(row)} onFocus={() => setInspected(row)} onClick={() => setInspected(row)}>
       {tone === "positive" ? "+" : ""}{formatPercent(row.navReturn, locale)}
@@ -47,7 +50,7 @@ export function MonthlyHeatmap({ locale, values, annualValues = [], busy = false
         expanded={heightExpanded} disabled={busy} onToggle={() => setHeightExpanded(value => !value)} />
     </div>
     <div id={tableId} className={`data-table-scroll performance-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} role="region" tabIndex={0} aria-label={translate(locale, "performance.monthly")}>
-      {heightExpanded ? <div className="table-expanded-overflow">{table}</div> : table}
+      {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
     </div>
     <p className="heatmap-detail" role="status">{inspected ? <>
       {inspected.year}{inspected.month == null ? ` · ${translate(locale, "performance.annual")}` : `-${String(inspected.month).padStart(2, "0")}`} · <ReturnPercent value={inspected.navReturn} locale={locale} />

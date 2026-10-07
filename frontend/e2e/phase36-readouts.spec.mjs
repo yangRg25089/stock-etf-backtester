@@ -149,7 +149,7 @@ test("comparison and trade tables pass vertical scrolling to the results area on
     expect(await table.locator("thead, thead th").evaluateAll(nodes => nodes.some(node => getComputedStyle(node).position === "sticky"))).toBe(true);
   };
   await checkScroll(".comparison-table-scroll");
-  await page.getByRole("tab", { name: "詳細", exact: true }).click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await checkScroll(".trade-table-scroll");
   await page.locator(".trade-table-scroll").evaluate(node => { node.scrollTop = node.scrollHeight; });
   await results.evaluate(node => { node.scrollTop = node.scrollHeight; });

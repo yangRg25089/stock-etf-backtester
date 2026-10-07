@@ -39,23 +39,19 @@ for (const [busy, canStop, count] of [[false, false, 2], [true, false, 2], [true
   else assert.doesNotMatch(html, /run-stop-button/);
 });
 
-test("theme selection preserves Classic and offers four popular palettes with short English names", () => {
+test("appearance defaults to system, ignores legacy palettes and works without storage", () => {
   const previous = globalThis.localStorage;
   try {
-    for (const stored of [null, "mint", "blue", "unknown", "forest"]) {
+    for (const stored of [null, "mint", "forest", "unknown", "system", "dark", "light"]) {
       globalThis.localStorage = { getItem: () => stored };
       const html = renderToStaticMarkup(React.createElement(ThemeControl, { locale: "en" }));
-      assert.match(html, /<select[^>]*class="theme-select"[^>]*aria-label="Theme"/);
-      assert.equal((html.match(/<option/g) ?? []).length, 5);
-      assert.match(html, new RegExp(`<option value="${stored === "forest" ? "forest" : "classic"}" selected=""`));
-      assert.doesNotMatch(html, /value="(?:blue|mint)"/);
+      assert.doesNotMatch(html, /<select|<option|theme-select/);
+      assert.equal((html.match(/<button/g) ?? []).length, 2);
+      assert.match(html, new RegExp(`aria-pressed="${stored === "dark" || stored === "light" ? "false" : "true"}"`));
+      assert.match(html, />Auto<\/button>/);
     }
     globalThis.localStorage = { getItem() { throw new Error("blocked"); } };
-    for (const locale of ["ja", "zh", "en"]) {
-      const html = renderToStaticMarkup(React.createElement(ThemeControl, { locale }));
-      assert.match(html, /value="classic" selected/);
-      for (const name of ["Classic", "Wine", "Navy", "Blush", "Forest"]) assert.ok(html.includes(`>${name}</option>`));
-    }
+    for (const locale of ["ja", "zh", "en"]) assert.match(renderToStaticMarkup(React.createElement(ThemeControl, { locale })), /aria-pressed="true"/);
   } finally { if (previous === undefined) delete globalThis.localStorage; else globalThis.localStorage = previous; }
 });
 

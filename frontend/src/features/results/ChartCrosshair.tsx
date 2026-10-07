@@ -87,7 +87,7 @@ export function ChartReadout({ date, readings, strategies = [], inspection }: {
         <time dateTime={date}>{date}</time>
         <ReadingValues readings={readings} inspection={inspection} />
       </div>
-      {strategies.map(strategy => (
+      <div className="chart-strategy-readouts">{strategies.map(strategy => (
         <SeriesControl key={strategy.id} id={strategy.id} label={strategy.label} color={strategy.color} seriesId={strategy.seriesId}
           description={strategy.readings.map(reading => `${reading.label} ${reading.value}`).join(" · ")}
           resultId={strategy.id} date={date}
@@ -96,7 +96,7 @@ export function ChartReadout({ date, readings, strategies = [], inspection }: {
           <span className="chart-strategy-name" title={strategy.label}>{strategy.label}</span>
           <ReadingValues readings={strategy.readings} />
         </SeriesControl>
-      ))}
+      ))}</div>
     </div>
   );
 }

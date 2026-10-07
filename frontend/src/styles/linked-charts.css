@@ -5,6 +5,28 @@
   padding-top: 0;
 }
 .chart-linked-stack .chart-panel.is-compact .result-chart {
-  aspect-ratio: 800 / 90;
+  aspect-ratio: auto;
   height: auto;
 }
+
+.chart-strategy-readouts { display: grid; gap: 2px; }
+@media (min-width: 1400px) {
+  .chart-strategy-readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
+  .chart-strategy-readout { grid-template-columns: 14px minmax(110px, 1fr) repeat(3, minmax(0, 1fr)) 10px; gap: 4px; }
+  .chart-strategy-readout .chart-cursor-reading { white-space: normal; overflow-wrap: anywhere; }
+}
+.chart-touch-controls { display: none; gap: 2px; }
+@media (pointer: coarse), (max-width: 767px) {
+  .charts-content .result-chart { touch-action: pan-y pinch-zoom; }
+  .chart-touch-controls { display: inline-flex; }
+  .chart-touch-controls button { min-width: 44px; min-height: 44px; }
+  .chart-touch-controls [aria-pressed="true"] { border: 2px solid var(--app-accent); font-weight: 700; }
+}
+.chart-cursor-label { fill: var(--app-surface); }
+
+:root[data-theme="dark"] .chart-cursor-reading { color: color-mix(in srgb, var(--reading-color, var(--app-foreground)) 30%, var(--app-foreground)); }
+:root[data-theme="dark"] .chart-strategy-name { color: color-mix(in srgb, var(--series-color) 30%, var(--app-foreground)); }
+
+/* Updating linked plot/readout heights during zoom must preserve the user's
+   result scroll position rather than anchoring to a later table row. */
+.workbench-results { overflow-anchor: none; }

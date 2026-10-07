@@ -9,7 +9,7 @@ test("monthly inspection stays compact and expands height only; saved metric exp
   await installRunFixture(page, saved);
   await page.goto("/");
   await page.locator(".comparison-table").getByRole("button", { name: "毎月定額積立", exact: true }).click();
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   const panel = page.locator("#result-panel-performance");
   const monthly = panel.locator(".monthly-performance");
   const cell = monthly.locator(".heatmap-cell").first();

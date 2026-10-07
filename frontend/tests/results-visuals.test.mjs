@@ -161,7 +161,7 @@ test("linked figures have one bottom date axis and no separate-layout controls",
     assert.doesNotMatch(html, /chart-layout-controls|chart-aux-panel|分割表示|連動表示/);
     for (const id of visibleSeriesIds.filter(id => id !== "price")) {
       assert.match(html, new RegExp(`data-chart-id="${id}"`));
-      assert.match(html, /viewBox="0 0 800 90"/);
+      assert.match(html, /viewBox="0 0 800 72"/);
     }
   }
 });
@@ -174,7 +174,7 @@ test("the shared date axis centers a single saved day", () => {
   assert.match(html, /data-tick-index="0"[^>]*text-anchor="middle"/);
 });
 
-test("half-height indicators retain accessible natural units without captions or compressed plots", () => {
+test("compact indicators retain accessible natural units with measured pixel geometry", () => {
   for (const [locale, pointUnit] of [["ja", "ポイント"], ["zh", "点"]]) {
     const html = renderToStaticMarkup(React.createElement(ResultsCharts, {
       locale, dailyAssets, trades: [], visibleSeriesIds: ["price", "drawdown", "vix"],
@@ -187,7 +187,7 @@ test("half-height indicators retain accessible natural units without captions or
       assert.match(figure, /<text class="chart-axis-title chart-y-axis-title"/);
       assert.match(figure, /linearGradient/);
       assert.doesNotMatch(figure, /<figcaption|overlay-legend/);
-      assert.match(figure, /data-plot-top="8" data-plot-bottom="82"/);
+      assert.match(figure, /data-plot-top="8" data-plot-bottom="64"/);
       assert.ok(figure.match(/<title[^>]*>[\s\S]*?<\/title>/)[0].includes(id === "vix" ? pointUnit : "%"));
     }
     assert.match(html, /<svg class="chart-date-axis"/);

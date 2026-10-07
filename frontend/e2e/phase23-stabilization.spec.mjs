@@ -649,7 +649,7 @@ test("editable grid values freeze into search results, candidate curves and CSV"
   const frozen = saved.snapshot.config.strategies.find(item => item.presetId === "grid_search");
   expect(frozen.params["search.values.vix.buyThreshold"].map(Number)).toEqual([29, 31]);
   await page.locator(".comparison-table tbody tr").filter({ hasText: "グリッド検索" }).click();
-  await page.getByRole("tab", { name: "検索結果", exact: true }).click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   await expect(page.locator(".search-table tbody tr")).toHaveCount(2);
   await page.locator(".search-table tbody tr").last().locator("button").click();
   await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveAttribute("points", /\d+[.,\d ]+/);

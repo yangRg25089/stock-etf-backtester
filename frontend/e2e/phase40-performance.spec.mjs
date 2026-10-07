@@ -24,7 +24,7 @@ async function savedRun(page, presetId = "vix_dca") {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   return saved;
 }
 
@@ -60,13 +60,13 @@ test("saved NAV analysis is bilingual, accessible and independent of draft rate 
 
 test("grid candidate details keep the saved risk-free assumption and exact trade counts", async ({ page }) => {
   const saved = await savedRun(page, "grid_search");
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   const button = page.locator(".search-table .result-select").last();
   const sequence = Number(await button.innerText());
   await button.click();
   await expect(page.locator(".search-table .result-select[aria-pressed='true']")).toHaveCount(1);
   const candidate = saved.result.strategyRuns[0].searchResult.candidates.find(item => item.sequence === sequence);
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   const panel = page.locator("#result-panel-performance");
   await expect(panel.locator(".performance-basis")).toContainText("5%");
   await expect(panel.locator(".performance-stat").filter({ hasText: "買付回数" }).locator("dd")).toHaveText(String(candidate.metrics.analysis.buyCount));
