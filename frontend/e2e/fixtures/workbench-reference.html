@@ -384,19 +384,24 @@
     }
     #backtest-ui-preview .topbar-functions { display: contents; }
     #backtest-ui-preview .topbar-menu-toggle { display: none; }
+    #backtest-ui-preview .topbar-setting { display: contents; }
+    #backtest-ui-preview .topbar-setting-label { display: none; }
     #backtest-ui-preview .table-height-controls-title { margin: 0 auto 0 0; font-size: 12px; }
     @media (max-width: 767px) {
-      #backtest-ui-preview .app-topbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand menu" "selected selected"; gap: 2px 8px; padding: 4px 8px; }
+      #backtest-ui-preview .app-topbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand actions menu" "selected selected selected"; gap: 2px 8px; padding: 4px 8px; }
       #backtest-ui-preview .brand-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
       #backtest-ui-preview .topbar-menu-toggle { grid-area: menu; display: grid; place-items: center; width: 44px; min-height: 44px; padding: 0; }
       #backtest-ui-preview .topbar-functions { display: none; }
-      #backtest-ui-preview .topbar-functions.is-open { position: absolute; top: calc(100% + 4px); right: 8px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; width: min(360px, calc(100% - 16px)); max-height: calc(100dvh - 120px); padding: 8px; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 8px 24px #253c6d20; }
-      #backtest-ui-preview .execution-actions { grid-area: auto; grid-column: 1 / -1; grid-row: 1; }
-      #backtest-ui-preview .package-actions { grid-area: auto; grid-column: 1 / -1; grid-row: 2; display: flex; }
-      #backtest-ui-preview .package-actions button { flex: 1; }
-      #backtest-ui-preview .theme-select { grid-area: auto; grid-column: 1; grid-row: 3; width: 100%; }
-      #backtest-ui-preview .return-color-control { grid-area: auto; grid-column: 2; grid-row: 3; }
-      #backtest-ui-preview .locale-select-control { grid-area: auto; grid-column: 3; grid-row: 3; }
+      #backtest-ui-preview .topbar-functions.is-open { position: absolute; top: calc(100% + 4px); right: 8px; display: block; width: min(360px, calc(100% - 16px)); max-height: calc(100dvh - 120px); padding: 8px; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 8px 24px #253c6d20; }
+      #backtest-ui-preview .execution-actions { grid-area: actions; }
+      #backtest-ui-preview .topbar-right { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+      #backtest-ui-preview .package-actions { grid-area: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+      #backtest-ui-preview .package-actions button { width: 100%; min-height: 44px; justify-content: flex-start; padding-inline: 10px; }
+      #backtest-ui-preview .topbar-setting { display: flex; align-items: center; justify-content: space-between; min-width: 0; min-height: 44px; gap: 12px; }
+      #backtest-ui-preview .topbar-setting-label { display: block; font-size: 12px; }
+      #backtest-ui-preview .theme-select { grid-area: auto; width: 140px; }
+      #backtest-ui-preview .return-color-control, #backtest-ui-preview .locale-select-control { grid-area: auto; }
+      #backtest-ui-preview .locale-select-control select { min-width: 0; width: 140px; }
       #backtest-ui-preview .config-pane, #backtest-ui-preview .config-fixed { height: auto; min-height: 0; overflow: visible; }
       #backtest-ui-preview .config-fixed, #backtest-ui-preview .strategy-navigator { grid-template-rows: auto auto; }
       #backtest-ui-preview .strategy-card-list { max-height: min(55dvh, 440px); overscroll-behavior: auto; }
@@ -416,14 +421,19 @@
 
       <div class="brand"><span class="brand-mark" aria-hidden="true">B</span><span class="brand-name">株式・ETF バックテスター</span></div>
     </div>
-    <button class="topbar-menu-toggle" type="button" aria-label="操作メニュー" aria-expanded="false" aria-controls="prototype-topbar-functions">☰</button>
-    <div class="topbar-functions" id="prototype-topbar-functions">
     <div class="execution-actions" role="group" aria-label="実行操作">
       <button class="icon-button run-button" type="button" aria-label="バックテストを実行" title="バックテストを実行"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8c0-.7.8-1.1 1.4-.7l11 7.1a1 1 0 0 1 0 1.6l-11 7.1a.9.9 0 0 1-1.4-.7V2.8Z"/></svg></button>
       <button class="icon-button reset-button" type="button" aria-label="結果をクリア" title="結果をクリア">↺</button>
 
     </div>
-    <div class="topbar-right"><div class="package-actions" role="group" aria-label="戦略ファイル"><button class="icon-button" type="button" aria-label="戦略JSONをダウンロード" title="戦略JSONをダウンロード">export</button><button class="icon-button" type="button" aria-label="戦略JSONを読み込む" title="戦略JSONを読み込む">import</button></div><select class="theme-select" aria-label="テーマ"><option value="classic">Classic</option><option value="burgundy">Wine</option><option value="midnight">Navy</option><option value="blush">Blush</option><option value="forest">Forest</option></select><div class="return-color-control" role="group" aria-label="リターンの色"><button type="button" data-return-palette="red-up" aria-pressed="false" aria-label="上昇は赤、下落は緑"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button><button type="button" data-return-palette="green-up" aria-pressed="true" aria-label="上昇は緑、下落は赤"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button></div><label class="locale-select-control"><span class="sr-only">表示言語</span><select class="locale-select"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label></div>
+    <button class="topbar-menu-toggle" type="button" aria-label="操作メニュー" aria-expanded="false" aria-controls="prototype-topbar-functions">☰</button>
+    <div class="topbar-functions" id="prototype-topbar-functions">
+    <div class="topbar-right">
+      <div class="package-actions" role="group" aria-label="戦略ファイル"><button class="icon-button" type="button" aria-label="戦略JSONをダウンロード" title="戦略JSONをダウンロード">export</button><button class="icon-button" type="button" aria-label="戦略JSONを読み込む" title="戦略JSONを読み込む">import</button></div>
+      <div class="topbar-setting"><span class="topbar-setting-label">テーマ</span><select class="theme-select" aria-label="テーマ"><option value="classic">Classic</option><option value="burgundy">Wine</option><option value="midnight">Navy</option><option value="blush">Blush</option><option value="forest">Forest</option></select></div>
+      <div class="topbar-setting"><span class="topbar-setting-label">リターンの色</span><div class="return-color-control" role="group" aria-label="リターンの色"><button type="button" data-return-palette="red-up" aria-pressed="false" aria-label="上昇は赤、下落は緑"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button><button type="button" data-return-palette="green-up" aria-pressed="true" aria-label="上昇は緑、下落は赤"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button></div></div>
+      <div class="topbar-setting"><span class="topbar-setting-label">表示言語</span><label class="locale-select-control"><span class="sr-only">表示言語</span><select class="locale-select"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label></div>
+    </div>
     </div>
   </header>
 

@@ -4,6 +4,8 @@
 
 .topbar-functions { display: contents; }
 .topbar-menu-toggle { display: none; }
+.topbar-setting { display: contents; }
+.topbar-setting-label { display: none; }
 
 .skip-link {
   position: fixed;

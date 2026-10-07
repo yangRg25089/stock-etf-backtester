@@ -21,9 +21,21 @@ test("functional disclosure has a localized name, stable controls relation and a
   }
 });
 
-test("phone navigation groups existing controls inside one disclosure", () => {
+test("phone navigation keeps execution outside the preferences disclosure", () => {
   const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
-  assert.match(app, /<TopbarMenu[\s\S]*?<RunActions[\s\S]*?<PackageControls[\s\S]*?<ThemeControl[\s\S]*?<LocaleControl[\s\S]*?<\/TopbarMenu>/);
+  assert.match(app, /<RunActions[\s\S]*?<TopbarMenu[\s\S]*?<PackageControls[\s\S]*?<ThemeControl[\s\S]*?<LocaleControl[\s\S]*?<\/TopbarMenu>/);
+  const disclosure = app.slice(app.indexOf("<TopbarMenu"), app.indexOf("</TopbarMenu>"));
+  assert.doesNotMatch(disclosure, /<RunActions/);
+});
+
+test("phone menu has labeled preference rows and one vertical column", () => {
+  const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+  for (const key of ["theme.label", "returns.colors.label", "locale.label"]) {
+    assert.ok(app.includes(`className="topbar-setting-label">{translate(locale, "${key}")}`));
+  }
+  const css = readFileSync(new URL("../src/styles/mobile.css", import.meta.url), "utf8");
+  assert.match(css, /\.topbar-right\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+  assert.match(css, /\.package-actions\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
 });
 
 test("trade title and expand button share the same controls row in all languages", () => {

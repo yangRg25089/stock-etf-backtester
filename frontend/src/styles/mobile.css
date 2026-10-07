@@ -1,14 +1,14 @@
 @media (max-width: 767px) {
   .main-content.workbench-main { width: calc(100% - 16px); }
   .app-topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "brand menu";
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "brand actions menu";
     min-height: 0;
     gap: 2px 8px;
     padding: 4px 8px;
   }
   .app-topbar:has(.selected-strategies) {
-    grid-template-areas: "brand menu" "selected selected";
+    grid-template-areas: "brand actions menu" "selected selected selected";
   }
   .brand { gap: 7px; }
   .brand-mark { flex-basis: 24px; width: 24px; height: 24px; }
@@ -34,9 +34,7 @@
     position: absolute;
     top: calc(100% + 4px);
     right: 8px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 8px;
+    display: block;
     width: min(360px, calc(100% - 16px));
     max-height: calc(100dvh - var(--app-topbar-height) - 16px);
     overflow-y: auto;
@@ -48,16 +46,17 @@
     border-radius: 7px;
     box-shadow: 0 8px 24px var(--app-shadow);
   }
-  .topbar-right { display: contents; }
-  .theme-select { grid-area: auto; grid-column: 1; grid-row: 3; width: 100%; }
-  .return-color-control { grid-area: auto; grid-column: 2; grid-row: 3; }
-  .locale-select-control { grid-area: auto; grid-column: 3; grid-row: 3; }
-  .locale-select-control .locale-select { min-width: 90px; width: 90px; padding-inline: 6px 20px; }
-  .package-controls { grid-area: auto; grid-column: 1 / -1; grid-row: 2; justify-self: stretch; }
-  .package-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .package-action { min-width: 0; width: 100%; }
+  .topbar-right { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .topbar-setting { display: flex; align-items: center; justify-content: space-between; min-width: 0; min-height: 44px; gap: 12px; }
+  .topbar-setting-label { display: block; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+  .theme-select { grid-area: auto; width: 140px; }
+  .return-color-control, .locale-select-control { grid-area: auto; }
+  .locale-select-control .locale-select { min-width: 0; width: 140px; padding-inline: 6px 20px; }
+  .package-controls { grid-area: auto; justify-self: stretch; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--app-border); }
+  .package-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .package-action { min-width: 0; width: 100%; min-height: 44px; justify-content: flex-start; padding-inline: 10px; }
   .topbar-functions .package-error { position: static; width: 100%; margin-top: 6px; }
-  .execution-actions { grid-area: auto; grid-column: 1 / -1; grid-row: 1; gap: 4px; }
+  .execution-actions { grid-area: actions; gap: 4px; }
   .selected-strategies {
     grid-area: selected;
     flex-wrap: nowrap;

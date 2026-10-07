@@ -112,12 +112,10 @@ test("touch phones retain full action targets and settings fit the screen", asyn
       await new Promise(resolve => { releaseSubmission = resolve; });
       await route.abort();
     });
-    await openTopbarMenu(page);
     await page.locator(".run-submit-button").click();
     await expect(page.locator(".run-stop-button")).toBeVisible();
-    const execution = await page.locator(".execution-actions").boundingBox();
-    const files = await page.locator(".package-actions").boundingBox();
-    expect(execution.y + execution.height).toBeLessThanOrEqual(files.y);
+    await expect(page.locator(".app-topbar > .execution-actions")).toBeVisible();
+    await expect(page.locator(".topbar-functions")).toBeHidden();
     await expect(page.locator(".execution-actions > button")).toHaveCount(3);
     for (const button of await page.locator(".execution-actions > button").all()) {
       const box = await button.boundingBox();

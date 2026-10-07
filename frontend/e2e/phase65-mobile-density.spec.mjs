@@ -3,7 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { openSaved, strategyFile } from "./helpers/runtime.mjs";
 import { savedRun } from "./helpers/reports.mjs";
 
-test("phone header keeps only brand and strategy choices until the functional menu opens", async ({ page }) => {
+test("phone header keeps brand, execution and strategy choices while preferences are collapsed", async ({ page }) => {
   const saved = await savedRun(page);
   await openSaved(page, saved);
   await page.locator(".comparison-table .result-select").first().click();
@@ -12,7 +12,8 @@ test("phone header keeps only brand and strategy choices until the functional me
     await expect(page.locator(".topbar-brand")).toBeVisible();
     await expect(page.locator(".selected-strategies")).toBeVisible();
     await expect(page.locator(".topbar-menu-toggle")).toBeVisible();
-    for (const selector of [".execution-actions", ".package-actions", ".theme-select", ".locale-select", ".return-color-control"]) {
+    await expect(page.locator(".app-topbar > .execution-actions")).toBeVisible();
+    for (const selector of [".package-actions", ".theme-select", ".locale-select", ".return-color-control"]) {
       await expect(page.locator(selector)).toBeHidden();
     }
     expect((await page.locator(".app-topbar").boundingBox()).height).toBeLessThanOrEqual(112);
@@ -43,7 +44,7 @@ test("phone menu works by keyboard and retains focus across nested import dialog
   await toggle.focus(); await page.keyboard.press("Enter");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await page.keyboard.press("Tab");
-  await expect(page.locator(".run-submit-button")).toBeFocused();
+  await expect(page.locator(".package-actions button").first()).toBeFocused();
   for (const locale of ["ja", "zh", "en"]) {
     await page.locator(".locale-select").selectOption(locale);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);

@@ -91,7 +91,9 @@ test("one global return convention follows locale until a manual choice and surv
     await expect(locale).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     const paletteBox = await control.boundingBox();
-    expect(paletteBox.x + paletteBox.width).toBeLessThan((await locale.boundingBox()).x);
+    const localeBox = await locale.boundingBox();
+    if (width < 768) expect(paletteBox.y + paletteBox.height).toBeLessThanOrEqual(localeBox.y);
+    else expect(paletteBox.x + paletteBox.width).toBeLessThan(localeBox.x);
     const brand = await page.locator(".brand-mark").boundingBox();
     for (const selector of [".return-color-control", ".locale-select", ".package-actions"]) {
       const box = await page.locator(selector).boundingBox();
@@ -116,7 +118,7 @@ test.describe("touch return controls", () => {
     await openTopbarMenu(page);
     const palette = await page.locator(".return-color-control").boundingBox();
     const locale = await page.locator(".locale-select").boundingBox();
-    expect(palette.x + palette.width).toBeLessThan(locale.x);
+    expect(palette.y + palette.height).toBeLessThanOrEqual(locale.y);
     const brand = await page.locator(".brand-mark").boundingBox();
     expect(brand.y + brand.height).toBeLessThan(palette.y);
     for (const button of await page.locator(".return-color-option").all()) {

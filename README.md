@@ -86,7 +86,7 @@ The dropdown offers **Classic**, **Wine**, **Navy**, **Blush** and **Forest**. C
 
 ## Phone layout
 
-The header shows the brand, a functional menu and one scrolling row of selected strategies. The menu contains run, reset, Stop during execution, export/import and display preferences; Escape or an outside click closes it. Shortcuts also work while the menu is closed: import previews open separately, and file errors reveal the menu.
+The header keeps the brand, run/reset controls and a menu button on one row, with selected strategies on one scrolling row below. Stop appears beside run/reset during execution. The three-line menu unfolds export/import and labeled display preferences in vertical rows; Escape or an outside click closes it. Shortcuts also work while the menu is closed: import previews open separately, and file errors reveal the menu.
 
 Click or use Enter/Space on a header strategy to choose its details; selected curves stay visible. Choices are disabled during execution and retain 44px touch targets.
 

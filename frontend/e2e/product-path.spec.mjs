@@ -1752,9 +1752,8 @@ test("strategy menu, condition connectors and comparison selections retain full 
 
     await page.locator("#field-run-endDate").fill("2024-03-01");
     await closeSharedSettings(page);
-    await openTopbarMenu(page);
     await page.locator(".run-submit-button").tap();
-    await page.locator(".topbar-menu-toggle").tap();
+    await expect(page.locator(".topbar-functions")).toBeHidden();
     await page.locator(".workbench-mobile-view").last().tap();
     await expect(page.locator(".comparison-table")).toBeVisible();
     await expect(page.locator(".run-submit-button")).toBeEnabled();
@@ -2455,12 +2454,11 @@ test("result info is absent and trade context remains readable in a narrow touch
   await page.locator("#field-run-startDate").fill("2024-01-31");
   await closeSharedSettings(page);
   const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
-  await openTopbarMenu(page);
   await page.locator(".run-submit-button").click();
   const saved = await (await completed).json();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
-  await page.locator(".topbar-menu-toggle").click();
+  await expect(page.locator(".topbar-functions")).toBeHidden();
   await page.locator(".workbench-mobile-view").last().click();
   await expect(page.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
   await page.getByRole("tab", { name: "詳細", exact: true }).click();

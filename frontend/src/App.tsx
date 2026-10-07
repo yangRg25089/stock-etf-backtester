@@ -128,29 +128,38 @@ function App() {
             <span className="brand-name">{translate(locale, "app.name")}</span>
           </div>
         </div>
+        {catalog && workspace && (
+          <RunActions
+            locale={locale}
+            availability={availability}
+            busy={runBusy}
+            canStop={canStop}
+            stopping={stopping}
+            onStop={() => void handleStop()}
+            run={workspace.runResponse}
+            canReset={Boolean(workspace.runResponse || runError)}
+            onReset={handleReset}
+            onRun={() => void handleRun()}
+          />
+        )}
         <TopbarMenu locale={locale} busy={runBusy}>
-          {openMenu => <>
-            {catalog && workspace && (
-              <RunActions
-                locale={locale}
-                availability={availability}
-                busy={runBusy}
-                canStop={canStop}
-                stopping={stopping}
-                onStop={() => void handleStop()}
-                run={workspace.runResponse}
-                canReset={Boolean(workspace.runResponse || runError)}
-                onReset={handleReset}
-                onRun={() => void handleRun()}
-              />
-            )}
+          {openMenu =>
             <div className="topbar-right">
               {catalog && workspace && <PackageControls catalog={catalog} draft={workspace.draft} locale={locale} busy={runBusy} onImport={handleImport} onError={openMenu} />}
-              <ThemeControl locale={locale} />
-              <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
-              <LocaleControl locale={locale} onChange={handleLocaleChange} />
+              <div className="topbar-setting">
+                <span className="topbar-setting-label">{translate(locale, "theme.label")}</span>
+                <ThemeControl locale={locale} />
+              </div>
+              <div className="topbar-setting">
+                <span className="topbar-setting-label">{translate(locale, "returns.colors.label")}</span>
+                <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
+              </div>
+              <div className="topbar-setting">
+                <span className="topbar-setting-label">{translate(locale, "locale.label")}</span>
+                <LocaleControl locale={locale} onChange={handleLocaleChange} />
+              </div>
             </div>
-          </>}
+          }
         </TopbarMenu>
         {workspace && <SelectedStrategies
           run={workspace.runResponse}

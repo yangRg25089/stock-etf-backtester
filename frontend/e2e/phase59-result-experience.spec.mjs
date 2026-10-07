@@ -157,7 +157,7 @@ test("visible file actions, compact execution controls, theme persistence, brand
       expect(boxes[0].width).toBeGreaterThan(boxes[0].height);
       for (const button of await page.locator(".package-actions button").all()) {
         const box = await button.boundingBox();
-        expect(box.height).toBe(32); expect(box.width).toBeGreaterThan(box.height);
+        expect(box.height).toBe(width < 768 ? 44 : 32); expect(box.width).toBeGreaterThan(box.height);
         await expect(button.locator("span")).toBeVisible();
       }
       for (let index = 1; index < boxes.length; index++) expect(boxes[index - 1].x + boxes[index - 1].width).toBeLessThanOrEqual(boxes[index].x);
