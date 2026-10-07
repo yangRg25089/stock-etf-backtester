@@ -106,6 +106,7 @@
 @media (pointer: coarse) {
   .package-action, .theme-select { min-height: 44px; }
   .locale-select-control .locale-select { min-height: 44px; }
+  .selected-strategy-chip { min-height: 44px; }
 }
 
 @media (pointer: coarse) and (max-width: 767px) {

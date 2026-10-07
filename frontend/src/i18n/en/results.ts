@@ -117,6 +117,7 @@ export const resultsMessages: Record<string, string> = {
   "results.strategyDetails": "Strategy details",
   "results.detailTabs": "Result details",
   "results.detailTarget": "Details for",
+  "results.selectDetails": "Choose a strategy for details",
   "results.tab.comparison": "Strategy comparison",
   "table.expandRows": "Show all rows in {table}",
   "table.restoreHeight": "Restore {table} height",

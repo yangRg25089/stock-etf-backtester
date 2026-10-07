@@ -118,6 +118,7 @@ export const resultsMessages: Record<string, string> = {
   "results.strategyDetails": "策略详情",
   "results.detailTabs": "结果详情",
   "results.detailTarget": "明细对象",
+  "results.selectDetails": "选择要查看详情的策略",
   "results.tab.comparison": "策略比较",
   "results.tab.details": "详情",
   "results.tab.trades": "交易明细",

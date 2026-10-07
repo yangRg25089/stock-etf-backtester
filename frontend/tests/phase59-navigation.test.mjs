@@ -61,13 +61,42 @@ test("theme selection preserves Classic and offers four popular palettes with sh
 
 test("header chips distinguish the current details target from other selected curves", () => {
   const run = wireRun("selected-header", "completed", ["a", "b"]);
-  const html = renderToStaticMarkup(React.createElement(SelectedStrategies, { run, ids: ["a", "b"], focusedResultId: "b", locale: "en" }));
+  const html = renderToStaticMarkup(React.createElement(SelectedStrategies, { run, ids: ["a", "b"], focusedResultId: "b", locale: "en", onSelect() {} }));
   assert.equal((html.match(/selected-strategy-chip/g) ?? []).length, 2);
   assert.equal((html.match(/aria-current="true"/g) ?? []).length, 1);
   assert.match(html, /selected-strategy-chip is-focused[^>]*data-result-id="b"[^>]*aria-current="true"/);
   assert.match(html, /selected-strategy-detail-label/);
-  const unselectedFocus = renderToStaticMarkup(React.createElement(SelectedStrategies, { run, ids: ["a"], focusedResultId: "b", locale: "en" }));
+  const unselectedFocus = renderToStaticMarkup(React.createElement(SelectedStrategies, { run, ids: ["a"], focusedResultId: "b", locale: "en", onSelect() {} }));
   assert.doesNotMatch(unselectedFocus, /aria-current="true"|is-focused/);
+});
+
+test("header details choices use native buttons with stable names and a separate current state", () => {
+  const run = wireRun("selectable-header", "completed", ["a", "b"]);
+  for (const locale of ["ja", "zh", "en"]) {
+    const render = focusedResultId => renderToStaticMarkup(React.createElement(SelectedStrategies, {
+      run, ids: ["a", "b"], focusedResultId, locale, onSelect() {},
+    }));
+    const html = render("b");
+    assert.match(html, /class="selected-strategies" role="group"/);
+    assert.equal((html.match(/<button type="button"/g) ?? []).length, 2);
+    assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1);
+    assert.equal((html.match(/aria-pressed="false"/g) ?? []).length, 1);
+    const names = markup => [...markup.matchAll(/<button[^>]*aria-label="([^"]+)"/g)].map(match => match[1]);
+    assert.equal(names(html).length, 2);
+    assert.deepEqual(names(render("a")), names(html));
+    assert.doesNotMatch(html, /aria-label="results\./);
+  }
+});
+
+test("header strategy choices are disabled during execution and empty without selected saved results", () => {
+  const run = wireRun("busy-header", "completed", ["a", "b"]);
+  const props = { run, ids: ["a", "b"], focusedResultId: "a", locale: "en", busy: true, onSelect() {} };
+  const html = renderToStaticMarkup(React.createElement(SelectedStrategies, props));
+  assert.equal((html.match(/<button[^>]*disabled=""/g) ?? []).length, 2);
+  assert.match(html, /aria-pressed="true"/);
+  for (const override of [{ run: null }, { ids: [] }, { ids: ["missing"] }]) {
+    assert.equal(renderToStaticMarkup(React.createElement(SelectedStrategies, { ...props, ...override })), "");
+  }
 });
 
 for (const id of ["drawdown", "vix", "rsi"]) test(`${id} auxiliary chart has an axis title and bounded gradient area`, () => {

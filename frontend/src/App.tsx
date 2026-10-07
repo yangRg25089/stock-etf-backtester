@@ -147,7 +147,18 @@ function App() {
           <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
           <LocaleControl locale={locale} onChange={handleLocaleChange} />
         </div>
-        {workspace && <SelectedStrategies run={workspace.runResponse} ids={workspace.selectedResultIds} focusedResultId={workspace.focusedResultId} locale={locale} />}
+        {workspace && <SelectedStrategies
+          run={workspace.runResponse}
+          ids={workspace.selectedResultIds}
+          focusedResultId={workspace.focusedResultId}
+          locale={locale}
+          busy={runBusy}
+          onSelect={id => {
+            if (isLocked()) return;
+            dispatch({ type: "result.focus", id });
+            setMobilePanel("results");
+          }}
+        />}
       </header>
 
       <main id="main-content" className="main-content workbench-main">

@@ -42,7 +42,7 @@
       overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
     }
     #backtest-ui-preview .app-topbar {
-      position: sticky; z-index: 10; top: 0; display: flex; align-items: center;
+      position: sticky; z-index: 10; top: 0; display: flex; flex-wrap: wrap; align-items: center;
       justify-content: space-between; gap: 12px; min-height: 56px; padding: 6px 12px;
       background: var(--surface); border-bottom: 1px solid var(--border);
     }
@@ -67,6 +67,13 @@
     #backtest-ui-preview .config-toggle:hover svg,
     #backtest-ui-preview .config-toggle:focus-visible svg { stroke-width: 2.8; }
     #backtest-ui-preview .run-button { box-shadow: 0 2px 5px #253c6d20; }
+    #backtest-ui-preview .selected-strategies { display: flex; flex: 0 0 100%; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 11px; }
+    #backtest-ui-preview .selected-strategy-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 44px; min-height: 28px; max-width: 240px; padding: 3px 8px; border: 1px solid var(--result-color); background: color-mix(in srgb, var(--result-color) 10%, var(--surface)); white-space: nowrap; }
+    #backtest-ui-preview .selected-strategy-chip[hidden] { display: none; }
+    #backtest-ui-preview .selected-strategy-chip[aria-pressed="true"] { border-width: 3px; padding: 1px 6px; font-weight: 700; background: color-mix(in srgb, var(--result-color) 16%, var(--surface)); }
+    #backtest-ui-preview .selected-strategy-chip:focus-visible { outline-offset: -3px; }
+    #backtest-ui-preview .selected-strategy-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    #backtest-ui-preview .selected-strategy-detail-label { padding-inline-start: 4px; border-inline-start: 1px solid currentColor; font-size: 10px; }
     #backtest-ui-preview .run-button svg { width: 17px; height: 17px; fill: currentColor; }
 
 
@@ -351,7 +358,9 @@
     #backtest-ui-preview .theme-select { width: 100px; min-width: 0; font-size: 12px; }
     #backtest-ui-preview .detail-section + .detail-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
     @media (max-width: 767px) {
-      #backtest-ui-preview .app-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand brand brand" "theme palette locale" "actions files files"; gap: 4px; min-height: 0; padding: 6px 8px; }
+      #backtest-ui-preview .app-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand brand brand" "theme palette locale" "actions files files" "selected selected selected"; gap: 4px; min-height: 0; padding: 6px 8px; }
+      #backtest-ui-preview .selected-strategies { grid-area: selected; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+      #backtest-ui-preview .selected-strategy-chip { flex: 0 0 auto; max-width: min(240px, 80vw); }
       #backtest-ui-preview .topbar-brand { grid-area: brand; }
       #backtest-ui-preview .topbar-right { display: contents; }
       #backtest-ui-preview .theme-select { grid-area: theme; width: 100%; min-width: 0; }
@@ -363,19 +372,20 @@
       #backtest-ui-preview .shared-dialog, #backtest-ui-preview .strategy-dialog { width: calc(100vw - 16px); max-width: calc(100vw - 16px); border-radius: 8px; }
     }
     @media (max-width: 420px) {
-      #backtest-ui-preview .app-topbar { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "brand theme palette locale" "actions actions files files"; }
+      #backtest-ui-preview .app-topbar { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "brand theme palette locale" "actions actions files files" "selected selected selected selected"; }
       #backtest-ui-preview .brand-name { display: none; }
       #backtest-ui-preview .brand-mark { width: 24px; height: 24px; }
       #backtest-ui-preview .execution-actions .icon-button { width: 40px; min-width: 40px; }
     }
     @media (pointer: coarse) {
       #backtest-ui-preview .execution-actions .icon-button, #backtest-ui-preview .package-actions .icon-button,
-      #backtest-ui-preview .theme-select, #backtest-ui-preview .locale-select { min-height: 44px; }
+      #backtest-ui-preview .theme-select, #backtest-ui-preview .locale-select, #backtest-ui-preview .selected-strategy-chip { min-height: 44px; }
       #backtest-ui-preview .execution-actions .icon-button { width: 44px; min-width: 44px; }
     }
 </style>
 
   <header class="app-topbar">
+    <div class="selected-strategies" role="group" tabindex="0" aria-label="詳細を表示する戦略を選択" style="order:1"></div>
     <div class="topbar-brand">
 
       <div class="brand"><span class="brand-mark" aria-hidden="true">B</span><span class="brand-name">株式・ETF バックテスター</span></div>
@@ -716,12 +726,57 @@
           control.querySelector("span").textContent = selected ? sortDirection === "ascending" ? "↑" : "↓" : "↕";
         });
       }));
-      root.querySelectorAll(".result-select").forEach(button => button.addEventListener("click", () => {
+      const comparisonChoices = [...root.querySelectorAll(".result-select")];
+      const selectedStrip = root.querySelector(".selected-strategies");
+      let detailChoice = comparisonChoices.find(button => button.getAttribute("aria-pressed") === "true");
+      const headerChoices = comparisonChoices.map((choice, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "selected-strategy-chip";
+        button.dataset.resultId = String(index);
+        button.style.setProperty("--result-color", choice.closest("tr").style.getPropertyValue("--row-color"));
+        const name = choice.textContent.replace("●", "").trim();
+        button.setAttribute("aria-label", `${name} · 詳細`);
+        const label = document.createElement("span");
+        label.className = "selected-strategy-name";
+        label.textContent = name;
+        const marker = document.createElement("span");
+        marker.className = "selected-strategy-detail-label";
+        marker.textContent = "詳細";
+        button.append(label, marker);
+        button.addEventListener("click", () => { detailChoice = choice; updateHeaderChoices(); });
+        selectedStrip.append(button);
+        return { choice, button, marker, name };
+      });
+      function updateHeaderChoices() {
+        let selectedCount = 0;
+        for (const { choice, button, marker, name } of headerChoices) {
+          const selected = choice.getAttribute("aria-pressed") === "true";
+          const focused = detailChoice === choice;
+          button.hidden = !selected;
+          button.setAttribute("aria-pressed", String(focused));
+          if (focused) button.setAttribute("aria-current", "true");
+          else button.removeAttribute("aria-current");
+          marker.hidden = !focused;
+          if (selected) selectedCount++;
+          if (focused) root.querySelector(".result-detail-name").textContent = name;
+        }
+        selectedStrip.hidden = selectedCount === 0;
+        const focused = selectedStrip.querySelector('[aria-current="true"]:not([hidden])');
+        if (focused && selectedStrip.scrollWidth > selectedStrip.clientWidth) {
+          const bounds = selectedStrip.getBoundingClientRect(), target = focused.getBoundingClientRect();
+          if (target.left < bounds.left) selectedStrip.scrollLeft += target.left - bounds.left;
+          else if (target.right > bounds.right) selectedStrip.scrollLeft += target.right - bounds.right;
+        }
+      }
+      updateHeaderChoices();
+      comparisonChoices.forEach(button => button.addEventListener("click", () => {
         const selected = button.getAttribute("aria-pressed") !== "true";
         button.setAttribute("aria-pressed", String(selected));
         const row = button.closest("tr");
         row.classList.toggle("is-selected", selected);
-        root.querySelector(".result-detail-name").textContent = button.textContent.trim();
+        detailChoice = button;
+        updateHeaderChoices();
       }));
       root.querySelectorAll(".etf-options button").forEach(button => button.addEventListener("click", () => {
         root.querySelector("#prototype-symbol").value = button.textContent;

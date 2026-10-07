@@ -118,6 +118,7 @@ export const resultsMessages: Record<string, string> = {
   "results.strategyDetails": "戦略詳細",
   "results.detailTabs": "実行結果の詳細",
   "results.detailTarget": "明細対象",
+  "results.selectDetails": "詳細を表示する戦略を選択",
   "results.tab.comparison": "戦略比較",
   "table.expandRows": "{table}を全行表示",
   "table.restoreHeight": "{table}の高さを戻す",

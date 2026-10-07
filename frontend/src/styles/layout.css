@@ -339,7 +339,10 @@
 button, button span, button strong { cursor: inherit; user-select: none; }
 
 .selected-strategies { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; min-width: 0; grid-column: 1 / -1; font-size: 11px; }
-.selected-strategy-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 240px; padding: 3px 8px; color: var(--app-foreground); background: color-mix(in srgb, var(--result-color) 10%, var(--app-surface)); border: 1px solid var(--result-color); border-radius: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.selected-strategy-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 44px; min-height: 28px; max-width: 240px; padding: 3px 8px; color: var(--app-foreground); background: color-mix(in srgb, var(--result-color) 10%, var(--app-surface)); border: 1px solid var(--result-color); border-radius: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.selected-strategy-chip:hover:not(:disabled) { background: color-mix(in srgb, var(--result-color) 22%, var(--app-surface)); }
+.selected-strategy-chip:focus-visible { outline-offset: -3px; }
+.selected-strategy-chip:disabled { cursor: not-allowed; opacity: .55; }
 .selected-strategy-chip span { color: var(--result-color); }
 .selected-strategy-chip .selected-strategy-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--app-foreground); }
 .selected-strategy-chip.is-focused { border-width: 3px; padding: 1px 6px; font-weight: 700; background: color-mix(in srgb, var(--result-color) 16%, var(--app-surface)); }
