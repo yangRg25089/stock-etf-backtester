@@ -117,6 +117,7 @@ _TRADE_FIELDS = (
     "executionPrice",
     "grossAmount",
     *_COST_FIELDS,
+    "totalAssetAfter",
 )
 _SEARCH_FIELDS = (
     "runId",
@@ -338,6 +339,7 @@ def _trades_csv(run: RunResponse, focused: StrategyRun) -> str:
             "executionBasePrice": trade.execution_base_price,
             "executionPrice": trade.execution_price,
             "grossAmount": trade.gross_amount,
+            "totalAssetAfter": trade.total_asset_after,
             **_cost_values(trade.trading_costs),
             **_provenance_values(run),
         }

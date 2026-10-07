@@ -38,12 +38,12 @@ export function SelectedStrategies({ run, ids, focusedResultId, locale, busy = f
     {selected.map(result => <button type="button" key={result.id} className={`selected-strategy-chip${result.id === focusedResultId ? " is-focused" : ""}`}
       data-result-id={result.id} aria-current={result.id === focusedResultId ? "true" : undefined}
       aria-pressed={result.id === focusedResultId}
-      aria-label={`${resultDisplayName(locale, result, results)} · ${translate(locale, "results.tab.details")}`}
+      aria-label={`${resultDisplayName(locale, result, results)} · ${translate(locale, "results.focusedDetails")}`}
       disabled={busy} onClick={() => { if (!busy) onSelect(result.id); }}
       style={{ "--result-color": resultColor(results.indexOf(result)) } as CSSProperties}
       title={resultDisplayName(locale, result, results)}>
       <span aria-hidden="true">✓</span><span className="selected-strategy-name">{resultDisplayName(locale, result, results)}</span>
-      {result.id === focusedResultId && <span className="selected-strategy-detail-label">{translate(locale, "results.tab.details")}</span>}
+      {result.id === focusedResultId && <span className="selected-strategy-detail-label">{translate(locale, "results.focusedDetails")}</span>}
     </button>)}
   </div>;
 }

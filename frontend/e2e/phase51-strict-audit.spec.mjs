@@ -18,7 +18,7 @@ test("a candidate response with another identity preserves saved curves and can 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await page.locator(".comparison-table").getByRole("button", { name: "グリッド検索", exact: true }).click();
-  await page.locator("#result-tab-search").click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   const candidates = page.locator(".search-table .result-select:not(:disabled)");
   await candidates.first().click();
   await expect(candidates.first()).toHaveAttribute("aria-pressed", "true");

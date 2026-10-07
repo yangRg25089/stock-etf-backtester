@@ -34,3 +34,12 @@ export function sortedComparisons(results: StrategyRun[], sort: ComparisonSort, 
     return (sort.direction === "ascending" ? comparison : -comparison) || left.index - right.index;
   }).map(({ result }) => result);
 }
+
+/** Only explicit saved zeros permit hiding; legacy missing values remain visible. */
+export function hasTaxColumn(results: StrategyRun[]): boolean {
+  const completed = results.filter(isCompletedResult);
+  return completed.length === 0 || completed.some(result => {
+    const tax = result.metrics?.tradingCosts?.capitalGainsTax;
+    return !isNumericSearchValue(tax) || compareDecimals(tax, 0) !== 0;
+  });
+}

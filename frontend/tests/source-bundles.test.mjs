@@ -5,12 +5,12 @@ import test from "node:test";
 import { readStyles } from "./helpers/readSources.mjs";
 const require = createRequire(import.meta.url);
 
-test("the stylesheet entry is an ordered import manifest with one shared token manifest for five themes", () => {
+test("the stylesheet entry is an ordered import manifest with one shared token manifest for Light, Dark and system fallback", () => {
   const entry = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
   assert.match(entry, /^@import "\.\/styles\/tokens.css";/);
   assert.equal(entry.replace(/@import\s+"[^"]+";\s*/g, ""), "");
   const css = readStyles();
-  assert.equal((css.match(/--app-foreground:/g) ?? []).length, 5);
+  assert.equal((css.match(/--app-foreground:/g) ?? []).length, 3);
   assert.match(css, /\.chart-linked-stack/);
   assert.match(css, /@media \(pointer: coarse\)/);
 });

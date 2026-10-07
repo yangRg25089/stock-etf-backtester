@@ -529,6 +529,7 @@ export type Trade = {
   signalId?: string | null;
   cashBefore?: string | null;
   cashAfter?: string | null;
+  totalAssetAfter?: string | null;
   quantityBefore?: string | null;
   quantityAfter?: string | null;
   executionBasePrice?: string | null;

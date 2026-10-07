@@ -145,13 +145,13 @@
 }
 
 .chart-wheel-zoom-toggle[aria-pressed="true"] {
-  color: #fff;
+  color: var(--app-surface);
   background: var(--app-accent);
   border-color: var(--app-accent);
 }
 
 .chart-range-controls button:not(.chart-wheel-zoom-toggle):hover:not(:disabled) {
-  color: #fff;
+  color: var(--app-surface);
   background: var(--app-accent);
   border-color: var(--app-accent);
 }

@@ -59,6 +59,7 @@ def test_trade_explanation_is_optional_for_old_snapshots_and_exact_when_saved() 
         "currency": "USD",
     }
     legacy = Trade.model_validate(payload)
+    assert legacy.total_asset_after is None
     assert legacy.cash_before is None
     assert legacy.execution_price is None
     explained = Trade.model_validate(
@@ -66,6 +67,7 @@ def test_trade_explanation_is_optional_for_old_snapshots_and_exact_when_saved() 
             **payload,
             "cashBefore": "100",
             "cashAfter": "0",
+            "totalAssetAfter": "260.125",
             "quantityBefore": "2",
             "quantityAfter": "3.25",
             "executionBasePrice": "80",
@@ -73,12 +75,14 @@ def test_trade_explanation_is_optional_for_old_snapshots_and_exact_when_saved() 
         }
     )
     encoded = explained.model_dump(mode="json", by_alias=True)
+    assert encoded["totalAssetAfter"] == "260.125"
     assert encoded["cashBefore"] == "100"
     assert encoded["quantityAfter"] == "3.25"
     assert Trade.model_validate(encoded) == explained
     for key in (
         "cashBefore",
         "cashAfter",
+        "totalAssetAfter",
         "quantityBefore",
         "quantityAfter",
         "executionBasePrice",

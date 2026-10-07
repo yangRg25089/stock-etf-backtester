@@ -75,7 +75,7 @@ test("the reference exposes readonly trade explanations with keyboard and focus 
   await page.setContent(`<html lang="ja"><head><title>Result explanations reference</title></head><body>${markup}</body></html>`);
   const dialog = page.locator(".prototype-inspector-dialog");
   await expect(page.getByRole("button", { name: "保存データ", exact: true })).toHaveCount(0);
-  await page.getByRole("tab", { name: "詳細", exact: true }).click();
+  await expect(page.locator("#prototype-details-panel")).toBeVisible();
   const entry = page.locator('[data-panel="trades"] [data-inspector="trade"]').first();
   await entry.click();
   await expect(dialog).toContainText("2026-07-31");
@@ -97,7 +97,7 @@ test("the reference separates risk-free inputs from saved NAV performance", asyn
   const markup = await readFile(new URL("./fixtures/workbench-reference.html", import.meta.url), "utf8");
   await page.goto("about:blank");
   await page.setContent(`<html lang="ja"><head><title>Performance reference</title></head><body>${markup}</body></html>`);
-  await page.locator('[data-tab="details"]').click();
+  await expect(page.locator("#prototype-details-panel")).toBeVisible();
   const panel = page.locator('[data-panel="performance"]');
   await expect(panel.locator(".performance-stat")).toHaveCount(11);
   await expect(panel.locator(".trading-cost-stat")).toHaveCount(4);

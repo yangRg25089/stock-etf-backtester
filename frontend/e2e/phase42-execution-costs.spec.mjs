@@ -22,11 +22,11 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await page.locator(".comparison-table").getByRole("button", { name: "毎月定額積立", exact: true }).click();
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   const costPanel = page.locator("#result-panel-performance .trading-costs-panel");
   const currency = (value, locale = "ja-JP") => new Intl.NumberFormat(locale, { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(value));
   await expect(costPanel.locator("dd")).toHaveText([costs.commission, costs.slippageCost, costs.spreadCost,
-    costs.capitalGainsTax, costs.totalTradingCost].map(value => currency(value)));
+    costs.capitalGainsTax, costs.totalTradingCost].map((value,index) => index === 3 && Number(value) === 0 ? "—" : currency(value)));
   const original = await costPanel.innerText();
   const play = page.getByRole("button", { name: "バックテストを実行", exact: true });
   await expect(play).toBeEnabled();
@@ -47,7 +47,7 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toHaveCount(0);
   expect(await costPanel.innerText()).toBe(original);
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await page.locator(".trade-table .table-cell-action").first().click();
   const explanation = page.locator(".result-inspector-dialog");
   await expect(explanation.locator(".trading-costs-panel dd")).toHaveCount(5);
@@ -55,7 +55,7 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   await page.keyboard.press("Escape");
   for (const name of ["日本語", "中文"]) {
     await selectHeaderLocale(page, name === "日本語" ? "ja" : "zh");
-    await page.locator("#result-tab-details").click();
+    await expect(page.locator("#result-panel-performance")).toBeVisible();
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
@@ -68,7 +68,7 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   await page.route("**/api/v1/runs/**", route => { requests++; return route.abort(); });
   await restoreSavedRecord(page, await fetchSavedRecord(page, saved));
   await page.locator(".comparison-table").getByRole("button", { name: "每月定额定投", exact: true }).click();
-  await page.locator("#result-tab-details").click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(costPanel.locator("dd").last()).toHaveText(currency(costs.totalTradingCost, "zh-CN"));
   for (const kind of ["summary", "daily-assets", "trades"]) {
     const waiting = page.waitForEvent("download");

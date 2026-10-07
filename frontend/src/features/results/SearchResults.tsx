@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
+import { TableExpandButton } from "./TableExpandButton";
+import { useId, useState } from "react";
 import type { SearchCandidate, SearchResult } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { DiagnosticList } from "../runs/DiagnosticList";
@@ -85,6 +87,8 @@ function CandidateRow({ locale, candidate, selectedCandidateId, onSelect, dimens
 }
 
 export function SearchResults({ locale, searchResult, selectedCandidateId, onSelectCandidate, pending, errorKey }: SearchResultsProps) {
+  const [heightExpanded, setHeightExpanded] = useState(false);
+  const tableId = useId();
   const [showAll, setShowAll] = useState(false);
   const [windowIndex, setWindowIndex] = useState(0);
   const [sort, setSort] = useState<TableSort<CandidateSortKey> | null>(null);
@@ -112,6 +116,27 @@ export function SearchResults({ locale, searchResult, selectedCandidateId, onSel
   const sortable = (key: CandidateSortKey, label: string, firstDirection: "ascending" | "descending" = "ascending") =>
     <SortableHeader locale={locale} label={label} sortKey={key} sort={sort} firstDirection={firstDirection} disabled={pending} onSort={setSort} />;
 
+  const table = <table className="data-table search-table">
+          <caption className="sr-only">{translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}</caption>
+          <thead>
+            <tr>
+              {sortable("sequence", translate(locale, "search.sequence"))}
+              {sortable("status", translate(locale, "results.status"))}
+              {sortable("parameters", translate(locale, "search.parameters"))}
+              {sortable("endingEquity", translate(locale, "results.endingEquity"), "descending")}
+              {sortable("maximumDrawdown", translate(locale, "results.maximumDrawdown"), "ascending")}
+              {split && <>{sortable("trainXirr", translate(locale, "search.trainXirr"), "descending")}{sortable("testXirr", translate(locale, "search.testXirr"), "descending")}</>}
+              {sortable("diagnostics", translate(locale, "diagnostics.title"))}
+            </tr>
+          </thead>
+          <tbody>
+            {displayed.map((candidate) => (
+              <CandidateRow key={candidate.candidateId} locale={locale} candidate={candidate}
+                selectedCandidateId={selectedCandidateId} dimensions={dimensions} split={split}
+                onSelect={onSelectCandidate} />
+            ))}
+          </tbody>
+        </table>;
   return (
     <section className="search-results">
       <h3 className="sr-only" id="search-results-title">
@@ -142,29 +167,14 @@ export function SearchResults({ locale, searchResult, selectedCandidateId, onSel
       </dl>}
       {searchResult.dimensions.length > 0 && <SearchLab key={`${searchResult.strategyId}:${window?.sequence ?? 0}`} result={slice} locale={locale}
         selectedId={selectedCandidateId} pending={pending} onSelect={onSelectCandidate} />}
-      <div className="data-table-scroll search-table-scroll" tabIndex={0} role="region"
+      <div className={`table-height-region search-table-region${heightExpanded ? " is-height-expanded" : ""}`}>
+      <div className="table-height-controls"><h4 className="table-height-controls-title">{translate(locale, "search.title", {count: String(searchResult.totalCandidateCount)})}</h4>
+        <TableExpandButton locale={locale} tableName={translate(locale, "search.title", {count: String(searchResult.totalCandidateCount)})} controls={tableId} expanded={heightExpanded} disabled={pending} onToggle={() => setHeightExpanded(value => !value)} />
+      </div>
+      <div id={tableId} className={`data-table-scroll search-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} tabIndex={0} role="region"
         aria-label={translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}>
-        <table className="data-table search-table">
-          <caption className="sr-only">{translate(locale, "search.title", { count: String(searchResult.totalCandidateCount) })}</caption>
-          <thead>
-            <tr>
-              {sortable("sequence", translate(locale, "search.sequence"))}
-              {sortable("status", translate(locale, "results.status"))}
-              {sortable("parameters", translate(locale, "search.parameters"))}
-              {sortable("endingEquity", translate(locale, "results.endingEquity"), "descending")}
-              {sortable("maximumDrawdown", translate(locale, "results.maximumDrawdown"), "ascending")}
-              {split && <>{sortable("trainXirr", translate(locale, "search.trainXirr"), "descending")}{sortable("testXirr", translate(locale, "search.testXirr"), "descending")}</>}
-              {sortable("diagnostics", translate(locale, "diagnostics.title"))}
-            </tr>
-          </thead>
-          <tbody>
-            {displayed.map((candidate) => (
-              <CandidateRow key={candidate.candidateId} locale={locale} candidate={candidate}
-                selectedCandidateId={selectedCandidateId} dimensions={dimensions} split={split}
-                onSelect={onSelectCandidate} />
-            ))}
-          </tbody>
-        </table>
+        {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
+      </div>
       </div>
       {hiddenCount > 0 && (
         <button className="text-button search-show-all" type="button" onClick={() => setShowAll(true)}>

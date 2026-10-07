@@ -87,7 +87,7 @@ test("touch phones retain full action targets and settings fit the screen", asyn
     await page.goto("/");
     await expect(page.locator(".run-submit-button")).toBeEnabled();
     await openTopbarMenu(page);
-    for (const selector of [".execution-actions button", ".package-actions button", ".return-color-option", ".locale-select", ".theme-select"]) {
+    for (const selector of [".execution-actions button", ".package-actions button", ".return-color-option", ".locale-select", ".appearance-controls"]) {
       for (const element of await page.locator(selector).all()) {
         const box = await element.boundingBox();
         expect(box.height, selector + " " + await element.getAttribute("class")).toBeGreaterThanOrEqual(44);

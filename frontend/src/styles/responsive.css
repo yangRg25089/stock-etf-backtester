@@ -233,10 +233,6 @@
     top: var(--app-topbar-height);
   }
 
-  .result-tabs {
-    scroll-snap-type: x proximity;
-  }
-
   .collapsible-panel-header {
     flex-direction: column;
     align-items: stretch;
@@ -253,10 +249,6 @@
 
   .result-context-actions .export-controls {
     flex: 1 1 100%;
-  }
-
-  .result-tab {
-    scroll-snap-align: start;
   }
 
   .workbench-config-fixed {
@@ -364,8 +356,6 @@
 @media (min-width: 768px) and (max-height: 850px) and (pointer: fine) {
   .workbench-results .collapsible-panel-header { padding: 0 8px; }
   .workbench-results .collapsible-panel-body { gap: 4px; padding: 6px; }
-  .workbench-results .result-tab-panel { padding-top: 4px; }
-  .workbench-results .result-tab { min-height: 36px; padding: 5px 8px; }
   .workbench-results .comparison-table th,
   .workbench-results .comparison-table td { padding-block: 2px; }
   .workbench-results .result-select { min-height: 28px; padding-block: 2px; }
@@ -377,7 +367,6 @@
   .table-height-controls { min-height: 52px; }
   .table-expand-button { min-width: 44px; min-height: 44px; }
   .comparison-sort { min-height: 44px; }
-  .result-tab { min-height: 44px; }
 
   button,
   .input,
@@ -475,15 +464,13 @@
   .return-color-option { min-width: 28px; padding-inline: 3px; }
   .package-actions { gap: 4px; }
   .package-action { min-width: 72px; padding-inline: 6px; }
-  .theme-select { width: 118px; }
 }
 @media (pointer: coarse) {
-  .package-action, .theme-select { min-height: 44px; }
+  .package-action { min-height: 44px; }
 }
 @media (max-width: 767px) {
   .app-topbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand brand brand" "theme palette locale" "controls tools tools"; gap: 6px; padding-inline: 12px; }
   .topbar-right { display: contents; }
-  .theme-select { grid-area: theme; width: 100%; }
   .return-color-control { grid-area: palette; }
   .locale-select-control { grid-area: locale; }
   .package-controls { grid-area: tools; justify-self: end; }

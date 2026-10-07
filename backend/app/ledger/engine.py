@@ -34,7 +34,7 @@ from app.signals.evaluate import StrategySignalSeries
 from .execution import execute_trade
 from .types import LedgerResult
 
-LEDGER_METHOD_VERSION = "ledger-v6"
+LEDGER_METHOD_VERSION = "ledger-v7"
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +147,7 @@ def run_strategy(
         )
         params = current_strategy.params
         trade_start = len(trades)
+        quantity_before_fills = timing_quantity + fixed_quantity
 
         planned_amount = contributions_by_date.get(day, Decimal("0"))
         if preset.execution_module in {
@@ -284,6 +285,21 @@ def run_strategy(
                     trades,
                     config.shared.execution,
                 )
+
+        # Walk fills in their saved execution order, retaining each intermediate
+        # account value (not the end-of-day balance or the slippage fill price).
+        quantity_after_fill = quantity_before_fills
+        for trade_index in range(trade_start, len(trades)):
+            trade = trades[trade_index]
+            quantity_after_fill += (
+                trade.quantity if trade.side is TradeSide.BUY else -trade.quantity
+            )
+            assert trade.cash_after is not None
+            trades[trade_index] = trade.model_copy(
+                update={
+                    "total_asset_after": trade.cash_after + quantity_after_fill * price
+                }
+            )
 
         timing_cost_basis += sum(
             (

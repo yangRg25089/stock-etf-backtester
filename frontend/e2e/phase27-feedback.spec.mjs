@@ -89,12 +89,12 @@ test("saved results begin unselected and trade details visibly identify the inde
   for (const name of ["ボラティリティ積立", "毎月定額積立", "一括投資"]) {
     const row = page.locator(".comparison-table").getByRole("button", { name, exact: true });
     await row.click();
-    await page.getByRole("tab", { name: "詳細", exact: true }).click();
+    await expect(page.locator("#result-panel-performance")).toBeVisible();
     await expect(page.locator(".result-detail-name")).toHaveText(name);
   }
   await expect(selected).toHaveCount(3);
   await page.locator(".comparison-table").getByRole("button", { name: "毎月定額積立", exact: true }).click();
-  await page.getByRole("tab", { name: "詳細", exact: true }).click();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toHaveText("毎月定額積立");
   await selectHeaderLocale(page, "zh");
   await expect(page.locator(".result-detail-name")).toHaveText("每月定额定投");

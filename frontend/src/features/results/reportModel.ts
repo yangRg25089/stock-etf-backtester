@@ -1,3 +1,4 @@
+import { compareDecimals, isNumericSearchValue } from "../../api/contractReader";
 import type { Catalog, ConditionGroup, ConditionLeaf, PeriodReturn, RunResponse, StrategyRun } from "../../api/generated";
 import { runDataContext } from "../../api/contractReader";
 import { searchOutcomes } from "../../api/searchResults";
@@ -8,7 +9,7 @@ import { PRICE_COLOR, resultColor } from "./colors";
 import { formatCurrency, formatMultiple, formatPercent, formatPlainNumber } from "./format";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
 import { savedCandidate, savedEvaluationPhase, savedPeriodBenchmarks, savedResultConfiguration } from "./savedConfiguration";
-import { TRADING_COST_FIELDS } from "./tradingCosts";
+import { hasOnlyZeroCosts, TRADING_COST_FIELDS } from "./tradingCosts";
 
 export interface ReportLine {
   id: string;
@@ -161,9 +162,9 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
     lines: Object.entries(shared.execution).map(([key, value]) => parameterText(`execution.${key}`, value, catalog, locale, currency)),
   });
   const costs = result.metrics.tradingCosts;
-  if (costs) sections.push({
+  if (costs && !hasOnlyZeroCosts(costs)) sections.push({
     title: translate(locale, "costs.heading"),
-    lines: TRADING_COST_FIELDS.map(key => `${translate(locale, `costs.${key}`)}: ${formatCurrency(costs[key], currency, locale)}${currency ? ` ${currency}` : ""}`),
+    lines: TRADING_COST_FIELDS.map(key => `${translate(locale, `costs.${key}`)}: ${(key === "capitalGainsTax" && isNumericSearchValue(costs[key]) && compareDecimals(costs[key], 0) === 0 ? "—" : formatCurrency(costs[key], currency, locale))}${currency ? ` ${currency}` : ""}`),
   });
   const price = normalizeSeriesToBase100("price", rows.map((row, index) => ({ date: row.date, index, value: Number(row.simulationPrice) })));
   const lines: ReportLine[] = price ? [{ id: "price", label: translate(locale, "chart.price"), color: PRICE_COLOR, points: price.points }] : [];

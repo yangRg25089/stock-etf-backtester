@@ -107,7 +107,7 @@ test("phone preferences unfold as labeled vertical rows and leave execution visi
   await page.screenshot({ path: test.info().outputPath("phone-nav-closed.png") });
   await page.setViewportSize({ width: 1024, height: 740 });
   await expect(toggle).toBeHidden();
-  await expect(page.locator(".theme-select")).toBeVisible();
+  await expect(page.locator(".appearance-controls")).toBeVisible();
   await expect(page.locator(".locale-select")).toBeVisible();
   for (const label of await page.locator(".topbar-setting-label").all()) await expect(label).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1024);

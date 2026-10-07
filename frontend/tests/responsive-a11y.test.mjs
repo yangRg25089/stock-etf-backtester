@@ -141,10 +141,10 @@ test("all returns share the monthly red/green tokens with readable contrast", ()
   assert.match(css, /--return-red:\s*#b71c1c/);
   assert.match(css, /--return-green:\s*#087443/);
   assert.match(blockFor('.app-frame[data-return-palette="red-up"]'), /--return-positive:\s*var\(--return-red\)/);
-  assert.match(positive, /background:\s*var\(--return-positive\)/);
-  assert.match(positive, /color:\s*#ffffff/);
-  assert.match(negative, /background:\s*var\(--return-negative\)/);
-  assert.match(negative, /color:\s*#ffffff/);
+  assert.match(positive, /var\(--return-positive\)/);
+  assert.match(positive, /color:\s*var\(--app-foreground\)/);
+  assert.match(negative, /var\(--return-negative\)/);
+  assert.match(negative, /color:\s*var\(--app-foreground\)/);
   assert.match(blockFor(".return-value.is-positive"), /color:\s*var\(--return-positive\)/);
   assert.match(blockFor(".return-value.is-negative"), /color:\s*var\(--return-negative\)/);
   assert.ok(contrastRatio("#ffffff", "#b71c1c") >= 4.5);
@@ -180,7 +180,7 @@ test("the design prototype mirrors the flattened workbench and result hierarchy"
   assert.match(prototype, /class="strategy-card-list"/);
   assert.doesNotMatch(prototype, /class="editor-scroll"|class="page-heading"|class="run-summary-card"|class="details-entry"/);
   assert.match(prototype, /class="icon-button config-toggle"[^>]*aria-expanded="true"/);
-  assert.match(prototype, /role="tablist" aria-label="実行結果の詳細"/);
+  assert.doesNotMatch(prototype, /role="tablist" aria-label="実行結果の詳細"/);
   assert.ok(prototype.indexOf('id="prototype-result-details"') < prototype.indexOf('id="prototype-chart-panel"'));
   assert.match(prototype, /position:\s*sticky; z-index: 4; top: 0/);
   assert.match(prototype, /\.price-line[^}]*stroke-width:\s*1\.2/);
@@ -190,8 +190,8 @@ test("the design prototype mirrors the flattened workbench and result hierarchy"
   assert.match(prototype, /height:\s*100dvh/);
   assert.match(prototype, /class="comparison-primary"/);
   assert.doesNotMatch(prototype, /data-panel="comparison"|data-tab="comparison"|prototype-result-focus|data-tab="overview"|data-tab="metrics"/);
-  assert.ok(prototype.indexOf('class="comparison-primary"') < prototype.indexOf('role="tablist" aria-label="実行結果の詳細"'));
-  assert.ok(prototype.indexOf('role="tablist" aria-label="実行結果の詳細"') < prototype.indexOf('<div class="tab-panel" id="prototype-details-panel"'));
+  assert.ok(prototype.indexOf('class="comparison-primary"') < prototype.indexOf('id="prototype-details-panel"'));
+  assert.match(prototype, /class="detail-content" id="prototype-details-panel"/);
   assert.match(prototype, /Ctrl\/Command＋スクロールは全図を同期して拡大・縮小/);
   assert.doesNotMatch(prototype, /result-run-id|strategy-vix_dca-1|candidate-[0-9]/);
 });
@@ -278,12 +278,11 @@ test("semantic text colors meet WCAG AA contrast against their surfaces", () => 
   assert.ok(contrastRatio(token("focus"), token("bg")) >= 3, "focus outline should remain visible as a UI indicator");
 });
 
-test("Classic and four popular Color Hunt palettes share accessible semantic tokens", () => {
+test("Light and Dark share accessible semantic tokens", () => {
   const tokens = readFileSync(new URL("../src/styles/tokens.css", import.meta.url), "utf8").toLowerCase();
-  for (const color of ["#800020", "#f3e6d5", "#fff9f2", "#d45060", "#010736", "#0d1c42", "#22396f", "#fcf1d0", "#d8a2a2", "#ffdcdc", "#fff9d6", "#8ea66b", "#123f36", "#2a6b5c", "#c49a45", "#e8dcc4"]) assert.ok(tokens.includes(color), color);
   assert.doesNotMatch(tokens, /data-theme="(?:blue|mint)"|#def5e5/);
   const base = blockFor(":root");
-  const overrides = ["", ...["burgundy", "midnight", "blush", "forest"].map(id => blockFor(`:root[data-theme="${id}"]`))];
+  const overrides = ["", ...["dark"].map(id => blockFor(`:root[data-theme="${id}"]`))];
   for (const override of overrides) {
     const values = Object.fromEntries([...`${base} ${override}`.matchAll(/--app-([\w-]+):\s*([^;]+);/g)].map(match => [match[1], match[2].trim()]));
     const color = name => values[name].startsWith("var(") ? color(values[name].slice(10, -1)) : values[name] === "#fff" ? "#ffffff" : values[name];
@@ -410,7 +409,7 @@ test("sidebar actions float only on hover or keyboard focus, with a touch fallba
 
 test("SVG chart labels cannot be selected by drag gestures", () => {
   assert.match(blockFor(".result-chart"), /user-select:\s*none/);
-  assert.match(css, /\.chart-linked-stack \.chart-panel\.is-compact \.result-chart\s*\{[^}]*aspect-ratio:\s*800 \/ 90/s);
+  assert.match(css, /\.chart-linked-stack \.chart-panel\.is-compact \.result-chart\s*\{[^}]*aspect-ratio:\s*auto/s);
 });
 
 test("linked figures have no separator and keep one shared readout under the core heading", () => {

@@ -1,3 +1,4 @@
+import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
 import { useEffect, useId, useRef, useState } from "react";
 import type { DrawdownEpisode, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
@@ -47,7 +48,7 @@ function DrawdownTable({ locale, episodes, busy, location }: { locale: Locale; e
     </div>
     {visible.length === 0 ? <p className="metric-empty">{translate(locale, "performance.noEpisodes")}</p> :
       <div id={tableId} className={`data-table-scroll performance-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} tabIndex={0} role="region" aria-label={translate(locale, "performance.episodes")}>
-        {heightExpanded ? <div className="table-expanded-overflow">{table}</div> : table}
+        {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
       </div>}
   </section>;
 }

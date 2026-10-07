@@ -244,7 +244,7 @@ def test_successful_zero_trade_fixture_run_still_exports_the_trade_header() -> N
     assert exported.text.splitlines() == [
         "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
         "signalId,dataSources,calendarAsOf,marketDataThrough,"
-        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost"
+        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost,totalAssetAfter"
     ]
 
 

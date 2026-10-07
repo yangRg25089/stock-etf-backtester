@@ -13,7 +13,7 @@ test("phone header keeps brand, execution and strategy choices while preferences
     await expect(page.locator(".selected-strategies")).toBeVisible();
     await expect(page.locator(".topbar-menu-toggle")).toBeVisible();
     await expect(page.locator(".app-topbar > .execution-actions")).toBeVisible();
-    for (const selector of [".package-actions", ".theme-select", ".locale-select", ".return-color-control"]) {
+    for (const selector of [".package-actions", ".appearance-controls", ".locale-select", ".return-color-control"]) {
       await expect(page.locator(selector)).toBeHidden();
     }
     expect((await page.locator(".app-topbar").boundingBox()).height).toBeLessThanOrEqual(112);
@@ -22,7 +22,7 @@ test("phone header keeps brand, execution and strategy choices while preferences
     await expect(page.locator(".topbar-menu-toggle")).toHaveAttribute("aria-expanded", "true");
     await expect(page.locator(".run-submit-button")).toBeVisible();
     await expect(page.locator(".package-actions")).toBeVisible();
-    await expect(page.locator(".theme-select")).toBeVisible();
+    await expect(page.locator(".appearance-controls")).toBeVisible();
     const panel = await page.locator(".topbar-functions").boundingBox();
     expect(panel.x).toBeGreaterThanOrEqual(8);
     expect(panel.x + panel.width).toBeLessThanOrEqual(width - 8 + 1);

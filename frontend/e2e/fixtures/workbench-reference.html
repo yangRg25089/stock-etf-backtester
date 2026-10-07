@@ -155,9 +155,6 @@
     #backtest-ui-preview .heatmap-cell.is-negative { color: #fff; background: var(--return-negative); }
     #backtest-ui-preview .heatmap-cell.is-inspected { outline: 2px solid var(--accent); outline-offset: -2px; }
     #backtest-ui-preview .heatmap-detail { color: var(--muted); font-size: 12px; }
-    #backtest-ui-preview .result-tabs { display: flex; gap: 4px; margin: 0; overflow-x: auto; border-bottom: 1px solid var(--border); }
-    #backtest-ui-preview .result-tabs button { flex: 0 0 auto; padding: 7px 9px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); }
-    #backtest-ui-preview .result-tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 650; }
 
     #backtest-ui-preview .chart-toolbar { position: sticky; z-index: 4; top: 0; display: grid; gap: 6px; padding: 7px 9px; background: var(--surface); border-bottom: 1px solid var(--border); }
     #backtest-ui-preview .chart-controls,
@@ -355,7 +352,6 @@
 
     #backtest-ui-preview .execution-actions .icon-button { width: 48px; min-width: 48px; min-height: 32px; }
     #backtest-ui-preview .package-actions .icon-button { width: 70px; min-height: 32px; font-size: 12px; }
-    #backtest-ui-preview .theme-select { width: 100px; min-width: 0; font-size: 12px; }
     #backtest-ui-preview .detail-section + .detail-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
     @media (max-width: 767px) {
       #backtest-ui-preview .app-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand brand brand" "theme palette locale" "actions files files" "selected selected selected"; gap: 4px; min-height: 0; padding: 6px 8px; }
@@ -363,7 +359,6 @@
       #backtest-ui-preview .selected-strategy-chip { flex: 0 0 auto; max-width: min(240px, 80vw); }
       #backtest-ui-preview .topbar-brand { grid-area: brand; }
       #backtest-ui-preview .topbar-right { display: contents; }
-      #backtest-ui-preview .theme-select { grid-area: theme; width: 100%; min-width: 0; }
       #backtest-ui-preview .execution-actions { grid-area: actions; gap: 4px; justify-content: flex-start; }
       #backtest-ui-preview .package-actions { grid-area: files; justify-self: end; }
       #backtest-ui-preview .return-color-control { grid-area: palette; }
@@ -379,7 +374,7 @@
     }
     @media (pointer: coarse) {
       #backtest-ui-preview .execution-actions .icon-button, #backtest-ui-preview .package-actions .icon-button,
-      #backtest-ui-preview .theme-select, #backtest-ui-preview .locale-select, #backtest-ui-preview .selected-strategy-chip { min-height: 44px; }
+      #backtest-ui-preview .appearance-controls button, #backtest-ui-preview .locale-select, #backtest-ui-preview .selected-strategy-chip { min-height: 44px; }
       #backtest-ui-preview .execution-actions .icon-button { width: 44px; min-width: 44px; }
     }
     #backtest-ui-preview .topbar-functions { display: contents; }
@@ -399,7 +394,6 @@
       #backtest-ui-preview .package-actions button { width: 100%; min-height: 44px; justify-content: flex-start; padding-inline: 10px; }
       #backtest-ui-preview .topbar-setting { display: flex; align-items: center; justify-content: space-between; min-width: 0; min-height: 44px; gap: 12px; }
       #backtest-ui-preview .topbar-setting-label { display: block; font-size: 12px; }
-      #backtest-ui-preview .theme-select { grid-area: auto; width: 140px; }
       #backtest-ui-preview .return-color-control, #backtest-ui-preview .locale-select-control { grid-area: auto; }
       #backtest-ui-preview .locale-select-control select { min-width: 0; width: 140px; }
       #backtest-ui-preview .config-pane, #backtest-ui-preview .config-fixed { height: auto; min-height: 0; overflow: visible; }
@@ -430,7 +424,7 @@
     <div class="topbar-functions" id="prototype-topbar-functions">
     <div class="topbar-right">
       <div class="package-actions" role="group" aria-label="戦略ファイル"><button class="icon-button" type="button" aria-label="戦略JSONをダウンロード" title="戦略JSONをダウンロード">export</button><button class="icon-button" type="button" aria-label="戦略JSONを読み込む" title="戦略JSONを読み込む">import</button></div>
-      <div class="topbar-setting"><span class="topbar-setting-label">テーマ</span><select class="theme-select" aria-label="テーマ"><option value="classic">Classic</option><option value="burgundy">Wine</option><option value="midnight">Navy</option><option value="blush">Blush</option><option value="forest">Forest</option></select></div>
+      <div class="topbar-setting"><span class="topbar-setting-label">テーマ</span><div class="appearance-controls"><button class="appearance-toggle" type="button" aria-label="外観切り替え">☀ / ☾</button><button class="appearance-auto" type="button" aria-pressed="true">Auto</button></div></div>
       <div class="topbar-setting"><span class="topbar-setting-label">リターンの色</span><div class="return-color-control" role="group" aria-label="リターンの色"><button type="button" data-return-palette="red-up" aria-pressed="false" aria-label="上昇は赤、下落は緑"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button><button type="button" data-return-palette="green-up" aria-pressed="true" aria-label="上昇は緑、下落は赤"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button></div></div>
       <div class="topbar-setting"><span class="topbar-setting-label">表示言語</span><label class="locale-select-control"><span class="sr-only">表示言語</span><select class="locale-select"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label></div>
     </div>
@@ -516,9 +510,8 @@
           <header class="panel-heading"><div class="panel-heading-main"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-strategy-details-body"><span class="chevron" aria-hidden="true">⌄</span>戦略詳細</button></div></header>
           <div id="prototype-strategy-details-body" class="panel-body">
             <section class="result-detail-target" aria-label="明細対象"><span aria-hidden="true" class="result-color-swatch" style="background:#30497d"></span><div><span class="result-detail-label">明細対象</span><h4 class="result-detail-name">ボラティリティ積立</h4></div></section>
-            <div class="result-tabs" role="tablist" aria-label="実行結果の詳細"><button id="prototype-details-tab" type="button" role="tab" aria-selected="true" aria-controls="prototype-details-panel" data-tab="details">詳細</button></div>
-            <div class="tab-panel" id="prototype-details-panel" role="tabpanel" aria-labelledby="prototype-details-tab" data-panel="details">
-            <section class="detail-section" id="prototype-trades-panel" data-panel="trades"><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><h4 class="table-height-controls-title">取引明細</h4><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
+            <div class="detail-content" id="prototype-details-panel" data-panel="details">
+            <section class="detail-section" id="prototype-trades-panel" data-panel="trades"><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><h4 class="table-height-controls-title">取引明細</h4><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由／シグナル</th><th>数量</th><th>価格</th><th>金額</th><th>総資産</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付<br><small>VIX 買付シグナル</small></td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>$608.40</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立<br><small>定額買付シグナル</small></td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>$715.68</td></tr></tbody></table></div></section>
             <section class="detail-section" id="prototype-performance-panel" data-panel="performance">
               <p class="performance-basis">単位純資産ベース · 年 252 取引日 · 無リスク年利率 0%</p>
               <h4>リターン・リスク</h4><dl class="performance-grid">
@@ -705,21 +698,17 @@
         layout.dataset.mobilePanel = config ? "config" : "results";
         root.querySelectorAll(".mobile-views button").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
       }));
-      root.querySelectorAll(".result-tabs button").forEach((button) => button.addEventListener("click", () => {
-        root.querySelectorAll(".result-tabs button").forEach((item) => item.setAttribute("aria-selected", String(item === button)));
-        root.querySelectorAll(".tab-panel").forEach((panel) => { panel.hidden = panel.dataset.panel !== button.dataset.tab; });
-      }));
-
-      const themePalettes = {
-        classic: ['#f3f5f9','#253c6d','#455b8a','#30497d','#eaf0fa','#f2842f','#192d52'],
-        burgundy: ['#fff9f2','#462330','#704654','#800020','#f3e6d5','#800020','#fff9f2'],
-        midnight: ['#fcf1d0','#0d1c42','#22396f','#010736','#eeeee5','#22396f','#fcf1d0'],
-        blush: ['#fff9d6','#3f4730','#505a3d','#485735','#ffdcdc','#8ea66b','#1d2b10'],
-        forest: ['#e8dcc4','#123f36','#31564b','#2a6b5c','#e3ebe1','#c49a45','#132d25']
+      const systemAppearance = matchMedia('(prefers-color-scheme: dark)');
+      let appearance = 'system';
+      const applyAppearance = () => {
+        const dark = appearance === 'dark' || (appearance === 'system' && systemAppearance.matches);
+        root.dataset.appearance = dark ? 'dark' : 'light';
+        root.querySelector('.appearance-auto').setAttribute('aria-pressed', String(appearance === 'system'));
       };
-      root.querySelector('.theme-select').addEventListener('change', event => {
-        ['bg','text','muted','accent','accent-soft','action','action-text'].forEach((key,index) => root.style.setProperty(`--${key}`, themePalettes[event.target.value][index]));
-      });
+      root.querySelector('.appearance-toggle').addEventListener('click', () => { appearance = root.dataset.appearance === 'dark' ? 'light' : 'dark'; applyAppearance(); });
+      root.querySelector('.appearance-auto').addEventListener('click', () => { appearance = 'system'; applyAppearance(); });
+      systemAppearance.addEventListener('change', applyAppearance);
+      applyAppearance();
       let returnColorManual = false;
       const applyReturnColors = palette => {
         root.dataset.returnPalette = palette;

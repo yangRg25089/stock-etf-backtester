@@ -396,7 +396,7 @@ def test_successful_zero_trade_export_still_contains_a_header() -> None:
     assert content == (
         "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
         "signalId,dataSources,calendarAsOf,marketDataThrough,"
-        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost\n"
+        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost,totalAssetAfter\n"
     )
 
 
@@ -421,10 +421,10 @@ def test_trade_export_writes_stable_fields_without_rounding() -> None:
     assert content == (
         "runId,resultId,date,side,reason,quantity,price,cashAmount,currency,"
         "signalId,dataSources,calendarAsOf,marketDataThrough,"
-        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost\n"
+        "cashBefore,cashAfter,quantityBefore,quantityAfter,executionBasePrice,executionPrice,grossAmount,commission,slippageCost,spreadCost,capitalGainsTax,totalTradingCost,totalAssetAfter\n"
         "run-123,ordinary,2024-01-03,buy,signal_buy,0.123456789,81.00000001,"
         '10.00000000,USD,vix.buy,"[""sec:companyfacts"",""yahoo""]",'
-        "2024-01-04,2024-01-04,,,,,,,,,,,,\n"
+        "2024-01-04,2024-01-04,,,,,,,,,,,,,\n"
     )
 
 
@@ -605,3 +605,21 @@ def test_export_rejects_missing_incomplete_and_inapplicable_results() -> None:
     assert missing_focus.value.code == "focused_result_not_found"
     assert running_result.value.code == "result_not_exportable"
     assert wrong_kind.value.code == "search_results_unavailable"
+
+
+def test_trade_export_preserves_saved_post_fill_total_asset() -> None:
+    trade = Trade(
+        date=date(2024, 1, 3),
+        side=TradeSide.BUY,
+        reason=TradeReason.FIXED_DCA,
+        quantity=Decimal("1"),
+        price=Decimal("10"),
+        cashAmount=Decimal("10"),
+        currency="USD",
+        totalAssetAfter=Decimal("123.456789"),
+    )
+    content = export_csv(
+        _response(trades=(trade,)), kind=ExportKind.TRADES, focused_result_id="ordinary"
+    )
+    assert _rows(content)[0]["totalAssetAfter"] == "123.456789"
+    assert content.splitlines()[0].endswith(",totalAssetAfter")

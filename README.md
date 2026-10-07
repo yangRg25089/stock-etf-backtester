@@ -101,3 +101,12 @@ The workbench uses 8px outer margins and separate configuration/results views. S
 Copyright © 2026 Ronny Yang. This project is available under the [MIT License](LICENSE).
 The hosted public build sets `noindex, nofollow` and disallows crawling. It does not provide per-user accounts or durable run storage. Local design notes, task records and agent instructions are excluded from the published repository.
 The optional 20% tax model deducts tax on each profitable sale using average holding cost including fees. Losses do not offset gains, and unsold holdings are not taxed. It is a simplified simulation rather than a regional tax calculation.
+
+
+## Result appearance and saved fills
+
+Appearance defaults to the operating system. The Light/Dark button fixes a manual preference; Auto restores live system changes. Light retains the original Classic colors. Result details show performance and period tables first, optional costs/search next, and trades last. Expanded tables keep their controls and column headers visible. On phones, Inspect scrubs saved daily readings; Pan moves the shared time window, while vertical gestures scroll the page.
+
+Trade CSV appends `totalAssetAfter`: whole-account assets immediately after each fill, valued at that day's saved simulation price, with fees/tax already reflected in cash. Old missing values remain unavailable. Zero tax is shown as “—”; explicit all-zero costs and tax columns are hidden only in visible presentation. CSV retains raw zero values.
+
+Run complete functional and UI acceptance locally. After deployment, confirm only the deployed revision and `/health`.

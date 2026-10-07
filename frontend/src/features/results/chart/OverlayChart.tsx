@@ -19,6 +19,7 @@ import { useSeriesHighlight } from "./useSeriesHighlight";
 
 export function OverlayChart({
   renderedWidth = CHART.width,
+  pixelHeight,
   locale,
   assets,
   trades,
@@ -39,6 +40,7 @@ export function OverlayChart({
   onInspectedSeriesChange,
 }: {
   renderedWidth?: number;
+  pixelHeight?: number;
   locale: Locale;
   assets: DailyAsset[];
   trades: Trade[];
@@ -58,7 +60,7 @@ export function OverlayChart({
   inspectedSeriesId?: string | null;
   onInspectedSeriesChange?(id: string | null): void;
 }) {
-  const geometry = responsiveChartGeometry(MAIN_WITHOUT_DATES, renderedWidth);
+  const geometry = responsiveChartGeometry(MAIN_WITHOUT_DATES, renderedWidth, pixelHeight);
   const gradientId = `chart-gradient-${useId()}`;
   const normalized = series.flatMap((definition) => {
     const result = normalizedById.get(definition.id);
@@ -110,7 +112,7 @@ export function OverlayChart({
   const cursorDate = cursor ? assets[cursor.index]?.date : undefined;
   const readingIndex = cursor?.index ?? Math.floor(range.end);
   const readingDate = assets[readingIndex]?.date;
-  const cursorY = cursor?.chartId === "overlay" ? CHART.top + cursor.yRatio * plotHeight : undefined;
+  const cursorY = cursor?.chartId === "overlay" ? geometry.top + cursor.yRatio * plotHeight : undefined;
   const cursorValue = cursor ? scale.maximum - cursor.yRatio * (scale.maximum - scale.minimum) : null;
   const cursorPoints = normalized.flatMap(({ definition, result }) => {
     const point = result.points.find((sample) => sample.index === cursor?.index);

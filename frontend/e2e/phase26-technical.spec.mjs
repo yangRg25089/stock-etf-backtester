@@ -98,7 +98,7 @@ test("grid candidates show their own saved MA and Bollinger parameters after swi
   } }]);
   await page.goto("/");
   const grid = saved.result.strategyRuns.find(result => result.id === "grid");
-  await page.getByRole("tab", { name: "検索結果", exact: true }).click();
+  await expect(page.locator(".result-search-section")).toBeVisible();
   const rows = page.locator(".search-table tbody tr");
   for (const candidate of grid.searchResult.candidates) {
     const button = rows.getByRole("button", { name: String(candidate.sequence), exact: true });
