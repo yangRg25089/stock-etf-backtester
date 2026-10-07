@@ -91,6 +91,12 @@ def validate_configuration(
         422: {"model": APIErrorResponse},
         409: {"model": APIErrorResponse},
         503: {"model": APIErrorResponse},
+        429: {
+            "model": APIErrorResponse,
+            "headers": {"Retry-After": {"schema": {"type": "integer"}}},
+        },
+        413: {"model": APIErrorResponse},
+        403: {"model": APIErrorResponse},
     },
 )
 def submit_run(

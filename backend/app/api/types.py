@@ -79,6 +79,9 @@ class APIError(DomainModel):
     code: str = Field(min_length=1)
     message_key: str = Field(alias="messageKey", min_length=1)
     diagnostics: tuple[Diagnostic, ...] = ()
+    retry_after_seconds: int | None = Field(
+        default=None, alias="retryAfterSeconds", ge=1, le=60
+    )
 
 
 class APIErrorResponse(DomainModel):

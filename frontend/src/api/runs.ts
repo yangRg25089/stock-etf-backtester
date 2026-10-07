@@ -18,12 +18,14 @@ export class RunApiError extends Error {
   readonly messageKey: string;
   readonly diagnostics: Diagnostic[];
   readonly status: number | null;
+  readonly retryAfterSeconds: number | null;
 
   constructor(
     code: string,
     messageKey: string,
     diagnostics: Diagnostic[] = [],
     status: number | null = null,
+    retryAfterSeconds: number | null = null,
   ) {
     super(messageKey);
     this.name = "RunApiError";
@@ -31,6 +33,7 @@ export class RunApiError extends Error {
     this.messageKey = messageKey;
     this.diagnostics = diagnostics;
     this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -91,6 +94,7 @@ async function requestJson<T>(
         error.messageKey,
         error.diagnostics ?? [],
         response.status,
+        error.retryAfterSeconds ?? null,
       );
     }
     throw fallbackError(response.status);
@@ -181,6 +185,7 @@ export async function subscribeToRunEvents(
       error.messageKey,
       error.diagnostics ?? [],
       response.status,
+      error.retryAfterSeconds ?? null,
     );
   }
 

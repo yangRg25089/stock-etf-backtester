@@ -74,7 +74,10 @@ export function ResultDetails({
       alwaysVisible={(!run || error || diagnostics.length > 0) ? (
         <>
           {error && !diagnostics.some((diagnostic) => diagnostic.messageKey === error.messageKey) && (
-            <p className="field-error" role="alert">{translate(locale, error.messageKey)}</p>
+            <p className="field-error" role="alert">
+              {translate(locale, error.messageKey)}
+              {error.retryAfterSeconds != null && ` ${translate(locale, "api.errors.retry_after", { seconds: String(error.retryAfterSeconds) })}`}
+            </p>
           )}
           {diagnostics.length > 0 && (
             <div role="alert"><DiagnosticList locale={locale} diagnostics={diagnostics} fieldAction={busy ? undefined : fieldAction} /></div>

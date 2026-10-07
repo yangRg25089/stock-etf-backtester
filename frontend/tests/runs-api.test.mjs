@@ -122,6 +122,22 @@ test("run API preserves stable server diagnostics from an error envelope", async
   }
 });
 
+test("a rejected public run retains the server's exact cooldown", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => response({ error: {
+    code: "rate_limited", messageKey: "api.errors.rate_limited", diagnostics: [], retryAfterSeconds: 37,
+  } }, 429);
+  try {
+    await assert.rejects(submitRun({}, "cooldown-test"), error => {
+      assert.ok(error instanceof RunApiError);
+      assert.equal(error.status, 429);
+      assert.equal(error.code, "rate_limited");
+      assert.equal(error.retryAfterSeconds, 37);
+      return true;
+    });
+  } finally { globalThis.fetch = original; }
+});
+
 test("run event subscription parses split SSE frames and stops at terminal", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];

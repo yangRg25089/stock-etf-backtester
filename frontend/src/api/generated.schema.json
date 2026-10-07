@@ -18,6 +18,19 @@
         "type": "array",
         "title": "Diagnostics",
         "default": []
+      },
+      "retryAfterSeconds": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "maximum": 60.0,
+            "minimum": 1.0
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Retryafterseconds"
       }
     },
     "additionalProperties": false,

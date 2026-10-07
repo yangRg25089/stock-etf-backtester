@@ -1,4 +1,4 @@
-"""Production-only frontend serving and optional shared authentication."""
+"""Public production frontend serving, headers, and abuse controls."""
 
 import asyncio
 from pathlib import Path
@@ -12,15 +12,13 @@ from app.main import create_app
 def _get(
     app: object,
     path: str,
-    *,
-    auth: tuple[str, str] | None = None,
 ) -> httpx.Response:
     async def send() -> httpx.Response:
         transport = httpx.ASGITransport(app=app)  # type: ignore[arg-type]
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test"
         ) as client:
-            return await client.get(path, auth=auth)
+            return await client.get(path)
 
     return asyncio.run(send())
 
@@ -57,52 +55,41 @@ def test_production_app_serves_frontend_health_catalog_and_assets(
     assert asset.text == "document.body"
 
 
-@pytest.mark.parametrize(
-    ("configured", "missing"),
-    [
-        ({"APP_BASIC_AUTH_USERNAME": "friend"}, "APP_BASIC_AUTH_PASSWORD"),
-        ({"APP_BASIC_AUTH_PASSWORD": "secret"}, "APP_BASIC_AUTH_USERNAME"),
-    ],
-)
-def test_one_basic_auth_variable_fails_app_creation(
-    configured: dict[str, str], missing: str
-) -> None:
-    environment = {"STOCK_ETF_BACKTESTER_SERVE_FRONTEND": "0", **configured}
-
-    with pytest.raises(ValueError, match=missing):
-        create_app(environment)
-
-
-def test_basic_auth_protects_frontend_api_and_assets_but_not_health(
+def test_production_paths_are_public_and_discourage_crawlers(
     tmp_path: Path,
 ) -> None:
     frontend_dir = tmp_path / "dist"
     _write_frontend(frontend_dir)
-    app = create_app(
-        _production_environment(
-            frontend_dir,
-            APP_BASIC_AUTH_USERNAME="friends",
-            APP_BASIC_AUTH_PASSWORD="shared secret",
-        )
-    )
+    app = create_app(_production_environment(frontend_dir))
 
     assert _get(app, "/health").status_code == 200
-    for path in ("/", "/assets/app.js", "/api/v1/catalog", "/docs"):
+    for path in ("/", "/assets/app.js", "/api/v1/catalog"):
         response = _get(app, path)
-        assert response.status_code == 401
-        assert response.headers["www-authenticate"].startswith("Basic ")
-        assert "shared secret" not in response.text
+        assert response.status_code == 200
+        assert "www-authenticate" not in response.headers
+        assert "noindex" in response.headers["x-robots-tag"]
+        assert response.headers["x-content-type-options"] == "nosniff"
+    assert _get(app, "/robots.txt").text == "User-agent: *\nDisallow: /\n"
+    assert _get(app, "/docs").status_code == 404
 
-    assert _get(app, "/", auth=("friends", "shared secret")).status_code == 200
-    assert (
-        _get(app, "/assets/app.js", auth=("friends", "shared secret")).status_code
-        == 200
-    )
-    assert (
-        _get(app, "/api/v1/catalog", auth=("friends", "shared secret")).status_code
-        == 200
-    )
-    assert _get(app, "/", auth=("friends", "wrong")).status_code == 401
+
+def test_production_invalid_submissions_share_the_execution_budget(
+    tmp_path: Path,
+) -> None:
+    frontend_dir = tmp_path / "dist"
+    _write_frontend(frontend_dir)
+    app = create_app(_production_environment(frontend_dir))
+
+    async def send() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            for _ in range(5):
+                assert (await client.post("/api/v1/runs", json={})).status_code == 422
+            assert (await client.post("/api/v1/runs", json={})).status_code == 429
+            assert (await client.get("/health")).status_code == 200
+
+    asyncio.run(send())
 
 
 def test_enabling_frontend_requires_an_existing_build_directory(tmp_path: Path) -> None:
