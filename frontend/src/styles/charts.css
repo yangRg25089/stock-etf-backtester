@@ -166,6 +166,8 @@
   overflow-x: auto;
 }
 
+.chart-mobile-axis-label { display: none; }
+
 /* Shared widths align time grids; indicators have a shorter viewBox. */
 .result-chart {
   display: block;
@@ -321,7 +323,7 @@
   white-space: nowrap;
   font-weight: 650;
 }
-.chart-cursor-reading { white-space: nowrap; }
+.chart-cursor-reading { color: color-mix(in srgb, var(--reading-color, var(--app-foreground)) 72%, var(--app-foreground)); white-space: nowrap; }
 .chart-core-readout-row {
   min-height: 40px;
   height: auto;

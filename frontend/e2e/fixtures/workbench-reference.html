@@ -351,7 +351,7 @@
     #backtest-ui-preview .theme-select { width: 100px; min-width: 0; font-size: 12px; }
     #backtest-ui-preview .detail-section + .detail-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
     @media (max-width: 767px) {
-      #backtest-ui-preview .app-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand brand brand" "theme palette locale" "actions files files"; gap: 6px; }
+      #backtest-ui-preview .app-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand brand brand" "theme palette locale" "actions files files"; gap: 4px; min-height: 0; padding: 6px 8px; }
       #backtest-ui-preview .topbar-brand { grid-area: brand; }
       #backtest-ui-preview .topbar-right { display: contents; }
       #backtest-ui-preview .theme-select { grid-area: theme; width: 100%; min-width: 0; }
@@ -359,6 +359,19 @@
       #backtest-ui-preview .package-actions { grid-area: files; justify-self: end; }
       #backtest-ui-preview .return-color-control { grid-area: palette; }
       #backtest-ui-preview .locale-select-control { grid-area: locale; }
+      #backtest-ui-preview .locale-select { width: 90px; min-width: 90px; }
+      #backtest-ui-preview .shared-dialog, #backtest-ui-preview .strategy-dialog { width: calc(100vw - 16px); max-width: calc(100vw - 16px); border-radius: 8px; }
+    }
+    @media (max-width: 420px) {
+      #backtest-ui-preview .app-topbar { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "brand theme palette locale" "actions actions files files"; }
+      #backtest-ui-preview .brand-name { display: none; }
+      #backtest-ui-preview .brand-mark { width: 24px; height: 24px; }
+      #backtest-ui-preview .execution-actions .icon-button { width: 40px; min-width: 40px; }
+    }
+    @media (pointer: coarse) {
+      #backtest-ui-preview .execution-actions .icon-button, #backtest-ui-preview .package-actions .icon-button,
+      #backtest-ui-preview .theme-select, #backtest-ui-preview .locale-select { min-height: 44px; }
+      #backtest-ui-preview .execution-actions .icon-button { width: 44px; min-width: 44px; }
     }
 </style>
 

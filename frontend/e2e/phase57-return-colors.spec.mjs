@@ -109,13 +109,15 @@ test.describe("touch return controls", () => {
     await openSaved(page, await savedRun(page));
     await page.setViewportSize({ width: 320, height: 900 });
     const header = await page.locator(".app-topbar").boundingBox();
-    expect(header.height).toBeGreaterThanOrEqual(108);
+    expect(header.height).toBeGreaterThanOrEqual(104);
+    expect(header.height).toBeLessThanOrEqual(112);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
     const palette = await page.locator(".return-color-control").boundingBox();
     const locale = await page.locator(".locale-select").boundingBox();
     expect(palette.x + palette.width).toBeLessThan(locale.x);
     const brand = await page.locator(".brand-mark").boundingBox();
-    expect(brand.y + brand.height).toBeLessThanOrEqual(palette.y);
+    expect(brand.y).toBeGreaterThanOrEqual(palette.y);
+    expect(brand.y + brand.height).toBeLessThanOrEqual(palette.y + palette.height);
     for (const button of await page.locator(".return-color-option").all()) {
       const box = await button.boundingBox();
       expect(box.width).toBeGreaterThanOrEqual(44);

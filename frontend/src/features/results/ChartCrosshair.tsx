@@ -65,7 +65,7 @@ function SeriesControl({ id, label, description, color, seriesId, resultId, date
 
 function ReadingValues({ readings, inspection }: { readings: CursorReading[]; inspection?: SeriesInspection }) {
   return readings.map(({ label, value, color, series, tone }) => {
-    const reading = <span key={series?.id ?? label} className="chart-cursor-reading" style={color ? { color } : undefined}>
+    const reading = <span key={series?.id ?? label} className="chart-cursor-reading" style={color ? { "--reading-color": color } as CSSProperties : undefined}>
       <span>{label}</span> <strong className={tone ? `return-value is-${tone}` : undefined}>{value}</strong>
     </span>;
     return series && inspection

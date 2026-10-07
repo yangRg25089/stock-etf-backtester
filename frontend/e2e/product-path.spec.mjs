@@ -568,11 +568,13 @@ test("strategy dialog stays usable at 320px and returns focus to its card", asyn
   await expect(page.locator(".strategy-dialog")).toBeVisible();
 
   const geometry = await page.locator(".strategy-dialog").evaluate((dialog) => ({
+    left: dialog.getBoundingClientRect().left,
     width: dialog.getBoundingClientRect().width,
     viewportWidth: window.innerWidth,
     columns: getComputedStyle(dialog.querySelector(".strategy-parameter-grid")).gridTemplateColumns.split(" ").length,
   }));
-  expect(geometry.width).toBeLessThanOrEqual(geometry.viewportWidth - 24);
+  expect(geometry.left).toBe(8);
+  expect(geometry.width).toBe(geometry.viewportWidth - 16);
   expect(geometry.columns).toBe(1);
 
   const accessibility = await new AxeBuilder({ page })

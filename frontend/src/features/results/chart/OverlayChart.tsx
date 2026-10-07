@@ -9,7 +9,7 @@ import { normalizeValueToBase100, type ChartSeriesId, type NormalizedSeries, typ
 import { samplesInViewport, visibleIndexRange, type ChartViewport } from "../chartViewport";
 import { numericValue } from "../format";
 import type { SeriesDefinition, NormalizedComparisonSeries, IndicatorComparison } from "./chartTypes";
-import { CHART, MAIN_WITHOUT_DATES, chartScale, xPosition } from "./chartScale";
+import { CHART, MAIN_WITHOUT_DATES, chartScale, xPosition, responsiveChartGeometry } from "./chartScale";
 import { axisTitle, seriesLabel, formatAxisValue, preciseValue } from "./chartFormat";
 import { returnTone } from "../returnTone";
 import { seriesIdentity } from "./chartSeriesModel";
@@ -18,6 +18,7 @@ import { HighlightArea } from "./ChartSeries";
 import { useSeriesHighlight } from "./useSeriesHighlight";
 
 export function OverlayChart({
+  renderedWidth = CHART.width,
   locale,
   assets,
   trades,
@@ -37,6 +38,7 @@ export function OverlayChart({
   inspectedSeriesId,
   onInspectedSeriesChange,
 }: {
+  renderedWidth?: number;
   locale: Locale;
   assets: DailyAsset[];
   trades: Trade[];
@@ -56,7 +58,7 @@ export function OverlayChart({
   inspectedSeriesId?: string | null;
   onInspectedSeriesChange?(id: string | null): void;
 }) {
-  const geometry = MAIN_WITHOUT_DATES;
+  const geometry = responsiveChartGeometry(MAIN_WITHOUT_DATES, renderedWidth);
   const gradientId = `chart-gradient-${useId()}`;
   const normalized = series.flatMap((definition) => {
     const result = normalizedById.get(definition.id);
@@ -168,6 +170,7 @@ export function OverlayChart({
       <div className="chart-core-readout-row" role="group" aria-label={translate(locale, "chart.savedReadings")}>
         <ChartReadout date={readingDate} readings={readings} strategies={strategyReadings} inspection={highlight} />
       </div>
+      <div className="chart-mobile-axis-label">{axisTitle(locale, "index")}</div>
       <div className="chart-canvas">
         <svg
           {...chartInteractionProps}
@@ -190,7 +193,7 @@ export function OverlayChart({
           <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId="index" viewport={viewport} geometry={geometry} />
           <defs>
             <clipPath id={plotClipId}>
-              <rect x={CHART.left} y={CHART.top} width={plotWidth} height={plotHeight} />
+              <rect x={CHART.left} y={geometry.top} width={plotWidth} height={plotHeight} />
             </clipPath>
           </defs>
           <g clipPath={`url(#${plotClipId})`}>

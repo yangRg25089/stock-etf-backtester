@@ -39,6 +39,7 @@ export function ResultsCharts({
   const interaction = useChartInteraction(dailyAssets.length, CHART, busy);
   const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps } = interaction;
   const rootElement = useRef<HTMLDivElement | null>(null);
+  const [renderedChartWidth, setRenderedChartWidth] = useState(CHART.width);
   const containerRef = useCallback((element: HTMLDivElement | null) => {
     chartContainerRef(element);
     rootElement.current = element;
@@ -82,7 +83,10 @@ export function ResultsCharts({
     const svg = element?.querySelector("svg.result-chart");
     if (!element || !svg) return;
     const updateScale = (width: number) => {
-      if (width > 0) element.style.setProperty("--chart-text-scale", String(CHART.width / width));
+      if (width > 0) {
+        element.style.setProperty("--chart-text-scale", String(CHART.width / width));
+        setRenderedChartWidth(width);
+      }
     };
     updateScale(svg.getBoundingClientRect().width);
     const observer = new ResizeObserver(entries => updateScale(entries[0]?.contentRect.width ?? 0));
@@ -114,6 +118,7 @@ export function ResultsCharts({
         <div className="chart-linked-stack">
           {(coreSeries.length > 0 || visibleComparisons.length > 0) && (
             <OverlayChart
+              renderedWidth={renderedChartWidth}
               locale={locale}
               assets={dailyAssets}
               trades={trades}
@@ -136,6 +141,7 @@ export function ResultsCharts({
           )}
           {indicatorSeries.map((series) => (
             <IndicatorChart
+              renderedWidth={renderedChartWidth}
               key={series.id}
               locale={locale}
               assets={dailyAssets}
@@ -151,10 +157,12 @@ export function ResultsCharts({
             />
           ))}
           {rsiLines[0] && <IndicatorChart locale={locale} assets={dailyAssets}
+            renderedWidth={renderedChartWidth}
             series={{ id: "rsi", color: rsiLines[0].color, labelKey: "chart.rsiAxis", label: rsiLines[0].label }}
             samples={rsiLines[0].samples} comparisons={rsiLines.slice(1)} thresholdValue={null} hasBuySignalObservations={false}
             viewport={viewport} chartInteractionProps={chartInteractionProps} cursor={cursor} />}
-          <ChartDateAxis dates={dailyAssets.map((asset) => asset.date)} locale={locale} viewport={viewport} cursor={cursor} />
+          <ChartDateAxis dates={dailyAssets.map((asset) => asset.date)} locale={locale} viewport={viewport} cursor={cursor}
+            textScale={renderedChartWidth < 680 ? CHART.width / renderedChartWidth : 1} />
         </div>
       )}
     </div>
