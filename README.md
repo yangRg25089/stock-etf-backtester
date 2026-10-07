@@ -51,6 +51,7 @@ npm run lint
 npm run build
 npm run test:production-smoke
 npm run test:e2e
+npm run test:e2e:live
 ```
 
 ## データと fixture
@@ -77,7 +78,7 @@ Start command:
 uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
 ```
 
-Set `STOCK_ETF_BACKTESTER_SERVE_FRONTEND=1` and `STOCK_ETF_BACKTESTER_FRONTEND_DIR=frontend/dist`. Store `APP_BASIC_AUTH_USERNAME` and `APP_BASIC_AUTH_PASSWORD` as Render secrets. Both must be provided together; `/health` is public and the frontend, assets and API require authentication. Set the health check path to `/health`. Keep automatic deployment disabled until verification is complete, then use **After CI Checks Pass**. Runtime version files pin Python 3.11 and Node 22; Render supplies `PORT`.
+Set `STOCK_ETF_BACKTESTER_SERVE_FRONTEND=1` and `STOCK_ETF_BACKTESTER_FRONTEND_DIR=frontend/dist`. Store `APP_BASIC_AUTH_USERNAME` and `APP_BASIC_AUTH_PASSWORD` as Render secrets. Both must be provided together; `/health` is public and the frontend, assets and API require authentication. Set the health check path to `/health`. Keep automatic deployment disabled and deploy manually after the verification commands above pass, including the real Yahoo and production browser flows. Repository-hosted Actions workflows are excluded by the publication policy. Runtime version files pin Python 3.11 and Node 22; Render supplies `PORT`.
 
 ## Themes
 
