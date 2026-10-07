@@ -1,6 +1,6 @@
 # Stock ETF Backtester
 
-本リポジトリは、ローカルまたは共有 Basic Auth で保護された単一 Render Web Service で動作する株式・ETF の履歴バックテストアプリです。ローカル開発では FastAPI バックエンドと React/TypeScript フロントエンドを別プロセスで起動し、Render では FastAPI が React の production build も配信します。アプリの起動と純計算の決定性テストは外部ネットワークへ接続しません。バックテストを実行すると Yahoo からデータを取得します。バックエンドの全量テストにも実際の QQQ/VIX 取得を検証する回帰テストが含まれます。証券口座や注文には接続しません。
+本リポジトリは、ローカルまたは公開の単一 Render Web Service で動作する株式・ETF の履歴バックテストアプリです。認証は不要です。ローカル開発では FastAPI バックエンドと React/TypeScript フロントエンドを別プロセスで起動し、Render では FastAPI が React の production build も配信します。アプリの起動と純計算の決定性テストは外部ネットワークへ接続しません。バックテストを実行すると Yahoo からデータを取得します。バックエンドの全量テストにも実際の QQQ/VIX 取得を検証する回帰テストが含まれます。証券口座や注文には接続しません。
 
 ## 前提環境
 
@@ -75,10 +75,14 @@ python -m pip install ./backend && cd frontend && npm ci --include=dev && npm ru
 Start command:
 
 ```bash
-uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT --workers 1 --no-proxy-headers --limit-concurrency 64 --timeout-keep-alive 5
 ```
 
-Set `STOCK_ETF_BACKTESTER_SERVE_FRONTEND=1` and `STOCK_ETF_BACKTESTER_FRONTEND_DIR=frontend/dist`. Store `APP_BASIC_AUTH_USERNAME` and `APP_BASIC_AUTH_PASSWORD` as Render secrets. Both must be provided together; `/health` is public and the frontend, assets and API require authentication. Set the health check path to `/health`. Keep automatic deployment disabled and deploy manually after the verification commands above pass, including the real Yahoo and production browser flows. Repository-hosted Actions workflows are excluded by the publication policy. Runtime version files pin Python 3.11 and Node 22; Render supplies `PORT`.
+Set `STOCK_ETF_BACKTESTER_SERVE_FRONTEND=1`, `STOCK_ETF_BACKTESTER_FRONTEND_DIR=frontend/dist` and `STOCK_ETF_BACKTESTER_TRUST_RENDER_PROXY=1`. No authentication secrets are needed. The proxy flag takes effect only when Render also sets `RENDER=true`; the application uses the Cloudflare-overwritten `CF-Connecting-IP` and ignores `X-Forwarded-For`. Keep Uvicorn proxy rewriting disabled. Use exactly one process and instance so quotas are shared. Missing or malformed edge IPs share a conservative fallback quota. Local requests ignore forwarding headers.
+
+The public build allows **5 run submission attempts per IP per rolling 60 seconds**, **240 API requests**, and **20 instrument metadata requests**. A service-wide quota of **20 run submissions per 60 seconds** also applies. Invalid submissions and idempotent retries count as attempts. A rejected request returns HTTP 429, `Retry-After`, and a localized waiting time without creating a run; saved results and ordinary controls remain accessible. API write bodies are capped at 1 MiB. Counters are bounded, expire lazily, and reset on restart. Robots directives discourage indexing, and user agents identifying themselves as bots, spiders, crawlers or Scrapy are refused; `/robots.txt` and `/health` remain available. These are basic abuse controls for one instance.
+
+Set the health check path to `/health`. Keep automatic deployment disabled and deploy manually after the verification commands above pass, including the real Yahoo and production browser flows. Repository-hosted Actions workflows are excluded by the publication policy. Runtime version files pin Python 3.11 and Node 22; Render supplies `PORT`.
 
 ## Themes
 
@@ -95,6 +99,5 @@ The workbench uses 8px outer margins and separate configuration/results views. S
 ## License and publication
 
 Copyright © 2026 Ronny Yang. This project is available under the [MIT License](LICENSE).
-The hosted shared build sets `noindex, nofollow` and does not assume a public product hostname. Revisit the robots metadata, canonical URL, sitemap and translated metadata before a public launch.
-The optional Render deployment is for a trusted shared audience. It does not provide per-user accounts or durable run storage. Store the shared password as a Render secret; do not commit it. Local design notes, task records and agent instructions are excluded from the published repository.
+The hosted public build sets `noindex, nofollow` and disallows crawling. It does not provide per-user accounts or durable run storage. Local design notes, task records and agent instructions are excluded from the published repository.
 The optional 20% tax model deducts tax on each profitable sale using average holding cost including fees. Losses do not offset gains, and unsold holdings are not taxed. It is a simplified simulation rather than a regional tax calculation.

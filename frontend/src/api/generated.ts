@@ -5,6 +5,7 @@ export type APIError = {
   code: string;
   messageKey: string;
   diagnostics?: Array<Diagnostic>;
+  retryAfterSeconds?: number | null;
 };
 
 export type APIErrorResponse = {

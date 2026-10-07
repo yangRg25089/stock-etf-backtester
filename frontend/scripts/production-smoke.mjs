@@ -24,17 +24,14 @@ async function findAvailablePort() {
 
 const port = await findAvailablePort();
 const baseURL = `http://127.0.0.1:${port}`;
-const username = "production-smoke";
-const password = "temporary-smoke-credential";
 const child = spawn(backendPython, [
   "-m", "uvicorn", "app.main:app", "--app-dir", "backend",
   "--host", "127.0.0.1", "--port", String(port),
+  "--no-proxy-headers", "--workers", "1", "--limit-concurrency", "64",
 ], {
   cwd: repositoryRoot,
   env: {
     ...process.env,
-    APP_BASIC_AUTH_USERNAME: username,
-    APP_BASIC_AUTH_PASSWORD: password,
     STOCK_ETF_BACKTESTER_SERVE_FRONTEND: "1",
     STOCK_ETF_BACKTESTER_FRONTEND_DIR: "frontend/dist",
   },
@@ -75,37 +72,52 @@ try {
   assert.equal(health.status, 200);
   assert.deepEqual(await health.json(), { status: "ok" });
 
-  const unauthorizedRoot = await fetch(`${baseURL}/`);
-  assert.equal(unauthorizedRoot.status, 401);
-  assert.match(unauthorizedRoot.headers.get("www-authenticate") ?? "", /^Basic /);
-  const unauthorizedCatalog = await fetch(`${baseURL}/api/v1/catalog`);
-  assert.equal(unauthorizedCatalog.status, 401);
-
-  const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
-  const headers = { Authorization: authorization };
-  const root = await fetch(`${baseURL}/`, { headers });
+  const root = await fetch(`${baseURL}/`);
   assert.equal(root.status, 200);
+  assert.equal(root.headers.get("www-authenticate"), null);
+  assert.match(root.headers.get("x-robots-tag") ?? "", /noindex/);
+  assert.equal(root.headers.get("x-content-type-options"), "nosniff");
   const html = await root.text();
   assert.match(html, /<div[^>]+id="root"/);
   assert.match(html, /<meta name="robots" content="noindex, nofollow"/);
   const javascriptPath = html.match(/src="([^"]+\.js)"/)?.[1];
   assert.ok(javascriptPath, "built frontend should reference a JavaScript asset");
-  const javascript = await fetch(new URL(javascriptPath, baseURL), { headers });
+  const javascript = await fetch(new URL(javascriptPath, baseURL));
   assert.equal(javascript.status, 200);
   assert.match(javascript.headers.get("content-type") ?? "", /javascript/);
   const stylesheetPaths = [...html.matchAll(/href="([^"]+\.css)"/g)].map(match => match[1]);
   assert.ok(stylesheetPaths.length > 0, "built frontend should reference a stylesheet");
   for (const stylesheetPath of stylesheetPaths) {
-    const stylesheet = await fetch(new URL(stylesheetPath, baseURL), { headers });
+    const stylesheet = await fetch(new URL(stylesheetPath, baseURL));
     assert.equal(stylesheet.status, 200);
     assert.match(stylesheet.headers.get("content-type") ?? "", /text\/css/);
   }
 
-  const catalogResponse = await fetch(`${baseURL}/api/v1/catalog`, { headers });
+  const catalogResponse = await fetch(`${baseURL}/api/v1/catalog`);
   assert.equal(catalogResponse.status, 200);
   const catalog = await catalogResponse.json();
   assert.equal(typeof catalog.version, "string");
-  console.log("Production FastAPI smoke passed: auth, health, frontend assets, and catalog.");
+  const crawlerHeaders = { "User-Agent": "SimpleCrawler/1.0" };
+  const robots = await fetch(`${baseURL}/robots.txt`, { headers: crawlerHeaders });
+  assert.equal(robots.status, 200);
+  assert.equal(await robots.text(), "User-agent: *\nDisallow: /\n");
+  assert.equal((await fetch(`${baseURL}/`, { headers: crawlerHeaders })).status, 403);
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const rejected = await fetch(`${baseURL}/api/v1/runs`, {
+      method: "POST", body: "{}", headers: {
+        "Content-Type": "application/json", "X-Forwarded-For": `198.51.100.${attempt + 1}`,
+        "CF-Connecting-IP": `198.51.100.${attempt + 1}`,
+      },
+    });
+    assert.equal(rejected.status, attempt < 5 ? 422 : 429);
+    if (attempt === 5) {
+      const error = (await rejected.json()).error;
+      assert.equal(error.code, "rate_limited");
+      assert.equal(Number(rejected.headers.get("retry-after")), error.retryAfterSeconds);
+    }
+  }
+  assert.equal((await fetch(`${baseURL}/health`)).status, 200);
+  console.log("Production FastAPI smoke passed: public UI/API/assets, health, robots, crawler refusal, and spoof-resistant run throttling.");
 } catch (error) {
   console.error(error);
   process.exitCode = 1;
