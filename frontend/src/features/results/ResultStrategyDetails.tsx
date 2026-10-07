@@ -134,7 +134,6 @@ export function ResultStrategyDetails({
         >
           {tab === "details" && <>
             <div id="result-panel-trades" className="result-detail-section">
-              <h4>{translate(locale, "results.tab.trades")}</h4>
               <TradeTable
                 busy={busy || candidatePending}
                 locale={locale}

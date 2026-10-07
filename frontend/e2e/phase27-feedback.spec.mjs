@@ -1,4 +1,4 @@
-import { openSaved } from "./helpers/runtime.mjs";
+import { openSaved, selectHeaderLocale } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -96,7 +96,7 @@ test("saved results begin unselected and trade details visibly identify the inde
   await page.locator(".comparison-table").getByRole("button", { name: "毎月定額積立", exact: true }).click();
   await page.getByRole("tab", { name: "詳細", exact: true }).click();
   await expect(page.locator(".result-detail-name")).toHaveText("毎月定額積立");
-  await page.locator(".locale-select").selectOption("zh");
+  await selectHeaderLocale(page, "zh");
   await expect(page.locator(".result-detail-name")).toHaveText("每月定额定投");
   await page.reload();
   await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
@@ -210,7 +210,7 @@ test("all strategy dialogs keep three ordered blocks with applicable limits acro
     await page.locator(`.strategy-add-option[data-preset-id="${preset}"]`).click();
   }
   for (const locale of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(locale === "日本語" ? "ja" : locale === "中文" ? "zh" : "en");
+    await selectHeaderLocale(page, locale === "日本語" ? "ja" : locale === "中文" ? "zh" : "en");
     for (const [index, preset] of presets.entries()) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await expect(page.locator(".workbench-config")).toBeVisible();

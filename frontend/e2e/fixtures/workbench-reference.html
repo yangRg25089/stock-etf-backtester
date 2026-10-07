@@ -382,6 +382,32 @@
       #backtest-ui-preview .theme-select, #backtest-ui-preview .locale-select, #backtest-ui-preview .selected-strategy-chip { min-height: 44px; }
       #backtest-ui-preview .execution-actions .icon-button { width: 44px; min-width: 44px; }
     }
+    #backtest-ui-preview .topbar-functions { display: contents; }
+    #backtest-ui-preview .topbar-menu-toggle { display: none; }
+    #backtest-ui-preview .table-height-controls-title { margin: 0 auto 0 0; font-size: 12px; }
+    @media (max-width: 767px) {
+      #backtest-ui-preview .app-topbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand menu" "selected selected"; gap: 2px 8px; padding: 4px 8px; }
+      #backtest-ui-preview .brand-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+      #backtest-ui-preview .topbar-menu-toggle { grid-area: menu; display: grid; place-items: center; width: 44px; min-height: 44px; padding: 0; }
+      #backtest-ui-preview .topbar-functions { display: none; }
+      #backtest-ui-preview .topbar-functions.is-open { position: absolute; top: calc(100% + 4px); right: 8px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; width: min(360px, calc(100% - 16px)); max-height: calc(100dvh - 120px); padding: 8px; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 8px 24px #253c6d20; }
+      #backtest-ui-preview .execution-actions { grid-area: auto; grid-column: 1 / -1; grid-row: 1; }
+      #backtest-ui-preview .package-actions { grid-area: auto; grid-column: 1 / -1; grid-row: 2; display: flex; }
+      #backtest-ui-preview .package-actions button { flex: 1; }
+      #backtest-ui-preview .theme-select { grid-area: auto; grid-column: 1; grid-row: 3; width: 100%; }
+      #backtest-ui-preview .return-color-control { grid-area: auto; grid-column: 2; grid-row: 3; }
+      #backtest-ui-preview .locale-select-control { grid-area: auto; grid-column: 3; grid-row: 3; }
+      #backtest-ui-preview .config-pane, #backtest-ui-preview .config-fixed { height: auto; min-height: 0; overflow: visible; }
+      #backtest-ui-preview .config-fixed, #backtest-ui-preview .strategy-navigator { grid-template-rows: auto auto; }
+      #backtest-ui-preview .strategy-card-list { max-height: min(55dvh, 440px); overscroll-behavior: auto; }
+      #backtest-ui-preview .result-card:first-child .panel-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; padding: 4px 6px; }
+      #backtest-ui-preview .result-context-actions { display: contents; }
+      #backtest-ui-preview .export-controls { grid-column: 1 / -1; grid-row: 2; gap: 4px; }
+      #backtest-ui-preview .prototype-report-download { grid-column: 2; grid-row: 1; }
+      #backtest-ui-preview .chart-toolbar { gap: 4px; padding: 4px; }
+      #backtest-ui-preview .chart-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr)); gap: 4px; }
+      #backtest-ui-preview .chart-legend button { min-width: 0; padding: 3px 6px; font-size: 11px; }
+    }
 </style>
 
   <header class="app-topbar">
@@ -390,12 +416,15 @@
 
       <div class="brand"><span class="brand-mark" aria-hidden="true">B</span><span class="brand-name">株式・ETF バックテスター</span></div>
     </div>
+    <button class="topbar-menu-toggle" type="button" aria-label="操作メニュー" aria-expanded="false" aria-controls="prototype-topbar-functions">☰</button>
+    <div class="topbar-functions" id="prototype-topbar-functions">
     <div class="execution-actions" role="group" aria-label="実行操作">
       <button class="icon-button run-button" type="button" aria-label="バックテストを実行" title="バックテストを実行"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8c0-.7.8-1.1 1.4-.7l11 7.1a1 1 0 0 1 0 1.6l-11 7.1a.9.9 0 0 1-1.4-.7V2.8Z"/></svg></button>
       <button class="icon-button reset-button" type="button" aria-label="結果をクリア" title="結果をクリア">↺</button>
 
     </div>
     <div class="topbar-right"><div class="package-actions" role="group" aria-label="戦略ファイル"><button class="icon-button" type="button" aria-label="戦略JSONをダウンロード" title="戦略JSONをダウンロード">export</button><button class="icon-button" type="button" aria-label="戦略JSONを読み込む" title="戦略JSONを読み込む">import</button></div><select class="theme-select" aria-label="テーマ"><option value="classic">Classic</option><option value="burgundy">Wine</option><option value="midnight">Navy</option><option value="blush">Blush</option><option value="forest">Forest</option></select><div class="return-color-control" role="group" aria-label="リターンの色"><button type="button" data-return-palette="red-up" aria-pressed="false" aria-label="上昇は赤、下落は緑"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button><button type="button" data-return-palette="green-up" aria-pressed="true" aria-label="上昇は緑、下落は赤"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button></div><label class="locale-select-control"><span class="sr-only">表示言語</span><select class="locale-select"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label></div>
+    </div>
   </header>
 
   <main>
@@ -479,7 +508,7 @@
             <section class="result-detail-target" aria-label="明細対象"><span aria-hidden="true" class="result-color-swatch" style="background:#30497d"></span><div><span class="result-detail-label">明細対象</span><h4 class="result-detail-name">ボラティリティ積立</h4></div></section>
             <div class="result-tabs" role="tablist" aria-label="実行結果の詳細"><button id="prototype-details-tab" type="button" role="tab" aria-selected="true" aria-controls="prototype-details-panel" data-tab="details">詳細</button></div>
             <div class="tab-panel" id="prototype-details-panel" role="tabpanel" aria-labelledby="prototype-details-tab" data-panel="details">
-            <section class="detail-section" id="prototype-trades-panel" data-panel="trades"><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
+            <section class="detail-section" id="prototype-trades-panel" data-panel="trades"><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><h4 class="table-height-controls-title">取引明細</h4><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
             <section class="detail-section" id="prototype-performance-panel" data-panel="performance">
               <p class="performance-basis">単位純資産ベース · 年 252 取引日 · 無リスク年利率 0%</p>
               <h4>リターン・リスク</h4><dl class="performance-grid">
@@ -554,6 +583,22 @@
   <script>
     (() => {
       const root = document.querySelector("#backtest-ui-preview");
+      const functions = root.querySelector(".topbar-functions");
+      const functionsToggle = root.querySelector(".topbar-menu-toggle");
+      const closeFunctions = () => { functions.classList.remove("is-open"); functionsToggle.setAttribute("aria-expanded", "false"); };
+      functionsToggle.addEventListener("click", () => {
+        const open = functionsToggle.getAttribute("aria-expanded") !== "true";
+        functionsToggle.setAttribute("aria-expanded", String(open));
+        functions.classList.toggle("is-open", open);
+      });
+      document.addEventListener("pointerdown", event => {
+        if (!functions.contains(event.target) && !functionsToggle.contains(event.target) && !event.target.closest("dialog[open]")) closeFunctions();
+      });
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && functionsToggle.getAttribute("aria-expanded") === "true" && !root.querySelector("dialog[open]")) {
+          closeFunctions(); functionsToggle.focus();
+        }
+      });
       if (!root) return;
       const layout = root.querySelector(".workbench-layout");
       const toggle = root.querySelector("#prototype-config-toggle");

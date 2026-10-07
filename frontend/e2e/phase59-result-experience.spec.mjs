@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { savedRun, openSaved, pngDownload } from "./helpers/reports.mjs";
+import { openTopbarMenu } from "./helpers/runtime.mjs";
 
 const rowFor = (page, id) => page.locator(`.comparison-table tr[data-result-id="${id}"]`);
 const readingFor = (page, id) => page.locator(`.chart-strategy-readout[data-result-id="${id}"]`);
@@ -146,6 +147,7 @@ test("visible file actions, compact execution controls, theme persistence, brand
     for (const width of [320, 768, 1024, 1440, 1920]) {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await openTopbarMenu(page);
       await expect(page.locator(".package-actions button").first()).toBeVisible();
       const buttons = await page.locator(".execution-actions > button").all();
       const boxes = await Promise.all(buttons.map(button => button.boundingBox()));

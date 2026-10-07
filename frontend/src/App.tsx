@@ -16,6 +16,7 @@ import { StrategyNavigator, type StrategyFieldNavigation } from "./features/stra
 import { interpolate, translate, type Locale } from "./i18n/messages";
 import { persistBrowserLocalePreference, readBrowserLocalePreference } from "./i18n/localePreference";
 import { ThemeControl } from "./shared/ui/ThemeControl";
+import { TopbarMenu } from "./shared/ui/TopbarMenu";
 import { LocaleControl } from "./shared/ui/LocaleControl";
 import { ReturnColorControl } from "./shared/ui/ReturnColorControl";
 import { persistBrowserReturnColorPreference, readBrowserReturnColorPreference, resolveReturnColorPalette, type ReturnColorPalette } from "./shared/lib/returnColorPreference";
@@ -127,26 +128,30 @@ function App() {
             <span className="brand-name">{translate(locale, "app.name")}</span>
           </div>
         </div>
-        {catalog && workspace && (
-          <RunActions
-            locale={locale}
-            availability={availability}
-            busy={runBusy}
-            canStop={canStop}
-            stopping={stopping}
-            onStop={() => void handleStop()}
-            run={workspace.runResponse}
-            canReset={Boolean(workspace.runResponse || runError)}
-            onReset={handleReset}
-            onRun={() => void handleRun()}
-          />
-        )}
-        <div className="topbar-right">
-          {catalog && workspace && <PackageControls catalog={catalog} draft={workspace.draft} locale={locale} busy={runBusy} onImport={handleImport} />}
-          <ThemeControl locale={locale} />
-          <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
-          <LocaleControl locale={locale} onChange={handleLocaleChange} />
-        </div>
+        <TopbarMenu locale={locale} busy={runBusy}>
+          {openMenu => <>
+            {catalog && workspace && (
+              <RunActions
+                locale={locale}
+                availability={availability}
+                busy={runBusy}
+                canStop={canStop}
+                stopping={stopping}
+                onStop={() => void handleStop()}
+                run={workspace.runResponse}
+                canReset={Boolean(workspace.runResponse || runError)}
+                onReset={handleReset}
+                onRun={() => void handleRun()}
+              />
+            )}
+            <div className="topbar-right">
+              {catalog && workspace && <PackageControls catalog={catalog} draft={workspace.draft} locale={locale} busy={runBusy} onImport={handleImport} onError={openMenu} />}
+              <ThemeControl locale={locale} />
+              <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
+              <LocaleControl locale={locale} onChange={handleLocaleChange} />
+            </div>
+          </>}
+        </TopbarMenu>
         {workspace && <SelectedStrategies
           run={workspace.runResponse}
           ids={workspace.selectedResultIds}

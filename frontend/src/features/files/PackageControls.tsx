@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { Catalog } from "../../api/generated";
 import { useWorkbenchShortcut } from "../../shared/ui/useWorkbenchShortcut";
 import { translate, type Locale } from "../../i18n/messages";
@@ -10,19 +11,26 @@ import { createStrategyPackage, packageBlob, packageDraft, PackageError, readPac
 interface PackageControlsProps {
   catalog: Catalog; draft: BacktestDraft; locale: Locale; busy: boolean;
   onImport(file: PackageFile): void;
+  onError?(): void;
 }
 
-function PackagePreview({ file, catalog, locale, onCancel, onLoad }: {
-  file: PackageFile; catalog: Catalog; locale: Locale; onCancel(): void; onLoad(): void;
+function PackagePreview({ file, catalog, locale, returnFocus, onCancel, onLoad }: {
+  file: PackageFile; catalog: Catalog; locale: Locale; returnFocus: RefObject<HTMLButtonElement>; onCancel(): void; onLoad(): void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const node = dialog.current;
+    const button = returnFocus.current;
+    const focusTarget = button?.getClientRects().length ? button
+      : document.activeElement instanceof HTMLElement ? document.activeElement : null;
     node?.showModal();
-    return () => node?.close();
-  }, []);
+    return () => {
+      node?.close();
+      focusTarget?.focus({ preventScroll: true });
+    };
+  }, [returnFocus]);
   const draft = packageDraft(file, catalog);
-  return <dialog ref={dialog} className="shared-settings-dialog package-preview" aria-modal="true" aria-labelledby="package-preview-title"
+  const content = <dialog ref={dialog} className="shared-settings-dialog package-preview" aria-modal="true" aria-labelledby="package-preview-title"
     onCancel={event => { event.preventDefault(); onCancel(); }}
     onClick={event => { if (event.target === event.currentTarget) onCancel(); }}>
     <div className="shared-settings-dialog-shell">
@@ -43,9 +51,10 @@ function PackagePreview({ file, catalog, locale, onCancel, onLoad }: {
       </div>
     </div>
   </dialog>;
+  return typeof document === "undefined" ? content : createPortal(content, document.body);
 }
 
-export function PackageControls({ catalog, draft, locale, busy, onImport }: PackageControlsProps) {
+export function PackageControls({ catalog, draft, locale, busy, onImport, onError }: PackageControlsProps) {
   const input = useRef<HTMLInputElement>(null);
   const importButton = useRef<HTMLButtonElement>(null);
   const controller = useRef<AbortController | null>(null);
@@ -56,8 +65,11 @@ export function PackageControls({ catalog, draft, locale, busy, onImport }: Pack
     setPending(false); setPreview(null); setErrorKey(null);
     return () => controller.current?.abort();
   }, [busy, locale]);
-  const closePreview = () => { setPreview(null); importButton.current?.focus(); };
-  const showError = (error: unknown) => setErrorKey(error instanceof PackageError ? error.messageKey : "files.readFailed");
+  const closePreview = () => setPreview(null);
+  const showError = (error: unknown) => {
+    setErrorKey(error instanceof PackageError ? error.messageKey : "files.readFailed");
+    onError?.();
+  };
 
   const exportFile = () => {
     if (busy || pending) return;
@@ -100,7 +112,7 @@ export function PackageControls({ catalog, draft, locale, busy, onImport }: Pack
       <span>{translate(locale, errorKey)}</span>
       <button type="button" className="button icon-only-button" onClick={() => setErrorKey(null)} aria-label={translate(locale, "files.dismiss")}><span aria-hidden="true">×</span></button>
     </div>}
-    {preview && <PackagePreview file={preview} catalog={catalog} locale={locale} onCancel={closePreview}
+    {preview && <PackagePreview file={preview} catalog={catalog} locale={locale} returnFocus={importButton} onCancel={closePreview}
       onLoad={() => { onImport(preview); closePreview(); }} />}
   </div>;
 }

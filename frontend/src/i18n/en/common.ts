@@ -1,5 +1,6 @@
 export const commonMessages: Record<string, string> = {
   "app.close": "Close",
+  "app.functionalMenu": "Actions menu",
   "app.name": "Stock & ETF Backtester",
   "app.documentTitle": "Stock & ETF Backtester",
   "app.skipToMain": "Skip to main content",

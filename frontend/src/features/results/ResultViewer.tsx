@@ -13,7 +13,7 @@ import { buildResultSelection } from "./buildResultSelection";
 import { DEFAULT_COMPARISON_SORT, sortedComparisons } from "./comparisonModel";
 import type { DiagnosticFieldAction } from "../runs/DiagnosticList";
 import { TradeExplanationDialog, type ResultInspection } from "./TradeExplanationDialog";
-import { useTableScrollBoundary } from "./useTableScrollBoundary";
+import { useScrollBoundary } from "../../shared/ui/useScrollBoundary";
 
 interface ResultViewerProps {
   catalog?: Catalog | null;
@@ -26,7 +26,7 @@ interface ResultViewerProps {
 }
 
 export function ResultViewer({ locale, state, dispatch, error, fieldAction, busy = false, catalog }: ResultViewerProps) {
-  const tableScrollRef = useTableScrollBoundary();
+  const tableScrollRef = useScrollBoundary();
   const run: RunResponse | null = state.runResponse;
   const focusedResult = findFocusedResult(run, state.focusedResultId);
   const strategyRuns = run?.result?.strategyRuns ?? [];

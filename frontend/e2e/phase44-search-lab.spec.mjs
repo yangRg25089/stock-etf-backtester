@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { savedRun } from "./helpers/reports.mjs";
-import { restoreSavedRecord, fetchSavedRecord, installRunFixture } from "./helpers/runtime.mjs";
+import { restoreSavedRecord, fetchSavedRecord, installRunFixture, selectHeaderLocale } from "./helpers/runtime.mjs";
 
 async function openSearch(page, saved) {
   await installRunFixture(page, saved);
@@ -69,7 +69,7 @@ test("saved heatmap fixes the third dimension, switches stages/metrics and opens
   await lab.getByRole("button", { name: "ヒートマップ", exact: true }).click();
   expect(await lab.getByLabel("X", { exact: true }).inputValue()).not.toBe(await lab.getByLabel("Y", { exact: true }).inputValue());
   for (const language of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
+    await selectHeaderLocale(page, language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

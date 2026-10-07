@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { installRunFixture } from "./helpers/runtime.mjs";
+import { installRunFixture, selectHeaderLocale } from "./helpers/runtime.mjs";
 import { strategyForRequest } from "./helpers/reports.mjs";
 
 async function savedRun(page, presetId = "vix_dca") {
@@ -48,7 +48,7 @@ test("saved NAV analysis is bilingual, accessible and independent of draft rate 
   await expect(runButton).toBeEnabled();
   expect(await runButton.evaluate(node => node.outerHTML)).toBe(originalRunControl);
   for (const locale of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(locale === "日本語" ? "ja" : locale === "中文" ? "zh" : "en");
+    await selectHeaderLocale(page, locale === "日本語" ? "ja" : locale === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 800 });
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);

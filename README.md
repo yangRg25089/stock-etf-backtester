@@ -84,7 +84,13 @@ Set `STOCK_ETF_BACKTESTER_SERVE_FRONTEND=1` and `STOCK_ETF_BACKTESTER_FRONTEND_D
 
 The dropdown offers **Classic**, **Wine**, **Navy**, **Blush** and **Forest**. Classic preserves the original blue/orange palette; the other four use palettes selected from [Color Hunt popular](https://colorhunt.co/palettes/popular). Semantic colors adapt text contrast while strategy identity colors and return colors remain independent. Theme preferences are saved locally.
 
-On phones, the workbench uses 8px outer margins, separate configuration/results views, and a single scrolling row of selected strategies. Click or use Enter/Space on a header strategy to choose its details; the selected curves stay visible. These choices are disabled during execution and retain 44px touch targets. Charts and saved readings fit the screen; tables scroll within their own containers.
+## Phone layout
+
+The header shows the brand, a functional menu and one scrolling row of selected strategies. The menu contains run, reset, Stop during execution, export/import and display preferences; Escape or an outside click closes it. Shortcuts also work while the menu is closed: import previews open separately, and file errors reveal the menu.
+
+Click or use Enter/Space on a header strategy to choose its details; selected curves stay visible. Choices are disabled during execution and retain 44px touch targets.
+
+The workbench uses 8px outer margins and separate configuration/results views. Strategy lists grow with content up to a screen-dependent maximum, and boundary scrolling continues to the page. Result actions and chart controls stay compact; trade headings share a row with their expand button.
 
 ## License and publication
 

@@ -1,5 +1,6 @@
 export const commonMessages: Record<string, string> = {
   "app.close": "閉じる",
+  "app.functionalMenu": "操作メニュー",
   "app.name": "株式・ETF バックテスター",
   "app.documentTitle": "株式・ETF バックテスター",
   "app.skipToMain": "メインコンテンツへ移動",

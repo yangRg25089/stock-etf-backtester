@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { restoreSavedRecord } from "./helpers/runtime.mjs";
+import { restoreSavedRecord, selectHeaderLocale } from "./helpers/runtime.mjs";
 
 const backend = path.resolve("../backend");
 const fixture = JSON.parse(execFileSync(path.join(backend, ".venv/bin/python"), ["tests/e2e/export_file_fixture.py", "--walk-forward"], {
@@ -53,7 +53,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   expect((await report).suggestedFilename()).toMatch(/\.png$/);
   await page.locator("#result-tab-search").click();
   for (const language of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
+    await selectHeaderLocale(page, language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

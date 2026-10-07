@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { openSaved } from "./helpers/runtime.mjs";
+import { openSaved, openTopbarMenu, selectHeaderLocale } from "./helpers/runtime.mjs";
 import { savedRun } from "./helpers/reports.mjs";
 
 async function manyResults(page) {
@@ -46,7 +46,7 @@ test("phone plots, dates and saved readings fit the viewport in three languages"
   await openSaved(page, await savedRun(page));
   await page.locator(".comparison-table .result-select").first().click();
   for (const locale of ["ja", "zh", "en"]) {
-    await page.locator(".locale-select").selectOption(locale);
+    await selectHeaderLocale(page, locale);
     for (const width of [320, 360, 375, 390, 420, 767]) {
       await page.setViewportSize({ width, height: 740 });
       await page.locator(".chart-overlay").scrollIntoViewIfNeeded();
@@ -86,6 +86,7 @@ test("touch phones retain full action targets and settings fit the screen", asyn
   try {
     await page.goto("/");
     await expect(page.locator(".run-submit-button")).toBeEnabled();
+    await openTopbarMenu(page);
     for (const selector of [".execution-actions button", ".package-actions button", ".return-color-option", ".locale-select", ".theme-select"]) {
       for (const element of await page.locator(selector).all()) {
         const box = await element.boundingBox();
@@ -95,6 +96,7 @@ test("touch phones retain full action targets and settings fit the screen", asyn
         expect(box.x + box.width).toBeLessThanOrEqual(320);
       }
     }
+    await page.locator(".topbar-menu-toggle").click();
     await page.locator(".workbench-mobile-view").first().click();
     await page.locator(".shared-settings-open-button").click();
     const dialog = await page.locator(".shared-settings-dialog").boundingBox();
@@ -110,11 +112,12 @@ test("touch phones retain full action targets and settings fit the screen", asyn
       await new Promise(resolve => { releaseSubmission = resolve; });
       await route.abort();
     });
+    await openTopbarMenu(page);
     await page.locator(".run-submit-button").click();
     await expect(page.locator(".run-stop-button")).toBeVisible();
     const execution = await page.locator(".execution-actions").boundingBox();
     const files = await page.locator(".package-actions").boundingBox();
-    expect(execution.x + execution.width).toBeLessThanOrEqual(files.x);
+    expect(execution.y + execution.height).toBeLessThanOrEqual(files.y);
     await expect(page.locator(".execution-actions > button")).toHaveCount(3);
     for (const button of await page.locator(".execution-actions > button").all()) {
       const box = await button.boundingBox();

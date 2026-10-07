@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { savedRun } from "./helpers/reports.mjs";
-import { restoreSavedRecord, installRunFixture } from "./helpers/runtime.mjs";
+import { restoreSavedRecord, installRunFixture, selectHeaderLocale } from "./helpers/runtime.mjs";
 
 test("real saved periods, material DCA drawdowns and keyboard heatmap stay independent of edits and reconnect", async ({ page }) => {
   const saved = await savedRun(page);
@@ -44,7 +44,7 @@ test("real saved periods, material DCA drawdowns and keyboard heatmap stay indep
   expect(await panel.locator(".heatmap-annual").allTextContents()).toEqual(originalAnnual);
   expect(await panel.locator(".heatmap-table").innerText()).toBe(originalMonths);
   for (const name of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(name === "日本語" ? "ja" : "zh");
+    await selectHeaderLocale(page, name === "日本語" ? "ja" : "zh");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

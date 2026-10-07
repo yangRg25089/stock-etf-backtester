@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { savedRun } from "./helpers/reports.mjs";
-import { fetchSavedRecord, restoreSavedRecord, installRunFixture } from "./helpers/runtime.mjs";
+import { fetchSavedRecord, restoreSavedRecord, installRunFixture, selectHeaderLocale } from "./helpers/runtime.mjs";
 
 test("saved execution costs, net fills and offline CSV stay independent of draft changes", async ({ page }) => {
   const execution = { commission: 2, slippagePct: 1, spreadPct: 2, fractionalShares: false };
@@ -54,7 +54,7 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   await expect(explanation).toContainText(currency(benchmark.trades[0].grossAmount));
   await page.keyboard.press("Escape");
   for (const name of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(name === "日本語" ? "ja" : "zh");
+    await selectHeaderLocale(page, name === "日本語" ? "ja" : "zh");
     await page.locator("#result-tab-details").click();
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });

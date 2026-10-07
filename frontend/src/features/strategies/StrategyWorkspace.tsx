@@ -6,6 +6,7 @@ import { StrategyEditorDialog } from "./StrategyEditorDialog";
 import { StrategyCard } from "./StrategyCard";
 import { canAddStrategy, type WorkspaceAction, type WorkspaceState } from "./model";
 import { StrategyAddMenu } from "./StrategyAddMenu";
+import { useScrollBoundary } from "../../shared/ui/useScrollBoundary";
 
 interface StrategyNavigatorProps {
   busy?: boolean;
@@ -41,6 +42,7 @@ export function StrategyNavigator({
   fieldNavigation = null,
   onFieldNavigationHandled,
 }: StrategyNavigatorProps) {
+  const scrollBoundaryRef = useScrollBoundary<HTMLElement>();
   const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
   const [focusFieldKey, setFocusFieldKey] = useState<string | null>(null);
   const [focusFieldIndex, setFocusFieldIndex] = useState<number | undefined>();
@@ -95,7 +97,7 @@ export function StrategyNavigator({
   };
 
   return (
-    <section className="strategy-navigator" aria-labelledby="strategy-list-heading">
+    <section ref={scrollBoundaryRef} className="strategy-navigator" aria-labelledby="strategy-list-heading">
       <div className="section-heading strategy-navigator-heading">
         <h2 id="strategy-list-heading">{translate(locale, "strategy.listTitle")}</h2>
         <span className="strategy-count" aria-label={`${state.draft.strategies.length}`}>

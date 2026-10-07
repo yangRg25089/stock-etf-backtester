@@ -1,4 +1,4 @@
-import { installRunFixture, restoreSavedRecord } from "./helpers/runtime.mjs";
+import { installRunFixture, openTopbarMenu, restoreSavedRecord, selectHeaderLocale } from "./helpers/runtime.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -68,7 +68,7 @@ test.describe("responsive product shell", () => {
           await expect(page.locator(".workbench-config")).toBeHidden();
           await expect(page.locator(".workbench-results")).toBeVisible();
         }
-        if (locale === "zh") await page.locator(".locale-select").selectOption("zh");
+        if (locale === "zh") await selectHeaderLocale(page, "zh");
         await openSharedSettings(page);
         await expect(page.locator(".shared-settings-group legend")).toHaveText(
           locale === "ja" ? ["対象", "期間", "入金計画", "分析", "約定"] : ["标的", "区间", "投入计划", "分析", "成交假设"],
@@ -96,6 +96,7 @@ test.describe("responsive product shell", () => {
         expect(sharedSettingsLayout.groupsInSeparateRows).toBe(true);
         await closeSharedSettings(page);
 
+        await openTopbarMenu(page);
         const layout = await page.evaluate(() => {
           const controls = [
             document.querySelector(".run-submit-button"),
@@ -374,7 +375,7 @@ test("legacy execution panels never mount during restored progress, failure, or 
     await expect(page.locator(".diagnostic-list")).toBeVisible();
   }
   for (const language of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
+    await selectHeaderLocale(page, language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(accessibility.violations).toEqual([]);
   }
@@ -472,7 +473,7 @@ test("Japanese and Chinese first screens pass axe and expose a semantic Chromium
 
   for (const locale of ["ja", "zh"]) {
     if (locale === "zh") {
-      await page.locator(".locale-select").selectOption("zh");
+      await selectHeaderLocale(page, "zh");
     }
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -545,7 +546,7 @@ test("catalog lists all presets, independent condition toggles, and locale chang
     await expect(page.locator(".strategy-card-open").nth(index)).toBeFocused();
   }
 
-  await page.locator(".locale-select").selectOption("zh");
+  await selectHeaderLocale(page, "zh");
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("历史回测");
   await page.locator(".strategy-card-open").first().click();
@@ -555,7 +556,7 @@ test("catalog lists all presets, independent condition toggles, and locale chang
     .analyze();
   expect(chineseDialogA11y.violations, JSON.stringify(chineseDialogA11y.violations, null, 2)).toEqual([]);
   await closeStrategyDialog(page);
-  await page.locator(".locale-select").selectOption("ja");
+  await selectHeaderLocale(page, "ja");
   await expect(page.locator("html")).toHaveAttribute("lang", "ja");
 });
 
@@ -1337,6 +1338,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(restoredExport.resultId).toBe(restoredStrategy.id);
   expect(restoredExport.endingEquity).toBe(String(restoredStrategy.metrics.endingEquity));
 
+  await openTopbarMenu(page);
   const nextSavedResponse = page.waitForResponse(async (response) => {
     if (response.request().method() !== "GET" || !/\/api\/v1\/runs\/[^/]+$/.test(response.url()) || !response.ok()) {
       return false;
@@ -1750,7 +1752,9 @@ test("strategy menu, condition connectors and comparison selections retain full 
 
     await page.locator("#field-run-endDate").fill("2024-03-01");
     await closeSharedSettings(page);
+    await openTopbarMenu(page);
     await page.locator(".run-submit-button").tap();
+    await page.locator(".topbar-menu-toggle").tap();
     await page.locator(".workbench-mobile-view").last().tap();
     await expect(page.locator(".comparison-table")).toBeVisible();
     await expect(page.locator(".run-submit-button")).toBeEnabled();
@@ -2211,7 +2215,7 @@ test("strategy AND OR segments and buy sell switches remain independent and keyb
   await expect(dialog.getByRole("radio", { name: "OR", exact: true, includeHidden: true })).toBeChecked();
   await expect(buy).toHaveAttribute("aria-checked", "false");
   await closeStrategyDialog(page);
-  await page.locator(".locale-select").selectOption("zh");
+  await selectHeaderLocale(page, "zh");
   await page.locator(".strategy-card-open").last().click();
   await expect(dialog.locator('[data-rule-side="buy"] .field-segment:has(input[value="AND"])')).toHaveAttribute("title", "满足本组所有启用条件");
   await expect(dialog.locator('[data-rule-side="buy"] .field-segment:has(input[value="OR"])')).toHaveAttribute("title", "满足本组任一启用条件");
@@ -2451,10 +2455,12 @@ test("result info is absent and trade context remains readable in a narrow touch
   await page.locator("#field-run-startDate").fill("2024-01-31");
   await closeSharedSettings(page);
   const completed = page.waitForResponse(response => response.ok() && response.request().method() === "GET" && /\/api\/v1\/runs\/[^/]+$/.test(response.url()));
+  await openTopbarMenu(page);
   await page.locator(".run-submit-button").click();
   const saved = await (await completed).json();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+  await page.locator(".topbar-menu-toggle").click();
   await page.locator(".workbench-mobile-view").last().click();
   await expect(page.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
   await page.getByRole("tab", { name: "詳細", exact: true }).click();

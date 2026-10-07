@@ -384,6 +384,7 @@
   box-shadow: 0 1px 0 var(--app-border);
 }
 .table-height-controls-title {
+  margin: 0;
   margin-inline-end: auto;
   color: var(--app-foreground);
   font-size: 12px;

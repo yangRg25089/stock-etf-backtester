@@ -1,5 +1,6 @@
 export const commonMessages: Record<string, string> = {
   "app.close": "关闭",
+  "app.functionalMenu": "功能菜单",
   "app.name": "股票与 ETF 回测器",
   "app.documentTitle": "股票与 ETF 回测器",
   "app.skipToMain": "跳转到主要内容",

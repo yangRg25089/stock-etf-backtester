@@ -2,6 +2,9 @@
   min-height: 100vh;
 }
 
+.topbar-functions { display: contents; }
+.topbar-menu-toggle { display: none; }
+
 .skip-link {
   position: fixed;
   z-index: 5;
