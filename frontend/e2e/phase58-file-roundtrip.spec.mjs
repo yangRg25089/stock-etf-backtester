@@ -60,9 +60,9 @@ test("saved Train/Test candidates preserve every CSV byte and PNG across locales
       const cell = page.locator(".search-table tbody tr").filter({ has: page.locator(`.result-select`, { hasText: String(index + 1) }) });
       await cell.locator(id === row.candidateId ? ".result-select" : ".search-test-select").click();
       await expect(page.locator(".result-detail-name")).toContainText(`#${row.sequence}`);
-      await page.locator("#result-tab-trades").click();
+      await page.locator("#result-tab-details").click();
       await expect(page.locator(".trade-table tbody tr")).toHaveCount(result.trades.length);
-      await page.locator("#result-tab-performance").click();
+      await page.locator("#result-tab-details").click();
       await expect(page.locator(".annual-performance-table")).toHaveCount(0);
       await expect(page.locator(".heatmap-annual")).toHaveCount(result.metrics.analysis.annualReturns.length);
       await page.locator(".heatmap-table [data-sort-key='annual']").click();

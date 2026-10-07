@@ -334,7 +334,7 @@ test("request and partial failures stay visible while draft edits do not add res
   assert.doesNotMatch(staleHtml, /result-snapshot-info|QQQ · 2020-01-01 — 2024-02-02/);
 });
 
-test("comparison remains primary while detail tabs default to trades and search is gated by result data", () => {
+test("comparison remains primary while trades and performance share one details tab and search is gated", () => {
   const state = workspaceWithRun();
   const html = renderToStaticMarkup(React.createElement(ResultViewer, {
     locale: "ja",
@@ -352,10 +352,14 @@ test("comparison remains primary while detail tabs default to trades and search 
   const detailTargetStart = html.indexOf('class="result-detail-target"');
   const tabsStart = html.indexOf('role="tablist" aria-label="実行結果の詳細"');
   assert.ok(summaryCardStart < comparisonStart && comparisonStart < detailCardStart && detailCardStart < detailTargetStart && detailTargetStart < tabsStart);
-  assert.doesNotMatch(html.slice(summaryCardStart, detailCardStart), /id="result-tab-trades"/);
+  assert.doesNotMatch(html.slice(summaryCardStart, detailCardStart), /id="result-tab-details"/);
   assert.doesNotMatch(html.slice(detailCardStart), /id="result-panel-comparison"/);
   assert.doesNotMatch(html, /id="result-tab-comparison"|role="tab"[^>]*>戦略比較/);
-  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>取引明細/);
+  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>詳細/);
+  assert.equal((html.match(/role="tab"/g) ?? []).length, 1);
+  assert.match(html, /id="result-panel-trades"/);
+  assert.match(html, /id="result-panel-performance"/);
+  assert.doesNotMatch(html, /id="result-panel-(?:trades|performance)"[^>]*hidden/);
   assert.doesNotMatch(html, /role="tab"[^>]*>検索結果/);
   assert.match(html, /class="result-detail-target"[^>]*aria-label="明細対象"/);
   assert.match(html, /class="result-detail-name"[^>]*>毎月定額積立/);
@@ -568,7 +572,7 @@ test("result errors announce one localized reason when the API title duplicates 
   }));
   assert.doesNotMatch(html, /result-focus-select|result-panel-overview|result-panel-metrics/);
   assert.doesNotMatch(html, /id="result-tab-comparison"/);
-  assert.ok(html.indexOf('id="result-panel-comparison"') < html.indexOf('id="result-tab-trades"'));
+  assert.ok(html.indexOf('id="result-panel-comparison"') < html.indexOf('id="result-tab-details"'));
   assert.match(html, /汇总.csv/);
   assert.match(html, /class="export-download-icon"/);
 });

@@ -1,5 +1,6 @@
 export const commonMessages: Record<string, string> = {
   "app.close": "关闭",
+  "app.functionalMenu": "功能菜单",
   "app.name": "股票与 ETF 回测器",
   "app.documentTitle": "股票与 ETF 回测器",
   "app.skipToMain": "跳转到主要内容",
@@ -109,6 +110,10 @@ export const commonMessages: Record<string, string> = {
   "files.readFailed": "无法处理文件，请重试。",
   "parameters.execution.capitalGainsTaxEnabled": "卖出盈利扣税（20%）",
   "parameters.execution.capitalGainsTaxEnabled.help": "每次卖出净盈利扣20%，未卖持仓不扣税。",
-  "theme.blue": "蓝橙主题 · 切换",
-  "theme.mint": "薄荷主题 · 切换",
+  "theme.label": "主题",
+  "theme.classic": "Classic",
+  "theme.burgundy": "Wine",
+  "theme.midnight": "Navy",
+  "theme.blush": "Blush",
+  "theme.forest": "Forest",
 };

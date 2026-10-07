@@ -270,7 +270,6 @@ def test_fixture_adapter_keeps_pre_warm_bars_sparse_and_provider_neutral() -> No
     result = adapter.load(request)
 
     assert result.snapshot is not None
-    assert result.snapshot.valuation is None
     assert result.snapshot.market.currency == "USD"
     assert result.snapshot.market.source == "fixture:task4-core"
     assert request.target_sessions[0] == date(2024, 1, 31)
@@ -281,7 +280,6 @@ def test_fixture_adapter_keeps_pre_warm_bars_sparse_and_provider_neutral() -> No
         date(2024, 2, 2),
     )
     assert result.snapshot.market.bars[1].simulation_price == Decimal("200")
-    assert result.snapshot.market.bars[1].valuation_price == Decimal("400")
     assert result.snapshot.market.bars[1].observed_at == datetime(
         2024, 1, 31, 21, tzinfo=UTC
     )
@@ -641,7 +639,6 @@ def test_yahoo_market_adapter_uses_explicit_price_bases_and_inclusive_range() ->
     assert result.snapshot is not None
     bars = {bar.date: bar for bar in result.snapshot.market.bars}
     assert bars[date(2024, 1, 31)].simulation_price == Decimal("200")
-    assert bars[date(2024, 1, 31)].valuation_price == Decimal("400")
     assert bars[date(2024, 1, 31)].simulation_open is None
     assert bars[date(2024, 1, 31)].currency == "USD"
     assert bars[date(2024, 1, 31)].source == "yahoo"
@@ -891,7 +888,7 @@ def test_yahoo_adapter_rejects_price_columns_for_another_symbol() -> None:
     )
 
 
-def test_yahoo_adapter_reports_non_positive_price_values_as_unavailable() -> None:
+def test_yahoo_adapter_reports_non_positive_adjusted_prices_as_unavailable() -> None:
     calendar = _calendar(date(2024, 1, 30), date(2024, 1, 31))
     ticker = _Ticker(
         _Frame(
@@ -899,7 +896,7 @@ def test_yahoo_adapter_reports_non_positive_price_values_as_unavailable() -> Non
             [
                 (
                     datetime(2024, 1, 30, tzinfo=UTC),
-                    {"Close": 0, "Adj Close": 9},
+                    {"Close": 9, "Adj Close": 0},
                 )
             ],
         )

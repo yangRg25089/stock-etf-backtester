@@ -51,19 +51,50 @@ npm run lint
 npm run build
 npm run test:production-smoke
 npm run test:e2e
+npm run test:e2e:live
 ```
 
 ## データと fixture
 
-純計算・境界値・fixture API のテストは固定データを使います。バックエンドの全量 `pytest` は Yahoo へのネットワーク接続が必要です。Task 4 の決定性 fixture は `backend/app/data/fixtures/task4_core.json` に同梱され、`app.data.fixtures.load_fixture("task4_core")` から provider-neutral な `DataSnapshot` と取引日・会社事実・ETF 持分ケースを読み込めます。fixture の内容から SHA-256 指紋を計算し、`RunSnapshot.dataFingerprint` に保存できます。
+純計算・境界値・fixture API のテストは固定データを使います。バックエンドの全量 `pytest` は Yahoo へのネットワーク接続が必要です。Task 4 の決定性 fixture は `backend/app/data/fixtures/task4_core.json` に同梱され、`app.data.fixtures.load_fixture("task4_core")` から provider-neutral な `DataSnapshot` と取引日、行情、宏观ケースを読み込めます。fixture の内容から SHA-256 指紋を計算し、`RunSnapshot.dataFingerprint` に保存できます。
 
-外部 notebook の出典ハッシュと安定キーへの入力対応は [`docs/fixtures/notebook-mapping.md`](docs/fixtures/notebook-mapping.md) と JSON マニフェストに記録しています。アプリケーションの実行時に notebook パスを読み込むことはありません。実データの回帰は全量 `pytest` に含まれます。接続だけを確認する場合は `--live` を付けた単独 smoke も使えます。
+公開計算機との実データ校準値は `backend/tests/fixtures/`、ブラウザーの作業画面基準は `frontend/e2e/fixtures/` に含まれます。全量 `pytest` は実際の Yahoo QQQ/VIX データを検証します。アプリケーションの実行時に外部 notebook は読み込みません。
 
-アーキテクチャ、fixture の更新手順、PE の既知制限、live smoke と通常の検証コマンドは [`docs/development.md`](docs/development.md) を参照してください。通常のバックテスト実行では Yahoo から標的の日足データと有効な指数/金利データを取得します。外部ネットワーク接続はユーザーが実行を開始した後に行います。個別株の履歴 PE は SEC 取得経路を接続済みで、MSFT の実データ検証に合格しています。ETF の履歴 PE は未接続で、証拠が不足する対象には正確なデータ不可診断を返します。SEC の利用には本機の連絡先設定が必要です。
+通常のバックテスト実行では Yahoo から標的の日足データと有効な指数/金利データを取得します。外部ネットワーク接続はユーザーが実行を開始した後に行います。現在の製品版では PE/ETF 持分の評価と SEC データ取得を提供せず、SEC 連絡先の設定は不要です。
+
+## Render configuration
+
+Use one **Python Native Web Service**, branch `main`, region **Singapore**, plan **Free**, and exactly **one instance**. No database, disk, worker or cron is required. Runs are held in one process and disappear on restart or deployment. Browser strategy preferences remain available; each tab restores only its own active run ID from sessionStorage.
+
+Build command:
+
+```bash
+python -m pip install ./backend && cd frontend && npm ci --include=dev && npm run build
+```
+
+Start command:
+
+```bash
+uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+```
+
+Set `STOCK_ETF_BACKTESTER_SERVE_FRONTEND=1` and `STOCK_ETF_BACKTESTER_FRONTEND_DIR=frontend/dist`. Store `APP_BASIC_AUTH_USERNAME` and `APP_BASIC_AUTH_PASSWORD` as Render secrets. Both must be provided together; `/health` is public and the frontend, assets and API require authentication. Set the health check path to `/health`. Keep automatic deployment disabled and deploy manually after the verification commands above pass, including the real Yahoo and production browser flows. Repository-hosted Actions workflows are excluded by the publication policy. Runtime version files pin Python 3.11 and Node 22; Render supplies `PORT`.
+
+## Themes
+
+The dropdown offers **Classic**, **Wine**, **Navy**, **Blush** and **Forest**. Classic preserves the original blue/orange palette; the other four use palettes selected from [Color Hunt popular](https://colorhunt.co/palettes/popular). Semantic colors adapt text contrast while strategy identity colors and return colors remain independent. Theme preferences are saved locally.
+
+## Phone layout
+
+The header keeps the brand, run/reset controls and a menu button on one row, with selected strategies on one scrolling row below. Stop appears beside run/reset during execution. The three-line menu unfolds export/import and labeled display preferences in vertical rows; Escape or an outside click closes it. Shortcuts also work while the menu is closed: import previews open separately, and file errors reveal the menu.
+
+Click or use Enter/Space on a header strategy to choose its details; selected curves stay visible. Choices are disabled during execution and retain 44px touch targets.
+
+The workbench uses 8px outer margins and separate configuration/results views. Strategy lists grow with content up to a screen-dependent maximum, and boundary scrolling continues to the page. Result actions and chart controls stay compact; trade headings share a row with their expand button.
 
 ## License and publication
 
 Copyright © 2026 Ronny Yang. This project is available under the [MIT License](LICENSE).
 The hosted shared build sets `noindex, nofollow` and does not assume a public product hostname. Revisit the robots metadata, canonical URL, sitemap and translated metadata before a public launch.
-The optional Render deployment is for a trusted shared audience: one Python web service in Singapore, one instance, in-memory runs, and shared HTTP Basic Auth. It does not provide per-user accounts or durable run storage. Follow [`docs/deploy/render.md`](docs/deploy/render.md) for the service settings, build/start commands, and limitations. Keep the shared password and SEC contact configuration in Render secrets; do not commit them.
+The optional Render deployment is for a trusted shared audience. It does not provide per-user accounts or durable run storage. Store the shared password as a Render secret; do not commit it. Local design notes, task records and agent instructions are excluded from the published repository.
 The optional 20% tax model deducts tax on each profitable sale using average holding cost including fees. Losses do not offset gains, and unsold holdings are not taxed. It is a simplified simulation rather than a regional tax calculation.

@@ -30,7 +30,7 @@ from .presets import (
     get_preset_definition,
 )
 
-CATALOG_VERSION: Final[str] = "catalog-v18"
+CATALOG_VERSION: Final[str] = "catalog-v19"
 
 
 class SymbolSuggestion(DomainModel):
@@ -280,8 +280,6 @@ def default_data_settings() -> DataSettings:
     values: dict[str, int] = {}
     setting_keys = {
         "data.macroStalenessSessions": "macroStalenessSessions",
-        "data.financialFactMaxAgeDays": "financialFactMaxAgeDays",
-        "data.etfHoldingsMaxAgeDays": "etfHoldingsMaxAgeDays",
     }
     for key, setting_name in setting_keys.items():
         definition = get_parameter_definition(key)

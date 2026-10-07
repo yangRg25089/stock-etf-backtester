@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { restoreSavedRecord } from "./helpers/runtime.mjs";
+import { restoreSavedRecord, selectHeaderLocale } from "./helpers/runtime.mjs";
 
 const backend = path.resolve("../backend");
 const fixture = JSON.parse(execFileSync(path.join(backend, ".venv/bin/python"), ["tests/e2e/export_file_fixture.py", "--walk-forward"], {
@@ -29,7 +29,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   await expect(page.locator(".search-periods")).toContainText("2015-01-01 → 2019-12-31");
   await page.locator(".search-table .result-select").first().click();
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "false");
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   await expect(page.locator(".result-detail-name")).toContainText("学習");
   await page.locator("#result-tab-search").click();
   await page.locator(".search-window-select").selectOption("1");
@@ -38,7 +38,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   await page.locator(".search-oos-select").click();
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".chart-overlay [data-result-id]").first()).toBeVisible();
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   await expect(page.locator(".result-detail-name")).toContainText("ローリング検証");
   await expect(page.locator(".result-detail-name")).toContainText("2020-01-01 → 2021-02-05");
   for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {
@@ -53,7 +53,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   expect((await report).suggestedFilename()).toMatch(/\.png$/);
   await page.locator("#result-tab-search").click();
   for (const language of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
+    await selectHeaderLocale(page, language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

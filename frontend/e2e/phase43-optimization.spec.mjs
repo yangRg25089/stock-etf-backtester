@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { savedRun } from "./helpers/reports.mjs";
-import { restoreSavedRecord, fetchSavedRecord, installRunFixture } from "./helpers/runtime.mjs";
+import { restoreSavedRecord, fetchSavedRecord, installRunFixture, selectHeaderLocale } from "./helpers/runtime.mjs";
 
 test("Train/Test selection, matching baselines, modal boundaries and portable offline results", async ({ page }) => {
   const saved = await savedRun(page, "grid_search", {
@@ -51,7 +51,7 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   await expect(page.locator(".search-table thead")).toContainText("検証 XIRR");
   await page.getByRole("button", { name: "候補 #1 の検証結果を見る", exact: true }).click();
   await expect(page.locator(".search-test-select").first()).toHaveAttribute("aria-pressed", "true");
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   await expect(page.locator(".result-detail-name")).toContainText("検証");
   await expect(page.locator(".result-detail-name")).toContainText("2024-02-29 → 2024-03-01");
   const main = page.locator(".chart-overlay");
@@ -59,7 +59,7 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   expect(await main.locator("[data-result-id]").count()).toBeGreaterThan(0);
   await page.locator("#result-tab-search").click();
   for (const language of ["日本語", "中文"]) {
-    await page.locator(".locale-select").selectOption(language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
+    await selectHeaderLocale(page, language === "日本語" ? "ja" : language === "中文" ? "zh" : "en");
     for (const width of [1440, 768, 320]) {
       await page.setViewportSize({ width, height: 850 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

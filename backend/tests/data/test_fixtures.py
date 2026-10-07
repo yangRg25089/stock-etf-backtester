@@ -25,7 +25,7 @@ def test_task4_fixture_loads_without_external_paths_and_has_stable_fingerprint()
     second = load_fixture("task4_core")
 
     assert first.fixture_id == "task4-core"
-    assert first.version == "1"
+    assert first.version == "2"
     assert first.fingerprint == second.fingerprint
     assert first.model_dump_json() == second.model_dump_json()
     assert len(first.snapshot.market.bars) >= 4
@@ -58,38 +58,6 @@ def test_fixture_fingerprint_can_be_frozen_into_a_run_snapshot() -> None:
     )
 
     assert snapshot.data_fingerprint == fixture.fingerprint
-
-
-def test_fixture_preserves_dual_price_bases_and_split_metadata() -> None:
-    fixture = load_fixture("task4_core")
-    bars = {bar.date: bar for bar in fixture.snapshot.market.bars}
-
-    assert bars[date(2024, 1, 31)].simulation_price == Decimal("200")
-    assert bars[date(2024, 1, 31)].valuation_price == Decimal("400")
-    assert fixture.corporate_actions[0].factor == Decimal("2")
-    assert fixture.corporate_actions[0].type == "split"
-
-
-def test_fixture_covers_late_disclosure_and_missing_pe() -> None:
-    fixture = load_fixture("task4_core")
-    observations = {item.date: item for item in fixture.snapshot.valuation.observations}
-
-    assert observations[date(2024, 2, 1)].as_of == date(2024, 2, 5)
-    assert observations[date(2024, 2, 2)].pe is None
-    assert observations[date(2024, 2, 2)].eps is None
-    assert fixture.company_facts[0].filed == date(2024, 2, 5)
-    assert fixture.company_facts[0].split_basis == "post_split"
-    assert fixture.company_facts[1].value is None
-
-
-def test_fixture_covers_exact_and_below_etf_coverage_boundaries() -> None:
-    fixture = load_fixture("task4_core")
-    exact = [item for item in fixture.holdings if item.case == "coverage_exact"]
-    below = [item for item in fixture.holdings if item.case == "coverage_below"]
-
-    assert sum(item.weight for item in exact if item.matches_all) == Decimal("0.80")
-    assert sum(item.weight for item in below if item.matches_all) == Decimal("0.79")
-    assert any(item.eps is not None and item.eps < 0 for item in exact)
 
 
 def test_fixture_calendar_is_sorted_and_contains_cross_month_holiday_gap() -> None:

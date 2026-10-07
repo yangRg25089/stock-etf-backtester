@@ -26,7 +26,6 @@ from app.domain.contracts import (
     MacroObservation,
     MarketBar,
     MarketSnapshot,
-    ValuationSnapshot,
 )
 from app.domain.status import (
     Diagnostic,
@@ -405,8 +404,6 @@ def _unknown_rate_unit(symbol: str, source: str, source_unit: str) -> Diagnostic
 def compose_data_snapshot(
     market_result: MarketDataResult,
     macro_results: Iterable[MacroDataResult],
-    *,
-    valuation: ValuationSnapshot | None = None,
 ) -> DataSnapshot:
     """Compose cached market and macro provider results into one domain snapshot.
 
@@ -440,7 +437,6 @@ def compose_data_snapshot(
     return _build_data_snapshot(
         market=base_snapshot.market,
         macro=tuple(macro_by_session.values()),
-        valuation=base_snapshot.valuation if valuation is None else valuation,
     )
 
 
@@ -471,7 +467,6 @@ def _build_data_snapshot(
     *,
     market: MarketSnapshot,
     macro: tuple[MacroObservation, ...],
-    valuation: ValuationSnapshot | None,
 ) -> DataSnapshot:
     ordered_macro = tuple(
         sorted(
@@ -490,13 +485,10 @@ def _build_data_snapshot(
             item.model_dump(mode="json", by_alias=True) for item in ordered_macro
         ],
     }
-    if valuation is not None:
-        payload["valuation"] = valuation.model_dump(mode="json", by_alias=True)
     fingerprint = _fingerprint(payload)
     return DataSnapshot(
         market=market,
         macro=ordered_macro,
-        valuation=valuation,
         fingerprint=fingerprint,
     )
 
@@ -540,7 +532,6 @@ def _market_data_result(
     snapshot = _build_data_snapshot(
         market=market,
         macro=macro,
-        valuation=None,
     )
     normalized_fingerprint = snapshot.fingerprint
     return MarketDataResult(

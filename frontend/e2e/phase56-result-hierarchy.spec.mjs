@@ -27,7 +27,10 @@ test("comparison stays primary and focused details stay distinct from chart sele
     const tabsTop = document.querySelector(".result-tabs").getBoundingClientRect().top;
     return comparisonTop < chartTop && chartTop < detailTop && detailTop < targetTop && targetTop < tabsTop;
   })).toBe(true);
-  await expect(tabs.getByRole("tab", { name: "取引明細" })).toHaveAttribute("aria-selected", "true");
+  await expect(tabs.getByRole("tab", { name: "詳細" })).toHaveAttribute("aria-selected", "true");
+  await expect(tabs.getByRole("tab")).toHaveCount(1);
+  await expect(page.locator("#result-panel-trades")).toBeVisible();
+  await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(detailsTarget).toContainText("明細対象");
 
   await expect(page.locator(".comparison-table .is-focused, .comparison-table [aria-current]")).toHaveCount(0);
@@ -52,7 +55,7 @@ test("comparison stays primary and focused details stay distinct from chart sele
   const brightness = selectedColor.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, channel) => sum + channel, 0);
   expect(brightness).toBeGreaterThan(650);
 
-  await page.getByRole("tab", { name: "パフォーマンス" }).click();
+  await page.getByRole("tab", { name: "詳細" }).click();
   await expect(detailsTarget).toContainText("毎月定額積立");
   const scrollers = await page.locator(".comparison-table-scroll, .trade-table-scroll, .performance-table-scroll, .search-table-scroll, .search-lab-scroll")
     .evaluateAll(elements => elements.map(element => getComputedStyle(element).maxHeight));
@@ -67,9 +70,9 @@ test("comparison stays primary and focused details stay distinct from chart sele
   }
 
   for (const locale of [
-    { value: "ja", tabs: "実行結果の詳細", detailsHeading: "戦略詳細", target: "明細対象", strategy: "毎月定額積立", performance: "パフォーマンス" },
-    { value: "zh", tabs: "结果详情", detailsHeading: "策略详情", target: "明细对象", strategy: "每月定额定投", performance: "绩效" },
-    { value: "en", tabs: "Result details", detailsHeading: "Strategy details", target: "Details for", strategy: "Monthly fixed-amount DCA", performance: "Performance" },
+    { value: "ja", tabs: "実行結果の詳細", detailsHeading: "戦略詳細", target: "明細対象", strategy: "毎月定額積立", performance: "詳細" },
+    { value: "zh", tabs: "结果详情", detailsHeading: "策略详情", target: "明细对象", strategy: "每月定额定投", performance: "详情" },
+    { value: "en", tabs: "Result details", detailsHeading: "Strategy details", target: "Details for", strategy: "Monthly fixed-amount DCA", performance: "Details" },
   ]) {
     await page.locator(".locale-select").selectOption(locale.value);
     await expect(page.getByRole("tablist", { name: locale.tabs })).toBeVisible();

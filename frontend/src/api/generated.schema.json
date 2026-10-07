@@ -131,10 +131,6 @@
             "translationKey": "parameterGroups.interest_rate"
           },
           {
-            "id": "valuation",
-            "translationKey": "parameterGroups.valuation"
-          },
-          {
             "id": "sell_signals",
             "translationKey": "parameterGroups.sell_signals"
           },
@@ -327,8 +323,7 @@
       "ma_deviation",
       "ma_trend",
       "bollinger",
-      "rate",
-      "pe"
+      "rate"
     ],
     "title": "ConditionKind"
   },
@@ -597,8 +592,7 @@
     "type": "string",
     "enum": [
       "market",
-      "macro",
-      "valuation"
+      "macro"
     ],
     "title": "DataKind"
   },
@@ -697,24 +691,12 @@
         "type": "integer",
         "minimum": 0.0,
         "title": "Macrostalenesssessions"
-      },
-      "financialFactMaxAgeDays": {
-        "type": "integer",
-        "minimum": 1.0,
-        "title": "Financialfactmaxagedays"
-      },
-      "etfHoldingsMaxAgeDays": {
-        "type": "integer",
-        "minimum": 1.0,
-        "title": "Etfholdingsmaxagedays"
       }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
-      "macroStalenessSessions",
-      "financialFactMaxAgeDays",
-      "etfHoldingsMaxAgeDays"
+      "macroStalenessSessions"
     ],
     "title": "DataSettings",
     "description": "Validated data policy frozen with each run's settings.\n\nDefaults and parameter-catalog range validation are materialized at the\ncatalog/config boundary; domain contracts do not depend on the catalog."
@@ -3081,8 +3063,7 @@
       "rsi_dca",
       "ma_deviation_dca",
       "bollinger_dca",
-      "rate_dca",
-      "pe_dca"
+      "rate_dca"
     ],
     "title": "StrategyPresetId",
     "description": "Stable strategy catalog identifiers, including fixed condition templates."

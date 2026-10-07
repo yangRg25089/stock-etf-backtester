@@ -8,6 +8,14 @@ export const MAIN_WITHOUT_DATES = { ...CHART, height: 274, bottom: 8 };
 
 export const COMPACT_CHART = { ...CHART, height: 90, top: 8, bottom: 8 };
 
+/** Keep the horizontal date mapping while giving narrow plots readable height. */
+export function responsiveChartGeometry(geometry: typeof CHART, renderedWidth: number): typeof CHART {
+  if (!Number.isFinite(renderedWidth) || renderedWidth <= 0 || renderedWidth >= 680) return geometry;
+  const scale = CHART.width / renderedWidth;
+  return { ...geometry, height: (geometry.height === COMPACT_CHART.height ? 90 : 240) * scale,
+    top: geometry.top * scale, bottom: geometry.bottom * scale };
+}
+
 export function chartScale(
   values: number[],
   { maximumAtZero = false, fixedBounds }: { maximumAtZero?: boolean; fixedBounds?: [number, number] } = {},

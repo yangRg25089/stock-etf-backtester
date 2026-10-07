@@ -33,7 +33,7 @@ test("trade rows and chart markers open the same saved balances and T+1 observat
   const dateIndex = result.dailyAssets.findIndex(asset => asset.date === trade.date);
   const signalDate = result.dailyAssets[dateIndex - 1].date;
   const signal = result.signals.find(signal => signal.date === signalDate && signal.conditionKind === "vix");
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   const entry = page.locator(".trade-table .table-cell-action").first();
   await entry.click();
   const dialog = page.locator(".result-inspector-dialog");
@@ -68,7 +68,7 @@ test("trade rows and chart markers open the same saved balances and T+1 observat
 test("unexecuted signals retain their saved reason in bilingual narrow accessible dialogs", async ({ page }) => {
   const { result } = await savedRun(page);
   await page.locator(".locale-select").selectOption("zh");
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   await page.locator(".unexecuted-signals summary").click();
   const entry = page.locator(".unexecuted-signals .table-cell-action").first();
   await entry.click();
@@ -100,7 +100,7 @@ test("saved trade explanations remain usable without the original job or supplie
   let requests = 0;
   await page.route("**/api/v1/runs/**", route => { requests += 1; return route.abort(); });
   await restoreSavedRecord(page, { result: saved });
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   await page.locator(".trade-table .table-cell-action").first().click();
   const dialog = page.locator(".result-inspector-dialog");
   await expect(dialog).toContainText(result.trades[0].date);

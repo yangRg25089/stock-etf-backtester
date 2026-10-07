@@ -35,7 +35,6 @@ from app.domain.status import (
     StrategyStatus,
     transition_status,
 )
-from app.domain.valuation import ValuationObservation as ValuationObservation
 from app.domain.values import AwareTimestamp, Symbol
 
 
@@ -53,7 +52,6 @@ class StrategyPresetId(StrEnum):
     MA_DEVIATION_DCA = "ma_deviation_dca"
     BOLLINGER_DCA = "bollinger_dca"
     RATE_DCA = "rate_dca"
-    PE_DCA = "pe_dca"
 
 
 class ResultRole(StrEnum):
@@ -131,16 +129,6 @@ class DataSettings(DomainModel):
         alias="macroStalenessSessions",
         strict=True,
         ge=0,
-    )
-    financial_fact_max_age_days: int = Field(
-        alias="financialFactMaxAgeDays",
-        strict=True,
-        ge=1,
-    )
-    etf_holdings_max_age_days: int = Field(
-        alias="etfHoldingsMaxAgeDays",
-        strict=True,
-        ge=1,
     )
 
 
@@ -471,7 +459,7 @@ class RunSnapshot(DomainModel):
 
 
 class MarketBar(DomainModel):
-    """One normalized market observation with both price bases preserved."""
+    """One normalized, dividend-adjusted market observation."""
 
     date: Date
     symbol: str = Field(min_length=1)
@@ -479,7 +467,6 @@ class MarketBar(DomainModel):
     simulation_high: Decimal | None = Field(default=None, alias="simulationHigh", gt=0)
     simulation_low: Decimal | None = Field(default=None, alias="simulationLow", gt=0)
     simulation_price: Decimal = Field(alias="simulationPrice", gt=0)
-    valuation_price: Decimal = Field(alias="valuationPrice", gt=0)
     currency: str = Field(min_length=1)
     source: str = Field(min_length=1)
     observed_at: AwareTimestamp = Field(alias="observedAt")
@@ -545,31 +532,12 @@ class MacroObservation(DomainModel):
     aligned_session_date: Date | None = Field(default=None, alias="alignedSessionDate")
 
 
-class ValuationSnapshot(DomainModel):
-    symbol: str = Field(min_length=1)
-    observations: tuple[ValuationObservation, ...] = ()
-    fingerprint: str = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def validate_observation_identity(self) -> "ValuationSnapshot":
-        if any(observation.symbol != self.symbol for observation in self.observations):
-            raise ValueError("valuation observations must use the snapshot symbol")
-        return self
-
-
 class DataSnapshot(DomainModel):
     """Provider-neutral data bundle consumed by signals and the ledger."""
 
     market: MarketSnapshot
     macro: tuple[MacroObservation, ...] = ()
-    valuation: ValuationSnapshot | None = None
     fingerprint: str = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def validate_valuation_identity(self) -> "DataSnapshot":
-        if self.valuation is not None and self.valuation.symbol != self.market.symbol:
-            raise ValueError("valuation must use the market snapshot symbol")
-        return self
 
 
 class SignalEvaluation(DomainModel):

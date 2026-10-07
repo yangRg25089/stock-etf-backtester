@@ -1,5 +1,6 @@
 export const commonMessages: Record<string, string> = {
   "app.close": "閉じる",
+  "app.functionalMenu": "操作メニュー",
   "app.name": "株式・ETF バックテスター",
   "app.documentTitle": "株式・ETF バックテスター",
   "app.skipToMain": "メインコンテンツへ移動",
@@ -109,6 +110,10 @@ export const commonMessages: Record<string, string> = {
   "files.readFailed": "ファイルを処理できませんでした。",
   "parameters.execution.capitalGainsTaxEnabled": "売却益への簡易課税（20%）",
   "parameters.execution.capitalGainsTaxEnabled.help": "売却した利益から20%を控除。未売却の保有分は対象外。",
-  "theme.blue": "ブルー · テーマ切替",
-  "theme.mint": "ミント · テーマ切替",
+  "theme.label": "テーマ",
+  "theme.classic": "Classic",
+  "theme.burgundy": "Wine",
+  "theme.midnight": "Navy",
+  "theme.blush": "Blush",
+  "theme.forest": "Forest",
 };

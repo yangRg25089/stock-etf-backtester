@@ -31,6 +31,7 @@ from app.catalog.service import (
     parameter_keys_for_preset,
     preset_defaults,
 )
+from app.config.validation import DataKind
 from app.domain.contracts import StrategyPresetId
 
 EXPECTED_PRESETS = (
@@ -45,8 +46,20 @@ EXPECTED_PRESETS = (
     StrategyPresetId.MA_DEVIATION_DCA,
     StrategyPresetId.BOLLINGER_DCA,
     StrategyPresetId.RATE_DCA,
-    StrategyPresetId.PE_DCA,
 )
+
+
+def test_sec_valuation_is_not_exposed_by_the_catalog_or_data_contract() -> None:
+    catalog = get_catalog()
+
+    assert "pe_dca" not in {preset.id.value for preset in catalog.presets}
+    assert "pe" not in {condition.kind.value for condition in catalog.conditions}
+    assert not any(parameter.key.startswith("pe.") for parameter in catalog.parameters)
+    assert not {
+        "data.financialFactMaxAgeDays",
+        "data.etfHoldingsMaxAgeDays",
+    }.intersection(parameter.key for parameter in catalog.parameters)
+    assert "valuation" not in {kind.value for kind in DataKind}
 
 
 @pytest.mark.parametrize(
@@ -68,8 +81,6 @@ EXPECTED_PARAMETER_KEYS = {
     "contribution.day",
     "contribution.amount",
     "data.macroStalenessSessions",
-    "data.financialFactMaxAgeDays",
-    "data.etfHoldingsMaxAgeDays",
     "analysis.riskFreeAnnualRatePct",
     "execution.commission",
     "execution.slippagePct",
@@ -95,9 +106,6 @@ EXPECTED_PARAMETER_KEYS = {
     "rate.symbol",
     "rate.thresholdPct",
     "rate.sourceUnit",
-    "pe.buyEnabled",
-    "pe.threshold",
-    "pe.etfMinCoverage",
     "exit.enabled",
     "exit.ratio",
     "exit.vix.low1",
@@ -124,7 +132,7 @@ EXPECTED_PARAMETER_KEYS = {
 
 
 def test_catalog_version_tracks_retired_scope_and_explicit_default_rate_unit() -> None:
-    assert CATALOG_VERSION == "catalog-v18"
+    assert CATALOG_VERSION == "catalog-v19"
     assert "run.scope" not in PARAMETER_DEFINITIONS
     assert PARAMETER_DEFINITIONS["search.optimizationMode"].allowed_values == (
         "full_period",
@@ -159,7 +167,7 @@ def test_removed_trade_visibility_is_not_a_catalog_parameter() -> None:
     assert "display.showTrades" not in PARAMETER_DEFINITIONS
 
 
-def test_catalog_exposes_stable_presets_and_five_single_condition_templates() -> None:
+def test_catalog_exposes_stable_presets_and_four_single_condition_templates() -> None:
     assert tuple(PRESET_DEFINITIONS) == EXPECTED_PRESETS
     assert tuple(EXECUTION_MODULES[preset] for preset in EXPECTED_PRESETS) == (
         ExecutionModule.ACCUMULATION,
@@ -169,7 +177,7 @@ def test_catalog_exposes_stable_presets_and_five_single_condition_templates() ->
         ExecutionModule.SCHEDULED,
         ExecutionModule.SCHEDULED,
         ExecutionModule.SEARCH,
-        *([ExecutionModule.ACCUMULATION] * 5),
+        *([ExecutionModule.ACCUMULATION] * 4),
     )
 
 
@@ -243,12 +251,8 @@ def test_catalog_rejects_duplicate_or_unknown_parameter_groups() -> None:
 def test_default_data_settings_materializes_the_registered_staleness_default() -> None:
     settings = default_data_settings()
     definition = get_parameter_definition("data.macroStalenessSessions")
-    fact_age = get_parameter_definition("data.financialFactMaxAgeDays")
-    holdings_age = get_parameter_definition("data.etfHoldingsMaxAgeDays")
 
     assert settings.macro_staleness_sessions == definition.default
-    assert settings.financial_fact_max_age_days == fact_age.default
-    assert settings.etf_holdings_max_age_days == holdings_age.default
 
 
 def test_macro_staleness_is_a_registered_shared_data_setting() -> None:
@@ -263,31 +267,6 @@ def test_macro_staleness_is_a_registered_shared_data_setting() -> None:
     # The default Yahoo TNX quote is a percentage yield; its unit is supplied
     # explicitly by the catalog, not guessed from a symbol at normalization time.
     assert get_parameter_definition("rate.sourceUnit").default == "percent_point"
-
-
-def test_valuation_staleness_policies_are_registered_shared_data_settings() -> None:
-    fact_age = get_parameter_definition("data.financialFactMaxAgeDays")
-    holdings_age = get_parameter_definition("data.etfHoldingsMaxAgeDays")
-
-    assert (fact_age.type, fact_age.default, fact_age.unit, fact_age.minimum) == (
-        ParameterType.INTEGER,
-        550,
-        "calendar_day",
-        Decimal("1"),
-    )
-    assert (
-        holdings_age.type,
-        holdings_age.default,
-        holdings_age.unit,
-        holdings_age.minimum,
-    ) == (
-        ParameterType.INTEGER,
-        180,
-        "calendar_day",
-        Decimal("1"),
-    )
-    assert fact_age.level is ParameterLevel.SHARED
-    assert holdings_age.level is ParameterLevel.SHARED
 
 
 def test_ratio_and_percent_point_conventions_are_explicit() -> None:
@@ -362,7 +341,7 @@ def test_composite_and_trend_presets_share_definitions_without_copying_fields() 
     buy_only = parameter_keys_for_preset(StrategyPresetId.MA_BUY_ONLY)
 
     assert "rsi.buyThreshold" in composite
-    assert "pe.threshold" in composite
+    assert not any(key.startswith("pe.") for key in composite)
     assert "ma.period" in composite
     assert "ma.period" in trend
     assert "ma.period" in buy_only

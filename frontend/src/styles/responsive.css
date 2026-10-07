@@ -305,8 +305,8 @@
   }
 
   .execution-actions .run-submit-button {
-    width: 56px;
-    flex: 0 0 56px;
+    width: 48px;
+    flex: 0 0 48px;
   }
 
   .catalog-error {
@@ -394,7 +394,7 @@
   }
 
   .workbench-config-toggle,
-  .execution-actions .button-primary,
+  .execution-actions .button,
   .shared-settings-open-button,
   .workbench-results .diagnostic-field-link,
   .workbench-results .chart-series-control,
@@ -454,10 +454,6 @@
   }
 }
 
-@media (max-width: 1000px) {
-  .package-action span:not(.run-button-spinner) { display: none; }
-  .package-action { min-width: 44px; min-height: 44px; padding: 0; }
-}
 @media (min-width: 768px) and (max-width: 1000px) {
   .app-topbar {
     display: grid;
@@ -478,11 +474,27 @@
   .return-color-control { gap: 0; }
   .return-color-option { min-width: 28px; padding-inline: 3px; }
   .package-actions { gap: 4px; }
-  .package-action { min-width: 40px; min-height: 40px; padding: 0; }
+  .package-action { min-width: 72px; padding-inline: 6px; }
+  .theme-select { width: 118px; }
+}
+@media (pointer: coarse) {
+  .package-action, .theme-select { min-height: 44px; }
+}
+@media (max-width: 767px) {
+  .app-topbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand brand brand" "theme palette locale" "controls tools tools"; gap: 6px; padding-inline: 12px; }
+  .topbar-right { display: contents; }
+  .theme-select { grid-area: theme; width: 100%; }
+  .return-color-control { grid-area: palette; }
+  .locale-select-control { grid-area: locale; }
+  .package-controls { grid-area: tools; justify-self: end; }
+  .execution-actions { gap: 4px; }
+  .locale-select-control .locale-select { min-width: 96px; width: 96px; }
 }
 @media (max-width: 420px) {
-  .app-topbar { grid-template-areas: "theme palette locale" "brand brand brand" "controls controls controls" "tools tools tools"; }
-  .package-controls { justify-self: start; }
-  .theme-control { grid-area: theme; }
-  .topbar-right { gap: 6px; }
+  .execution-actions .button { width: 40px; min-width: 40px; flex-basis: 40px; }
+  .package-actions { gap: 4px; }
+  .package-action { min-width: 70px; padding-inline: 5px; }
+}
+@media (pointer: coarse) and (max-width: 420px) {
+  .execution-actions .button { width: 44px; min-width: 44px; flex-basis: 44px; }
 }

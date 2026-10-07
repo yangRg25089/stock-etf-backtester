@@ -248,128 +248,6 @@ def test_successful_zero_trade_fixture_run_still_exports_the_trade_header() -> N
     ]
 
 
-def test_pe_signal_uses_valuation_price_and_does_not_read_future_publications() -> None:
-    single_january_session = {
-        "run": {
-            "symbol": "QQQ",
-            "startDate": "2024-01-31",
-            "endDate": "2024-01-31",
-            "endMode": "fixed",
-        },
-        "contribution": {"day": 31, "amount": 100},
-    }
-
-    async def exercise(client: httpx.AsyncClient):
-        common_params = {
-            "vix.buyEnabled": False,
-            "rsi.buyEnabled": False,
-            "ma.buyEnabled": False,
-            "bollinger.buyEnabled": False,
-            "rate.buyEnabled": False,
-            "pe.buyEnabled": True,
-            "pe.etfMinCoverage": 0.8,
-        }
-        price_basis_draft = _draft(
-            {**common_params, "pe.threshold": 30},
-            preset_id="composite_dca",
-            strategy_id="strategy-pe-price-basis",
-            shared=single_january_session,
-        )
-        _price_submitted, price_queried = await _submit_and_read(
-            client,
-            price_basis_draft,
-            idempotency_key="task4-pe-price-basis",
-        )
-        threshold_draft = _draft(
-            {**common_params, "pe.threshold": 40},
-            preset_id="composite_dca",
-            strategy_id="strategy-pe-threshold",
-            shared=single_january_session,
-        )
-        _threshold_submitted, threshold_queried = await _submit_and_read(
-            client,
-            threshold_draft,
-            idempotency_key="task4-pe-threshold",
-        )
-        late_draft = _draft(
-            {**common_params, "pe.threshold": 25},
-            preset_id="composite_dca",
-            strategy_id="strategy-pe-late-publication",
-            shared={
-                "run": {
-                    "symbol": "QQQ",
-                    "startDate": "2024-02-01",
-                    "endDate": "2024-02-01",
-                    "endMode": "fixed",
-                },
-                "contribution": {"day": 1, "amount": 100},
-            },
-        )
-        _late_submitted, late_queried = await _submit_and_read(
-            client,
-            late_draft,
-            idempotency_key="task4-pe-late-publication",
-        )
-        return price_queried.json(), threshold_queried.json(), late_queried.json()
-
-    price_saved, threshold_saved, late_saved = _with_fixture_api(exercise)
-    price_run = next(
-        item
-        for item in price_saved["result"]["strategyRuns"]
-        if item["id"] == "strategy-pe-price-basis"
-    )
-    price_signal = next(
-        item for item in price_run["signals"] if item["signalId"] == "pe.buy"
-    )
-    assert price_run["status"] == "completed_with_warning"
-    assert price_run["diagnostics"] == [
-        {
-            "code": "no_valid_xirr",
-            "severity": "warning",
-            "messageKey": "metrics.xirr_unavailable",
-            "fieldPath": "metrics.xirr",
-            "asOf": "2024-01-31",
-            "source": None,
-            "details": {"reason": "insufficient_time_span"},
-        }
-    ]
-    assert price_signal["state"] == "false"
-    # The fixture's simulation price is 200 while its valuation price is 400;
-    # PE is 40, so threshold 30 must remain false.
-    assert price_run["trades"] == []
-
-    threshold_run = next(
-        item
-        for item in threshold_saved["result"]["strategyRuns"]
-        if item["id"] == "strategy-pe-threshold"
-    )
-    threshold_signal = next(
-        item for item in threshold_run["signals"] if item["signalId"] == "pe.buy"
-    )
-    assert threshold_run["status"] == "completed_with_warning"
-    assert threshold_signal["state"] == "true"
-    assert threshold_run["trades"] == []
-    assert threshold_run["unexecutedSignals"] == [
-        {
-            "signalDate": "2024-01-31",
-            "signalId": "pe.buy",
-            "reason": "no_following_backtest_session",
-        }
-    ]
-
-    late_run = next(
-        item
-        for item in late_saved["result"]["strategyRuns"]
-        if item["id"] == "strategy-pe-late-publication"
-    )
-    late_signal = next(
-        item for item in late_run["signals"] if item["signalId"] == "pe.buy"
-    )
-    assert late_run["status"] == "unavailable"
-    assert late_signal["state"] == "unavailable"
-    assert late_signal["diagnostics"][0]["asOf"] == "2024-02-01"
-
-
 def test_unknown_rate_publication_is_unavailable_instead_of_a_false_signal() -> None:
     async def exercise(client: httpx.AsyncClient):
         submitted, queried = await _submit_and_read(
@@ -382,7 +260,6 @@ def test_unknown_rate_publication_is_unavailable_instead_of_a_false_signal() -> 
                     "bollinger.buyEnabled": False,
                     "rate.buyEnabled": True,
                     "rate.thresholdPct": 2.5,
-                    "pe.buyEnabled": False,
                 },
                 preset_id="composite_dca",
                 strategy_id="strategy-rate-as-of",
@@ -427,7 +304,6 @@ def test_grid_search_candidates_and_search_csv_share_the_saved_result() -> None:
                     "ma.buyEnabled": False,
                     "bollinger.buyEnabled": False,
                     "rate.buyEnabled": False,
-                    "pe.buyEnabled": False,
                     "search.dimensions": ["vix.buyThreshold"],
                     "search.maxCombinations": 10,
                 },
@@ -476,18 +352,6 @@ def test_grid_search_candidates_and_search_csv_share_the_saved_result() -> None:
 def test_partial_run_keeps_successful_results_and_freezes_the_old_snapshot() -> None:
     async def exercise(client: httpx.AsyncClient):
         vix = _draft()["strategies"][0]
-        pe = _draft(
-            {
-                "vix.buyEnabled": False,
-                "rsi.buyEnabled": False,
-                "ma.buyEnabled": False,
-                "bollinger.buyEnabled": False,
-                "rate.buyEnabled": False,
-                "pe.buyEnabled": True,
-            },
-            preset_id="composite_dca",
-            strategy_id="strategy-pe-partial",
-        )["strategies"][0]
         rate = _draft(
             {
                 "vix.buyEnabled": False,
@@ -495,12 +359,11 @@ def test_partial_run_keeps_successful_results_and_freezes_the_old_snapshot() -> 
                 "ma.buyEnabled": False,
                 "bollinger.buyEnabled": False,
                 "rate.buyEnabled": True,
-                "pe.buyEnabled": False,
             },
             preset_id="composite_dca",
             strategy_id="strategy-rate-partial",
         )["strategies"][0]
-        draft = {"shared": _SHARED, "strategies": [vix, pe, rate]}
+        draft = {"shared": _SHARED, "strategies": [vix, rate]}
         submitted, queried = await _submit_and_read(
             client,
             draft,
@@ -519,7 +382,6 @@ def test_partial_run_keeps_successful_results_and_freezes_the_old_snapshot() -> 
     results = {item["id"]: item for item in saved["result"]["strategyRuns"]}
     assert saved["status"] == "completed_with_warning"
     assert results["strategy-vix_dca-1"]["status"] == "completed"
-    assert results["strategy-pe-partial"]["status"] == "unavailable"
     assert results["strategy-rate-partial"]["status"] == "unavailable"
     assert results["benchmark:monthly-dca"]["status"] == "completed"
     frozen = reloaded["snapshot"]["config"]["strategies"][0]

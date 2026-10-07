@@ -2,6 +2,11 @@
   min-height: 100vh;
 }
 
+.topbar-functions { display: contents; }
+.topbar-menu-toggle { display: none; }
+.topbar-setting { display: contents; }
+.topbar-setting-label { display: none; }
+
 .skip-link {
   position: fixed;
   z-index: 5;
@@ -339,10 +344,15 @@
 button, button span, button strong { cursor: inherit; user-select: none; }
 
 .selected-strategies { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; min-width: 0; grid-column: 1 / -1; font-size: 11px; }
-.selected-strategy-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 200px; padding: 3px 8px; color: var(--app-foreground); background: color-mix(in srgb, var(--result-color) 10%, var(--app-surface)); border: 1px solid var(--result-color); border-radius: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.selected-strategy-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 44px; min-height: 28px; max-width: 240px; padding: 3px 8px; color: var(--app-foreground); background: color-mix(in srgb, var(--result-color) 10%, var(--app-surface)); border: 1px solid var(--result-color); border-radius: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.selected-strategy-chip:hover:not(:disabled) { background: color-mix(in srgb, var(--result-color) 22%, var(--app-surface)); }
+.selected-strategy-chip:focus-visible { outline-offset: -3px; }
+.selected-strategy-chip:disabled { cursor: not-allowed; opacity: .55; }
 .selected-strategy-chip span { color: var(--result-color); }
+.selected-strategy-chip .selected-strategy-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--app-foreground); }
+.selected-strategy-chip.is-focused { border-width: 3px; padding: 1px 6px; font-weight: 700; background: color-mix(in srgb, var(--result-color) 16%, var(--app-surface)); }
+.selected-strategy-chip .selected-strategy-detail-label { flex: 0 0 auto; padding: 0 4px; border-left: 1px solid currentColor; color: var(--app-foreground); font-size: 10px; }
 
 .app-footer { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 26px; color: var(--app-muted); font-size: 11px; cursor: default; }
 .app-footer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.theme-control { min-width: 38px; min-height: 36px; }
-.theme-control svg { width: 20px; height: 20px; }
+.theme-select { width: 142px; min-width: 0; min-height: 32px; padding: 4px 6px; color: var(--app-foreground); background: var(--app-surface); border: 1px solid var(--app-border-strong); border-radius: 4px; font-size: 12px; }

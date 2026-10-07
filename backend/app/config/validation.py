@@ -63,7 +63,6 @@ _SHARED_MODEL_TYPES: dict[str, type[BaseModel]] = {
 class DataKind(StrEnum):
     MARKET = "market"
     MACRO = "macro"
-    VALUATION = "valuation"
 
 
 class DataRequirement(DomainModel):
@@ -656,18 +655,6 @@ def _requirements_for_strategy(
                     sourceUnit=str(params.get("rate.sourceUnit", "index_points")),
                 )
             )
-        elif node.kind is ConditionKind.PE:
-            requirements.append(
-                DataRequirement(
-                    strategyId=strategy.id,
-                    signalId=signal_id,
-                    kind=DataKind.VALUATION,
-                    symbol=symbol,
-                    fieldPath=f"{path}.params.pe.threshold",
-                    conditionId=node.id,
-                    minimumCoverage=Decimal(str(params["pe.etfMinCoverage"])),
-                )
-            )
         else:
             requirements.append(
                 DataRequirement(
@@ -709,11 +696,7 @@ def _has_capability(snapshot: DataSnapshot, requirement: DataRequirement) -> boo
         return any(
             observation.symbol == requirement.symbol for observation in snapshot.macro
         )
-    return (
-        snapshot.valuation is not None
-        and snapshot.valuation.symbol == requirement.symbol
-        and bool(snapshot.valuation.observations)
-    )
+    raise ValueError(f"unsupported data requirement kind: {requirement.kind}")
 
 
 def _pydantic_diagnostics(

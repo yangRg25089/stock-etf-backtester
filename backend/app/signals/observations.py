@@ -3,7 +3,6 @@
 from collections.abc import Callable, Mapping
 from datetime import date
 from decimal import Decimal
-from operator import le
 
 from app.config.validation import DataKind
 from app.domain.contracts import (
@@ -11,7 +10,6 @@ from app.domain.contracts import (
     MacroObservation,
     SignalEvaluation,
 )
-from app.domain.immutability import freeze_mapping
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
@@ -184,88 +182,6 @@ def _macro_value(
             details={"signalId": signal_id, "strategyId": strategy_id},
         )
     return observation.value, None
-
-
-def _valuation_threshold_evaluation(
-    index: int,
-    strategy: FrozenStrategyInstance,
-    context: EvaluationContext,
-    day: date,
-    *,
-    threshold: Decimal,
-    signal_id: str = "pe.buy",
-    compare: Callable[[Decimal, Decimal], bool] = le,
-) -> SignalEvaluation:
-    field_path = _field_path(index, "pe.buyEnabled")
-    symbol = context.config.shared.run.symbol
-    rows = context.valuations.get(day, ())
-    if (
-        len(rows) != 1
-        or context.snapshot.valuation is None
-        or context.snapshot.valuation.symbol != symbol
-    ):
-        return _unavailable_evaluation(
-            day,
-            signal_id,
-            _missing_data_diagnostic(
-                day,
-                strategy.id,
-                signal_id,
-                field_path,
-                DataKind.VALUATION,
-                symbol,
-            ),
-        )
-    observation = rows[0]
-    minimum_coverage = _decimal_parameter(strategy.params, "pe.etfMinCoverage")
-    if observation.method == "etf_equity_earnings_yield" and (
-        observation.coverage is None or observation.coverage < minimum_coverage
-    ):
-        diagnostic = _missing_data_diagnostic(
-            day, strategy.id, signal_id, field_path, DataKind.VALUATION, symbol
-        )
-        return _unavailable_evaluation(
-            day,
-            signal_id,
-            diagnostic.model_copy(
-                update={
-                    "details": freeze_mapping(
-                        {
-                            **diagnostic.details,
-                            "reason": "etf_coverage_below_minimum",
-                            "coverage": None
-                            if observation.coverage is None
-                            else str(observation.coverage),
-                            "minimumCoverage": str(minimum_coverage),
-                        }
-                    )
-                }
-            ),
-        )
-    if (
-        observation.as_of > day
-        or observation.pe is None
-        or not observation.pe.is_finite()
-        or observation.pe <= 0
-    ):
-        return _unavailable_evaluation(
-            day,
-            signal_id,
-            _missing_data_diagnostic(
-                day,
-                strategy.id,
-                signal_id,
-                field_path,
-                DataKind.VALUATION,
-                symbol,
-            ),
-        )
-    return _state_evaluation(
-        day,
-        signal_id,
-        compare(observation.pe, threshold),
-        observed_value=observation.pe,
-    )
 
 
 def _price_threshold_evaluation(

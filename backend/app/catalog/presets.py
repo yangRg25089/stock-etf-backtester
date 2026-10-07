@@ -184,9 +184,6 @@ _COMPOSITE_KEYS: Final[tuple[str, ...]] = (
     "rate.symbol",
     "rate.thresholdPct",
     "rate.sourceUnit",
-    "pe.buyEnabled",
-    "pe.threshold",
-    "pe.etfMinCoverage",
     "exit.enabled",
     "exit.vix.low1",
     "exit.vix.ratio1",
@@ -232,7 +229,6 @@ _FIXED_KINDS: Final[Mapping[StrategyPresetId, ConditionKind]] = MappingProxyType
         StrategyPresetId.MA_DEVIATION_DCA: ConditionKind.MA_DEVIATION,
         StrategyPresetId.BOLLINGER_DCA: ConditionKind.BOLLINGER,
         StrategyPresetId.RATE_DCA: ConditionKind.RATE,
-        StrategyPresetId.PE_DCA: ConditionKind.PE,
     }
 )
 

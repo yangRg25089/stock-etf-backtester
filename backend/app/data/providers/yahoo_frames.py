@@ -48,11 +48,7 @@ def normalize_market_frame(
         name: _resolve_column(frame, name, request.symbol)
         for name in ("Open", "High", "Low")
     }
-    if (
-        close_column is None
-        or adjusted_column is None
-        or close_column == adjusted_column
-    ):
+    if adjusted_column is None:
         return _required_market_unavailable(
             cache_key=cache_key,
             diagnostic=Diagnostic(
@@ -61,7 +57,7 @@ def normalize_market_frame(
                 source=provider,
                 details={
                     "symbol": request.symbol,
-                    "requiredValues": ["simulationPrice", "valuationPrice"],
+                    "requiredValues": ["simulationPrice"],
                 },
             ),
             missing_sessions=request.data_sessions,
@@ -95,8 +91,12 @@ def normalize_market_frame(
             )
             continue
         simulation_price = _as_positive_decimal(_row_value(row, adjusted_column))
-        valuation_price = _as_positive_decimal(_row_value(row, close_column))
-        if simulation_price is None or valuation_price is None:
+        close_price = (
+            _as_positive_decimal(_row_value(row, close_column))
+            if close_column is not None and close_column != adjusted_column
+            else None
+        )
+        if simulation_price is None:
             diagnostics.append(
                 Diagnostic(
                     code=DiagnosticCode.PRICE_BASIS_UNAVAILABLE,
@@ -106,23 +106,20 @@ def normalize_market_frame(
                     details={
                         "symbol": request.symbol,
                         "date": session_date.isoformat(),
-                        "missingFields": [
-                            field
-                            for field, value in (
-                                ("simulationPrice", simulation_price),
-                                ("valuationPrice", valuation_price),
-                            )
-                            if value is None
-                        ],
+                        "missingFields": ["simulationPrice"],
                     },
                 )
             )
             continue
-        simulation_ohlc = _simulation_ohlc(
-            row,
-            ohlc_columns,
-            simulation_price=simulation_price,
-            valuation_price=valuation_price,
+        simulation_ohlc = (
+            _simulation_ohlc(
+                row,
+                ohlc_columns,
+                simulation_price=simulation_price,
+                close_price=close_price,
+            )
+            if close_price is not None
+            else (None, None, None)
         )
         bars_by_date.setdefault(session_date, []).append(
             MarketBar(
@@ -132,7 +129,6 @@ def normalize_market_frame(
                 simulationHigh=simulation_ohlc[1],
                 simulationLow=simulation_ohlc[2],
                 simulationPrice=simulation_price,
-                valuationPrice=valuation_price,
                 currency=currency,
                 source=provider,
                 observedAt=observed_at,
@@ -229,7 +225,7 @@ def _simulation_ohlc(
     columns: Mapping[str, object | None],
     *,
     simulation_price: Decimal,
-    valuation_price: Decimal,
+    close_price: Decimal,
 ) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
     raw_values = tuple(
         _as_positive_decimal(_row_value(row, columns[name]))
@@ -242,7 +238,7 @@ def _simulation_ohlc(
     raw_open, raw_high, raw_low = raw_values
     assert raw_open is not None and raw_high is not None and raw_low is not None
 
-    adjustment = simulation_price / valuation_price
+    adjustment = simulation_price / close_price
     adjusted_open = raw_open * adjustment
     adjusted_high = raw_high * adjustment
     adjusted_low = raw_low * adjustment

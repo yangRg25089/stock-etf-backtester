@@ -76,11 +76,6 @@ CONDITION_DEFINITIONS = (
         ("rate.symbol", "rate.sourceUnit", "rate.thresholdPct"),
         ("rate.symbol", "rate.sourceUnit", "rate.thresholdPct", "exit.ratio"),
     ),
-    _definition(
-        ConditionKind.PE,
-        ("pe.threshold", "pe.etfMinCoverage"),
-        ("pe.threshold", "pe.etfMinCoverage", "exit.ratio"),
-    ),
 )
 
 

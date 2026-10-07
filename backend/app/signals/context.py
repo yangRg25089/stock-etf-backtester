@@ -12,7 +12,6 @@ from app.domain.contracts import (
     MacroObservation,
     MarketBar,
     SignalEvaluation,
-    ValuationObservation,
 )
 
 from .indicators import (
@@ -28,7 +27,6 @@ class EvaluationContext:
     run_sessions: tuple[date, ...]
     bars: Mapping[date, MarketBar]
     macro: Mapping[tuple[str, date], tuple[MacroObservation, ...]]
-    valuations: Mapping[date, tuple[ValuationObservation, ...]]
 
 
 def make_context(
@@ -50,12 +48,6 @@ def make_context(
                 macro_observation.aligned_session_date,
             )
             macro.setdefault(key, []).append(macro_observation)
-    valuation_rows: dict[date, list[ValuationObservation]] = {}
-    if snapshot.valuation is not None:
-        for valuation_observation in snapshot.valuation.observations:
-            valuation_rows.setdefault(valuation_observation.date, []).append(
-                valuation_observation
-            )
     return EvaluationContext(
         config=config,
         snapshot=snapshot,
@@ -63,7 +55,6 @@ def make_context(
         run_sessions=run_sessions,
         bars=bars,
         macro={key: tuple(rows) for key, rows in macro.items()},
-        valuations={key: tuple(rows) for key, rows in valuation_rows.items()},
     )
 
 

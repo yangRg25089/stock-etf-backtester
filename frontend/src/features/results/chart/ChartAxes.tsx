@@ -2,7 +2,7 @@ import { translate, type Locale } from "../../../i18n/messages";
 import type { ChartCursor } from "../ChartCrosshair";
 import type { ChartViewport } from "../chartViewport";
 import type { AxisSeriesId, ChartScale } from "./chartTypes";
-import { CHART, COMPACT_CHART, dateTicks, xPosition } from "./chartScale";
+import { CHART, dateTicks, xPosition } from "./chartScale";
 import { formatAxisValue, axisTitle } from "./chartFormat";
 
 export function ChartAxes({
@@ -13,6 +13,7 @@ export function ChartAxes({
   currency,
   viewport,
   geometry,
+  compact = false,
 }: {
   dates: string[];
   locale: Locale;
@@ -21,9 +22,9 @@ export function ChartAxes({
   currency?: string;
   viewport: ChartViewport;
   geometry: typeof CHART;
+  compact?: boolean;
 }) {
   const plotBottom = geometry.height - geometry.bottom;
-  const compact = geometry.height === COMPACT_CHART.height;
   const tickCount = compact ? 3 : 8;
   const ticks = Array.from({ length: tickCount }, (_, index) =>
     scale.maximum - ((scale.maximum - scale.minimum) * index) / (tickCount - 1),
@@ -53,28 +54,30 @@ export function ChartAxes({
   );
 }
 
-export function ChartDateAxis({ dates, locale, viewport, cursor }: {
+export function ChartDateAxis({ dates, locale, viewport, cursor, textScale = 1 }: {
   dates: string[];
   locale: Locale;
   viewport: ChartViewport;
   cursor: ChartCursor | null;
+  textScale?: number;
 }) {
   const date = cursor ? dates[cursor.index] : undefined;
   const ticks = dateTicks(dates, viewport);
   const cursorX = cursor ? xPosition(cursor.index, dates.length, viewport) : 0;
-  const dateX = Math.min(CHART.width - CHART.right - 43, Math.max(CHART.left + 43, cursorX));
+  const halfTag = 43 * textScale;
+  const dateX = Math.min(CHART.width - CHART.right - halfTag, Math.max(CHART.left + halfTag, cursorX));
   return (
     <div className="chart-date-axis-row" data-window-start={viewport.start} data-window-end={viewport.end}>
-      <svg className="chart-date-axis" viewBox="0 0 800 44" role="img" aria-label={translate(locale, "chart.dateAxis")}>
+      <svg className="chart-date-axis" viewBox={`0 0 800 ${44 * textScale}`} role="img" aria-label={translate(locale, "chart.dateAxis")}>
         {ticks.map(({ date: tickDate, x }, index) => (
-          <text key={tickDate} className="chart-tick-label chart-x-tick" data-tick-index={index} x={x} y="18"
+          <text key={tickDate} className="chart-tick-label chart-x-tick" data-tick-index={index} x={x} y={18 * textScale}
             textAnchor={ticks.length > 1 && index === ticks.length - 1 ? "end" : "middle"}>{tickDate}</text>
         ))}
         {date && <g aria-hidden="true">
-          <rect className="chart-cursor-tag" x={dateX - 43} y="2" width="86" height="19" rx="2" />
-          <text className="chart-cursor-label chart-cursor-date" x={dateX} y="15" textAnchor="middle">{date}</text>
+          <rect className="chart-cursor-tag" x={dateX - halfTag} y={2 * textScale} width={86 * textScale} height={19 * textScale} rx="2" />
+          <text className="chart-cursor-label chart-cursor-date" x={dateX} y={15 * textScale} textAnchor="middle">{date}</text>
         </g>}
-        <text className="chart-axis-title chart-x-axis-title" x={(CHART.left + CHART.width - CHART.right) / 2} y="36" textAnchor="middle">{translate(locale, "chart.dateAxis")}</text>
+        <text className="chart-axis-title chart-x-axis-title" x={(CHART.left + CHART.width - CHART.right) / 2} y={36 * textScale} textAnchor="middle">{translate(locale, "chart.dateAxis")}</text>
       </svg>
     </div>
   );

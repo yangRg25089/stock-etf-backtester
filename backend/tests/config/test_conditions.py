@@ -188,9 +188,8 @@ def test_catalog_exposes_reusable_conditions_and_single_condition_presets() -> N
         "ma_trend",
         "bollinger",
         "rate",
-        "pe",
     }
-    for name in ("rsi_dca", "ma_deviation_dca", "bollinger_dca", "rate_dca", "pe_dca"):
+    for name in ("rsi_dca", "ma_deviation_dca", "bollinger_dca", "rate_dca"):
         preset = catalog.preset(name)
         assert preset.editor_mode == "fixed"
         assert preset.default_rules is not None

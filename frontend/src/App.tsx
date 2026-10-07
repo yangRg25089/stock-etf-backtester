@@ -16,6 +16,7 @@ import { StrategyNavigator, type StrategyFieldNavigation } from "./features/stra
 import { interpolate, translate, type Locale } from "./i18n/messages";
 import { persistBrowserLocalePreference, readBrowserLocalePreference } from "./i18n/localePreference";
 import { ThemeControl } from "./shared/ui/ThemeControl";
+import { TopbarMenu } from "./shared/ui/TopbarMenu";
 import { LocaleControl } from "./shared/ui/LocaleControl";
 import { ReturnColorControl } from "./shared/ui/ReturnColorControl";
 import { persistBrowserReturnColorPreference, readBrowserReturnColorPreference, resolveReturnColorPalette, type ReturnColorPalette } from "./shared/lib/returnColorPreference";
@@ -141,13 +142,37 @@ function App() {
             onRun={() => void handleRun()}
           />
         )}
-        <div className="topbar-right">
-          {catalog && workspace && <PackageControls catalog={catalog} draft={workspace.draft} locale={locale} busy={runBusy} onImport={handleImport} />}
-          <ThemeControl locale={locale} />
-          <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
-          <LocaleControl locale={locale} onChange={handleLocaleChange} />
-        </div>
-        {workspace && <SelectedStrategies run={workspace.runResponse} ids={workspace.selectedResultIds} locale={locale} />}
+        <TopbarMenu locale={locale} busy={runBusy}>
+          {openMenu =>
+            <div className="topbar-right">
+              {catalog && workspace && <PackageControls catalog={catalog} draft={workspace.draft} locale={locale} busy={runBusy} onImport={handleImport} onError={openMenu} />}
+              <div className="topbar-setting">
+                <span className="topbar-setting-label">{translate(locale, "theme.label")}</span>
+                <ThemeControl locale={locale} />
+              </div>
+              <div className="topbar-setting">
+                <span className="topbar-setting-label">{translate(locale, "returns.colors.label")}</span>
+                <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
+              </div>
+              <div className="topbar-setting">
+                <span className="topbar-setting-label">{translate(locale, "locale.label")}</span>
+                <LocaleControl locale={locale} onChange={handleLocaleChange} />
+              </div>
+            </div>
+          }
+        </TopbarMenu>
+        {workspace && <SelectedStrategies
+          run={workspace.runResponse}
+          ids={workspace.selectedResultIds}
+          focusedResultId={workspace.focusedResultId}
+          locale={locale}
+          busy={runBusy}
+          onSelect={id => {
+            if (isLocked()) return;
+            dispatch({ type: "result.focus", id });
+            setMobilePanel("results");
+          }}
+        />}
       </header>
 
       <main id="main-content" className="main-content workbench-main">

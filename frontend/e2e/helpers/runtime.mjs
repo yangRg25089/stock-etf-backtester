@@ -1,5 +1,21 @@
 import { expect } from "@playwright/test";
 
+export async function openTopbarMenu(page) {
+  if ((page.viewportSize()?.width ?? 1440) >= 768) return false;
+  const toggle = page.locator(".topbar-menu-toggle");
+  await expect(toggle).toBeVisible();
+  if (await toggle.getAttribute("aria-expanded") === "true") return false;
+  await toggle.click();
+  await expect(page.locator(".topbar-functions")).toBeVisible();
+  return true;
+}
+
+export async function selectHeaderLocale(page, locale) {
+  const opened = await openTopbarMenu(page);
+  await page.locator(".locale-select").selectOption(locale);
+  if (opened) await page.locator(".topbar-menu-toggle").click();
+}
+
 /** A controlled unfinished job, followed by SSE completion and a full GET. */
 export async function installRunFixture(page, saved) {
   const active = structuredClone(saved);
@@ -65,6 +81,7 @@ export function strategyFile(saved) {
 }
 
 export async function importPackage(page, file, confirm = true) {
+  await openTopbarMenu(page);
   await expect(page.locator(".package-actions")).toBeVisible();
   await page.locator(".file-import-input").setInputFiles({ name: `fixture.${file.type}.json`, mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
   await expect(page.locator(".package-preview")).toBeVisible();

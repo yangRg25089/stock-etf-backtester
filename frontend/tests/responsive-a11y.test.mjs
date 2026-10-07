@@ -10,7 +10,7 @@ function chartSources() {
 import test from "node:test";
 
 const css = readStyles();
-const prototype = readFileSync(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
+const prototype = readFileSync(new URL("../e2e/fixtures/workbench-reference.html", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const settingsDialog = readFileSync(new URL("../src/features/config/SharedSettingsDialog.tsx", import.meta.url), "utf8");
 const dividerSource = readFileSync(new URL("../src/shared/ui/WorkbenchDivider.tsx", import.meta.url), "utf8");
@@ -191,7 +191,7 @@ test("the design prototype mirrors the flattened workbench and result hierarchy"
   assert.match(prototype, /class="comparison-primary"/);
   assert.doesNotMatch(prototype, /data-panel="comparison"|data-tab="comparison"|prototype-result-focus|data-tab="overview"|data-tab="metrics"/);
   assert.ok(prototype.indexOf('class="comparison-primary"') < prototype.indexOf('role="tablist" aria-label="実行結果の詳細"'));
-  assert.ok(prototype.indexOf('role="tablist" aria-label="実行結果の詳細"') < prototype.indexOf('<section class="tab-panel" id="prototype-trades-panel"'));
+  assert.ok(prototype.indexOf('role="tablist" aria-label="実行結果の詳細"') < prototype.indexOf('<div class="tab-panel" id="prototype-details-panel"'));
   assert.match(prototype, /Ctrl\/Command＋スクロールは全図を同期して拡大・縮小/);
   assert.doesNotMatch(prototype, /result-run-id|strategy-vix_dca-1|candidate-[0-9]/);
 });
@@ -230,7 +230,7 @@ test("coarse-pointer inputs and buttons have at least 44px targets", () => {
   assert.match(touch, /\.icon-button\s*\{\s*min-width:\s*44px/);
   assert.doesNotMatch(css, /strategy-enabled-control/);
   assert.match(dividerSource, /aria-expanded=\{!collapsed\}/);
-  assert.match(touch, /\.execution-actions \.button-primary,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
+  assert.match(touch, /\.execution-actions \.button,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
   assert.match(touch, /\.workbench-results \.legend-toggle,[\s\S]*?\.workbench-results \.chart-range-controls button,[\s\S]*?\.add-strategy-button \{\s*min-height:\s*44px/s);
 });
 
@@ -278,13 +278,16 @@ test("semantic text colors meet WCAG AA contrast against their surfaces", () => 
   assert.ok(contrastRatio(token("focus"), token("bg")) >= 3, "focus outline should remain visible as a UI indicator");
 });
 
-test("the application preserves its blue palette and exposes the shared mint theme", () => {
-  for (const color of ["#253c6d", "#30497d", "#455b8a", "#f2842f"]) {
-    assert.ok(css.toLowerCase().includes(color));
-  }
-  for (const color of ["#def5e5", "#bcead5", "#9ed5c5", "#8ec3b0"]) {
-    assert.ok(css.toLowerCase().includes(color));
-    assert.ok(prototype.toLowerCase().includes(color));
+test("Classic and four popular Color Hunt palettes share accessible semantic tokens", () => {
+  const tokens = readFileSync(new URL("../src/styles/tokens.css", import.meta.url), "utf8").toLowerCase();
+  for (const color of ["#800020", "#f3e6d5", "#fff9f2", "#d45060", "#010736", "#0d1c42", "#22396f", "#fcf1d0", "#d8a2a2", "#ffdcdc", "#fff9d6", "#8ea66b", "#123f36", "#2a6b5c", "#c49a45", "#e8dcc4"]) assert.ok(tokens.includes(color), color);
+  assert.doesNotMatch(tokens, /data-theme="(?:blue|mint)"|#def5e5/);
+  const base = blockFor(":root");
+  const overrides = ["", ...["burgundy", "midnight", "blush", "forest"].map(id => blockFor(`:root[data-theme="${id}"]`))];
+  for (const override of overrides) {
+    const values = Object.fromEntries([...`${base} ${override}`.matchAll(/--app-([\w-]+):\s*([^;]+);/g)].map(match => [match[1], match[2].trim()]));
+    const color = name => values[name].startsWith("var(") ? color(values[name].slice(10, -1)) : values[name] === "#fff" ? "#ffffff" : values[name];
+    for (const [fg, bg] of [["foreground","bg"], ["muted","surface"], ["accent","surface"], ["action-text","action"], ["foreground","selection-bg"]]) assert.ok(contrastRatio(color(fg),color(bg)) >= 4.5, `${fg} on ${bg}: ${override}`);
   }
 });
 
@@ -315,7 +318,7 @@ test("all result table scrollers share one vertical max-height", () => {
 });
 
 test("only selected comparison rows use an identity tint and foreground lift", () => {
-  assert.doesNotMatch(css, /is-focused/);
+  assert.doesNotMatch(css, /\.comparison-table[^{}]*\.is-focused/);
   assert.match(css, /\.comparison-table tbody tr\.is-selected\s*\{[^}]*translate:\s*0 -1px/s);
   assert.match(css, /\.comparison-table tbody tr\.is-selected\s*\{[^}]*background:\s*color-mix/s);
 });
@@ -389,7 +392,7 @@ test("base button styles precede and preserve emphasized action colors", () => {
 test("wheel zoom mode and primary run icon have clear visual affordances", () => {
   assert.match(runActions, /className="run-play-icon"/);
   assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-action\)/);
-  assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*56px/s);
+  assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*48px/s);
   assert.match(css, /\.chart-wheel-zoom-toggle\[aria-pressed="true"\]/);
   assert.match(css, /\.shared-settings-dialog/);
 });

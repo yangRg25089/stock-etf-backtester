@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { openSaved, savedRun } from "./helpers/reports.mjs";
-import { installRunFixture } from "./helpers/runtime.mjs";
+import { installRunFixture, openTopbarMenu } from "./helpers/runtime.mjs";
 
 const GREEN = "rgb(8, 116, 67)";
 const RED = "rgb(183, 28, 28)";
@@ -36,7 +36,7 @@ test("one global return convention follows locale until a manual choice and surv
   let submissions = 0;
   page.on("request", request => { if (request.method() === "POST" && request.url().endsWith("/runs")) submissions++; });
 
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   const performance = page.locator("#result-panel-performance");
   const monthlyPositive = performance.locator(".heatmap-cell.is-positive");
   const monthlyNegative = performance.locator("td:not(.heatmap-annual) .heatmap-cell.is-negative");
@@ -75,7 +75,7 @@ test("one global return convention follows locale until a manual choice and surv
   await expect(frame).toHaveAttribute("data-return-palette", "red-up");
   await expect(control.getByRole("button", { name: "上昇は赤、下落は緑" })).toHaveAttribute("aria-pressed", "true");
   await expect(positive).toHaveCSS("color", RED);
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   await expect(monthlyPositive).toHaveCSS("background-color", RED);
   await expect(monthlyNegative).toHaveCSS("background-color", GREEN);
   for (const choice of ["上昇は緑、下落は赤", "上昇は赤、下落は緑"]) {
@@ -86,11 +86,14 @@ test("one global return convention follows locale until a manual choice and surv
   await page.screenshot({ path: test.info().outputPath("global-return-colors-desktop.png") });
   for (const width of [320, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
+    await openTopbarMenu(page);
     await expect(control).toBeVisible();
     await expect(locale).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     const paletteBox = await control.boundingBox();
-    expect(paletteBox.x + paletteBox.width).toBeLessThan((await locale.boundingBox()).x);
+    const localeBox = await locale.boundingBox();
+    if (width < 768) expect(paletteBox.y + paletteBox.height).toBeLessThanOrEqual(localeBox.y);
+    else expect(paletteBox.x + paletteBox.width).toBeLessThan(localeBox.x);
     const brand = await page.locator(".brand-mark").boundingBox();
     for (const selector of [".return-color-control", ".locale-select", ".package-actions"]) {
       const box = await page.locator(selector).boundingBox();
@@ -109,20 +112,22 @@ test.describe("touch return controls", () => {
     await openSaved(page, await savedRun(page));
     await page.setViewportSize({ width: 320, height: 900 });
     const header = await page.locator(".app-topbar").boundingBox();
-    expect(header.height).toBeGreaterThanOrEqual(108);
+    expect(header.height).toBeGreaterThanOrEqual(44);
+    expect(header.height).toBeLessThanOrEqual(60);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    await openTopbarMenu(page);
     const palette = await page.locator(".return-color-control").boundingBox();
     const locale = await page.locator(".locale-select").boundingBox();
-    expect(palette.x + palette.width).toBeLessThan(locale.x);
+    expect(palette.y + palette.height).toBeLessThanOrEqual(locale.y);
     const brand = await page.locator(".brand-mark").boundingBox();
-    expect(brand.y).toBeGreaterThanOrEqual(palette.y + palette.height);
+    expect(brand.y + brand.height).toBeLessThan(palette.y);
     for (const button of await page.locator(".return-color-option").all()) {
       const box = await button.boundingBox();
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
     }
     const files = await page.locator(".package-actions").boundingBox();
-    expect(files.y).toBeGreaterThanOrEqual(palette.y + palette.height);
+    expect(files.y + files.height).toBeLessThanOrEqual(palette.y);
     await page.locator(".return-color-control").getByRole("button", { name: "上昇は赤、下落は緑" }).tap();
     await expect(page.locator(".app-frame")).toHaveAttribute("data-return-palette", "red-up");
     const axe = await new AxeBuilder({ page }).analyze();

@@ -7,12 +7,13 @@ import { chartSegments } from "../technicalIndicators";
 import type { SeriesSample } from "../chartModel";
 import { samplesInViewport, visibleIndexRange, type ChartViewport } from "../chartViewport";
 import type { IndicatorSeriesDefinition, IndicatorComparison } from "./chartTypes";
-import { CHART, COMPACT_CHART, chartScale, lineCoordinates, xPosition } from "./chartScale";
+import { CHART, COMPACT_CHART, chartScale, lineCoordinates, xPosition, responsiveChartGeometry } from "./chartScale";
 import { axisTitle, seriesLabel, formatAxisValue } from "./chartFormat";
 import { ChartAxes } from "./ChartAxes";
 import { HighlightArea } from "./ChartSeries";
 
 export function IndicatorChart({
+  renderedWidth = CHART.width,
   locale,
   assets,
   series,
@@ -25,6 +26,7 @@ export function IndicatorChart({
   cursor,
   comparisons = [],
 }: {
+  renderedWidth?: number;
   locale: Locale;
   assets: DailyAsset[];
   series: IndicatorSeriesDefinition;
@@ -38,7 +40,7 @@ export function IndicatorChart({
   comparisons?: IndicatorComparison[];
 }) {
   const fillId = useId();
-  const geometry = COMPACT_CHART;
+  const geometry = responsiveChartGeometry(COMPACT_CHART, renderedWidth);
   if (samples.length === 0) return null;
   const range = visibleIndexRange(assets.length, viewport);
   const visibleSamples = samples.filter((point) => point.index >= range.start && point.index <= range.end);
@@ -72,6 +74,7 @@ export function IndicatorChart({
   const cursorValue = cursor ? scale.maximum - cursor.yRatio * (scale.maximum - scale.minimum) : null;
   return (
     <figure className={figureClass} data-window-start={viewport.start} data-window-end={viewport.end}>
+      <div className="chart-mobile-axis-label">{axisTitle(locale, series.id, currency, true)}</div>
       <div className="chart-canvas">
         <svg
           {...chartInteractionProps}
@@ -91,7 +94,7 @@ export function IndicatorChart({
             end: assets[Math.round(range.end)]?.date ?? "",
             count: String(Math.max(1, Math.round(range.end) - Math.round(range.start) + 1)),
           })}</desc>
-          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId={series.id} currency={currency} viewport={viewport} geometry={geometry} />
+          <ChartAxes dates={assets.map((asset) => asset.date)} locale={locale} scale={scale} seriesId={series.id} currency={currency} viewport={viewport} geometry={geometry} compact />
           <defs>
             <clipPath id={plotClipId}>
               <rect x={CHART.left} y={geometry.top} width={plotWidth} height={plotHeight} />

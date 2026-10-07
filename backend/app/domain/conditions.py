@@ -24,7 +24,6 @@ class ConditionKind(StrEnum):
     MA_TREND = "ma_trend"
     BOLLINGER = "bollinger"
     RATE = "rate"
-    PE = "pe"
 
 
 class ConditionLimits(DomainModel):
@@ -74,7 +73,6 @@ def condition_signal_id(node: ConditionLeaf, side: Literal["buy", "sell"]) -> st
         ConditionKind.MA_TREND: ("ma.trend", "ma.trend.sell"),
         ConditionKind.BOLLINGER: ("bollinger.buy", "bollinger.exit"),
         ConditionKind.RATE: ("rate.buy", "rate.exit"),
-        ConditionKind.PE: ("pe.buy", "pe.exit"),
     }
     base = names[node.kind][0 if side == "buy" else 1]
     return base if node.id == f"{side}-{node.kind.value}" else f"{base}:{node.id}"

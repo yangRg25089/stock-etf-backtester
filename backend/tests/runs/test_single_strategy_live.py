@@ -79,11 +79,6 @@ class _SignalOracle:
             for row in snapshot.macro
         }
         self.values = {}
-        self.valuation = (
-            {row.date.isoformat(): row for row in snapshot.valuation.observations}
-            if snapshot.valuation is not None
-            else {}
-        )
 
     def leaf(self, node, side, day):
         params, kind = node["params"], node["kind"]
@@ -120,22 +115,6 @@ class _SignalOracle:
                 assert source.source_unit == "percent_point"
                 threshold = D(params["rate.thresholdPct"])
                 triggered = value <= threshold if buy else value >= threshold
-        elif kind == "pe":
-            observation = self.valuation[day]
-            assert observation.source == "sec:companyfacts"
-            assert observation.eps > 0 and observation.valuation_price > 0
-            assert all(
-                fact.filed.isoformat() <= day
-                and fact.stock_class_id
-                and fact.split_basis
-                for fact in observation.fact_references
-            )
-            eps = sum((fact.value for fact in observation.fact_references), D(0))
-            assert abs(observation.eps - eps) < TOLERANCE
-            value = observation.valuation_price / eps
-            assert abs(value - observation.pe) < TOLERANCE
-            threshold = D(params["pe.threshold"])
-            triggered = value <= threshold if buy else value >= threshold
         elif kind == "rsi":
             period = int(params["rsi.period"])
             changes = [
@@ -772,12 +751,10 @@ def _verify_single_run(
             saved = (
                 await client.get(f"/api/v1/runs/{submitted.json()['runId']}")
             ).json()
-            assert saved["snapshot"]["dataProvenance"]["sources"] == (
-                ["sec", "yahoo"] if preset_id.value == "pe_dca" else ["yahoo"]
-            ), saved["result"]["strategyRuns"]
+            assert saved["snapshot"]["dataProvenance"]["sources"] == ["yahoo"]
             rows = saved["result"]["strategyRuns"]
             primary = next(row for row in rows if row["id"] == "individual")
-            if preset_id.value != "pe_dca" and variant != "unknown_rate_unit":
+            if variant != "unknown_rate_unit":
                 assert primary["status"] == "completed", primary["diagnostics"]
             (tmp_path / "saved-response.json").write_text(
                 json.dumps(saved), encoding="utf-8"
@@ -818,14 +795,6 @@ def _verify_single_run(
                         )
                         == 1
                     )
-                    continue
-                if row["presetId"] == "pe_dca":
-                    # QQQ has no verified historical EPS/holding valuation in the
-                    # current provider. This is unavailable, never a zero-return pass.
-                    assert row["status"] == "unavailable"
-                    assert row["metrics"] is None and row["dailyAssets"] == []
-                    assert row["diagnostics"][0]["source"] == "sec"
-                    assert row["diagnostics"][0]["code"] == "required_data_unavailable"
                     continue
                 cfg = next(
                     (

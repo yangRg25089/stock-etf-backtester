@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { savedRun } from "./helpers/reports.mjs";
-import { importPackage, openSaved, strategyFile } from "./helpers/runtime.mjs";
+import { importPackage, openSaved, selectHeaderLocale, strategyFile } from "./helpers/runtime.mjs";
 
 async function downloadStrategy(page) {
   const waiting = page.waitForEvent("download");
@@ -94,7 +94,7 @@ test("strategy preview and visible file controls work across layouts and all loc
   const saved = await savedRun(page); const file = strategyFile(saved);
   await page.goto("/");
   for (const locale of ["ja", "zh", "en"]) {
-    await page.locator(".locale-select").selectOption(locale);
+    await selectHeaderLocale(page, locale);
     for (const width of [1920, 1024, 768, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await importPackage(page, file, false);

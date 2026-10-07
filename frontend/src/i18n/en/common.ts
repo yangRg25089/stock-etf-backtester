@@ -1,5 +1,6 @@
 export const commonMessages: Record<string, string> = {
   "app.close": "Close",
+  "app.functionalMenu": "Actions menu",
   "app.name": "Stock & ETF Backtester",
   "app.documentTitle": "Stock & ETF Backtester",
   "app.skipToMain": "Skip to main content",
@@ -109,6 +110,10 @@ export const commonMessages: Record<string, string> = {
   "files.readFailed": "Could not process the file.",
   "parameters.execution.capitalGainsTaxEnabled": "Tax realised gains (20%)",
   "parameters.execution.capitalGainsTaxEnabled.help": "Deduct 20% of net gains on each sale; unsold holdings are not taxed.",
-  "theme.blue": "Blue theme · Switch theme",
-  "theme.mint": "Mint theme · Switch theme",
+  "theme.label": "Theme",
+  "theme.classic": "Classic",
+  "theme.burgundy": "Wine",
+  "theme.midnight": "Navy",
+  "theme.blush": "Blush",
+  "theme.forest": "Forest",
 };

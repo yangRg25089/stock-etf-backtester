@@ -1,6 +1,6 @@
 .package-controls { position: relative; }
 .package-actions { display: flex; align-items: center; gap: 6px; }
-.package-action { min-width: 38px; padding: 0 8px; font-size: 11px; white-space: nowrap; }
+.package-action { min-width: 76px; min-height: 32px; padding: 0 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
 .package-action svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .package-action:hover:not(:disabled) { background: var(--app-accent-soft); }
 .package-preview { max-width: 540px; }

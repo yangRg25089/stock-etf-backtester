@@ -62,9 +62,10 @@ test("all permitted results fit a bounded comparison with a sticky header and re
   const saved = await savedRun(page);
   const template = saved.result.strategyRuns[0];
   // Exercise the configured ceiling: ten user strategies plus two benchmarks.
-  const fixed = ["rsi_dca", "ma_deviation_dca", "ma_trend", "ma_buy_only", "bollinger_dca", "rate_dca", "pe_dca", "grid_search"];
+  const fixed = ["rsi_dca", "ma_deviation_dca", "ma_trend", "ma_buy_only", "bollinger_dca", "rate_dca", "grid_search"];
   const extra = [...fixed.map((presetId, index) => ({ ...structuredClone(template), id: `fixed-${index}`, presetId })),
-    { ...structuredClone(template), id: "custom-0", presetId: "composite_dca", instanceNumber: 1 }];
+    { ...structuredClone(template), id: "custom-0", presetId: "composite_dca", instanceNumber: 1 },
+    { ...structuredClone(template), id: "custom-1", presetId: "composite_dca", instanceNumber: 2 }];
   saved.result.strategyRuns = [template, ...extra, ...saved.result.strategyRuns.slice(1)];
   saved.snapshot.config.strategies.push(...extra.map(row => ({ id: row.id, presetId: row.presetId, enabled: true, params: {}, instanceNumber: row.instanceNumber })));
   saved.selectedStrategyIds.push(...extra.map(row => row.id));
@@ -464,42 +465,6 @@ test("sell ratios display percent values, align with thresholds and submit uncha
   await expect(dialog).toBeHidden();
 });
 
-test("shared percentage editors preserve independent buy coverage and sell ratios", async ({ page }) => {
-  let submitted;
-  await page.route("**/api/v1/config/validate", async route => {
-    submitted = route.request().postDataJSON().draft;
-    await route.continue();
-  });
-  await page.goto("/");
-  await page.locator(".add-strategy-button").click();
-  await page.locator('[data-preset-id="pe_dca"]').click();
-  await page.locator(".strategy-card-open").last().click();
-  const dialog = page.locator(".strategy-dialog");
-  const buy = dialog.locator('[data-rule-side="buy"]');
-  const sell = dialog.locator('[data-rule-side="sell"]');
-  const buyCoverage = buy.locator('input[data-parameter-key="pe.etfMinCoverage"]');
-  await expect(buyCoverage).toHaveValue("80");
-  await buyCoverage.fill("85");
-  await sell.locator(".condition-heading").getByRole("switch").click();
-  const sellCoverage = sell.locator('input[data-parameter-key="pe.etfMinCoverage"]');
-  const sellRatio = sell.locator('input[data-parameter-key="exit.ratio"]');
-  await expect(sellCoverage).toHaveValue("80");
-  await expect(sellRatio).toHaveValue("25");
-  await sellCoverage.fill("75");
-  await sellRatio.fill("50");
-  await dialog.locator(".dialog-done").click();
-  await expect(dialog).toBeHidden();
-  const strategy = submitted.strategies.find(item => item.presetId === "pe_dca");
-  expect(strategy.rules.buy.params["pe.etfMinCoverage"]).toBe(0.85);
-  expect(strategy.rules.sell.params["pe.etfMinCoverage"]).toBe(0.75);
-  expect(strategy.rules.sell.params["exit.ratio"]).toBe(0.5);
-  await page.locator(".strategy-card-open").last().click();
-  await expect(buyCoverage).toHaveValue("85");
-  await expect(sellCoverage).toHaveValue("75");
-  await expect(sellRatio).toHaveValue("50");
-  await dialog.locator(".dialog-done").click();
-});
-
 test("exhausted condition kinds disable unusable group creation and restore after removal", async ({ page }) => {
   await page.goto("/");
   const catalog = await (await page.request.get("/api/v1/catalog")).json();
@@ -821,14 +786,13 @@ test("terminal progress remains busy until full result GET without storing resul
   expect(activeRunId).toBe(completeResponse.runId);
   expect(await page.evaluate(() => Object.values(localStorage))).not.toContain(activeRunId);
   await expect(page.locator(".run-submit-button")).toBeDisabled();
-  await expect(page.locator(".run-stop-button")).toBeVisible();
-  await expect(page.locator(".run-stop-button")).toBeDisabled();
+  await expect(page.locator(".run-stop-button")).toHaveCount(0);
   const last = await page.evaluate(() => JSON.parse(localStorage.getItem("stock-etf-backtester.last-run-strategy.v1")));
   expect(Object.keys(last).sort()).toEqual(["catalogVersion", "draft", "savedAt", "schemaVersion"]);
   release();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   expect(await page.evaluate(key => sessionStorage.getItem(key), activeRunSessionKey)).toBeNull();
-  await expect(page.locator(".run-stop-button")).toBeDisabled();
+  await expect(page.locator(".run-stop-button")).toHaveCount(0);
   await expect(page.locator(".chart-overlay polyline.overlay-price")).toBeVisible();
   expect(await page.evaluate(async () => (await indexedDB.databases()).map(item => item.name))).toEqual([]);
 });

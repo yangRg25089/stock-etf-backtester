@@ -163,7 +163,6 @@ def _params(
         "ma.buyEnabled": False,
         "bollinger.buyEnabled": False,
         "rate.buyEnabled": False,
-        "pe.buyEnabled": False,
         "exit.enabled": False,
         "search.dimensions": dimensions,
         "search.maxCombinations": maximum,
@@ -224,7 +223,6 @@ def _snapshot(*, include_vix: bool = True) -> DataSnapshot:
             date=day,
             symbol="QQQ",
             simulationPrice=Decimal("100"),
-            valuationPrice=Decimal("95"),
             currency="USD",
             source="fixture",
             observedAt=datetime.combine(day, datetime.min.time(), UTC),
@@ -333,7 +331,6 @@ def test_search_candidate_matches_ordinary_strategy_and_monthly_dca_benchmark() 
             "ma.buyEnabled": False,
             "bollinger.buyEnabled": False,
             "rate.buyEnabled": False,
-            "pe.buyEnabled": False,
             "exit.enabled": False,
         },
     )

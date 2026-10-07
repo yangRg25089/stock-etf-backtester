@@ -113,11 +113,7 @@ def _response(*, trades: tuple[Trade, ...] = ()) -> RunResponse:
                 endMode="fixed",
             ),
             contribution={"day": 2, "amount": Decimal("100")},
-            data={
-                "macroStalenessSessions": 3,
-                "financialFactMaxAgeDays": 550,
-                "etfHoldingsMaxAgeDays": 180,
-            },
+            data={"macroStalenessSessions": 3},
         ),
         strategies=(ordinary, grid),
     )

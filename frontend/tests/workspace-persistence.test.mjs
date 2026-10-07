@@ -78,16 +78,15 @@ test("malformed or unknown workspace storage falls back to catalog defaults", ()
   assert.deepEqual(restoreWorkspaceState(catalog, storage).state.draft, initial.draft);
 });
 
-test("v12 last-run inputs restore without discarding inputs when analysis is added", () => {
+test("pre-v19 last-run inputs are rejected after the breaking catalog removal", () => {
   const draft = createInitialWorkspaceState(catalog).draft;
   draft.shared.run.symbol = "SPY";
-  delete draft.shared.analysis;
   const storage = new MemoryStorage();
   const key = "stock-etf-backtester.last-run-strategy.v1";
   const saved = JSON.stringify({ schemaVersion: 1, catalogVersion: "catalog-v12", savedAt: "2026-10-04T00:00:00Z", draft });
   storage.setItem(key, saved);
   const restored = restoreWorkspaceState(catalog, storage);
-  assert.equal(restored.state.draft.shared.run.symbol, "SPY");
+  assert.equal(restored.state.draft.shared.run.symbol, "QQQ");
   assert.equal(restored.state.draft.shared.analysis.riskFreeAnnualRatePct, "0");
   assert.equal(restored.state.runResponse, null);
   assert.equal(storage.getItem(key), saved);

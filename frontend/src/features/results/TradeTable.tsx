@@ -25,7 +25,8 @@ export function TradeTable({ locale, status, trades, busy = false, onTradeSelect
   const [sort, setSort] = useState<TableSort<TradeSortKey> | null>(null);
   const scrollId = useId();
   if (!isSuccessfulRunStatus(status)) {
-    return <p className="metric-empty" role="status">{translate(locale, "trade.unavailable")}</p>;
+    return <><h4 className="table-height-controls-title">{translate(locale, "results.tab.trades")}</h4>
+      <p className="metric-empty" role="status">{translate(locale, "trade.unavailable")}</p></>;
   }
   const indexedTrades = trades.map((trade, index) => ({ trade, index }));
   const orderedTrades = sortTableRows(indexedTrades, sort, ({ trade }, key) => {
@@ -73,7 +74,7 @@ export function TradeTable({ locale, status, trades, busy = false, onTradeSelect
     <div className="trade-table-content">
       <div className={`table-height-region trade-table-region${heightExpanded ? " is-height-expanded" : ""}`}>
         <div className="table-height-controls">
-          {heightExpanded && <strong className="table-height-controls-title">{translate(locale, "results.tab.trades")}</strong>}
+          <h4 className="table-height-controls-title">{translate(locale, "results.tab.trades")}</h4>
           <TableExpandButton locale={locale} tableName={translate(locale, "results.tab.trades")}
             controls={scrollId} expanded={heightExpanded} disabled={busy || trades.length === 0}
             onToggle={() => setHeightExpanded(previous => !previous)} />

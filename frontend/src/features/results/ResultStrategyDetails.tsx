@@ -12,7 +12,7 @@ import { savedCandidate, savedEvaluationPhase } from "./savedConfiguration";
 import type { DrawdownLocation } from "./drawdownPresentation";
 import { resultColor } from "./colors";
 
-type ResultTab = "trades" | "performance" | "search";
+type ResultTab = "details" | "search";
 
 interface ResultStrategyDetailsProps {
   busy?: boolean;
@@ -28,9 +28,8 @@ interface ResultStrategyDetailsProps {
 }
 
 const TAB_KEYS: Record<ResultTab, string> = {
-  trades: "results.tab.trades",
+  details: "results.tab.details",
   search: "results.tab.search",
-  performance: "results.tab.performance",
 };
 
 export function ResultStrategyDetails({
@@ -48,15 +47,15 @@ export function ResultStrategyDetails({
   const displayedResult = candidateResult ?? focusedResult;
   const strategyRuns = run?.result?.strategyRuns ?? [];
   const searchAvailable = focusedResult?.presetId === "grid_search" && Boolean(focusedResult.searchResult);
-  const tabs: ResultTab[] = run ? ["trades", "performance"] : [];
+  const tabs: ResultTab[] = run ? ["details"] : [];
   if (searchAvailable) tabs.push("search");
-  const [selectedTab, setSelectedTab] = useState<ResultTab>("trades");
+  const [selectedTab, setSelectedTab] = useState<ResultTab>("details");
   const [expanded, setExpanded] = useState(true);
   const [drawdownLocation, setDrawdownLocation] = useState<(DrawdownLocation & { resultId: string }) | null>(null);
-  const visibleTab = tabs.includes(selectedTab) ? selectedTab : "trades";
+  const visibleTab = tabs.includes(selectedTab) ? selectedTab : "details";
 
   useEffect(() => {
-    if (selectedTab === "search" && !searchAvailable) setSelectedTab("trades");
+    if (selectedTab === "search" && !searchAvailable) setSelectedTab("details");
   }, [searchAvailable, selectedTab]);
 
   if (!run) return null;
@@ -133,8 +132,8 @@ export function ResultStrategyDetails({
           tabIndex={0}
           hidden={visibleTab !== tab}
         >
-          {tab === "trades" && (
-            <section aria-label={translate(locale, "results.tab.trades")}>
+          {tab === "details" && <>
+            <div id="result-panel-trades" className="result-detail-section">
               <TradeTable
                 busy={busy || candidatePending}
                 locale={locale}
@@ -144,15 +143,14 @@ export function ResultStrategyDetails({
                 unexecutedSignals={displayedResult?.unexecutedSignals}
                 onSignalSelect={onSignalSelect}
               />
-            </section>
-          )}
-
-          {tab === "performance" && <>
-            <PerformancePanel locale={locale} result={displayedResult} onEpisodeSelect={peakDate => {
-              if (displayedResult) setDrawdownLocation(previous => ({ resultId: displayedResult.id, peakDate, sequence: (previous?.sequence ?? 0) + 1 }));
-            }} />
-            {displayedResult?.metrics && <TradingCostsPanel locale={locale} currency={displayedResult.metrics.currency} costs={displayedResult.metrics.tradingCosts} />}
-            <PeriodPerformance key={displayedResult?.id} locale={locale} result={displayedResult} busy={busy || candidatePending} location={drawdownLocation?.resultId === displayedResult?.id ? drawdownLocation : null} />
+            </div>
+            <div id="result-panel-performance" className="result-detail-section">
+              <PerformancePanel locale={locale} result={displayedResult} onEpisodeSelect={peakDate => {
+                if (displayedResult) setDrawdownLocation(previous => ({ resultId: displayedResult.id, peakDate, sequence: (previous?.sequence ?? 0) + 1 }));
+              }} />
+              {displayedResult?.metrics && <TradingCostsPanel locale={locale} currency={displayedResult.metrics.currency} costs={displayedResult.metrics.tradingCosts} />}
+              <PeriodPerformance key={displayedResult?.id} locale={locale} result={displayedResult} busy={busy || candidatePending} location={drawdownLocation?.resultId === displayedResult?.id ? drawdownLocation : null} />
+            </div>
           </>}
 
           {tab === "search" && searchAvailable && focusedResult?.searchResult && (

@@ -33,7 +33,6 @@ from .observations import (
     _macro_threshold_evaluation,
     _period_parameter,
     _price_threshold_evaluation,
-    _valuation_threshold_evaluation,
 )
 
 
@@ -171,19 +170,6 @@ def evaluate_leaf(
             ),
             "rate.thresholdPct",
             source_symbol,
-        )
-    elif node.kind is ConditionKind.PE:
-        evaluation = decorate(
-            _valuation_threshold_evaluation(
-                index,
-                leaf_strategy,
-                context,
-                day,
-                threshold=_decimal_parameter(params, "pe.threshold"),
-                signal_id=signal_id,
-                compare=le if is_buy else ge,
-            ),
-            "pe.threshold",
         )
     elif node.kind is ConditionKind.RSI:
         period = _period_parameter(params, "rsi.period")

@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { PerformancePanel } = require("../.test-output/features/results/PerformancePanel.js");
-const { readPackage, packageDraft } = require("../.test-output/features/files/packageModel.js");
+const { readPackage } = require("../.test-output/features/files/packageModel.js");
 const { createInitialWorkspaceState, serializeDraftForApi } = require("../.test-output/features/strategies/model.js");
 
 test("performance reads saved risk-free and metrics, including exact missing reasons", () => {
@@ -59,13 +59,11 @@ test("every saved performance card and calculation basis exposes a localized exp
   }
 });
 
-test("v12 configuration files migrate the new shared default and unknown versions remain rejected", () => {
+test("pre-v19 configuration files are rejected after the breaking catalog removal", () => {
   const draft = createInitialWorkspaceState(catalog).draft;
-  delete draft.shared.analysis;
   const file = { format: "stock-etf-backtester", type: "strategy", schemaVersion: 1, catalogVersion: "catalog-v12",
     exportedAt: "2026-10-04T00:00:00Z", draft };
-  const loaded = readPackage(file, catalog);
-  assert.equal(packageDraft(loaded, catalog).shared.analysis.riskFreeAnnualRatePct, "0");
-  assert.equal(file.draft.shared.analysis, undefined);
+  assert.throws(() => readPackage(file, catalog), /files.incompatibleCatalog/);
+  assert.throws(() => readPackage({ ...file, catalogVersion: "catalog-v18" }, catalog), /files.incompatibleCatalog/);
   assert.throws(() => readPackage({ ...file, catalogVersion: "catalog-v11" }, catalog), /files.incompatibleCatalog/);
 });
