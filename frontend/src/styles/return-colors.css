@@ -1,13 +1,15 @@
 .app-frame[data-return-palette="red-up"] {
   --return-positive: var(--return-red);
   --return-negative: var(--return-green);
+  --return-positive-hs: var(--return-red-hs);
+  --return-negative-hs: var(--return-green-hs);
 }
 
 .return-value.is-positive { color: var(--return-positive); }
 .return-value.is-negative { color: var(--return-negative); }
 
-.heatmap-cell.is-positive { color: var(--app-foreground); background: color-mix(in srgb, var(--return-positive) calc(var(--heatmap-min) + var(--return-intensity, 0) * var(--heatmap-range)), var(--app-surface)); }
-.heatmap-cell.is-negative { color: var(--app-foreground); background: color-mix(in srgb, var(--return-negative) calc(var(--heatmap-min) + var(--return-intensity, 0) * var(--heatmap-range)), var(--app-surface)); }
+.heatmap-cell.is-positive { color: var(--app-foreground); background: hsl(var(--return-positive-hs) calc(var(--heatmap-lightness-start) + var(--return-intensity, 0) * var(--heatmap-lightness-range))); }
+.heatmap-cell.is-negative { color: var(--app-foreground); background: hsl(var(--return-negative-hs) calc(var(--heatmap-lightness-start) + var(--return-intensity, 0) * var(--heatmap-lightness-range))); }
 /* Cap the tint at 12% so return text remains readable at the strongest heat value. */
 .search-heat-cell.is-positive { background: color-mix(in srgb, var(--return-positive) calc(var(--heat-strength) * 40%), var(--app-surface)); }
 .search-heat-cell.is-negative { background: color-mix(in srgb, var(--return-negative) calc(var(--heat-strength) * 40%), var(--app-surface)); }

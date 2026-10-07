@@ -16,8 +16,10 @@ test("one global return convention follows locale until a manual choice and surv
     analysis.annualizedReturn = "-0.04";
     analysis.annualReturns = [{ year: 2024, startDate: "2024-01-01", endDate: "2024-12-31", navReturn: "-0.04", priceReturn: "0.08" }];
     analysis.monthlyReturns = [
-      { year: 2024, month: 1, startDate: "2024-01-01", endDate: "2024-01-31", navReturn: "0.05", priceReturn: "0.08" },
-      { year: 2024, month: 2, startDate: "2024-02-01", endDate: "2024-02-29", navReturn: "-0.04", priceReturn: "-0.06" },
+      { year: 2024, month: 1, startDate: "2024-01-01", endDate: "2024-01-31", navReturn: "0.02", priceReturn: "0.08" },
+      { year: 2024, month: 2, startDate: "2024-02-01", endDate: "2024-02-29", navReturn: "-0.02", priceReturn: "-0.06" },
+      { year: 2024, month: 3, startDate: "2024-03-01", endDate: "2024-03-31", navReturn: "0.08", priceReturn: "0.08" },
+      { year: 2024, month: 4, startDate: "2024-04-01", endDate: "2024-04-30", navReturn: "-0.08", priceReturn: "-0.06" },
     ];
   }
   await openSaved(page, saved);
@@ -42,12 +44,17 @@ test("one global return convention follows locale until a manual choice and surv
   const performance = page.locator("#result-panel-performance");
   const monthlyPositive = performance.locator(".heatmap-cell.is-positive");
   const monthlyNegative = performance.locator("td:not(.heatmap-annual) .heatmap-cell.is-negative");
-  await expect(monthlyPositive).toHaveCSS("background-color", await expectedHeatmapColor(page, GREEN, .05));
-  await expect(monthlyNegative).toHaveCSS("background-color", await expectedHeatmapColor(page, RED, .04));
+  await expect(monthlyPositive.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "positive", .02));
+  await expect(monthlyPositive.nth(1)).toHaveCSS("background-color", await expectedHeatmapColor(page, "positive", .08));
+  await expect(monthlyNegative.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .02));
+  await expect(monthlyNegative.nth(1)).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .08));
+  const lowPositive = await monthlyPositive.first().evaluate(cell => getComputedStyle(cell).backgroundColor);
+  const highPositive = await monthlyPositive.nth(1).evaluate(cell => getComputedStyle(cell).backgroundColor);
+  expect(lowPositive).not.toBe(highPositive);
   await expect(performance.locator(".performance-stat .return-value.is-negative")).toHaveCSS("color", RED);
-  await expect(performance.locator(".heatmap-annual .heatmap-cell.is-negative")).toHaveCSS("background-color", await expectedHeatmapColor(page, RED, .04, true));
-  await expect(performance.locator(".heatmap-annual .heatmap-cell.is-negative").first()).toHaveCSS("background-color", await expectedHeatmapColor(page, RED, .04, true));
-  await monthlyNegative.hover();
+  await expect(performance.locator(".heatmap-annual .heatmap-cell.is-negative")).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .04, true));
+  await expect(performance.locator(".heatmap-annual .heatmap-cell.is-negative").first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .04, true));
+  await monthlyNegative.first().hover();
   await expect(performance.locator(".heatmap-detail .return-value.is-negative")).toHaveCSS("color", RED);
   await expect(performance.locator(".return-color-control")).toHaveCount(0);
 
@@ -55,7 +62,7 @@ test("one global return convention follows locale until a manual choice and surv
   await expect(frame).toHaveAttribute("data-return-palette", "red-up");
   await expect(positive).toHaveCSS("color", RED);
   await expect(chartReturn).toHaveCSS("color", RED);
-  await expect(monthlyNegative).toHaveCSS("background-color", await expectedHeatmapColor(page, GREEN, .04));
+  await expect(monthlyNegative.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .02));
   await locale.selectOption("en");
   await expect(frame).toHaveAttribute("data-return-palette", "green-up");
   await control.getByRole("button", { name: "Gains red, losses green" }).click();
@@ -63,11 +70,11 @@ test("one global return convention follows locale until a manual choice and surv
   await expect(positive).toHaveCSS("color", RED);
   await expect(chartReturn).toHaveCSS("color", RED);
   await expect(performance.locator(".performance-stat .return-value.is-negative")).toHaveCSS("color", GREEN);
-  await expect(performance.locator(".heatmap-annual .heatmap-cell.is-negative").first()).toHaveCSS("background-color", await expectedHeatmapColor(page, GREEN, .04, true));
-  await expect(monthlyNegative).toHaveCSS("background-color", await expectedHeatmapColor(page, GREEN, .04));
+  await expect(performance.locator(".heatmap-annual .heatmap-cell.is-negative").first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .04, true));
+  await expect(monthlyNegative.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .02));
   await page.locator(".comparison-table .result-select").nth(1).click();
   await expect(frame).toHaveAttribute("data-return-palette", "red-up");
-  await expect(monthlyPositive).toHaveCSS("background-color", await expectedHeatmapColor(page, RED, .05));
+  await expect(monthlyPositive.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "positive", .02));
   await locale.selectOption("ja");
   await expect(frame).toHaveAttribute("data-return-palette", "red-up");
   expect(await page.locator(".comparison-table .return-value").allTextContents()).toEqual(comparisonValues);
@@ -78,8 +85,8 @@ test("one global return convention follows locale until a manual choice and surv
   await expect(control.getByRole("button", { name: "上昇は赤、下落は緑" })).toHaveAttribute("aria-pressed", "true");
   await expect(positive).toHaveCSS("color", RED);
   await expect(page.locator("#result-panel-performance")).toBeVisible();
-  await expect(monthlyPositive).toHaveCSS("background-color", await expectedHeatmapColor(page, RED, .05));
-  await expect(monthlyNegative).toHaveCSS("background-color", await expectedHeatmapColor(page, GREEN, .04));
+  await expect(monthlyPositive.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "positive", .02));
+  await expect(monthlyNegative.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .02));
   for (const choice of ["上昇は緑、下落は赤", "上昇は赤、下落は緑"]) {
     await control.getByRole("button", { name: choice }).click();
     const axe = await new AxeBuilder({ page }).analyze();

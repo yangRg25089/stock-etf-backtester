@@ -112,6 +112,5 @@ export const commonMessages: Record<string, string> = {
   "parameters.execution.capitalGainsTaxEnabled.help": "Deduct 20% of net gains on each sale; unsold holdings are not taxed.",
   "theme.toLight": "Switch to Light",
   "theme.toDark": "Switch to Dark",
-  "theme.auto": "Follow system appearance",
   "theme.label": "Appearance",
 };

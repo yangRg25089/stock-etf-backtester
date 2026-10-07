@@ -46,12 +46,16 @@ test("appearance defaults to system, ignores legacy palettes and works without s
       globalThis.localStorage = { getItem: () => stored };
       const html = renderToStaticMarkup(React.createElement(ThemeControl, { locale: "en" }));
       assert.doesNotMatch(html, /<select|<option|theme-select/);
-      assert.equal((html.match(/<button/g) ?? []).length, 2);
-      assert.match(html, new RegExp(`aria-pressed="${stored === "dark" || stored === "light" ? "false" : "true"}"`));
-      assert.match(html, />Auto<\/button>/);
+      assert.equal((html.match(/<button/g) ?? []).length, 1);
+      assert.match(html, new RegExp(`aria-label="${stored === "dark" ? "Switch to Light" : "Switch to Dark"}"`));
+      assert.doesNotMatch(html, />Auto<\/button>/);
     }
     globalThis.localStorage = { getItem() { throw new Error("blocked"); } };
-    for (const locale of ["ja", "zh", "en"]) assert.match(renderToStaticMarkup(React.createElement(ThemeControl, { locale })), /aria-pressed="true"/);
+    for (const locale of ["ja", "zh", "en"]) {
+      const html = renderToStaticMarkup(React.createElement(ThemeControl, { locale }));
+      assert.equal((html.match(/<button/g) ?? []).length, 1);
+      assert.doesNotMatch(html, />Auto<\/button>/);
+    }
   } finally { if (previous === undefined) delete globalThis.localStorage; else globalThis.localStorage = previous; }
 });
 

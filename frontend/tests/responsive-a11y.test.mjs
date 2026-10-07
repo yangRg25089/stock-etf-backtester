@@ -141,9 +141,16 @@ test("all returns share the monthly red/green tokens with readable contrast", ()
   assert.match(css, /--return-red:\s*#b71c1c/);
   assert.match(css, /--return-green:\s*#087443/);
   assert.match(blockFor('.app-frame[data-return-palette="red-up"]'), /--return-positive:\s*var\(--return-red\)/);
-  assert.match(positive, /var\(--return-positive\)/);
+  assert.match(css, /--return-red-hs:\s*0 73%/);
+  assert.match(css, /--return-green-hs:\s*150 87%/);
+  assert.match(blockFor('.app-frame[data-return-palette="red-up"]'), /--return-positive-hs:\s*var\(--return-red-hs\)/);
+  assert.match(positive, /hsl\(var\(--return-positive-hs\)/);
+  assert.match(positive, /var\(--heatmap-lightness-range\)/);
   assert.match(positive, /color:\s*var\(--app-foreground\)/);
-  assert.match(negative, /var\(--return-negative\)/);
+  assert.match(negative, /hsl\(var\(--return-negative-hs\)/);
+  assert.match(negative, /var\(--heatmap-lightness-range\)/);
+  assert.doesNotMatch(positive, /color-mix/);
+  assert.doesNotMatch(negative, /color-mix/);
   assert.match(negative, /color:\s*var\(--app-foreground\)/);
   assert.match(blockFor(".return-value.is-positive"), /color:\s*var\(--return-positive\)/);
   assert.match(blockFor(".return-value.is-negative"), /color:\s*var\(--return-negative\)/);

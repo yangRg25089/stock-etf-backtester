@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { renderToStaticMarkup: render } = require('react-dom/server');
 const { resolveAppearance, effectiveAppearance } = require('../.test-output/shared/ui/themes.js');
+const { ThemeControl } = require('../.test-output/shared/ui/ThemeControl.js');
 const { TradingCostsPanel } = require('../.test-output/features/results/TradingCostsPanel.js');
 const { TradeTable } = require('../.test-output/features/results/TradeTable.js');
 const { ResultStrategyDetails } = require('../.test-output/features/results/ResultStrategyDetails.js');
@@ -14,6 +15,12 @@ test('new appearance preferences ignore legacy palettes and resolve system indep
   assert.equal(resolveAppearance('dark'), 'dark');
   assert.equal(effectiveAppearance('system', true), 'dark');
   assert.equal(effectiveAppearance('light', true), 'light');
+});
+test('appearance follows the system implicitly and offers only one manual theme toggle', () => {
+  const html = render(React.createElement(ThemeControl, { locale: 'en' }));
+  assert.equal((html.match(/<button\b/g) ?? []).length, 1);
+  assert.match(html, /appearance-toggle/);
+  assert.doesNotMatch(html, />Auto</);
 });
 test('complete zero costs disappear but unknown and nonzero saved costs stay visible', () => {
   assert.equal(render(React.createElement(TradingCostsPanel, {locale:'zh', costs})), '');

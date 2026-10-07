@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
@@ -9,6 +10,10 @@ const { ReturnPercent } = require("../.test-output/features/results/ReturnPercen
 const { returnTone } = require("../.test-output/features/results/returnTone.js");
 const { MonthlyHeatmap } = require("../.test-output/features/results/MonthlyHeatmap.js");
 const { PeriodPerformance } = require("../.test-output/features/results/PeriodPerformance.js");
+const { heatmapCellColor } = require("../.test-output/features/results/heatmapIntensity.js");
+
+const heatmapCss = readFileSync(new URL("../src/styles/return-colors.css", import.meta.url), "utf8");
+const themeTokens = readFileSync(new URL("../src/styles/tokens.css", import.meta.url), "utf8");
 
 test("return direction preserves Decimal signs, treats negative zero as neutral and excludes invalid values", () => {
   for (const value of ["1e-1000", "0.01", 1]) assert.equal(returnTone(value), "positive");
@@ -36,6 +41,17 @@ test("monthly returns inherit the global convention without retaining a local pr
   const html = renderToStaticMarkup(React.createElement(MonthlyHeatmap, { locale: "zh", values }));
   for (const tone of ["positive", "negative", "neutral", "missing"]) assert.match(html, new RegExp(`heatmap-cell is-${tone}`));
   assert.doesNotMatch(html, /palette-option|palette-toggle|is-red-up|is-green-up/);
+});
+
+test("monthly return heatmaps preserve red/green saturation and vary only lightness", () => {
+  assert.equal(heatmapCellColor("150 87%", .25, 88, -12), "hsl(150 87% 85%)");
+  assert.equal(heatmapCellColor("150 87%", .75, 88, -12), "hsl(150 87% 79%)");
+  assert.equal(heatmapCellColor("0 73%", .75, 88, -12), "hsl(0 73% 79%)");
+  assert.match(heatmapCss, /\.heatmap-cell\.is-positive\s*\{[^}]*background:\s*hsl\(var\(--return-positive-hs\)/s);
+  assert.match(heatmapCss, /\.heatmap-cell\.is-negative\s*\{[^}]*background:\s*hsl\(var\(--return-negative-hs\)/s);
+  assert.doesNotMatch(heatmapCss, /\.heatmap-cell\.is-(?:positive|negative)\s*\{[^}]*color-mix/s);
+  assert.match(themeTokens, /--return-red-hs:\s*0 73%/);
+  assert.match(themeTokens, /--return-green-hs:\s*150 87%/);
 });
 
 test("period performance keeps named scroll regions and headings without duplicate outer landmarks", () => {

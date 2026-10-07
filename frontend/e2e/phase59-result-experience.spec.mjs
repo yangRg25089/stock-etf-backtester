@@ -127,13 +127,21 @@ test("tax defaults off and applies only on submission; sale taxes, totals and fr
 });
 
 for (const locale of ["ja", "zh", "en"]) test(`visible file actions, compact execution controls, theme persistence, branding and footer work in ${locale} and responsive sizes`, async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.addInitScript(() => {
+    const cleared = "stock-etf-backtester.test-appearance-cleared";
+    if (!sessionStorage.getItem(cleared)) {
+      localStorage.removeItem("stock-etf-backtester.appearance.v2");
+      sessionStorage.setItem(cleared, "true");
+    }
+  });
   await openSaved(page, await savedRun(page));
   await expect(page.locator(".package-menu, .package-actions details")).toHaveCount(0);
   await expect(page.locator(".package-actions button")).toHaveCount(2);
   await expect(page.locator(".execution-actions > button")).toHaveCount(2);
   await expect(page.locator(".run-stop-button")).toHaveCount(0);
   await expect(page.locator(".package-actions button span")).toHaveText(["export", "import"]);
-  await expect(page.locator(".appearance-controls button")).toHaveCount(2);
+  await expect(page.locator(".appearance-controls button")).toHaveCount(1);
   await expect(page.locator(".brand-mark")).toHaveAttribute("src", "/brand.svg");
   await expect(page.locator(".app-footer")).toContainText("MIT");
   for (const theme of ["dark", "light"]) {
@@ -166,5 +174,7 @@ for (const locale of ["ja", "zh", "en"]) test(`visible file actions, compact exe
     }
   }
   await page.reload(); await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await page.locator(".appearance-controls button").last().click(); await expect(page.locator("html")).toHaveAttribute("data-appearance", "system");
+  expect(await page.evaluate(() => localStorage.getItem("stock-etf-backtester.appearance.v2"))).toBe("light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });

@@ -112,6 +112,5 @@ export const commonMessages: Record<string, string> = {
   "parameters.execution.capitalGainsTaxEnabled.help": "每次卖出净盈利扣20%，未卖持仓不扣税。",
   "theme.toLight": "切换为 Light",
   "theme.toDark": "切换为 Dark",
-  "theme.auto": "跟随系统外观",
   "theme.label": "外观",
 };

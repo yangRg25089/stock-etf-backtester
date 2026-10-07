@@ -583,7 +583,6 @@
 
 .appearance-controls { display: inline-flex; gap: 4px; align-items: center; }
 .appearance-controls .button { min-width: 36px; padding: 4px 8px; }
-.appearance-controls [aria-pressed="true"] { border: 2px solid var(--app-accent); font-weight: 750; }
 .appearance-toggle { font-size: 18px; }
 .trade-reason small { display: block; color: var(--app-muted); font-size: 11px; margin-top: 2px; }
 .trade-table tbody tr.is-buy { background: color-mix(in srgb, #5f9be5 9%, var(--app-surface)); }

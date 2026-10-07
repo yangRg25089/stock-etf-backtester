@@ -112,6 +112,5 @@ export const commonMessages: Record<string, string> = {
   "parameters.execution.capitalGainsTaxEnabled.help": "売却した利益から20%を控除。未売却の保有分は対象外。",
   "theme.toLight": "Light に切り替え",
   "theme.toDark": "Dark に切り替え",
-  "theme.auto": "システムの外観に従う",
   "theme.label": "外観",
 };

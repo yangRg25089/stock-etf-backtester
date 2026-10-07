@@ -1,11 +1,15 @@
 :root {
   color-scheme: light;
-  --heatmap-min: 10%;
-  --heatmap-range: 32%;
   --return-red: #b71c1c;
   --return-green: #087443;
+  --return-red-hs: 0 73%;
+  --return-green-hs: 150 87%;
   --return-positive: var(--return-green);
   --return-negative: var(--return-red);
+  --return-positive-hs: var(--return-green-hs);
+  --return-negative-hs: var(--return-red-hs);
+  --heatmap-lightness-start: 88%;
+  --heatmap-lightness-range: -12%;
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", sans-serif;
   color: var(--app-foreground);
   background: var(--app-bg);
@@ -64,8 +68,10 @@
   --app-error-text: #ffd8da;
   --return-red: #ffa5a5;
   --return-green: #8bdfb1;
-  --heatmap-min: 10%;
-  --heatmap-range: 25%;
+  --return-red-hs: 0 100%;
+  --return-green-hs: 146 55%;
+  --heatmap-lightness-start: 18%;
+  --heatmap-lightness-range: 12%;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
@@ -91,7 +97,9 @@
   --app-error-text: #ffd8da;
   --return-red: #ffa5a5;
   --return-green: #8bdfb1;
-  --heatmap-min: 10%;
-  --heatmap-range: 25%;
+  --return-red-hs: 0 100%;
+  --return-green-hs: 146 55%;
+  --heatmap-lightness-start: 18%;
+  --heatmap-lightness-range: 12%;
   }
 }

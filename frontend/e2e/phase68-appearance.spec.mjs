@@ -3,16 +3,30 @@ import AxeBuilder from '@axe-core/playwright';
 import { savedRun, openSaved } from './helpers/reports.mjs';
 import { installRunFixture, openTopbarMenu } from './helpers/runtime.mjs';
 
-test('system appearance follows OS, manual mode persists and Auto restores it', async ({page}) => {
+test('system appearance follows OS until a manual theme is saved; no Auto control is shown', async ({page}) => {
   await page.emulateMedia({colorScheme:'dark'});
-  await page.addInitScript(()=>localStorage.setItem('stock-etf-backtester.theme.v1','forest'));
+  await page.addInitScript(()=>{
+    const cleared='stock-etf-backtester.test-appearance-cleared';
+    if(!sessionStorage.getItem(cleared)) {
+      localStorage.removeItem('stock-etf-backtester.appearance.v2');
+      localStorage.setItem('stock-etf-backtester.theme.v1','forest');
+      sessionStorage.setItem(cleared,'true');
+    }
+  });
   const saved=await savedRun(page);
   await openSaved(page,saved);
+  await expect(page.locator('html')).toHaveAttribute('data-appearance','system');
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await expect(page.locator('.theme-select')).toHaveCount(0);
+  await expect(page.locator('.appearance-controls button')).toHaveCount(1);
+  await expect(page.getByRole('button',{name:'Follow system appearance'})).toHaveCount(0);
   await page.emulateMedia({colorScheme:'light'});
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   await page.locator('.appearance-toggle').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('stock-etf-backtester.appearance.v2'))).toBe('dark');
+  await page.emulateMedia({colorScheme:'light'});
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await installRunFixture(page,saved);
   await page.reload();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
@@ -28,10 +42,8 @@ test('system appearance follows OS, manual mode persists and Auto restores it', 
     await page.screenshot({path:test.info().outputPath(theme+'.png')});
   }
   await openTopbarMenu(page);
-  await page.locator('.appearance-controls button').last().click();
-  await expect(page.locator('html')).toHaveAttribute('data-appearance','system');
-  await page.emulateMedia({colorScheme:'dark'});
-  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect(page.locator('.appearance-controls button')).toHaveCount(1);
+  await expect(page.getByText('Auto',{exact:true})).toHaveCount(0);
 });
 
 test('direct details end in saved fill assets; zero costs and tax disappear, missing values remain explicit',async({page})=>{

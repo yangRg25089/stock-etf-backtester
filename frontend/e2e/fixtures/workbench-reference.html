@@ -15,6 +15,12 @@
       --action-text: #192d52;
       --return-positive: #087443;
       --return-negative: #b71c1c;
+      --return-green-hs: 150 87%;
+      --return-red-hs: 0 73%;
+      --return-positive-hs: var(--return-green-hs);
+      --return-negative-hs: var(--return-red-hs);
+      --heatmap-lightness-start: 88%;
+      --heatmap-lightness-range: -12%;
       color: var(--text);
       background: var(--bg);
       border: 1px solid var(--border);
@@ -78,7 +84,7 @@
 
 
     #backtest-ui-preview .locale-select { min-width: 100px; padding: 5px 8px; font-size: 12px; }
-    #backtest-ui-preview[data-return-palette="red-up"] { --return-positive: #b71c1c; --return-negative: #087443; }
+    #backtest-ui-preview[data-return-palette="red-up"] { --return-positive: #b71c1c; --return-negative: #087443; --return-positive-hs: var(--return-red-hs); --return-negative-hs: var(--return-green-hs); }
     #backtest-ui-preview .return-value.is-positive { color: var(--return-positive); }
     #backtest-ui-preview .return-value.is-negative { color: var(--return-negative); }
     #backtest-ui-preview .return-color-control { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 5px; }
@@ -151,8 +157,8 @@
     #backtest-ui-preview .heatmap-annual { border-inline-start: 2px solid var(--accent); border-inline-end: 2px solid var(--accent); background: var(--accent-soft); font-weight: 700; }
     #backtest-ui-preview .heatmap-table td { padding: 3px; text-align: center; }
     #backtest-ui-preview .heatmap-cell { width: 100%; padding: 4px 2px; font-size: 11px; min-height: 38px; border-color: transparent; }
-    #backtest-ui-preview .heatmap-cell.is-positive { color: #fff; background: var(--return-positive); }
-    #backtest-ui-preview .heatmap-cell.is-negative { color: #fff; background: var(--return-negative); }
+    #backtest-ui-preview .heatmap-cell.is-positive { color: var(--text); background: hsl(var(--return-positive-hs) calc(var(--heatmap-lightness-start) + var(--return-intensity, 0) * var(--heatmap-lightness-range))); }
+    #backtest-ui-preview .heatmap-cell.is-negative { color: var(--text); background: hsl(var(--return-negative-hs) calc(var(--heatmap-lightness-start) + var(--return-intensity, 0) * var(--heatmap-lightness-range))); }
     #backtest-ui-preview .heatmap-cell.is-inspected { outline: 2px solid var(--accent); outline-offset: -2px; }
     #backtest-ui-preview .heatmap-detail { color: var(--muted); font-size: 12px; }
 
@@ -424,7 +430,7 @@
     <div class="topbar-functions" id="prototype-topbar-functions">
     <div class="topbar-right">
       <div class="package-actions" role="group" aria-label="戦略ファイル"><button class="icon-button" type="button" aria-label="戦略JSONをダウンロード" title="戦略JSONをダウンロード">export</button><button class="icon-button" type="button" aria-label="戦略JSONを読み込む" title="戦略JSONを読み込む">import</button></div>
-      <div class="topbar-setting"><span class="topbar-setting-label">テーマ</span><div class="appearance-controls"><button class="appearance-toggle" type="button" aria-label="外観切り替え">☀ / ☾</button><button class="appearance-auto" type="button" aria-pressed="true">Auto</button></div></div>
+      <div class="topbar-setting"><span class="topbar-setting-label">テーマ</span><div class="appearance-controls"><button class="appearance-toggle" type="button" aria-label="外観切り替え">☀ / ☾</button></div></div>
       <div class="topbar-setting"><span class="topbar-setting-label">リターンの色</span><div class="return-color-control" role="group" aria-label="リターンの色"><button type="button" data-return-palette="red-up" aria-pressed="false" aria-label="上昇は赤、下落は緑"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button><button type="button" data-return-palette="green-up" aria-pressed="true" aria-label="上昇は緑、下落は赤"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button></div></div>
       <div class="topbar-setting"><span class="topbar-setting-label">表示言語</span><label class="locale-select-control"><span class="sr-only">表示言語</span><select class="locale-select"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label></div>
     </div>
@@ -519,7 +525,7 @@
               </dl><h4>回復期間</h4><dl class="performance-grid"><div class="performance-stat" tabindex="0" title="ピークから回復または最終日までの日数。"><dt>最長ドローダウン期間</dt><dd>500 日</dd></div><div class="performance-stat" tabindex="0" title="最深下落の底から元のピークを回復するまで。"><dt>最大下落からの回復</dt><dd>216 日</dd></div></dl>
               <h4>売買・現金</h4><dl class="performance-grid"><div class="performance-stat" tabindex="0" title="実際の買付約定の件数。"><dt>買付回数</dt><dd>42</dd></div><div class="performance-stat" tabindex="0" title="実際の売却約定の件数。"><dt>売却回数</dt><dd>0</dd></div><div class="performance-stat" tabindex="0" title="買付・売却の総代金 / 注資後の平均総資産。"><dt>総売買回転率</dt><dd>96.2%</dd></div><div class="performance-stat" tabindex="0" title="総資産が正の日の現金比率の平均。"><dt>平均現金比率</dt><dd>8.4%</dd></div></dl>
               <section class="trading-costs-panel"><h4>取引コスト</h4><dl class="performance-grid"><div class="trading-cost-stat"><dt>手数料</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>スリッページ損失</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>スプレッド損失</dt><dd>$0.00</dd></div><div class="trading-cost-stat"><dt>コスト合計</dt><dd>$0.00</dd></div></dl></section>
-              <div class="performance-group-heading"><h4>月次リターン</h4><button type="button" class="table-expand-button" data-table-height-toggle="月次リターン" aria-label="月次リターンを全行表示" aria-expanded="false" aria-controls="prototype-monthly-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><div id="prototype-monthly-scroll" class="period-table-scroll" tabindex="0" role="region" aria-label="月次リターン"><table class="heatmap-table"><caption class="sr-only">月次リターン</caption><thead><tr><th scope="col">年</th><th scope="col">1月</th><th scope="col">2月</th><th scope="col">3月</th><th scope="col">4月</th><th scope="col">5月</th><th scope="col">6月</th><th scope="col">7月</th><th scope="col">8月</th><th scope="col">9月</th><th scope="col">10月</th><th scope="col">11月</th><th scope="col">12月</th><th scope="col" class="heatmap-annual">年計</th></tr></thead><tbody><tr><th scope="row">2024</th><td><button class="heatmap-cell is-positive" type="button" aria-label="2024-01 · 2.12%" title="2024-01 · 2.1234%">+2.12%</button></td><td><button class="heatmap-cell is-negative" type="button" aria-label="2024-02 · -1.23%" title="2024-02 · -1.2345%">-1.23%</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><button class="heatmap-cell is-positive heatmap-annual" type="button" aria-label="2024 年次リターン +12.4%" title="2024 · +12.4%">+12.4%</button></td></tr></tbody></table></div><p class="heatmap-detail" role="status">セルを選ぶと保存値を表示します。</p>
+              <div class="performance-group-heading"><h4>月次リターン</h4><button type="button" class="table-expand-button" data-table-height-toggle="月次リターン" aria-label="月次リターンを全行表示" aria-expanded="false" aria-controls="prototype-monthly-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><div id="prototype-monthly-scroll" class="period-table-scroll" tabindex="0" role="region" aria-label="月次リターン"><table class="heatmap-table"><caption class="sr-only">月次リターン</caption><thead><tr><th scope="col">年</th><th scope="col">1月</th><th scope="col">2月</th><th scope="col">3月</th><th scope="col">4月</th><th scope="col">5月</th><th scope="col">6月</th><th scope="col">7月</th><th scope="col">8月</th><th scope="col">9月</th><th scope="col">10月</th><th scope="col">11月</th><th scope="col">12月</th><th scope="col" class="heatmap-annual">年計</th></tr></thead><tbody><tr><th scope="row">2024</th><td><button class="heatmap-cell is-positive" style="--return-intensity:0.21234" type="button" aria-label="2024-01 · 2.12%" title="2024-01 · 2.1234%">+2.12%</button></td><td><button class="heatmap-cell is-negative" style="--return-intensity:0.12345" type="button" aria-label="2024-02 · -1.23%" title="2024-02 · -1.2345%">-1.23%</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><button class="heatmap-cell is-positive heatmap-annual" style="--return-intensity:0.31" type="button" aria-label="2024 年次リターン +12.4%" title="2024 · +12.4%">+12.4%</button></td></tr></tbody></table></div><p class="heatmap-detail" role="status">セルを選ぶと保存値を表示します。</p>
               <h4>ドローダウン区間</h4><div class="period-table-scroll" tabindex="0" role="region" aria-label="ドローダウン区間"><table class="drawdown-episodes-table"><caption class="sr-only">ドローダウン区間</caption><thead><tr><th scope="col">ピーク</th><th scope="col">底</th><th scope="col">下落率</th><th scope="col">回復日</th><th scope="col">期間</th><th scope="col">回復</th></tr></thead><tbody><tr><th scope="row">2024-07-01</th><td>2024-08-05</td><td>-12.3%</td><td>未回復</td><td title="2024-12-31">183 日</td><td>—</td></tr></tbody></table></div>
             </section>
             </div>
@@ -699,14 +705,17 @@
         root.querySelectorAll(".mobile-views button").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
       }));
       const systemAppearance = matchMedia('(prefers-color-scheme: dark)');
-      let appearance = 'system';
+      let appearance = ['light', 'dark'].includes(localStorage.getItem('stock-etf-backtester.appearance.v2'))
+        ? localStorage.getItem('stock-etf-backtester.appearance.v2') : 'system';
       const applyAppearance = () => {
         const dark = appearance === 'dark' || (appearance === 'system' && systemAppearance.matches);
         root.dataset.appearance = dark ? 'dark' : 'light';
-        root.querySelector('.appearance-auto').setAttribute('aria-pressed', String(appearance === 'system'));
       };
-      root.querySelector('.appearance-toggle').addEventListener('click', () => { appearance = root.dataset.appearance === 'dark' ? 'light' : 'dark'; applyAppearance(); });
-      root.querySelector('.appearance-auto').addEventListener('click', () => { appearance = 'system'; applyAppearance(); });
+      root.querySelector('.appearance-toggle').addEventListener('click', () => {
+        appearance = root.dataset.appearance === 'dark' ? 'light' : 'dark';
+        try { localStorage.setItem('stock-etf-backtester.appearance.v2', appearance); } catch {}
+        applyAppearance();
+      });
       systemAppearance.addEventListener('change', applyAppearance);
       applyAppearance();
       let returnColorManual = false;

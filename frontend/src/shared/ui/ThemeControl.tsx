@@ -26,6 +26,5 @@ export function ThemeControl({ locale }: { locale: Locale }) {
   return <div className="appearance-controls" role="group" aria-label={translate(locale, "theme.label")}>
     <button type="button" className="button button-secondary appearance-toggle" aria-label={translate(locale, current === "dark" ? "theme.toLight" : "theme.toDark")}
       title={current === "dark" ? "Light" : "Dark"} onClick={() => select(current === "dark" ? "light" : "dark")}><span aria-hidden="true">{current === "dark" ? "☀" : "☾"}</span></button>
-    <button type="button" className="button button-secondary" aria-pressed={mode === "system"} aria-label={translate(locale, "theme.auto")} onClick={() => select("system")}>Auto</button>
   </div>;
 }
