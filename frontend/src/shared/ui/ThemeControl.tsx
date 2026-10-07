@@ -1,22 +1,20 @@
 import { useEffect, useState } from "react";
 import { translate, type Locale } from "../../i18n/messages";
+import { DEFAULT_THEME, resolveTheme, THEMES, THEME_STORAGE_KEY, type Theme } from "./themes";
 
-type Theme = "blue" | "mint";
-const STORAGE_KEY = "stock-etf-backtester.theme.v1";
 function initialTheme(): Theme {
-  try { return localStorage.getItem(STORAGE_KEY) === "mint" ? "mint" : "blue"; }
-  catch { return "blue"; }
+  try { return resolveTheme(localStorage.getItem(THEME_STORAGE_KEY)); }
+  catch { return DEFAULT_THEME; }
 }
 export function ThemeControl({ locale }: { locale: Locale }) {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
-  return <button type="button" className="button icon-only-button theme-control" aria-label={translate(locale, `theme.${theme}`)}
-    title={translate(locale, `theme.${theme}`)} aria-pressed={theme === "mint"}
-    onClick={() => {
-      const next = theme === "blue" ? "mint" : "blue";
+  return <select className="theme-select" aria-label={translate(locale, "theme.label")} value={theme}
+    onChange={event => {
+      const next = resolveTheme(event.target.value);
       setTheme(next);
-      try { localStorage.setItem(STORAGE_KEY, next); } catch { /* The selected theme still works for this session. */ }
+      try { localStorage.setItem(THEME_STORAGE_KEY, next); } catch { /* The selected theme still works for this session. */ }
     }}>
-    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M10 2.5a7.5 7.5 0 0 0 0 15Z" fill="currentColor" /></svg>
-  </button>;
+    {THEMES.map(option => <option key={option.id} value={option.id}>{translate(locale, `theme.${option.id}`)}</option>)}
+  </select>;
 }

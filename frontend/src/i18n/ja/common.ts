@@ -109,6 +109,10 @@ export const commonMessages: Record<string, string> = {
   "files.readFailed": "ファイルを処理できませんでした。",
   "parameters.execution.capitalGainsTaxEnabled": "売却益への簡易課税（20%）",
   "parameters.execution.capitalGainsTaxEnabled.help": "売却した利益から20%を控除。未売却の保有分は対象外。",
-  "theme.blue": "ブルー · テーマ切替",
-  "theme.mint": "ミント · テーマ切替",
+  "theme.label": "テーマ",
+  "theme.classic": "Classic",
+  "theme.burgundy": "Wine",
+  "theme.midnight": "Navy",
+  "theme.blush": "Blush",
+  "theme.forest": "Forest",
 };

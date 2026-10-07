@@ -4,15 +4,15 @@
     #backtest-ui-preview {
       box-sizing: border-box;
       position: relative;
-      --bg: #def5e5;
+      --bg: #f3f5f9;
       --surface: #fff;
-      --text: #173d32;
-      --muted: #35594c;
-      --border: #bcead5;
-      --accent: #25644f;
-      --accent-soft: #def5e5;
-      --action: #9ed5c5;
-      --action-text: #173d32;
+      --text: #253c6d;
+      --muted: #455b8a;
+      --border: #d4dbea;
+      --accent: #30497d;
+      --accent-soft: #eaf0fa;
+      --action: #f2842f;
+      --action-text: #192d52;
       --return-positive: #087443;
       --return-negative: #b71c1c;
       color: var(--text);
@@ -105,11 +105,11 @@
     #backtest-ui-preview .strategy-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 6px; padding: 7px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
     #backtest-ui-preview .strategy-card-list { padding: 4px; }
     #backtest-ui-preview .strategy-card { margin-inline-start: 8px; transform-origin: right center; transition: margin-inline-start 160ms ease-out, transform 160ms ease-out, background-color 160ms ease-out, box-shadow 160ms ease-out; }
-    #backtest-ui-preview .strategy-card.is-active { z-index: 1; margin-inline-start: 0; transform: scale(1.015); background: #bcead5; border-color: #8ec3b0; box-shadow: inset 3px 0 0 var(--accent), 0 2px 8px #173d3220; }
-    #backtest-ui-preview .strategy-card:has(.strategy-card-open:hover) { background: #bcead5; }
+    #backtest-ui-preview .strategy-card.is-active { z-index: 1; margin-inline-start: 0; transform: scale(1.015); background: #eaf0fa; border-color: #8b9abb; box-shadow: inset 3px 0 0 var(--accent), 0 2px 8px #253c6d20; }
+    #backtest-ui-preview .strategy-card:has(.strategy-card-open:hover) { background: #eaf0fa; }
     #backtest-ui-preview .strategy-card-open { display: grid; min-width: 0; padding: 0; text-align: left; background: transparent; border: 0; }
     #backtest-ui-preview .strategy-card.is-active .strategy-card-open,
-    #backtest-ui-preview .strategy-card-open:hover { background: #bcead5; }
+    #backtest-ui-preview .strategy-card-open:hover { background: #eaf0fa; }
     #backtest-ui-preview .strategy-card-name { font-weight: 650; }
     #backtest-ui-preview .strategy-card-summary { margin-top: 2px; color: var(--muted); font-size: 12px; }
     #backtest-ui-preview .strategy-actions { position: absolute; top: 3px; right: 4px; display: flex; align-items: center; gap: 5px; padding: 3px; background: var(--surface); border-radius: 6px; box-shadow: 0 2px 8px #253c6d20; opacity: 0; pointer-events: none; }
@@ -345,6 +345,21 @@
       #backtest-ui-preview .locale-select-control { grid-area: locale; }
       #backtest-ui-preview .inspector-values { grid-template-columns: 1fr; }
     }
+
+    #backtest-ui-preview .execution-actions .icon-button { width: 48px; min-width: 48px; min-height: 32px; }
+    #backtest-ui-preview .package-actions .icon-button { width: 70px; min-height: 32px; font-size: 12px; }
+    #backtest-ui-preview .theme-select { width: 100px; min-width: 0; font-size: 12px; }
+    #backtest-ui-preview .detail-section + .detail-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+    @media (max-width: 767px) {
+      #backtest-ui-preview .app-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand brand brand" "theme palette locale" "actions files files"; gap: 6px; }
+      #backtest-ui-preview .topbar-brand { grid-area: brand; }
+      #backtest-ui-preview .topbar-right { display: contents; }
+      #backtest-ui-preview .theme-select { grid-area: theme; width: 100%; min-width: 0; }
+      #backtest-ui-preview .execution-actions { grid-area: actions; gap: 4px; justify-content: flex-start; }
+      #backtest-ui-preview .package-actions { grid-area: files; justify-self: end; }
+      #backtest-ui-preview .return-color-control { grid-area: palette; }
+      #backtest-ui-preview .locale-select-control { grid-area: locale; }
+    }
 </style>
 
   <header class="app-topbar">
@@ -355,10 +370,9 @@
     <div class="execution-actions" role="group" aria-label="実行操作">
       <button class="icon-button run-button" type="button" aria-label="バックテストを実行" title="バックテストを実行"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8c0-.7.8-1.1 1.4-.7l11 7.1a1 1 0 0 1 0 1.6l-11 7.1a.9.9 0 0 1-1.4-.7V2.8Z"/></svg></button>
       <button class="icon-button reset-button" type="button" aria-label="結果をクリア" title="結果をクリア">↺</button>
-      <button class="icon-button stop-button" type="button" aria-label="実行を停止" title="実行を停止">■</button>
 
     </div>
-    <div class="topbar-right"><div class="package-actions" role="group" aria-label="戦略ファイル"><button class="icon-button" type="button" aria-label="戦略JSONをダウンロード" title="戦略JSONをダウンロード">↓</button><button class="icon-button" type="button" aria-label="戦略JSONを読み込む" title="戦略JSONを読み込む">↑</button></div><div class="return-color-control" role="group" aria-label="リターンの色"><button type="button" data-return-palette="red-up" aria-pressed="false" aria-label="上昇は赤、下落は緑"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button><button type="button" data-return-palette="green-up" aria-pressed="true" aria-label="上昇は緑、下落は赤"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button></div><label class="locale-select-control"><span class="sr-only">表示言語</span><select class="locale-select"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label></div>
+    <div class="topbar-right"><div class="package-actions" role="group" aria-label="戦略ファイル"><button class="icon-button" type="button" aria-label="戦略JSONをダウンロード" title="戦略JSONをダウンロード">export</button><button class="icon-button" type="button" aria-label="戦略JSONを読み込む" title="戦略JSONを読み込む">import</button></div><select class="theme-select" aria-label="テーマ"><option value="classic">Classic</option><option value="burgundy">Wine</option><option value="midnight">Navy</option><option value="blush">Blush</option><option value="forest">Forest</option></select><div class="return-color-control" role="group" aria-label="リターンの色"><button type="button" data-return-palette="red-up" aria-pressed="false" aria-label="上昇は赤、下落は緑"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button><button type="button" data-return-palette="green-up" aria-pressed="true" aria-label="上昇は緑、下落は赤"><span aria-hidden="true">↑</span><span aria-hidden="true">↓</span></button></div><label class="locale-select-control"><span class="sr-only">表示言語</span><select class="locale-select"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label></div>
   </header>
 
   <main>
@@ -440,9 +454,10 @@
           <header class="panel-heading"><div class="panel-heading-main"><button class="panel-title" type="button" aria-expanded="true" aria-controls="prototype-strategy-details-body"><span class="chevron" aria-hidden="true">⌄</span>戦略詳細</button></div></header>
           <div id="prototype-strategy-details-body" class="panel-body">
             <section class="result-detail-target" aria-label="明細対象"><span aria-hidden="true" class="result-color-swatch" style="background:#30497d"></span><div><span class="result-detail-label">明細対象</span><h4 class="result-detail-name">ボラティリティ積立</h4></div></section>
-            <div class="result-tabs" role="tablist" aria-label="実行結果の詳細"><button type="button" role="tab" aria-selected="true" aria-controls="prototype-trades-panel" data-tab="trades">取引明細</button><button type="button" role="tab" aria-selected="false" aria-controls="prototype-performance-panel" data-tab="performance">パフォーマンス</button></div>
-            <section class="tab-panel" id="prototype-trades-panel" role="tabpanel" data-panel="trades"><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
-            <section class="tab-panel" id="prototype-performance-panel" role="tabpanel" data-panel="performance" hidden>
+            <div class="result-tabs" role="tablist" aria-label="実行結果の詳細"><button id="prototype-details-tab" type="button" role="tab" aria-selected="true" aria-controls="prototype-details-panel" data-tab="details">詳細</button></div>
+            <div class="tab-panel" id="prototype-details-panel" role="tabpanel" aria-labelledby="prototype-details-tab" data-panel="details">
+            <section class="detail-section" id="prototype-trades-panel" data-panel="trades"><div class="comparison-table-wrap" id="prototype-trades-scroll"><div class="table-height-controls"><button type="button" class="table-expand-button" data-table-height-toggle="取引明細" aria-label="取引明細を全行表示" aria-expanded="false" aria-controls="prototype-trades-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><table><caption class="sr-only">取引明細 2 件</caption><thead><tr><th>日付</th><th>買売</th><th>理由</th><th>数量</th><th>価格</th><th>金額</th><th>シグナル</th></tr></thead><tbody><tr><td><button type="button" class="trade-date-button" data-inspector="trade" aria-haspopup="dialog">2026-08-03</button></td><td>買い</td><td>シグナル買付</td><td>1.24</td><td>$410.00</td><td>$508.40</td><td>VIX 買付シグナル</td></tr><tr><td><button type="button" class="trade-date-button" data-inspector="planned" aria-haspopup="dialog">2026-09-01</button></td><td>買い</td><td>定額積立</td><td>0.24</td><td>$416.00</td><td>$100.00</td><td>定額買付シグナル</td></tr></tbody></table></div></section>
+            <section class="detail-section" id="prototype-performance-panel" data-panel="performance">
               <p class="performance-basis">単位純資産ベース · 年 252 取引日 · 無リスク年利率 0%</p>
               <h4>リターン・リスク</h4><dl class="performance-grid">
                 <div class="performance-stat" tabindex="0" title="注資影響を除く単位純資産の伸びを実日数で年率化。"><dt>NAV 年率リターン</dt><dd>12.4%</dd></div><div class="performance-stat" tabindex="0" title="日次リターンの標本標準偏差を年252取引日で換算。"><dt>年率ボラティリティ</dt><dd>20.3%</dd></div><div class="performance-stat" tabindex="0" title="超過日次リターンの平均 / 標準偏差を年率化。"><dt>Sharpe</dt><dd>0.67</dd></div><div class="performance-stat" tabindex="0" title="超過日次リターンの平均 / 全観測の下方偏差を年率化。"><dt>Sortino</dt><dd>0.91</dd></div><div class="performance-stat" tabindex="0" title="NAV年率リターン / 最大ドローダウン。"><dt>Calmar</dt><dd>0.35</dd></div>
@@ -452,6 +467,7 @@
               <div class="performance-group-heading"><h4>月次リターン</h4><button type="button" class="table-expand-button" data-table-height-toggle="月次リターン" aria-label="月次リターンを全行表示" aria-expanded="false" aria-controls="prototype-monthly-scroll"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button></div><div id="prototype-monthly-scroll" class="period-table-scroll" tabindex="0" role="region" aria-label="月次リターン"><table class="heatmap-table"><caption class="sr-only">月次リターン</caption><thead><tr><th scope="col">年</th><th scope="col">1月</th><th scope="col">2月</th><th scope="col">3月</th><th scope="col">4月</th><th scope="col">5月</th><th scope="col">6月</th><th scope="col">7月</th><th scope="col">8月</th><th scope="col">9月</th><th scope="col">10月</th><th scope="col">11月</th><th scope="col">12月</th><th scope="col" class="heatmap-annual">年計</th></tr></thead><tbody><tr><th scope="row">2024</th><td><button class="heatmap-cell is-positive" type="button" aria-label="2024-01 · 2.12%" title="2024-01 · 2.1234%">+2.12%</button></td><td><button class="heatmap-cell is-negative" type="button" aria-label="2024-02 · -1.23%" title="2024-02 · -1.2345%">-1.23%</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><button class="heatmap-cell is-positive heatmap-annual" type="button" aria-label="2024 年次リターン +12.4%" title="2024 · +12.4%">+12.4%</button></td></tr></tbody></table></div><p class="heatmap-detail" role="status">セルを選ぶと保存値を表示します。</p>
               <h4>ドローダウン区間</h4><div class="period-table-scroll" tabindex="0" role="region" aria-label="ドローダウン区間"><table class="drawdown-episodes-table"><caption class="sr-only">ドローダウン区間</caption><thead><tr><th scope="col">ピーク</th><th scope="col">底</th><th scope="col">下落率</th><th scope="col">回復日</th><th scope="col">期間</th><th scope="col">回復</th></tr></thead><tbody><tr><th scope="row">2024-07-01</th><td>2024-08-05</td><td>-12.3%</td><td>未回復</td><td title="2024-12-31">183 日</td><td>—</td></tr></tbody></table></div>
             </section>
+            </div>
           </div>
         </section>
       </section>
@@ -615,6 +631,17 @@
         root.querySelectorAll(".result-tabs button").forEach((item) => item.setAttribute("aria-selected", String(item === button)));
         root.querySelectorAll(".tab-panel").forEach((panel) => { panel.hidden = panel.dataset.panel !== button.dataset.tab; });
       }));
+
+      const themePalettes = {
+        classic: ['#f3f5f9','#253c6d','#455b8a','#30497d','#eaf0fa','#f2842f','#192d52'],
+        burgundy: ['#fff9f2','#462330','#704654','#800020','#f3e6d5','#800020','#fff9f2'],
+        midnight: ['#fcf1d0','#0d1c42','#22396f','#010736','#eeeee5','#22396f','#fcf1d0'],
+        blush: ['#fff9d6','#3f4730','#505a3d','#485735','#ffdcdc','#8ea66b','#1d2b10'],
+        forest: ['#e8dcc4','#123f36','#31564b','#2a6b5c','#e3ebe1','#c49a45','#132d25']
+      };
+      root.querySelector('.theme-select').addEventListener('change', event => {
+        ['bg','text','muted','accent','accent-soft','action','action-text'].forEach((key,index) => root.style.setProperty(`--${key}`, themePalettes[event.target.value][index]));
+      });
       let returnColorManual = false;
       const applyReturnColors = palette => {
         root.dataset.returnPalette = palette;

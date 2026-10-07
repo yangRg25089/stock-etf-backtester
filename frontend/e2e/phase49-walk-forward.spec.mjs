@@ -29,7 +29,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   await expect(page.locator(".search-periods")).toContainText("2015-01-01 → 2019-12-31");
   await page.locator(".search-table .result-select").first().click();
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "false");
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   await expect(page.locator(".result-detail-name")).toContainText("学習");
   await page.locator("#result-tab-search").click();
   await page.locator(".search-window-select").selectOption("1");
@@ -38,7 +38,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   await page.locator(".search-oos-select").click();
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".chart-overlay [data-result-id]").first()).toBeVisible();
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   await expect(page.locator(".result-detail-name")).toContainText("ローリング検証");
   await expect(page.locator(".result-detail-name")).toContainText("2020-01-01 → 2021-02-05");
   for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {

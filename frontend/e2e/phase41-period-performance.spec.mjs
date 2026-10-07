@@ -13,7 +13,7 @@ test("real saved periods, material DCA drawdowns and keyboard heatmap stay indep
   await page.goto("/");
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await page.locator(".comparison-table").getByRole("button", { name: "毎月定額積立", exact: true }).click();
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   const panel = page.locator("#result-panel-performance");
   await expect(panel.locator(".heatmap-annual .heatmap-cell")).toHaveCount(analysis.annualReturns.length);
   await expect(panel.locator(".drawdown-episodes-table tbody tr")).toHaveCount(analysis.drawdownEpisodes.filter(row => Number(row.drawdown) <= -0.025).length);
@@ -57,7 +57,7 @@ test("real saved periods, material DCA drawdowns and keyboard heatmap stay indep
   await page.route("**/api/v1/runs/**", route => { requests++; return route.abort(); });
   await restoreSavedRecord(page, { result: saved });
   await page.locator(".comparison-table").getByRole("button", { name: "每月定额定投", exact: true }).click();
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   await expect(panel.locator(".drawdown-episodes-table tbody tr")).toHaveCount(analysis.drawdownEpisodes.filter(row => Number(row.drawdown) <= -0.025).length);
   await expect(panel.locator(".heatmap-cell")).toHaveCount(analysis.monthlyReturns.length + analysis.annualReturns.length);
   expect(requests).toBe(0);
@@ -72,7 +72,7 @@ test("a partial losing month retains its sign and exact saved value", async ({ p
   await installRunFixture(page, saved);
   await page.goto("/");
   await page.locator(".comparison-table").getByRole("button", { name: "毎月定額積立", exact: true }).click();
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   const cell = page.locator("td:not(.heatmap-annual) .heatmap-cell.is-negative");
   await expect(cell).toHaveCount(1);
   await expect(cell).toHaveText("-1.98%");

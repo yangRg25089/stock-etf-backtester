@@ -30,3 +30,8 @@ CLAUDE.md
 .codex/
 .claude/
 .cursor/
+.*/
+!.vscode/
+!.vscode/**
+/docs/
+/tasks/

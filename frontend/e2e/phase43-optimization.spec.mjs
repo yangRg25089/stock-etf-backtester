@@ -51,7 +51,7 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   await expect(page.locator(".search-table thead")).toContainText("検証 XIRR");
   await page.getByRole("button", { name: "候補 #1 の検証結果を見る", exact: true }).click();
   await expect(page.locator(".search-test-select").first()).toHaveAttribute("aria-pressed", "true");
-  await page.locator("#result-tab-trades").click();
+  await page.locator("#result-tab-details").click();
   await expect(page.locator(".result-detail-name")).toContainText("検証");
   await expect(page.locator(".result-detail-name")).toContainText("2024-02-29 → 2024-03-01");
   const main = page.locator(".chart-overlay");

@@ -22,6 +22,12 @@ test("comparison selection pins the same curve/readings as hover and chart click
   await expect(readingFor(page, dca.id)).toHaveAttribute("aria-pressed", "true");
   await expect(readingFor(page, primary.id)).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".selected-strategy-chip")).toHaveCount(2);
+  const focusedChip = page.locator('.selected-strategy-chip[aria-current="true"]');
+  await expect(focusedChip).toHaveCount(1);
+  await expect(focusedChip).toHaveAttribute("data-result-id", dca.id);
+  await expect(focusedChip).toHaveCSS("border-top-width", "3px");
+  await expect(focusedChip).toHaveCSS("font-weight", "700");
+  await expect(focusedChip.locator(".selected-strategy-detail-label")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toContainText("毎月定額積立");
   await readingFor(page, primary.id).hover();
   expect(await main.locator(".chart-highlight-area").getAttribute("d")).toBe(pinnedArea);
@@ -30,6 +36,7 @@ test("comparison selection pins the same curve/readings as hover and chart click
   await expect(readingFor(page, primary.id)).toHaveAttribute("aria-pressed", "true");
   expect(await main.locator(".chart-highlight-area").getAttribute("d")).toBe(pinnedArea);
   await expect(page.locator(".result-detail-name")).toContainText("ボラティリティ");
+  await expect(focusedChip).toHaveAttribute("data-result-id", primary.id);
   await rowFor(page, dca.id).click();
   await expect(readingFor(page, dca.id)).toHaveCount(0);
   await expect(readingFor(page, primary.id)).toHaveAttribute("aria-pressed", "true");
@@ -59,7 +66,7 @@ test("period metrics locate only material drawdowns for three seconds; annual re
     { peakDate: "2024-02-28", bottomDate: "2024-03-01", drawdown: "-0.025", recoveredDate: null, endDate: "2024-03-01", durationDays: 2, recoveryDays: null, state: "ongoing" },
     { peakDate: "2024-02-01", bottomDate: "2024-02-02", drawdown: "-0.024999999", recoveredDate: "2024-02-05", endDate: "2024-02-05", durationDays: 4, recoveryDays: 3, state: "recovered" },
   ];
-  await openSaved(page, saved); await page.locator("#result-tab-performance").click();
+  await openSaved(page, saved); await page.locator("#result-tab-details").click();
   await expect(page.locator(".annual-performance-table")).toHaveCount(0);
   const annual = page.locator(".heatmap-annual .heatmap-cell");
   await expect(annual).toHaveCount(analysis.annualReturns.length);
@@ -118,15 +125,22 @@ test("tax defaults off and applies only on submission; sale taxes, totals and fr
   await expect(page.locator('.comparison-table th [data-sort-key="capitalGainsTax"]')).toBeEnabled();
 });
 
-test("visible file actions, stable execution controls, theme persistence, branding and footer work in three languages and responsive sizes", async ({ page }) => {
+test("visible file actions, compact execution controls, theme persistence, branding and footer work in three languages and responsive sizes", async ({ page }) => {
   await openSaved(page, await savedRun(page));
   await expect(page.locator(".package-menu, .package-actions details")).toHaveCount(0);
   await expect(page.locator(".package-actions button")).toHaveCount(2);
-  await expect(page.locator(".execution-actions > button")).toHaveCount(3);
-  await expect(page.locator(".execution-actions > button").nth(2)).toHaveClass(/run-stop-button/);
+  await expect(page.locator(".execution-actions > button")).toHaveCount(2);
+  await expect(page.locator(".run-stop-button")).toHaveCount(0);
+  await expect(page.locator(".package-actions button span")).toHaveText(["export", "import"]);
+  await expect(page.locator(".theme-select option")).toHaveText(["Classic", "Wine", "Navy", "Blush", "Forest"]);
   await expect(page.locator(".brand-mark")).toHaveAttribute("src", "/brand.svg");
   await expect(page.locator(".app-footer")).toContainText("MIT");
-  await page.locator(".theme-control").click(); await expect(page.locator("html")).toHaveAttribute("data-theme", "mint");
+  for (const theme of ["classic", "burgundy", "midnight", "blush", "forest"]) {
+    await page.locator(".theme-select").selectOption(theme);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+    await page.screenshot({ path: test.info().outputPath(`${theme}-desktop.png`) });
+  }
   for (const locale of ["ja", "zh", "en"]) {
     await page.locator(".locale-select").selectOption(locale);
     for (const width of [320, 768, 1024, 1440, 1920]) {
@@ -136,12 +150,19 @@ test("visible file actions, stable execution controls, theme persistence, brandi
       const buttons = await page.locator(".execution-actions > button").all();
       const boxes = await Promise.all(buttons.map(button => button.boundingBox()));
       expect(new Set(boxes.map(box => box.width)).size).toBe(1);
-      expect(boxes[0].width).toBeGreaterThanOrEqual(50);
+      expect(boxes[0].width).toBeGreaterThanOrEqual(40);
+      expect(boxes[0].height).toBe(32);
+      expect(boxes[0].width).toBeGreaterThan(boxes[0].height);
+      for (const button of await page.locator(".package-actions button").all()) {
+        const box = await button.boundingBox();
+        expect(box.height).toBe(32); expect(box.width).toBeGreaterThan(box.height);
+        await expect(button.locator("span")).toBeVisible();
+      }
       for (let index = 1; index < boxes.length; index++) expect(boxes[index - 1].x + boxes[index - 1].width).toBeLessThanOrEqual(boxes[index].x);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
-      await page.screenshot({ path: test.info().outputPath(`mint-${locale}-${width}.png`) });
+      await page.screenshot({ path: test.info().outputPath(`forest-${locale}-${width}.png`) });
     }
   }
-  await page.reload(); await expect(page.locator("html")).toHaveAttribute("data-theme", "mint");
-  await page.locator(".theme-control").click(); await expect(page.locator("html")).toHaveAttribute("data-theme", "blue");
+  await page.reload(); await expect(page.locator("html")).toHaveAttribute("data-theme", "forest");
+  await page.locator(".theme-select").selectOption("classic"); await expect(page.locator("html")).toHaveAttribute("data-theme", "classic");
 });

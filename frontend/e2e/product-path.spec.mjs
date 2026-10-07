@@ -1249,11 +1249,11 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   }));
   expect(chartLayout.document, JSON.stringify(chartLayout)).toBeLessThanOrEqual(chartLayout.viewport);
   await benchmarkButton.click();
-  const tradeTab = page.getByRole("tab", { name: "取引明細" });
+  const tradeTab = page.getByRole("tab", { name: "詳細" });
   await tradeTab.focus();
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("tab", { name: "パフォーマンス" })).toBeFocused();
-  await expect(page.getByRole("tab", { name: "パフォーマンス" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "詳細" })).toBeFocused();
+  await expect(page.getByRole("tab", { name: "詳細" })).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("ArrowRight");
   await expect(tradeTab).toBeFocused();
   await page.keyboard.press("Home");
@@ -1853,7 +1853,7 @@ test("comparison consolidates metrics, selects results by row and trades keep a 
   await row.locator("td").last().click();
   await expect(row.locator("button")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".result-snapshot-info")).toHaveCount(0);
-  await page.getByRole("tab", { name: "取引明細" }).click();
+  await page.getByRole("tab", { name: "詳細" }).click();
   await expect(page.locator(".result-detail-name")).toHaveText("毎月定額積立");
   const scroll = page.locator(".trade-table-scroll");
   await expect(scroll).toBeVisible();
@@ -2455,7 +2455,7 @@ test("result info is absent and trade context remains readable in a narrow touch
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await page.locator(".workbench-mobile-view").last().click();
   await expect(page.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
-  await page.getByRole("tab", { name: "取引明細", exact: true }).click();
+  await page.getByRole("tab", { name: "詳細", exact: true }).click();
   await expect(page.locator(".result-detail-name")).toHaveText("ボラティリティ積立");
   const bounds = await page.locator(".result-detail-name").boundingBox();
   expect(bounds.x).toBeGreaterThanOrEqual(0);
@@ -2468,7 +2468,7 @@ test("result info is absent and trade context remains readable in a narrow touch
     await expect(touchPage.locator(".comparison-table tbody tr")).toHaveCount(3);
     await touchPage.locator(".workbench-mobile-view").last().tap();
     await expect(touchPage.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
-    const tab = touchPage.getByRole("tab", { name: "取引明細", exact: true });
+    const tab = touchPage.getByRole("tab", { name: "詳細", exact: true });
     const size = await tab.boundingBox();
     expect(size.height).toBeGreaterThanOrEqual(44);
     await tab.tap();

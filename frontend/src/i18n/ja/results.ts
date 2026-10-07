@@ -121,6 +121,7 @@ export const resultsMessages: Record<string, string> = {
   "results.tab.comparison": "戦略比較",
   "table.expandRows": "{table}を全行表示",
   "table.restoreHeight": "{table}の高さを戻す",
+  "results.tab.details": "詳細",
   "results.tab.trades": "取引明細",
   "results.tab.search": "検索結果",
   "results.metricsUnavailable": "この結果には指標がありません。状態と診断を確認してください。",

@@ -75,7 +75,7 @@ function renderEditor(strategy, locale = "ja") {
   }));
 }
 
-test("execution keeps play reset stop in stable positions and disables inactive actions", () => {
+test("execution keeps play and reset available and only shows stop while busy", () => {
   for (const options of [
     { busy: false, run: null, availability: { disabled: false, reasonKey: null } },
     { busy: true, run: null, availability: { disabled: false, reasonKey: null } },
@@ -85,7 +85,7 @@ test("execution keeps play reset stop in stable positions and disables inactive 
     const html = renderToStaticMarkup(React.createElement(RunActions, {
       locale: "zh", canReset: true, onRun() {}, onReset() {}, onStop() {}, stopping: false, ...options,
     }));
-    assert.equal((html.match(/<button /g) ?? []).length, 3);
+    assert.equal((html.match(/<button /g) ?? []).length, options.busy ? 3 : 2);
     assert.doesNotMatch(html, /run-controls|run-control-main|run-reason|run-complete-feedback|<p /);
   }
 });
@@ -111,8 +111,8 @@ test("the final result read keeps edits locked without offering to stop a termin
     run: { status: "completed", progress: { completedStrategies: 3, totalStrategies: 3 } },
   }));
   assert.match(html, /aria-busy="true" disabled=""/);
-  assert.match(html, /run-stop-button[^>]*disabled/);
-  assert.equal((html.match(/<button /g) ?? []).length, 3);
+  assert.doesNotMatch(html, /run-stop-button/);
+  assert.equal((html.match(/<button /g) ?? []).length, 2);
 });
 
 test("fixed strategy uses independent buy sell cards and header switches without composition", () => {

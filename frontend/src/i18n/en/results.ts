@@ -120,6 +120,7 @@ export const resultsMessages: Record<string, string> = {
   "results.tab.comparison": "Strategy comparison",
   "table.expandRows": "Show all rows in {table}",
   "table.restoreHeight": "Restore {table} height",
+  "results.tab.details": "Details",
   "results.tab.trades": "Trades",
   "results.tab.search": "Search results",
   "results.metricsUnavailable": "Metrics are unavailable for this result. Check its status and diagnostics.",

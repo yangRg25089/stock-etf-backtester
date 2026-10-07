@@ -149,7 +149,7 @@ test("grid best and non-best candidates display saved curves and export the sele
     expect(await curve.evaluate(node => node.getBBox().width)).toBeGreaterThan(0);
     expect(selected.dailyAssets.length).toBe(grid.dailyAssets.length);
     const candidate = grid.searchResult.candidates.find(item => item.candidateId === selected.id);
-    await page.getByRole("tab", { name: "取引明細", exact: true }).click();
+    await page.getByRole("tab", { name: "詳細", exact: true }).click();
     await expect(page.locator(".result-detail-name")).toHaveText(`グリッド検索 · #${candidate.sequence}`);
     await page.getByRole("tab", { name: "検索結果", exact: true }).click();
   }
@@ -215,7 +215,7 @@ test("stop action preserves completed rows and presents running and waiting indi
   await expect(rows.filter({ hasText: "毎月定額積立" })).toContainText("$");
   expect(stopRequests).toBe(1);
   await expect(page.locator(".run-status-panel, .run-controls")).toHaveCount(0);
-  await expect(page.locator(".run-stop-button")).toBeDisabled();
+  await expect(page.locator(".run-stop-button")).toHaveCount(0);
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations).toEqual([]);
 });

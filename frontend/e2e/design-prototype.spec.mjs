@@ -3,7 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 test("formal design prototype fits the viewport and mirrors dialog and chart controls", async ({ page }) => {
-  const markup = await readFile(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
+  const markup = await readFile(new URL("./fixtures/workbench-reference.html", import.meta.url), "utf8");
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1920, height: 1080 });
@@ -70,12 +70,12 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
 });
 
 test("the reference exposes readonly trade explanations with keyboard and focus return", async ({ page }) => {
-  const markup = await readFile(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
+  const markup = await readFile(new URL("./fixtures/workbench-reference.html", import.meta.url), "utf8");
   await page.goto("about:blank");
   await page.setContent(`<html lang="ja"><head><title>Result explanations reference</title></head><body>${markup}</body></html>`);
   const dialog = page.locator(".prototype-inspector-dialog");
   await expect(page.getByRole("button", { name: "保存データ", exact: true })).toHaveCount(0);
-  await page.getByRole("tab", { name: "取引明細", exact: true }).click();
+  await page.getByRole("tab", { name: "詳細", exact: true }).click();
   const entry = page.locator('[data-panel="trades"] [data-inspector="trade"]').first();
   await entry.click();
   await expect(dialog).toContainText("2026-07-31");
@@ -94,10 +94,10 @@ test("the reference exposes readonly trade explanations with keyboard and focus 
 });
 
 test("the reference separates risk-free inputs from saved NAV performance", async ({ page }) => {
-  const markup = await readFile(new URL("../../docs/design/backtest-ui.html", import.meta.url), "utf8");
+  const markup = await readFile(new URL("./fixtures/workbench-reference.html", import.meta.url), "utf8");
   await page.goto("about:blank");
   await page.setContent(`<html lang="ja"><head><title>Performance reference</title></head><body>${markup}</body></html>`);
-  await page.locator('[data-tab="performance"]').click();
+  await page.locator('[data-tab="details"]').click();
   const panel = page.locator('[data-panel="performance"]');
   await expect(panel.locator(".performance-stat")).toHaveCount(11);
   await expect(panel.locator(".trading-cost-stat")).toHaveCount(4);

@@ -119,6 +119,7 @@ export const resultsMessages: Record<string, string> = {
   "results.detailTabs": "结果详情",
   "results.detailTarget": "明细对象",
   "results.tab.comparison": "策略比较",
+  "results.tab.details": "详情",
   "results.tab.trades": "交易明细",
   "results.tab.search": "搜索结果",
   "results.metricsUnavailable": "此结果没有绩效指标，请查看状态和诊断信息。",

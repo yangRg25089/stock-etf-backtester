@@ -37,8 +37,8 @@ async def _submit(client, draft, key):
 def test_live_dqydj_baselines_match_after_cashflow_and_price_basis_alignment(tmp_path):
     observed = json.loads(
         (
-            Path(__file__).resolve().parents[3]
-            / "docs/fixtures/dqydj-observed-20261003.json"
+            Path(__file__).resolve().parents[1]
+            / "fixtures/dqydj-observed-20261003.json"
         ).read_text()
     )
     previous_service = app.state.run_service

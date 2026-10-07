@@ -36,7 +36,7 @@ test("one global return convention follows locale until a manual choice and surv
   let submissions = 0;
   page.on("request", request => { if (request.method() === "POST" && request.url().endsWith("/runs")) submissions++; });
 
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   const performance = page.locator("#result-panel-performance");
   const monthlyPositive = performance.locator(".heatmap-cell.is-positive");
   const monthlyNegative = performance.locator("td:not(.heatmap-annual) .heatmap-cell.is-negative");
@@ -75,7 +75,7 @@ test("one global return convention follows locale until a manual choice and surv
   await expect(frame).toHaveAttribute("data-return-palette", "red-up");
   await expect(control.getByRole("button", { name: "上昇は赤、下落は緑" })).toHaveAttribute("aria-pressed", "true");
   await expect(positive).toHaveCSS("color", RED);
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   await expect(monthlyPositive).toHaveCSS("background-color", RED);
   await expect(monthlyNegative).toHaveCSS("background-color", GREEN);
   for (const choice of ["上昇は緑、下落は赤", "上昇は赤、下落は緑"]) {
@@ -115,7 +115,7 @@ test.describe("touch return controls", () => {
     const locale = await page.locator(".locale-select").boundingBox();
     expect(palette.x + palette.width).toBeLessThan(locale.x);
     const brand = await page.locator(".brand-mark").boundingBox();
-    expect(brand.y).toBeGreaterThanOrEqual(palette.y + palette.height);
+    expect(brand.y + brand.height).toBeLessThanOrEqual(palette.y);
     for (const button of await page.locator(".return-color-option").all()) {
       const box = await button.boundingBox();
       expect(box.width).toBeGreaterThanOrEqual(44);

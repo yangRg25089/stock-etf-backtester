@@ -85,11 +85,12 @@ export function PackageControls({ catalog, draft, locale, busy, onImport }: Pack
   useWorkbenchShortcut("i", !busy && !pending, () => input.current?.click());
   return <div className="package-controls">
     <div className="package-actions" role="group" aria-label={translate(locale, "files.menu")} aria-busy={pending}>
-      <button className="button package-action" type="button" disabled={busy || pending || !draft.strategies.length} aria-keyshortcuts="Control+E Meta+E" onClick={exportFile} title={translate(locale, "files.exportStrategy")} aria-label={translate(locale, "files.exportStrategy")}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4" /></svg><span>.strategy.json</span>
+      <button className="button package-action" type="button" disabled={busy || pending || !draft.strategies.length} aria-keyshortcuts="Control+E Meta+E" onClick={exportFile} title={translate(locale, "files.exportStrategy")} aria-label={`export · ${translate(locale, "files.exportStrategy")}`}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4" /></svg><span>export</span>
       </button>
-      <button ref={importButton} className="button package-action" type="button" disabled={busy || pending} aria-keyshortcuts="Control+I Meta+I" onClick={() => input.current?.click()} title={translate(locale, "files.import")} aria-label={translate(locale, "files.import")}>
+      <button ref={importButton} className="button package-action" type="button" disabled={busy || pending} aria-keyshortcuts="Control+I Meta+I" onClick={() => input.current?.click()} title={translate(locale, "files.import")} aria-label={`import · ${translate(locale, "files.import")}`}>
         {pending ? <span className="run-button-spinner" aria-hidden="true" /> : <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3m-4 4 4-4 4 4M3 13v4h14v-4" /></svg>}
+        <span>import</span>
       </button>
     </div>
     <input ref={input} className="file-import-input" type="file" accept=".json,application/json" hidden

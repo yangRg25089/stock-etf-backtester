@@ -24,7 +24,7 @@ async function savedRun(page, presetId = "vix_dca") {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   return saved;
 }
 
@@ -66,7 +66,7 @@ test("grid candidate details keep the saved risk-free assumption and exact trade
   await button.click();
   await expect(page.locator(".search-table .result-select[aria-pressed='true']")).toHaveCount(1);
   const candidate = saved.result.strategyRuns[0].searchResult.candidates.find(item => item.sequence === sequence);
-  await page.locator("#result-tab-performance").click();
+  await page.locator("#result-tab-details").click();
   const panel = page.locator("#result-panel-performance");
   await expect(panel.locator(".performance-basis")).toContainText("5%");
   await expect(panel.locator(".performance-stat").filter({ hasText: "買付回数" }).locator("dd")).toHaveText(String(candidate.metrics.analysis.buyCount));

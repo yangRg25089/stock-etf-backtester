@@ -282,6 +282,9 @@
 .result-detail-name { margin: 1px 0 0; color: var(--app-foreground); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
 .result-detail-name span { color: var(--app-muted); font-size: 12px; font-weight: 500; }
 
+.result-detail-section + .result-detail-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--app-border); }
+.result-detail-section > h4 { margin: 0 0 8px; }
+
 .result-tabs {
   display: flex;
   gap: 4px;

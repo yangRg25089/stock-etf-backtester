@@ -147,7 +147,7 @@ function App() {
           <ReturnColorControl locale={locale} palette={returnPalette} onChange={handleReturnColorChange} />
           <LocaleControl locale={locale} onChange={handleLocaleChange} />
         </div>
-        {workspace && <SelectedStrategies run={workspace.runResponse} ids={workspace.selectedResultIds} locale={locale} />}
+        {workspace && <SelectedStrategies run={workspace.runResponse} ids={workspace.selectedResultIds} focusedResultId={workspace.focusedResultId} locale={locale} />}
       </header>
 
       <main id="main-content" className="main-content workbench-main">

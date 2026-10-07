@@ -786,14 +786,13 @@ test("terminal progress remains busy until full result GET without storing resul
   expect(activeRunId).toBe(completeResponse.runId);
   expect(await page.evaluate(() => Object.values(localStorage))).not.toContain(activeRunId);
   await expect(page.locator(".run-submit-button")).toBeDisabled();
-  await expect(page.locator(".run-stop-button")).toBeVisible();
-  await expect(page.locator(".run-stop-button")).toBeDisabled();
+  await expect(page.locator(".run-stop-button")).toHaveCount(0);
   const last = await page.evaluate(() => JSON.parse(localStorage.getItem("stock-etf-backtester.last-run-strategy.v1")));
   expect(Object.keys(last).sort()).toEqual(["catalogVersion", "draft", "savedAt", "schemaVersion"]);
   release();
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   expect(await page.evaluate(key => sessionStorage.getItem(key), activeRunSessionKey)).toBeNull();
-  await expect(page.locator(".run-stop-button")).toBeDisabled();
+  await expect(page.locator(".run-stop-button")).toHaveCount(0);
   await expect(page.locator(".chart-overlay polyline.overlay-price")).toBeVisible();
   expect(await page.evaluate(async () => (await indexedDB.databases()).map(item => item.name))).toEqual([]);
 });
