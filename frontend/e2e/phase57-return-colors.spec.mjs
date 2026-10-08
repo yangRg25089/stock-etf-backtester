@@ -46,7 +46,9 @@ test("one global return convention follows locale until a manual choice and surv
   const monthlyNegative = performance.locator("td:not(.heatmap-annual) .heatmap-cell.is-negative");
   await expect(monthlyPositive.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "positive", .02));
   await expect(monthlyPositive.nth(1)).toHaveCSS("background-color", await expectedHeatmapColor(page, "positive", .08));
+  await expect(monthlyPositive.first()).toHaveCSS("color", "rgb(255, 255, 255)");
   await expect(monthlyNegative.first()).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .02));
+  await expect(monthlyNegative.first()).toHaveCSS("color", "rgb(255, 255, 255)");
   await expect(monthlyNegative.nth(1)).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .08));
   const lowPositive = await monthlyPositive.first().evaluate(cell => getComputedStyle(cell).backgroundColor);
   const highPositive = await monthlyPositive.nth(1).evaluate(cell => getComputedStyle(cell).backgroundColor);

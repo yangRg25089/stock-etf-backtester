@@ -29,7 +29,11 @@ export function buildResultSelection({ run, focusedResult, candidateResult, sele
   const selectedComparisons: StrategyChartSeries[] = strategyRuns
     .filter(result => selectedIds.includes(result.id) && result.id !== (candidateResult ? focusedResult?.id : chartResult?.id) && isCompletedResult(result))
     .flatMap(result => {
-      const displayed = chartResult?.evaluationPeriod && run ? benchmarksByPreset.get(result.presetId) : result;
+      const period = chartResult?.evaluationPeriod;
+      const matchesPeriod = !period || (result.evaluationPeriod?.phase === period.phase
+        && result.evaluationPeriod.startDate === period.startDate && result.evaluationPeriod.endDate === period.endDate);
+      const displayed = period && run && result.role === "benchmark" ? benchmarksByPreset.get(result.presetId)
+        : matchesPeriod ? result : undefined;
       if (!displayed?.dailyAssets?.length) return [];
       const index = strategyRuns.findIndex(item => item.id === displayed.id
         || displayed.role === "benchmark" && item.role === "benchmark" && item.presetId === displayed.presetId);

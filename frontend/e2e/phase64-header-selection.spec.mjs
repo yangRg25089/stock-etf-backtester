@@ -70,13 +70,13 @@ test("touch header choices remain on one scrollable row with full targets at 320
   try {
     const { ids } = await selectTwo(page);
     await page.setViewportSize({ width: 320, height: 740 });
-    await page.locator(".workbench-mobile-view").first().tap();
-    await expect(page.locator(".workbench-layout")).toHaveAttribute("data-mobile-panel", "config");
+    await page.locator(".workbench-config").scrollIntoViewIfNeeded();
+    await expect(page.locator(".workbench-layout")).not.toHaveAttribute("data-mobile-panel");
     for (const id of ids) {
       const chip = chipFor(page, id);
       await chip.tap();
       await expectTarget(page, id);
-      await expect(page.locator(".workbench-layout")).toHaveAttribute("data-mobile-panel", "results");
+      await expect(page.locator(".workbench-layout")).not.toHaveAttribute("data-mobile-panel");
       const target = await chip.boundingBox(), strip = await page.locator(".selected-strategies").boundingBox();
       expect(target.height).toBeGreaterThanOrEqual(44);
       expect(target.width).toBeGreaterThanOrEqual(44);

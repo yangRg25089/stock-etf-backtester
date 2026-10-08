@@ -135,23 +135,21 @@ test("performance explanations have a visible hover and keyboard-focus presentat
   assert.match(tooltip, /max-width:\s*min\(320px, calc\(100vw - 32px\)\)/);
 });
 
-test("all returns share the monthly red/green tokens with readable contrast", () => {
-  const positive = blockFor(".heatmap-cell.is-positive");
-  const negative = blockFor(".heatmap-cell.is-negative");
+test("returns share the global red/green direction and monthly heatmaps use fixed four-level colors", () => {
   assert.match(css, /--return-red:\s*#b71c1c/);
   assert.match(css, /--return-green:\s*#087443/);
   assert.match(blockFor('.app-frame[data-return-palette="red-up"]'), /--return-positive:\s*var\(--return-red\)/);
-  assert.match(css, /--return-red-hs:\s*0 73%/);
-  assert.match(css, /--return-green-hs:\s*150 87%/);
-  assert.match(blockFor('.app-frame[data-return-palette="red-up"]'), /--return-positive-hs:\s*var\(--return-red-hs\)/);
-  assert.match(positive, /hsl\(var\(--return-positive-hs\)/);
-  assert.match(positive, /var\(--heatmap-lightness-range\)/);
-  assert.match(positive, /color:\s*var\(--app-foreground\)/);
-  assert.match(negative, /hsl\(var\(--return-negative-hs\)/);
-  assert.match(negative, /var\(--heatmap-lightness-range\)/);
-  assert.doesNotMatch(positive, /color-mix/);
-  assert.doesNotMatch(negative, /color-mix/);
-  assert.match(negative, /color:\s*var\(--app-foreground\)/);
+  assert.match(css, /--heatmap-red-1:\s*#ef4a4a/);
+  assert.match(css, /--heatmap-red-2:\s*#f72d2d/);
+  assert.match(css, /--heatmap-red-3:\s*#bf2222/);
+  assert.match(css, /--heatmap-red-4:\s*#9a1a1a/);
+  assert.match(css, /--heatmap-green-1:\s*#18d57f/);
+  assert.match(css, /--heatmap-green-2:\s*#1dc87a/);
+  assert.match(css, /--heatmap-green-3:\s*#0c9a5a/);
+  assert.match(css, /--heatmap-green-4:\s*#087443/);
+  assert.match(css, /\.heatmap-cell\.is-positive,\s*\.heatmap-cell\.is-negative\s*\{[^}]*color:\s*#fff/s);
+  assert.match(css, /\.heatmap-cell\.is-positive\.is-level-1\s*\{[^}]*background:\s*var\(--heatmap-positive-1\)/s);
+  assert.match(css, /\.heatmap-cell\.is-negative\.is-level-4\s*\{[^}]*background:\s*var\(--heatmap-negative-4\)/s);
   assert.match(blockFor(".return-value.is-positive"), /color:\s*var\(--return-positive\)/);
   assert.match(blockFor(".return-value.is-negative"), /color:\s*var\(--return-negative\)/);
   assert.ok(contrastRatio("#ffffff", "#b71c1c") >= 4.5);
@@ -169,15 +167,13 @@ test("table sort controls share keyboard-visible styles", () => {
   assert.match(css, /\.table-sort:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--app-accent\)/s);
 });
 
-test("mobile workbench exposes separate configuration and results views under the fixed topbar", () => {
-  const mobile = mediaBlock("@media (max-width: 767px)");
-  const phone = mediaBlock("@media (max-width: 420px)");
-  assert.match(blockFor(".workbench-mobile-views"), /display:\s*none/);
-  assert.match(css, /\.workbench-mobile-views\s*\{[^}]*display:\s*grid/s);
+test("phone workbench stacks configuration and results under the fixed topbar", () => {
+  assert.doesNotMatch(app, /workbench-mobile-views|data-mobile-panel|mobilePanel/);
+  assert.doesNotMatch(css, /workbench-mobile-views/);
+  assert.match(app, /hidden=\{configCollapsed && !isPhone\}/);
   assert.match(css, /\.workbench-config-toggle\s*\{\s*display:\s*none/s);
-  assert.match(css, /\.app-topbar\s*\{[^}]*grid-template-areas:\s*"brand locale" "controls controls"/s);
   assert.match(blockFor(".app-topbar"), /position:\s*sticky/);
-  assert.match(prototype, /class="mobile-views"/);
+  assert.doesNotMatch(prototype, /class="mobile-views"/);
 });
 
 test("the design prototype mirrors the flattened workbench and result hierarchy", () => {
@@ -323,10 +319,10 @@ test("all result table scrollers share one vertical max-height", () => {
   assert.match(sharedScrollerRule[1], /overflow-y:\s*auto/);
 });
 
-test("only selected comparison rows use an identity tint and foreground lift", () => {
+test("only selected comparison rows use an identity tint without translating sticky cells", () => {
   assert.doesNotMatch(css, /\.comparison-table[^{}]*\.is-focused/);
-  assert.match(css, /\.comparison-table tbody tr\.is-selected\s*\{[^}]*translate:\s*0 -1px/s);
-  assert.match(css, /\.comparison-table tbody tr\.is-selected\s*\{[^}]*background:\s*color-mix/s);
+  assert.doesNotMatch(blockFor(".comparison-table tbody tr.is-selected"), /translate:/);
+  assert.match(css, /\.comparison-table tbody tr\.is-selected\s*\{[^}]*--table-row-background:\s*color-mix/s);
 });
 
 test("the fixed strategy navigator does not stretch cards to fill unused height", () => {

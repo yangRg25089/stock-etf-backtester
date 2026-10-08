@@ -51,7 +51,9 @@ test("frozen selection projection preserves candidate ownership, matching-period
       const baselines = savedPeriodBenchmarks(run, chart, parent);
       const expectedComparisons = results.filter(result => result.id !== parent.id && isCompletedResult(result))
         .flatMap(result => {
-          const displayed = chart.evaluationPeriod ? baselines.find(row => row.presetId === result.presetId) : result;
+          const period = chart.evaluationPeriod;
+          const matching = !period || (result.evaluationPeriod?.phase === period.phase && result.evaluationPeriod.startDate === period.startDate && result.evaluationPeriod.endDate === period.endDate);
+          const displayed = period && result.role === "benchmark" ? baselines.find(row => row.presetId === result.presetId) : matching ? result : undefined;
           return displayed?.dailyAssets?.length ? [displayed] : [];
         });
       assert.deepEqual(selection.selectedComparisons.map(row => row.id), expectedComparisons.map(row => row.id));
@@ -83,4 +85,19 @@ test("no selection keeps price data available without showing focused assets or 
   assert.deepEqual(selection.selectedComparisons, []);
   assert.deepEqual(selection.volatility, []);
   assert.deepEqual(selection.technicalIndicators, []);
+});
+
+test("a same-preset user strategy is never replaced with a period benchmark", () => {
+  const file = JSON.parse(readFileSync(new URL("../.test-output/split-fixture.json", import.meta.url), "utf8")).record;
+  const run = file.result;
+  const parent = run.result.strategyRuns.find(row => row.searchResult);
+  const candidateResult = Object.values(file.candidateDetails)[0];
+  const user = structuredClone(run.result.strategyRuns.find(row => row.role === "benchmark"));
+  user.id = "user-same-preset"; user.role = "strategy";
+  run.result.strategyRuns.push(user);
+  const select = () => buildResultSelection({ run, focusedResult: parent, candidateResult,
+    selectedIds: [parent.id, user.id], orderedResults: run.result.strategyRuns, locale: "ja" });
+  assert.deepEqual(select().selectedComparisons, []); // Full-run data cannot be compared with a partial evaluation.
+  user.evaluationPeriod = structuredClone(candidateResult.evaluationPeriod);
+  assert.deepEqual(select().selectedComparisons.map(row => row.id), [user.id]);
 });

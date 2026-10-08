@@ -166,7 +166,7 @@ test("touch dialog swipes remain inside the modal at both content edges", async 
   try {
     const page = await context.newPage();
     await page.goto(baseURL);
-    await page.locator(".workbench-mobile-view").first().tap();
+    await page.locator(".workbench-config").scrollIntoViewIfNeeded();
     await expect(page.locator(".workbench-config")).toBeVisible();
     await page.locator(".add-strategy-button").tap();
     await page.locator('[data-preset-id="grid_search"]').tap();

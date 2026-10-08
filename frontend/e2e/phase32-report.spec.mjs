@@ -22,13 +22,15 @@ test("PNG contains frozen full-range results in both locales and survives draft 
   expect(reportText).toContain("毎月 $100.00 USD");
   expect(reportText).not.toContain("999");
   expect(reportText).toContain(new Intl.NumberFormat("ja-JP", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(primary.metrics.endingEquity)));
-  expect(reportText).toContain(saved.runId);
+  expect(reportText).not.toContain("Run:");
+  expect(reportText).not.toContain("Data:");
   await expect.poll(() => page.evaluate(() => window.reportAudit.revoked)).toBe(1);
   await page.locator(".locale-select").selectOption("zh");
   await pngDownload(page, "report-zh.png");
   expect(await page.evaluate(() => window.reportAudit.text.join("\n"))).toContain("回测结果报告");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 320, height: 740 });
+  await page.locator(".result-downloads-toggle").click();
   await expect(page.locator("[data-report-kind=png]")).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: test.info().outputPath("report-controls-320.png") });

@@ -42,10 +42,12 @@ test('details contain no tabs, identity is compact and trades are the final deta
 
 const { MonthlyHeatmap }=require('../.test-output/features/results/MonthlyHeatmap.js');
 const { hasTaxColumn }=require('../.test-output/features/results/comparisonModel.js');
-test('monthly and annual intensity use fixed scales; zero stays neutral',()=>{
+test('monthly and annual heatmap levels use fixed thresholds; zero stays neutral',()=>{
  const values=[.005,.03,.09,.5,0].map((v,i)=>({year:2024,month:i+1,navReturn:String(v),startDate:'2024-01-01',endDate:'2024-01-31'}));
  const html=render(React.createElement(MonthlyHeatmap,{locale:'en',values,annualValues:[{...values[0],month:null,navReturn:'.1'}]}));
- for(const value of [.049999999999999996,.3,.8999999999999999,1,0,.25]) assert.ok(html.includes('--return-intensity:'+value));
+ for(const level of [1,2,3,4]) assert.ok(html.includes(`is-positive is-level-${level}`));
+ assert.match(html,/class="heatmap-cell is-neutral/);
+ assert.match(html,/heatmap-annual[^>]*>[\s\S]*?is-level-1/);
  assert.match(html,/is-neutral/);
 });
 test('tax column hides only explicit completed zeros and ignores failed rows',()=>{

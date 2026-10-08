@@ -1,14 +1,16 @@
 import { compareDecimals, isNumericSearchValue } from "../../api/contractReader";
-import type { Catalog, ConditionGroup, ConditionLeaf, PeriodReturn, RunResponse, StrategyRun } from "../../api/generated";
-import { runDataContext } from "../../api/contractReader";
+import type { Catalog, PeriodReturn, RunResponse, StrategyRun } from "../../api/generated";
 import { searchOutcomes } from "../../api/searchResults";
 import { isSuccessfulRunStatus } from "../../api/runStatus";
-import { translate, unitLabel, type Locale } from "../../i18n/messages";
-import { normalizeSeriesToBase100, type IndexedSample } from "./chartModel";
-import { PRICE_COLOR, resultColor } from "./colors";
-import { formatCurrency, formatMultiple, formatPercent, formatPlainNumber } from "./format";
+import { translate, type Locale } from "../../i18n/messages";
+import { type IndexedSample } from "./chartModel";
+import { PRICE_COLOR } from "./colors";
+import { formatCurrency, formatMultiple, formatPercent } from "./format";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
-import { savedCandidate, savedEvaluationPhase, savedPeriodBenchmarks, savedResultConfiguration } from "./savedConfiguration";
+import { savedCandidate, savedEvaluationPhase, savedResultConfiguration } from "./savedConfiguration";
+import { buildResultSelection } from "./buildResultSelection";
+import { buildChartSeriesModel } from "./chart/chartSeriesModel";
+import { reportStrategySections, reportExecutionLines } from "./reportConfiguration";
 import { hasOnlyZeroCosts, TRADING_COST_FIELDS } from "./tradingCosts";
 
 export interface ReportLine {
@@ -33,9 +35,10 @@ export interface ResultReport {
   chartTitle: string;
   chartAxis: string;
   drawdownTitle: string;
+  drawdownColor: string;
   tradeSummary: string;
   notes: string[];
-  footer: string[];
+  dates: string[];
   resultId: string;
 }
 
@@ -62,59 +65,21 @@ function safeFilenamePart(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-").replace(/-+/g, "-").slice(0, 100) || "result";
 }
 
-function parameterText(key: string, value: unknown, catalog: Catalog | null | undefined, locale: Locale, currency?: string | null): string {
-  const parameter = catalog?.parameters?.find(item => item.key === key);
-  const label = parameter ? translate(locale, parameter.translationKey) : key;
-  let formatted: string;
-  if (value === null && parameter?.nullable) formatted = translate(locale, "strategy.unlimited");
-  else if (typeof value === "boolean") formatted = translate(locale, value ? "field.enabled" : "field.disabled");
-  else if (parameter?.type === "ratio") formatted = formatPercent(String(value), locale);
-  else if (parameter?.unit === "currency") formatted = `${formatCurrency(String(value), currency, locale)}${currency ? ` ${currency}` : ""}`;
-  else if (["integer", "decimal", "percent_point"].includes(parameter?.type ?? "")) {
-    const unit = unitLabel(locale, parameter?.unit);
-    formatted = `${formatPlainNumber(String(value), locale)}${unit ? ` ${unit}` : ""}`;
-  } else {
-    const translated = translate(locale, `enum.${String(value)}`);
-    formatted = translated === `enum.${String(value)}` ? typeof value === "object" ? JSON.stringify(value) : String(value) : translated;
-  }
-  return `${label}: ${formatted}`;
+export interface ReportChartSelection {
+  selectedIds: string[];
+  visibleSeriesIds: string[];
+  orderedIds?: string[];
 }
 
-function conditionLines(node: ConditionLeaf | ConditionGroup | null | undefined, catalog: Catalog | null | undefined, locale: Locale,
-  overrides: Record<string, unknown>, currency: string | null | undefined, depth = 0): string[] {
-  if (!node) return [translate(locale, "field.disabled")];
-  const indent = "  ".repeat(depth);
-  const disabled = node.enabled === false ? ` · ${translate(locale, "field.disabled")}` : "";
-  if ("kind" in node) {
-    const nameKey = catalog?.conditions?.find(item => item.kind === node.kind)?.nameKey ?? `conditions.${node.kind}`;
-    return [indent + translate(locale, nameKey) + disabled,
-      ...Object.entries({ ...objectValues(node.params), ...Object.fromEntries(Object.entries(overrides).filter(([key]) => Object.hasOwn(node.params ?? {}, key))) })
-        .map(([key, value]) => `${indent}  ${parameterText(key, value, catalog, locale, currency)}`)];
-  }
-  const children = node.children ?? [];
-  return children.length === 0 ? [indent + translate(locale, "field.disabled")]
-    : [indent + (node.operator ?? "AND") + disabled,
-      ...children.flatMap(child => conditionLines(child, catalog, locale, overrides, currency, depth + 1))];
-}
-
-function reportAssetLine(result: StrategyRun, label: string, color: string): ReportLine | null {
-  const normalized = normalizeSeriesToBase100("totalAsset", (result.dailyAssets ?? []).map((row, index) => ({
-    index, date: row.date, value: Number(row.totalAsset),
-    contributed: row.totalContributed == null ? undefined : Number(row.totalContributed),
-  })));
-  return normalized ? { id: result.id, label, color, points: normalized.points } : null;
-}
-
-/** Reads only the saved run/candidate. No live draft, visibility or viewport state enters a report. */
+/** Freezes saved values and current curve selection; never reads the live draft or viewport. */
 export function buildResultReport(run: RunResponse | null, result: StrategyRun | null, locale: Locale, catalog?: Catalog | null,
-  parent?: StrategyRun | null): ResultReport | null {
+  parent?: StrategyRun | null, chartSelection?: ReportChartSelection): ResultReport | null {
   if (!isResultReportAvailable(run, result, parent) || !run || !result) return null;
   const owner = savedParent(run, result, parent)!;
   result = parent ? result : owner;
   if (!result.metrics) return null;
   const results = run.result?.strategyRuns ?? [];
   const { strategy, candidate, overrides } = savedResultConfiguration(run, result, parent ? owner : null);
-  const parameters = { ...objectValues(strategy?.params), ...overrides };
   const currency = result.metrics.currency ?? result.dailyAssets?.[0]?.currency;
   const shared = run.snapshot.config.shared;
   const rows = result.dailyAssets!;
@@ -134,48 +99,47 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
     ["xirr", formatPercent(result.metrics.xirr, locale)],
     ["maximumDrawdown", formatPercent(result.metrics.maximumDrawdown, locale)],
   ];
-  const limits = Object.entries(parameters).filter(([key]) => key.startsWith("accumulation.") && key !== "accumulation.conditionLogic");
-  const sections = strategy && phase !== "outOfSample" ? [
-    { title: translate(locale, "parameterGroups.buy_limits"), lines: limits.map(([key, value]) => parameterText(key, value, catalog, locale, currency)) },
-    { title: translate(locale, "strategy.buy"), lines: strategy.rules ? conditionLines(strategy.rules.buy, catalog, locale, overrides, currency)
-      : Object.entries(parameters).filter(([key]) => !key.startsWith("accumulation.")).map(([key, value]) => parameterText(key, value, catalog, locale, currency)) },
-    { title: translate(locale, "strategy.sell"), lines: conditionLines(strategy.rules?.sell, catalog, locale, overrides, currency) },
-  ].filter(section => section.lines.length) : [];
+  const sections = phase !== "outOfSample" ? reportStrategySections(strategy, overrides, catalog, locale, currency) : [];
   if (phase === "outOfSample") {
     for (const window of owner.searchResult?.walkForwardWindows ?? []) {
       const chosen = savedCandidate(owner.searchResult, window.selectedCandidateId ?? "");
       if (!chosen) continue;
       const chosenParams = objectValues(chosen.parameterValues);
-      const chosenOverrides = Object.fromEntries((owner.searchResult?.dimensions ?? []).map(item => [item.key, chosenParams[item.key]]));
-      sections.push({ title: `${translate(locale, "search.walkWindow")} ${window.sequence} · ${window.testPeriod.startDate} → ${window.testPeriod.endDate}`,
-        lines: [
-          ...Object.entries(chosenParams).filter(([key]) => key.startsWith("accumulation.") && key !== "accumulation.conditionLogic")
-            .map(([key, value]) => parameterText(key, value, catalog, locale, currency)),
-          `${translate(locale, "strategy.buy")} · ${conditionLines(strategy?.rules?.buy, catalog, locale, chosenOverrides, currency).join(" · ")}`,
-          `${translate(locale, "strategy.sell")} · ${conditionLines(strategy?.rules?.sell, catalog, locale, chosenOverrides, currency).join(" · ")}`,
-        ],
-      });
+      const chosenOverrides = Object.fromEntries((owner.searchResult?.dimensions ?? []).filter(item => Object.hasOwn(chosenParams, item.key)).map(item => [item.key, chosenParams[item.key]]));
+      const windowSections = reportStrategySections(strategy, chosenOverrides, catalog, locale, currency);
+      if (windowSections.length) sections.push({ title: `${translate(locale, "search.walkWindow")} ${window.sequence} · ${window.testPeriod.startDate} → ${window.testPeriod.endDate}`,
+        lines: windowSections.flatMap(section => [section.title, ...section.lines]) });
     }
   }
-  if (shared.execution) sections.push({
-    title: translate(locale, "parameterGroups.execution"),
-    lines: Object.entries(shared.execution).map(([key, value]) => parameterText(`execution.${key}`, value, catalog, locale, currency)),
-  });
+  const execution = reportExecutionLines(shared.execution, catalog, locale, currency);
+  if (execution.length) sections.push({ title: translate(locale, "parameterGroups.execution"), lines: execution });
   const costs = result.metrics.tradingCosts;
   if (costs && !hasOnlyZeroCosts(costs)) sections.push({
     title: translate(locale, "costs.heading"),
-    lines: TRADING_COST_FIELDS.map(key => `${translate(locale, `costs.${key}`)}: ${(key === "capitalGainsTax" && isNumericSearchValue(costs[key]) && compareDecimals(costs[key], 0) === 0 ? "—" : formatCurrency(costs[key], currency, locale))}${currency ? ` ${currency}` : ""}`),
+    lines: TRADING_COST_FIELDS.filter(key => !isNumericSearchValue(costs[key]) || compareDecimals(costs[key], 0) !== 0).map(key => `${translate(locale, `costs.${key}`)}: ${formatCurrency(costs[key], currency, locale)}${currency ? ` ${currency}` : ""}`),
   });
-  const price = normalizeSeriesToBase100("price", rows.map((row, index) => ({ date: row.date, index, value: Number(row.simulationPrice) })));
-  const lines: ReportLine[] = price ? [{ id: "price", label: translate(locale, "chart.price"), color: PRICE_COLOR, points: price.points }] : [];
-  const asset = reportAssetLine(result, title, resultColor(results.findIndex(item => item.id === owner.id)));
-  if (asset) lines.push(asset);
-  for (const baseline of savedPeriodBenchmarks(run, result, owner).filter(item => item.id !== owner.id && isCompletedResult(item))) {
-    const index = results.findIndex(item => item.role === "benchmark" && item.presetId === baseline.presetId);
-    const line = reportAssetLine(baseline, resultDisplayName(locale, baseline, results), resultColor(index));
-    if (line) lines.push(line);
-  }
+  const selectedIds = chartSelection?.selectedIds ?? [owner.id, ...results.filter(item => item.role === "benchmark").map(item => item.id)];
+  const selection = buildResultSelection({ run, focusedResult: owner, candidateResult: parent ? result : null,
+    selectedIds, orderedResults: chartSelection?.orderedIds?.map(id => results.find(item => item.id === id)).filter((item): item is StrategyRun => Boolean(item)) ?? results, locale });
+  const model = buildChartSeriesModel(rows, [], selection.selectedComparisons);
+  const asset = model.normalizedById.get("totalAsset");
+  const price = model.normalizedById.get("price");
+  const visible = chartSelection?.visibleSeriesIds ?? ["price", "totalAsset"];
+  const assetVisible = visible.includes("totalAsset") && (selection.showFocusedAsset && asset || model.comparisonNormalized.length > 0);
+  const lines: ReportLine[] = price && (visible.includes("price") || !assetVisible)
+    ? [{ id: "price", label: translate(locale, "chart.price"), color: PRICE_COLOR, points: price.points }] : [];
+  if (asset && selection.showFocusedAsset && visible.includes("totalAsset")) lines.push({ id: result.id,
+    label: selection.totalAssetLabel, color: selection.totalAssetColor ?? PRICE_COLOR, points: asset.points });
+  if (visible.includes("totalAsset")) for (const comparison of model.comparisonNormalized) lines.push({ id: comparison.id,
+    label: comparison.label, color: comparison.color, points: comparison.result.points });
+  const ranks = new Map(selection.strategyOrder.map((id, index) => [id, index]));
+  lines.sort((a, b) => a.id === "price" ? -1 : b.id === "price" ? 1 : (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity));
   const notes = [translate(locale, "report.method")];
+  if (chartSelection && (lines.filter(line => line.id !== "price").length !== 1 || !lines.some(line => line.id === result.id))) {
+    notes.push(translate(locale, "report.chartScope"));
+  }
+  if (!lines.some(line => line.id !== "price")) notes.push(translate(locale, "report.noStrategies"));
+  if (!costs) notes.push(translate(locale, "costs.notSaved"));
   if (!asset) notes.push(translate(locale, "report.principalMissing"));
   const diagnostics = [...(result.diagnostics ?? []), ...(result.metrics.diagnostics ?? [])];
   for (const diagnostic of diagnostics.filter(item => item.severity !== "info")) {
@@ -198,15 +162,10 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
     drawdown: rows.flatMap((row, index) => row.drawdown == null || !Number.isFinite(Number(row.drawdown)) ? []
       : [{ date: row.date, index, value: Number(row.drawdown) * 100 }]),
     chartTitle: translate(locale, "chart.overlayTitle"), chartAxis: translate(locale, "chart.overlayAxis"),
-    drawdownTitle: translate(locale, "chart.drawdown"),
+    drawdownTitle: translate(locale, "chart.drawdown"), drawdownColor: selection.totalAssetColor ?? PRICE_COLOR,
     tradeSummary: `${translate(locale, "strategy.buy")} ${(result.trades ?? []).filter(item => item.side === "buy").length} · ${translate(locale, "strategy.sell")} ${(result.trades ?? []).filter(item => item.side === "sell").length}`,
     notes, resultId: result.id,
-    footer: [
-      `Run: ${run.runId} · ${result.id}`,
-      `${run.snapshot.engineVersion} · ${run.snapshot.catalogVersion}`,
-      `Data: ${runDataContext(run.snapshot)?.dataFingerprint}`,
-      ...(run.snapshot.createdAt ? [translate(locale, "report.savedAt", { date: run.snapshot.createdAt })] : []),
-    ],
+    dates: rows.map(row => row.date),
   };
 }
 

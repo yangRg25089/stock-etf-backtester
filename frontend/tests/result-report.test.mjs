@@ -130,7 +130,7 @@ test("reports include frozen execution assumptions and saved costs without chang
   assert.match(execution.lines.join(" "), /US\$2\.00.*USD/);
   assert.match(execution.lines.join(" "), /0\.1 %/);
   assert.match(execution.lines.join(" "), /0\.2 %/);
-  assert.match(execution.lines.join(" "), /已停用/);
+  assert.match(execution.lines.join(" "), /仅整股成交/);
   assert.equal(costs.lines.length, 5);
   assert.match(costs.lines.at(-1), /US\$4\.50.*USD/);
   assert.equal(report.metrics.find(item => item.key === "netProfit").value, "US$20.00");
@@ -138,4 +138,39 @@ test("reports include frozen execution assumptions and saved costs without chang
   run.snapshot.config.shared.execution.commission = "99";
   result.metrics.tradingCosts.totalTradingCost = "100";
   assert.equal(JSON.stringify(report.sections), frozen);
+});
+
+
+test("report chart follows selected identities and maps each saved date to one axis", () => {
+  const { run, result } = saved();
+  const other = structuredClone(result);
+  other.id = "strategy-two";
+  other.presetId = "composite_dca";
+  other.dailyAssets = [other.dailyAssets[1]];
+  const baseline = structuredClone(result);
+  baseline.id = "benchmark"; baseline.role = "benchmark"; baseline.presetId = "monthly_dca";
+  run.result.strategyRuns.push(other, baseline);
+  const report = buildResultReport(run, result, "zh", catalog, null,
+    { selectedIds: [result.id, other.id], visibleSeriesIds: ["price", "totalAsset"] });
+  assert.deepEqual(report.lines.map(line => line.id), ["price", result.id, other.id]);
+  assert.equal(report.lines.find(line => line.id === other.id).points[0].index, 1);
+  const empty = buildResultReport(run, result, "zh", catalog, null, { selectedIds: [], visibleSeriesIds: ["totalAsset"] });
+  assert.deepEqual(empty.lines.map(line => line.id), ["price"]);
+});
+
+test("report removes disabled branches and default execution without dropping effective zero/null settings", () => {
+  const { run, result, strategy } = saved();
+  strategy.rules.sell = { type: "group", enabled: false, operator: "OR", children: [
+    { kind: "vix", enabled: true, params: { "vix.sellThreshold1": 123 } },
+  ] };
+  strategy.params["accumulation.cashSafetyLimit"] = 0;
+  strategy.params["accumulation.maxSignalBuysPerMonth"] = null;
+  run.snapshot.config.shared.execution = { commission: "0", slippagePct: "0", spreadPct: "0", fractionalShares: true, capitalGainsTaxEnabled: false };
+  const report = buildResultReport(run, result, "zh", catalog);
+  assert.ok(!report.sections.some(section => section.title === "卖出" || section.title === "成交假设"));
+  assert.match(JSON.stringify(report.sections), /0.00/);
+  assert.match(JSON.stringify(report.sections), /不限/);
+  assert.ok(!Object.hasOwn(report, "footer"));
+  strategy.rules.buy.enabled = false;
+  assert.ok(!buildResultReport(run, result, "zh", catalog).sections.some(section => section.title === "买入"));
 });

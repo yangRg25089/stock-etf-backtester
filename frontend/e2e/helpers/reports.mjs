@@ -44,7 +44,18 @@ export async function savedRun(page, presetId = "vix_dca", params = {}, editRule
 export async function openSaved(page, saved) {
   await installRunFixture(page, saved);
   await page.addInitScript(() => {
-    window.reportAudit = { text: [], bitmaps: [], downloads: 0, revoked: 0 };
+    window.reportAudit = { text: [], paths: [], markers: [], bitmaps: [], downloads: 0, revoked: 0 };
+    const paths = new WeakMap();
+    const beginPath = CanvasRenderingContext2D.prototype.beginPath;
+    CanvasRenderingContext2D.prototype.beginPath = function (...args) { paths.set(this, []); return beginPath.apply(this, args); };
+    for (const method of ["moveTo", "lineTo"]) {
+      const original = CanvasRenderingContext2D.prototype[method];
+      CanvasRenderingContext2D.prototype[method] = function (...args) { paths.get(this)?.push({method, x:args[0], y:args[1]}); return original.apply(this,args); };
+    }
+    const stroke = CanvasRenderingContext2D.prototype.stroke;
+    CanvasRenderingContext2D.prototype.stroke = function (...args) { window.reportAudit.paths.push({color:this.strokeStyle,dash:this.getLineDash(),points:[...(paths.get(this) ?? [])]}); return stroke.apply(this,args); };
+    const arc = CanvasRenderingContext2D.prototype.arc;
+    CanvasRenderingContext2D.prototype.arc = function (...args) { window.reportAudit.markers.push(args); return arc.apply(this,args); };
     const fillText = CanvasRenderingContext2D.prototype.fillText;
     CanvasRenderingContext2D.prototype.fillText = function (...args) {
       window.reportAudit.text.push(args[0]); return fillText.apply(this, args);
@@ -63,7 +74,7 @@ export async function openSaved(page, saved) {
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
+  await expect(page.locator(".comparison-table tbody tr")).toHaveCount(saved.result.strategyRuns.length);
   await expect(page.locator(".result-interactions")).not.toBeDisabled();
 }
 

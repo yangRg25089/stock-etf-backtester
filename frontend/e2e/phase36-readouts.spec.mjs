@@ -82,7 +82,7 @@ test("the persistent readout replaces the caption and owns hover, pin, release a
   await expect(readout.getByRole("button", { name: "标的收盘价 (USD)", exact: true })).toBeVisible();
   for (const width of [1440, 1024, 768, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    if (width === 320) await page.locator(".workbench-mobile-view").last().click();
+    if (width === 320) await page.locator(".workbench-results").scrollIntoViewIfNeeded();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   }

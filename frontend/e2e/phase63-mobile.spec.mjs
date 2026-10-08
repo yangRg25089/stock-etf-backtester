@@ -97,7 +97,7 @@ test("touch phones retain full action targets and settings fit the screen", asyn
       }
     }
     await page.locator(".topbar-menu-toggle").click();
-    await page.locator(".workbench-mobile-view").first().click();
+    await page.locator(".workbench-config").scrollIntoViewIfNeeded();
     await page.locator(".shared-settings-open-button").click();
     const dialog = await page.locator(".shared-settings-dialog").boundingBox();
     expect(dialog.x).toBe(8);

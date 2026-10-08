@@ -95,6 +95,7 @@ export function ResultComparison({
                   className="result-select"
                   type="button"
                   disabled={busy}
+                  title={displayName}
                   aria-pressed={isSelected}
                   onClick={(event) => {
                     event.stopPropagation();

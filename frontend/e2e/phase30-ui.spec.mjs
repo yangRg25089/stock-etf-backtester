@@ -200,7 +200,7 @@ test("Classic theme keeps selected controls and text accessible at all layout si
   expect(tokens).toEqual(["#253c6d", "#30497d", "#455b8a", "#f2842f"]);
   for (const width of [1920, 1024, 768, 320]) {
     await page.setViewportSize({ width, height: 1080 });
-    if (width === 320) await page.locator(".workbench-mobile-view").last().click();
+    if (width === 320) await page.locator(".workbench-results").scrollIntoViewIfNeeded();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     expect(report.violations).toEqual([]);

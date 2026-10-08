@@ -6,9 +6,10 @@ import { CollapsiblePanel } from "../../shared/ui/CollapsiblePanel";
 import type { WorkspaceState } from "../strategies/model";
 import { DiagnosticList, type DiagnosticFieldAction } from "../runs/DiagnosticList";
 import { ExportControls } from "./ExportControls";
+import { ResultDownloads } from "./ResultDownloads";
 import { ReportDownloadButton } from "./ReportDownloadButton";
 import { ResultComparison } from "./ResultSummary";
-import { DEFAULT_COMPARISON_SORT, type ComparisonSort } from "./comparisonModel";
+import { DEFAULT_COMPARISON_SORT, sortedComparisons, type ComparisonSort } from "./comparisonModel";
 
 interface ResultDetailsProps {
   catalog?: Catalog | null;
@@ -55,12 +56,12 @@ export function ResultDetails({
   });
   const [expanded, setExpanded] = useState(true);
   const headerActions = (
-    <div className="result-context-actions">
+    <ResultDownloads locale={locale}>{openMenu => <div className="result-context-actions">
       <ExportControls locale={locale} runId={run?.runId ?? null} result={displayedResult} searchResult={focusedResult}
-        busy={busy || candidatePending} />
+        busy={busy || candidatePending} onError={openMenu} />
       <ReportDownloadButton locale={locale} run={run} result={displayedResult} catalog={catalog}
-        parent={candidateResult ? focusedResult : null} busy={busy || candidatePending} />
-    </div>
+        parent={candidateResult ? focusedResult : null} chartSelection={{ selectedIds: state.selectedResultIds, visibleSeriesIds: state.visibleSeriesIds, orderedIds: sortedComparisons(strategyRuns, comparisonSort, locale).map(item => item.id) }} busy={busy || candidatePending} onError={openMenu} />
+    </div>}</ResultDownloads>
   );
 
   return (

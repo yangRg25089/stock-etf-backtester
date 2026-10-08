@@ -84,7 +84,7 @@ test("phone menu works by keyboard and retains focus across nested import dialog
 test("phone strategy list grows with content, caps its height and chains both scroll boundaries", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 480 });
   await page.goto("/");
-  await page.locator(".workbench-mobile-view").first().click();
+  await page.locator(".workbench-config").scrollIntoViewIfNeeded();
   const list = page.locator(".strategy-card-list");
   const initial = await list.evaluate(element => ({ height: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(initial.height).toBeLessThan(150);
@@ -113,7 +113,7 @@ test("touch swipes at strategy list edges continue into the surrounding page", a
   try {
     const page = await context.newPage();
     await page.goto(baseURL);
-    await page.locator(".workbench-mobile-view").first().tap();
+    await page.locator(".workbench-config").scrollIntoViewIfNeeded();
     for (let index = 1; index < 10; index++) {
       await page.locator(".add-strategy-button").tap();
       await page.locator(".strategy-add-option:not(:disabled)").first().tap();
@@ -157,8 +157,9 @@ test("phone result actions and chart controls are compact and table expansion sh
     await openSaved(page, await savedRun(page));
     await page.setViewportSize({ width: 320, height: 740 });
     const heading = await page.locator("#result-details .collapsible-panel-heading").boundingBox();
-    const png = await page.locator("[data-report-kind=png]").boundingBox();
-    expect(Math.abs(heading.y + heading.height / 2 - png.y - png.height / 2)).toBeLessThan(2);
+    const downloads = await page.locator(".result-downloads-toggle").boundingBox();
+    await expect(page.locator("[data-report-kind=png]")).toBeHidden();
+    expect(Math.abs(heading.y + heading.height / 2 - downloads.y - downloads.height / 2)).toBeLessThan(2);
     const exports = await page.locator("#result-details .collapsible-panel-header").boundingBox();
     expect(exports.height).toBeLessThanOrEqual(152);
     const toolbar = await page.locator(".chart-toolbar").boundingBox();

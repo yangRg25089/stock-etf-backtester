@@ -1,5 +1,5 @@
 import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
-import { useId, useState, type CSSProperties } from "react";
+import { useId, useState } from "react";
 import type { PeriodReturn } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatExactPercent, formatPercent } from "./format";
@@ -7,7 +7,7 @@ import { TableExpandButton } from "./TableExpandButton";
 import { SortableHeader } from "./SortableHeader";
 import { sortTableRows, type TableSort, type TableSortDirection } from "./tableSorting";
 import { ReturnPercent } from "./ReturnPercent";
-import { heatmapIntensity } from "./heatmapIntensity";
+import { heatmapLevel } from "./heatmapLevel";
 import { returnTone } from "./returnTone";
 
 type MonthlySortKey = "year" | "annual" | `month-${number}`;
@@ -29,8 +29,10 @@ export function MonthlyHeatmap({ locale, values, annualValues = [], busy = false
   const cell = (row: PeriodReturn | undefined, key: string, annual = false) => {
     if (!row) return <td key={key} className={`heatmap-unobserved${annual ? " heatmap-annual" : ""}`}><span aria-hidden="true">—</span><span className="sr-only">{translate(locale, "performance.noObservation")}</span></td>;
     const tone = returnTone(row.navReturn);
-    return <td key={key} className={annual ? "heatmap-annual" : undefined}><button type="button" className={`heatmap-cell is-${tone}${inspected === row ? " is-inspected" : ""}`}
-      style={{ "--return-intensity": heatmapIntensity(row.navReturn, annual) } as CSSProperties}
+    const level = heatmapLevel(row.navReturn, annual);
+    const colorLevel = tone === "positive" || tone === "negative" ? Math.max(1, level) : 0;
+    return <td key={key} className={annual ? "heatmap-annual" : undefined}><button type="button"
+      className={`heatmap-cell is-${tone}${colorLevel ? ` is-level-${colorLevel}` : ""}${inspected === row ? " is-inspected" : ""}`}
       aria-label={label(row)} title={`${label(row, formatExactPercent(row.navReturn))} · ${row.startDate} → ${row.endDate}`}
       onMouseEnter={() => setInspected(row)} onFocus={() => setInspected(row)} onClick={() => setInspected(row)}>
       {tone === "positive" ? "+" : ""}{formatPercent(row.navReturn, locale)}

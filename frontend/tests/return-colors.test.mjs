@@ -10,10 +10,10 @@ const { ReturnPercent } = require("../.test-output/features/results/ReturnPercen
 const { returnTone } = require("../.test-output/features/results/returnTone.js");
 const { MonthlyHeatmap } = require("../.test-output/features/results/MonthlyHeatmap.js");
 const { PeriodPerformance } = require("../.test-output/features/results/PeriodPerformance.js");
-const { heatmapCellColor } = require("../.test-output/features/results/heatmapIntensity.js");
+const { heatmapLevel } = require("../.test-output/features/results/heatmapLevel.js");
 
 const heatmapCss = readFileSync(new URL("../src/styles/return-colors.css", import.meta.url), "utf8");
-const themeTokens = readFileSync(new URL("../src/styles/tokens.css", import.meta.url), "utf8");
+const reportImageSource = readFileSync(new URL("../src/features/results/reportImage.ts", import.meta.url), "utf8");
 
 test("return direction preserves Decimal signs, treats negative zero as neutral and excludes invalid values", () => {
   for (const value of ["1e-1000", "0.01", 1]) assert.equal(returnTone(value), "positive");
@@ -43,15 +43,47 @@ test("monthly returns inherit the global convention without retaining a local pr
   assert.doesNotMatch(html, /palette-option|palette-toggle|is-red-up|is-green-up/);
 });
 
-test("monthly return heatmaps preserve red/green saturation and vary only lightness", () => {
-  assert.equal(heatmapCellColor("150 87%", .25, 88, -12), "hsl(150 87% 85%)");
-  assert.equal(heatmapCellColor("150 87%", .75, 88, -12), "hsl(150 87% 79%)");
-  assert.equal(heatmapCellColor("0 73%", .75, 88, -12), "hsl(0 73% 79%)");
-  assert.match(heatmapCss, /\.heatmap-cell\.is-positive\s*\{[^}]*background:\s*hsl\(var\(--return-positive-hs\)/s);
-  assert.match(heatmapCss, /\.heatmap-cell\.is-negative\s*\{[^}]*background:\s*hsl\(var\(--return-negative-hs\)/s);
-  assert.doesNotMatch(heatmapCss, /\.heatmap-cell\.is-(?:positive|negative)\s*\{[^}]*color-mix/s);
-  assert.match(themeTokens, /--return-red-hs:\s*0 73%/);
-  assert.match(themeTokens, /--return-green-hs:\s*150 87%/);
+test("monthly and annual return heatmaps use the agreed fixed magnitude thresholds", () => {
+  assert.deepEqual([0, .0001, .029999, .03, .079999, .08, .149999, .15, .6, .61].map(value => heatmapLevel(value)),
+    [0, 1, 1, 2, 2, 3, 3, 4, 4, 4]);
+  assert.deepEqual([.119999, .12, .319999, .32, .599999, .6].map(value => heatmapLevel(value, true)), [1, 2, 2, 3, 3, 4]);
+
+  const monthlyReturns = [.01, .03, .0301, .08, .0801, .15, .1501, .2, -.01, -.0801, -.1501, -.2];
+  const values = monthlyReturns.map((navReturn, index) => ({
+    year: 2024, month: index + 1, navReturn: String(navReturn),
+    startDate: `2024-${String(index + 1).padStart(2, "0")}-01`, endDate: `2024-${String(index + 1).padStart(2, "0")}-28`,
+  }));
+  const monthlyHtml = renderToStaticMarkup(React.createElement(MonthlyHeatmap, { locale: "en", values }));
+  const monthlyLevels = [...monthlyHtml.matchAll(/class="heatmap-cell is-(positive|negative) is-level-(\d)/g)]
+    .map(([, tone, level]) => [tone, Number(level)]);
+  assert.deepEqual(monthlyLevels, [
+    ["positive", 1], ["positive", 2], ["positive", 2], ["positive", 3],
+    ["positive", 3], ["positive", 4], ["positive", 4], ["positive", 4],
+    ["negative", 1], ["negative", 3], ["negative", 4], ["negative", 4],
+  ]);
+
+  const annualValues = [.08, .12, .32, .6].map((navReturn, index) => ({
+    year: 2020 + index, month: null, navReturn: String(navReturn),
+    startDate: `${2020 + index}-01-01`, endDate: `${2020 + index}-12-31`,
+  }));
+  const annualHtml = renderToStaticMarkup(React.createElement(MonthlyHeatmap, { locale: "en", values: [], annualValues }));
+  const annualLevels = [...annualHtml.matchAll(/class="heatmap-cell is-positive is-level-(\d)/g)].map(([, level]) => Number(level));
+  assert.deepEqual(annualLevels, [1, 2, 3, 4]);
+});
+
+test("monthly return heatmaps use the supplied red/green swatches and white text in either palette", () => {
+  for (const [name, color] of [
+    ["red-1", "#ef4a4a"], ["red-2", "#f72d2d"], ["red-3", "#bf2222"], ["red-4", "#9a1a1a"],
+    ["green-1", "#18d57f"], ["green-2", "#1dc87a"], ["green-3", "#0c9a5a"], ["green-4", "#087443"],
+  ]) assert.match(heatmapCss, new RegExp(`--heatmap-${name}:\\s*${color}`));
+  assert.match(heatmapCss, /--heatmap-positive-1:\s*var\(--heatmap-red-1\)/);
+  assert.match(heatmapCss, /--heatmap-negative-1:\s*var\(--heatmap-green-1\)/);
+  assert.match(heatmapCss, /--heatmap-positive-1:\s*var\(--heatmap-green-1\)/);
+  assert.match(heatmapCss, /--heatmap-negative-1:\s*var\(--heatmap-red-1\)/);
+  assert.match(heatmapCss, /\.heatmap-cell\.is-positive,\s*\.heatmap-cell\.is-negative\s*\{[^}]*color:\s*#fff/s);
+  assert.match(heatmapCss, /\.heatmap-cell\.is-positive\.is-level-4\s*\{[^}]*background:\s*var\(--heatmap-positive-4\)/s);
+  assert.match(reportImageSource, /color\(`--heatmap-\$\{tone\}-\$\{level\}`\)/);
+  assert.match(reportImageSource, /tone === "positive" \|\| tone === "negative" \? "#fff"/);
 });
 
 test("period performance keeps named scroll regions and headings without duplicate outer landmarks", () => {

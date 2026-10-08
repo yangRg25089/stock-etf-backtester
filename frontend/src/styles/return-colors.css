@@ -1,15 +1,51 @@
+.app-frame {
+  --heatmap-red-1: #ef4a4a;
+  --heatmap-red-2: #f72d2d;
+  --heatmap-red-3: #bf2222;
+  --heatmap-red-4: #9a1a1a;
+  --heatmap-green-1: #18d57f;
+  --heatmap-green-2: #1dc87a;
+  --heatmap-green-3: #0c9a5a;
+  --heatmap-green-4: #087443;
+}
+
 .app-frame[data-return-palette="red-up"] {
   --return-positive: var(--return-red);
   --return-negative: var(--return-green);
-  --return-positive-hs: var(--return-red-hs);
-  --return-negative-hs: var(--return-green-hs);
+  --heatmap-positive-1: var(--heatmap-red-1);
+  --heatmap-positive-2: var(--heatmap-red-2);
+  --heatmap-positive-3: var(--heatmap-red-3);
+  --heatmap-positive-4: var(--heatmap-red-4);
+  --heatmap-negative-1: var(--heatmap-green-1);
+  --heatmap-negative-2: var(--heatmap-green-2);
+  --heatmap-negative-3: var(--heatmap-green-3);
+  --heatmap-negative-4: var(--heatmap-green-4);
+}
+
+.app-frame[data-return-palette="green-up"] {
+  --heatmap-positive-1: var(--heatmap-green-1);
+  --heatmap-positive-2: var(--heatmap-green-2);
+  --heatmap-positive-3: var(--heatmap-green-3);
+  --heatmap-positive-4: var(--heatmap-green-4);
+  --heatmap-negative-1: var(--heatmap-red-1);
+  --heatmap-negative-2: var(--heatmap-red-2);
+  --heatmap-negative-3: var(--heatmap-red-3);
+  --heatmap-negative-4: var(--heatmap-red-4);
 }
 
 .return-value.is-positive { color: var(--return-positive); }
 .return-value.is-negative { color: var(--return-negative); }
 
-.heatmap-cell.is-positive { color: var(--app-foreground); background: hsl(var(--return-positive-hs) calc(var(--heatmap-lightness-start) + var(--return-intensity, 0) * var(--heatmap-lightness-range))); }
-.heatmap-cell.is-negative { color: var(--app-foreground); background: hsl(var(--return-negative-hs) calc(var(--heatmap-lightness-start) + var(--return-intensity, 0) * var(--heatmap-lightness-range))); }
+.heatmap-cell.is-positive,
+.heatmap-cell.is-negative { color: #fff; }
+.heatmap-cell.is-positive.is-level-1 { background: var(--heatmap-positive-1); }
+.heatmap-cell.is-positive.is-level-2 { background: var(--heatmap-positive-2); }
+.heatmap-cell.is-positive.is-level-3 { background: var(--heatmap-positive-3); }
+.heatmap-cell.is-positive.is-level-4 { background: var(--heatmap-positive-4); }
+.heatmap-cell.is-negative.is-level-1 { background: var(--heatmap-negative-1); }
+.heatmap-cell.is-negative.is-level-2 { background: var(--heatmap-negative-2); }
+.heatmap-cell.is-negative.is-level-3 { background: var(--heatmap-negative-3); }
+.heatmap-cell.is-negative.is-level-4 { background: var(--heatmap-negative-4); }
 /* Cap the tint at 12% so return text remains readable at the strongest heat value. */
 .search-heat-cell.is-positive { background: color-mix(in srgb, var(--return-positive) calc(var(--heat-strength) * 40%), var(--app-surface)); }
 .search-heat-cell.is-negative { background: color-mix(in srgb, var(--return-negative) calc(var(--heat-strength) * 40%), var(--app-surface)); }

@@ -67,9 +67,9 @@ test("monthly return colors follow locale defaults, keep manual choices, and exp
   await expect(negative).toBeVisible();
   await expect(page.locator(".app-frame")).toHaveAttribute("data-return-palette", "green-up");
   await expect(positive).toHaveCSS("background-color", await expectedHeatmapColor(page, "positive", .05));
-  await expect(positive).toHaveCSS("color", "rgb(37, 60, 109)");
+  await expect(positive).toHaveCSS("color", "rgb(255, 255, 255)");
   await expect(negative).toHaveCSS("background-color", await expectedHeatmapColor(page, "negative", .04));
-  await expect(negative).toHaveCSS("color", "rgb(37, 60, 109)");
+  await expect(negative).toHaveCSS("color", "rgb(255, 255, 255)");
 
   await page.locator(".return-color-control").getByRole("button", { name: "上昇は赤、下落は緑" }).click();
   await expect(page.locator(".app-frame")).toHaveAttribute("data-return-palette", "red-up");

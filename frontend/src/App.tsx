@@ -37,7 +37,7 @@ function App() {
   const [returnColorPreference, setReturnColorPreference] = useState<ReturnColorPalette | null>(readBrowserReturnColorPreference);
   const returnPalette = resolveReturnColorPalette(locale, returnColorPreference);
   const { catalog, catalogState, retryCatalog } = useCatalog();
-  const { configCollapsed, setConfigCollapsed, mobilePanel, setMobilePanel, revealConfig } = useWorkbenchLayout();
+  const { configCollapsed, setConfigCollapsed, isPhone, revealConfig } = useWorkbenchLayout();
   const [sharedSettingsDialogOpen, setSharedSettingsDialogOpen] = useState(false);
   const [sharedSettingsFocusKey, setSharedSettingsFocusKey] = useState<string | null>(null);
   const [strategyFieldNavigation, setStrategyFieldNavigation] = useState<StrategyFieldNavigation | null>(null);
@@ -115,7 +115,6 @@ function App() {
     };
   }, [catalog, locale, workspace, isLocked, dispatch, revealConfig]);
 
-
   return (
     <div className="app-frame" lang={locale === "zh" ? "zh-Hans" : locale} data-return-palette={returnPalette}
       style={{ "--app-topbar-height": `${topbarHeight}px` } as CSSProperties}>
@@ -170,7 +169,7 @@ function App() {
           onSelect={id => {
             if (isLocked()) return;
             dispatch({ type: "result.focus", id });
-            setMobilePanel("results");
+            if (isPhone) document.getElementById("workbench-results-panel")?.scrollIntoView({ block: "start" });
           }}
         />}
       </header>
@@ -197,31 +196,11 @@ function App() {
             </div>
           )}
 
-          {catalog && workspace && (
-            <div className="workbench-mobile-views" role="group" aria-label={translate(locale, "workbench.mobile.label")}>
-              <button
-                className="workbench-mobile-view"
-                type="button"
-                aria-pressed={mobilePanel === "config"}
-                onClick={() => setMobilePanel("config")}
-              >
-                {translate(locale, "workbench.mobile.config")}
-              </button>
-              <button
-                className="workbench-mobile-view"
-                type="button"
-                aria-pressed={mobilePanel === "results"}
-                onClick={() => setMobilePanel("results")}
-              >
-                {translate(locale, "workbench.mobile.results")}
-              </button>
-            </div>
-          )}
         </div>
 
         {catalog && workspace && (
-          <div className={`workbench-layout${configCollapsed ? " is-config-collapsed" : ""}`} data-mobile-panel={mobilePanel}>
-            <aside id="workbench-config-panel" className="workbench-config" hidden={configCollapsed && mobilePanel !== "config"} aria-label={translate(locale, "workbench.configPanel")}>
+          <div className={`workbench-layout${configCollapsed && !isPhone ? " is-config-collapsed" : ""}`}>
+            <aside id="workbench-config-panel" className="workbench-config" hidden={configCollapsed && !isPhone} aria-label={translate(locale, "workbench.configPanel")}>
               <div className="workbench-config-fixed">
                 <div className="shared-settings-block">
                   <button
@@ -294,7 +273,6 @@ function App() {
               id="workbench-results-panel"
               className="workbench-results"
               aria-label={translate(locale, "section.results")}
-              hidden={mobilePanel === "config"}
             >
               <h2 className="sr-only">{translate(locale, "section.results")}</h2>
               <div className="results">

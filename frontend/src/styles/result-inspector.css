@@ -74,7 +74,7 @@
   .chart-trade-hit-area { r: 28px; }
 }
 
-.search-lab { margin: 12px 0; border: 1px solid var(--app-border); border-radius: var(--app-radius); padding: 10px; }
+.search-lab { min-width: 0; width: 100%; box-sizing: border-box; margin: 12px 0; border: 1px solid var(--app-border); border-radius: var(--app-radius); padding: 10px; }
 .search-lab > summary { font-size: 13px; font-weight: 650; cursor: pointer; }
 .search-lab-toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 16px; margin-top: 12px; }
 .search-lab-toolbar label { display: grid; gap: 4px; font-size: 12px; font-weight: 650; min-width: 0; }

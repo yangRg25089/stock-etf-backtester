@@ -177,10 +177,6 @@
   min-width: 0;
 }
 
-.workbench-mobile-views {
-  display: none;
-}
-
 .workbench-context .catalog-notice,
 .workbench-context .catalog-error {
   margin-bottom: 8px;

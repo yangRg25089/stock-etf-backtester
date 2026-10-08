@@ -35,7 +35,7 @@
     top: calc(100% + 4px);
     right: 8px;
     display: block;
-    width: min(360px, calc(100% - 16px));
+    width: min(260px, calc(100vw - 16px));
     max-height: calc(100dvh - var(--app-topbar-height) - 16px);
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -50,7 +50,7 @@
   .topbar-setting { display: flex; align-items: center; justify-content: space-between; min-width: 0; min-height: 44px; gap: 12px; }
   .topbar-setting-label { display: block; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
   .return-color-control, .locale-select-control { grid-area: auto; }
-  .locale-select-control .locale-select { min-width: 0; width: 140px; padding-inline: 6px 20px; }
+  .locale-select-control .locale-select { min-width: 0; width: 120px; padding-inline: 6px 20px; }
   .package-controls { grid-area: auto; justify-self: stretch; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--app-border); }
   .package-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .package-action { min-width: 0; width: 100%; min-height: 44px; justify-content: flex-start; padding-inline: 10px; }
@@ -68,7 +68,6 @@
   }
   .selected-strategy-chip { flex: 0 0 auto; max-width: min(240px, 80vw); min-height: 28px; }
   .selected-strategies:focus-visible { outline: 2px solid var(--app-focus); outline-offset: 0; }
-  .workbench-mobile-views { margin-block: 4px 8px; padding: 2px; }
   .workbench-layout { overflow: visible; }
   .workbench-config { height: auto; min-height: 0; overflow: visible; }
   .workbench-config-fixed { grid-template-rows: auto auto; align-content: start; overflow: visible; }
@@ -78,9 +77,10 @@
   .workbench-results .collapsible-panel-header { gap: 4px; padding: 4px 6px; }
   .workbench-results .collapsible-panel-body { padding: 6px; }
   .result-details .collapsible-panel-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
-  .result-details .collapsible-panel-actions, .result-context-actions { display: contents; }
-  .result-context-actions .export-controls { grid-column: 1 / -1; grid-row: 2; gap: 4px; }
-  .result-context-actions .report-download-control { grid-column: 2; grid-row: 1; }
+  .result-details .collapsible-panel-actions { display: block; width: auto; }
+  .result-context-actions { display: grid; gap: 4px; }
+  .result-context-actions .export-controls { display: grid; gap: 4px; }
+  .result-context-actions .report-download-control { width: 100%; }
   .result-context-actions .export-button, .report-download-button { gap: 4px; padding-inline: 6px; font-size: 11px; }
   .chart-toolbar { gap: 4px; padding: 4px; }
   .chart-controls { gap: 4px; }

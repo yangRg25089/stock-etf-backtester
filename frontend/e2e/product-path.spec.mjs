@@ -18,9 +18,7 @@ async function themeColor(page, token) {
 async function openSharedSettings(page) {
   await expect(page.locator(".workbench-layout")).toBeVisible();
   if (!(await page.locator(".workbench-config").isVisible())) {
-    const mobileConfig = page.locator(".workbench-mobile-view").first();
-    if (await mobileConfig.isVisible()) await mobileConfig.click();
-    else await page.locator(".workbench-config-toggle").click();
+    await page.locator(".workbench-config-toggle").click();
   }
   await page.locator(".shared-settings-open-button").click();
   await expect(page.getByRole("dialog")).toBeVisible();
@@ -60,9 +58,10 @@ test.describe("responsive product shell", () => {
         await page.goto("/");
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         if (width < 768) {
-          await expect(page.locator(".workbench-mobile-views")).toBeVisible();
+          await expect(page.locator(".workbench-mobile-views")).toHaveCount(0);
+          await expect(page.locator(".workbench-config")).toBeVisible();
         } else {
-          await expect(page.locator(".workbench-mobile-views")).toBeHidden();
+          await expect(page.locator(".workbench-mobile-views")).toHaveCount(0);
         }
         if (width >= 768 && width <= 1279) {
           await expect(page.locator(".workbench-config")).toBeHidden();
@@ -437,34 +436,23 @@ test("touch tablets keep the configuration and results in two in-flow columns", 
   await context.close();
 });
 
-test("mobile views switch between configuration and results while keeping the page contained", async ({ page }) => {
+test("mobile configuration and results stack while keeping the page contained", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  const views = page.getByRole("group", { name: "メイン画面" });
-  const configView = page.getByRole("button", { name: "設定", exact: true });
-  const resultsView = page.getByRole("button", { name: "結果", exact: true });
-  await expect(views).toBeVisible();
-  await expect(resultsView).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".workbench-mobile-views")).toHaveCount(0);
   await expect(page.locator(".workbench-results")).toBeVisible();
-  await expect(page.locator(".workbench-config")).toBeHidden();
-
-  await configView.click();
-  await expect(configView).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".workbench-config")).toBeVisible();
-  await expect(page.locator(".workbench-results")).toBeHidden();
   await expect(page.locator(".strategy-card-open")).toHaveCount(1);
+  const config = await page.locator(".workbench-config").boundingBox();
+  const results = await page.locator(".workbench-results").boundingBox();
+  expect(results.y).toBeGreaterThanOrEqual(config.y + config.height);
+  await page.locator(".workbench-results").scrollIntoViewIfNeeded();
   const stickyHeader = await page.evaluate(() => {
     window.scrollTo(0, document.documentElement.scrollHeight);
     return document.querySelector(".app-topbar").getBoundingClientRect().top;
   });
   expect(stickyHeader).toBe(0);
-
-  await resultsView.click();
-  await expect(resultsView).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".workbench-results")).toBeVisible();
-  await expect(page.locator(".workbench-config")).toBeHidden();
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
 test("Japanese and Chinese first screens pass axe and expose a semantic Chromium accessibility tree", async ({ page }) => {
@@ -951,7 +939,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".chart-range-controls")).toBeInViewport();
 
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.locator(".workbench-mobile-view").filter({ hasText: "結果" }).click();
+  await page.locator(".workbench-results").scrollIntoViewIfNeeded();
   const mobileDetailsHeader = page.locator("#result-details .collapsible-panel-header");
   await expect(mobileDetailsHeader).toBeVisible();
   const mobileHeaderBounds = await mobileDetailsHeader.evaluate((header) => {
@@ -1752,7 +1740,7 @@ test("strategy menu, condition connectors and comparison selections retain full 
     await closeSharedSettings(page);
     await page.locator(".run-submit-button").tap();
     await expect(page.locator(".topbar-functions")).toBeHidden();
-    await page.locator(".workbench-mobile-view").last().tap();
+    await page.locator(".workbench-results").scrollIntoViewIfNeeded();
     await expect(page.locator(".comparison-table")).toBeVisible();
     await expect(page.locator(".run-submit-button")).toBeEnabled();
     targets.push(...await page.locator(".comparison-table .result-select").evaluateAll(nodes =>
@@ -2287,7 +2275,7 @@ test("common settings summary separates ticker, dates and funding into readable 
   for (const emoji of await emojis.all()) await expect(emoji).toHaveAttribute("aria-hidden", "true");
   for (const width of [1440, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    if (width === 320) await page.locator(".workbench-mobile-view").first().click();
+    if (width === 320) await page.locator(".workbench-config").scrollIntoViewIfNeeded();
     const a = await symbol.boundingBox(), b = await dates.boundingBox(), c = await funding.boundingBox();
     expect(a.y + a.height).toBeLessThanOrEqual(b.y);
     expect(b.y + b.height).toBeLessThanOrEqual(c.y);
@@ -2464,7 +2452,7 @@ test("result info is absent and trade context remains readable in a narrow touch
   await expect(page.locator(".run-submit-button")).toBeEnabled();
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await expect(page.locator(".topbar-functions")).toBeHidden();
-  await page.locator(".workbench-mobile-view").last().click();
+  await page.locator(".workbench-results").scrollIntoViewIfNeeded();
   await expect(page.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
   await expect(page.locator("#result-panel-performance")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toHaveText("ボラティリティ積立");
@@ -2477,7 +2465,7 @@ test("result info is absent and trade context remains readable in a narrow touch
     await installRunFixture(touchPage, saved);
     await touchPage.goto(page.url());
     await expect(touchPage.locator(".comparison-table tbody tr")).toHaveCount(3);
-    await touchPage.locator(".workbench-mobile-view").last().tap();
+    await touchPage.locator(".workbench-results").scrollIntoViewIfNeeded();
     await expect(touchPage.locator(".result-snapshot-info, .result-snapshot-info-content")).toHaveCount(0);
     const tab = touchPage.locator(".trade-table-region .table-expand-button");
     const size = await tab.boundingBox();

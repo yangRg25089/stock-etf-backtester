@@ -13,9 +13,10 @@ interface ExportControlsProps {
   result: StrategyRun | null;
   searchResult?: StrategyRun | null;
   busy?: boolean;
+  onError?(): void;
 }
 
-export function ExportControls({ locale, runId, result, searchResult, busy = false }: ExportControlsProps) {
+export function ExportControls({ locale, runId, result, searchResult, onError, busy = false }: ExportControlsProps) {
   const [pendingKind, setPendingKind] = useState<ExportKind | null>(null);
   const [error, setError] = useState<ExportApiError | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -37,6 +38,7 @@ export function ExportControls({ locale, runId, result, searchResult, busy = fal
       await performCsvExport(runId, target.id, kind, request.signal);
     } catch (caught) {
       if (request.signal.aborted) return;
+      onError?.();
       if (caught instanceof ExportApiError) {
         setError(caught);
       } else {

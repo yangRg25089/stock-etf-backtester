@@ -3,7 +3,7 @@ import type { Catalog, RunResponse, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { triggerFileDownload } from "./exportModel";
 import { renderResultReport } from "./reportImage";
-import { buildResultReport, isResultReportAvailable } from "./reportModel";
+import { buildResultReport, isResultReportAvailable, type ReportChartSelection } from "./reportModel";
 
 interface ReportDownloadButtonProps {
   run: RunResponse | null;
@@ -12,9 +12,11 @@ interface ReportDownloadButtonProps {
   catalog?: Catalog | null;
   locale: Locale;
   busy?: boolean;
+  onError?(): void;
+  chartSelection: ReportChartSelection;
 }
 
-export function ReportDownloadButton({ run, result, parent, catalog, locale, busy = false }: ReportDownloadButtonProps) {
+export function ReportDownloadButton({ run, result, parent, catalog, locale, chartSelection, onError, busy = false }: ReportDownloadButtonProps) {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const controller = useRef<AbortController | null>(null);
@@ -24,7 +26,7 @@ export function ReportDownloadButton({ run, result, parent, catalog, locale, bus
   }, [run?.runId, result?.id, locale, busy]);
   const download = async () => {
     if (busy || pending) return;
-    const report = buildResultReport(run, result, locale, catalog, parent);
+    const report = buildResultReport(run, result, locale, catalog, parent, chartSelection);
     if (!report) return;
     const request = new AbortController();
     controller.current = request;
@@ -33,7 +35,7 @@ export function ReportDownloadButton({ run, result, parent, catalog, locale, bus
       const blob = await renderResultReport(report, request.signal);
       if (!request.signal.aborted) triggerFileDownload(blob, report.filename);
     } catch {
-      if (!request.signal.aborted) setFailed(true);
+      if (!request.signal.aborted) { setFailed(true); onError?.(); }
     } finally {
       if (!request.signal.aborted) setPending(false);
     }

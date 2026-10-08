@@ -1,4 +1,4 @@
-import { heatmapCellColor, heatmapIntensity } from "./heatmapIntensity";
+import { heatmapLevel } from "./heatmapLevel";
 import { formatPercent } from "./format";
 import { returnTone } from "./returnTone";
 import { reportBitmapSize, wrapReportText, type ResultReport } from "./reportModel";
@@ -37,20 +37,20 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
   });
   const metricHeight = Math.max(...metricRows.map(metric => metric.labelLines.length * 24
     + metric.valueLines.length * (metric.valueSize + 6))) + 38;
-  const legend = report.lines.map(line => ({ ...line, labelLines: wrap(line.label, 19, BODY_WIDTH - 34) }));
+  const legend = report.lines.map((line, index) => ({ ...line, labelLines: wrap(`${index + 1}. ${line.label}`, 19, BODY_WIDTH - 34) }));
   const legendHeight = legend.reduce((height, line) => height + line.labelLines.length * 26, 0);
   const sections = report.sections.map(section => ({ ...section,
     wrapped: section.lines.flatMap(line => wrap(line, 20, BODY_WIDTH - 40)) }));
   const notes = report.notes.flatMap(note => wrap(note, 18));
-  const footer = report.footer.flatMap(line => wrap(line, 16));
   const headerHeight = 194 + title.length * 40;
-  const chartHeight = 395 + legendHeight;
+  const coreHeight = Math.max(270, report.lines.length * 18);
+  const chartHeight = 125 + coreHeight + legendHeight;
   const sectionsHeight = sections.reduce((height, section) => height + 64 + section.wrapped.length * 28, 0);
   const heatmap = report.periodReturns;
   const years = [...new Set([...heatmap.monthly, ...heatmap.annual].map(row => row.year))].sort((a, b) => a - b);
   const heatmapHeight = 84 + Math.max(1, years.length) * 42;
   const height = headerHeight + metricHeight * 2 + 28 + chartHeight + 200 + sectionsHeight
-    + heatmapHeight + notes.length * 26 + footer.length * 24 + 112;
+    + heatmapHeight + notes.length * 26 + 24;
   const bitmap = reportBitmapSize(WIDTH, height);
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
@@ -84,21 +84,23 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
   y += metricHeight * 2 + 28;
   text(report.chartTitle, MARGIN, y, 24, palette.text, 700);
   y += 37;
-  for (const line of legend) {
+  for (const [index, line] of legend.entries()) {
+    context.setLineDash(index === 0 ? [] : [[7, 3], [2, 3], [9, 3, 2, 3]][(index - 1) % 3]);
     context.strokeStyle = line.color; context.lineWidth = 2;
     context.beginPath(); context.moveTo(MARGIN, y + 12); context.lineTo(MARGIN + 23, y + 12); context.stroke();
     textLines(line.labelLines, MARGIN + 34, y, 26, 19, line.color);
     y += line.labelLines.length * 26;
   }
+  context.setLineDash([]);
   y += 12;
-  const plot = { left: MARGIN + 70, width: BODY_WIDTH - 90, top: y, height: 270 };
+  const plot = { left: MARGIN + 70, width: BODY_WIDTH - 140, top: y, height: coreHeight };
   const values = report.lines.flatMap(line => line.points.map(point => point.indexValue));
   const lowest = values.reduce((minimum, value) => Math.min(minimum, value), values.length ? 100 : 0);
   const highest = values.reduce((maximum, value) => Math.max(maximum, value), 100);
   const padding = Math.max((highest - lowest) * 0.08, 5);
   const min = lowest - padding;
   const max = highest + padding;
-  const lastIndex = report.lines.reduce((last, line) => line.points.reduce((last, point) => Math.max(last, point.index), last), 1);
+  const lastIndex = Math.max(1, report.dates.length - 1);
   const xAt = (index: number) => plot.left + index / lastIndex * plot.width;
   const yAt = (value: number) => plot.top + (max - value) / (max - min) * plot.height;
   const grid = (top: number, plotHeight: number, yLabel: (fraction: number) => string) => {
@@ -120,11 +122,39 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
       else context.lineTo(xAt(point.index), toY(point.value));
     });
     context.stroke();
+    points.forEach((point, index) => {
+      if ((index === 0 || points[index - 1].index !== point.index - 1)
+        && (index === points.length - 1 || points[index + 1].index !== point.index + 1)) {
+        context.beginPath(); context.arc(xAt(point.index), toY(point.value), 3, 0, Math.PI * 2);
+        context.fillStyle = context.strokeStyle; context.fill();
+      }
+    });
   };
-  for (const line of report.lines) {
+  for (const [index, line] of report.lines.entries()) {
+    context.setLineDash(index === 0 ? [] : [[7, 3], [2, 3], [9, 3, 2, 3]][(index - 1) % 3]);
     context.strokeStyle = line.color;
     context.lineWidth = line.id === report.resultId ? 2 : 1.3;
     strokeSegments(line.points.map(point => ({ index: point.index, value: point.indexValue })), yAt);
+  }
+  context.setLineDash([]);
+  // Labels use leaders without moving any saved curve value, including exact overlaps.
+  const endpoints = report.lines.flatMap((line, index) => {
+    const point = line.points.at(-1);
+    return point ? [{ point, color: line.color, number: index + 1, labelY: yAt(point.indexValue) }] : [];
+  }).sort((a, b) => a.labelY - b.labelY);
+  endpoints.forEach((endpoint, index) => {
+    endpoint.labelY = Math.max(endpoint.labelY, index ? endpoints[index - 1].labelY + 18 : plot.top);
+  });
+  for (let index = endpoints.length - 1; index >= 0; index--) {
+    endpoints[index].labelY = Math.min(endpoints[index].labelY,
+      index === endpoints.length - 1 ? plot.top + plot.height - 16 : endpoints[index + 1].labelY - 18);
+  }
+  for (const endpoint of endpoints) {
+    const labelY = endpoint.labelY;
+    context.strokeStyle = endpoint.color; context.lineWidth = 0.8;
+    context.beginPath(); context.moveTo(xAt(endpoint.point.index), yAt(endpoint.point.indexValue));
+    context.lineTo(plot.left + plot.width + 20, labelY); context.stroke();
+    text(String(endpoint.number), plot.left + plot.width + 24, labelY - 8, 16, endpoint.color, 600);
   }
   y += plot.height + 19;
   text(report.chartAxis, plot.left, y, 16, palette.muted);
@@ -134,7 +164,7 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
   const drawdownMin = report.drawdown.reduce((minimum, point) => Math.min(minimum, point.value), -1);
   const ddHeight = 105;
   grid(y, ddHeight, fraction => `${(drawdownMin * fraction).toFixed(1)}%`);
-  context.strokeStyle = report.lines.find(line => line.id === report.resultId)?.color ?? palette.accent;
+  context.strokeStyle = report.drawdownColor;
   context.lineWidth = 1.5;
   strokeSegments(report.drawdown, value => y + value / drawdownMin * ddHeight);
   y += ddHeight + 12;
@@ -167,17 +197,16 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
       const row = column === 13 ? annualCells.get(year) : monthCells.get(`${year}-${column}`);
       const tone = returnTone(row?.navReturn);
       const x = MARGIN + column * cellWidth;
-      const intensity = tone === "positive" || tone === "negative" ? heatmapIntensity(row?.navReturn, column === 13) : 0;
+      const level = tone === "positive" || tone === "negative" ? Math.max(1, heatmapLevel(row?.navReturn, column === 13)) : 0;
       const fill = tone === "positive" || tone === "negative"
-        ? heatmapCellColor(color(`--return-${tone}-hs`), intensity,
-          parseFloat(color("--heatmap-lightness-start")), parseFloat(color("--heatmap-lightness-range")))
+        ? color(`--heatmap-${tone}-${level}`)
         : palette.soft;
       context.fillStyle = palette.background; context.fillRect(x + 2, y, cellWidth - 4, 34);
       context.fillStyle = fill; context.fillRect(x + 2, y, cellWidth - 4, 34);
       if (column === 13) { context.strokeStyle = palette.accent; context.lineWidth = 2; context.strokeRect(x + 2, y, cellWidth - 4, 34); }
       const value = `${tone === "positive" ? "+" : ""}${formatPercent(row?.navReturn, "en")}`;
       const size = Math.max(10, Math.min(14, 14 * (cellWidth - 8) / Math.max(1, (() => { font(14, 600); return context.measureText(value).width; })())));
-      text(value, x + 6, y + 10, size, tone === "positive" || tone === "negative" ? palette.text : palette.muted, 600);
+      text(value, x + 6, y + 10, size, tone === "positive" || tone === "negative" ? "#fff" : palette.muted, 600);
     }
     y += 42;
   }
@@ -185,7 +214,6 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
   y += 16;
   textLines(notes, MARGIN, y + 8, 26, 18, palette.muted);
   y += 28 + notes.length * 26;
-  textLines(footer, MARGIN, y, 24, 16, palette.muted);
   try {
     checkAbort(signal);
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => {
