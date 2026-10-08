@@ -46,7 +46,9 @@ test("unselected focused assets never return and selected comparison curves rema
   assert.match(assetOnly, /data-result-id="dca"/);
   assert.doesNotMatch(assetOnly, /class="overlay-series overlay-totalAsset"|class="overlay-series overlay-price"|chart-trade-marker/);
   const none = render([], ["totalAsset"]);
-  assert.match(none, /class="overlay-series overlay-price"/);
+  assert.doesNotMatch(none, /class="overlay-series overlay-price"/);
+  assert.match(none, /class="chart-empty chart-empty-main"/);
+  assert.match(none, /aria-label="显示标的收盘价曲线"[^>]*aria-pressed="false"/);
   assert.doesNotMatch(none, /chart-trade-marker|comparison-overlay-series|class="overlay-series overlay-totalAsset"/);
 });
 
@@ -73,7 +75,7 @@ test("core series inspection is part of permanent readings with no separate capt
   const core = html.match(/<figure class="chart-panel chart-overlay"[\s\S]*?<\/figure>/)[0];
   assert.doesNotMatch(core, /<figcaption|overlay-legend/);
   const readout = core.slice(0, core.indexOf('<div class="chart-canvas">'));
-  assert.match(readout, /<button[^>]*chart-series-control[^>]*aria-label="标的收盘价 \(USD\)"[^>]*aria-pressed="false"/);
+  assert.match(readout, /<button[^>]*chart-series-control[^>]*aria-label="隐藏标的收盘价曲线"[^>]*aria-pressed="true"/);
   assert.match(readout, /<button[^>]*chart-strategy-readout[^>]*aria-label="策略 A"[^>]*aria-pressed="false"/);
   assert.match(readout, /104\.00 USD/);
   assert.match(readout, /100\.00 USD/);
@@ -161,7 +163,7 @@ test("linked figures have one bottom date axis and no separate-layout controls",
     assert.doesNotMatch(html, /chart-layout-controls|chart-aux-panel|分割表示|連動表示/);
     for (const id of visibleSeriesIds.filter(id => id !== "price")) {
       assert.match(html, new RegExp(`data-chart-id="${id}"`));
-      assert.match(html, /viewBox="0 0 800 72"/);
+      assert.match(html, /viewBox="0 0 800 88"/);
     }
   }
 });
@@ -187,7 +189,7 @@ test("compact indicators retain accessible natural units with measured pixel geo
       assert.match(figure, /<text class="chart-axis-title chart-y-axis-title"/);
       assert.match(figure, /linearGradient/);
       assert.doesNotMatch(figure, /<figcaption|overlay-legend/);
-      assert.match(figure, /data-plot-top="8" data-plot-bottom="64"/);
+      assert.match(figure, /data-plot-top="8" data-plot-bottom="80"/);
       assert.ok(figure.match(/<title[^>]*>[\s\S]*?<\/title>/)[0].includes(id === "vix" ? pointUnit : "%"));
     }
     assert.match(html, /<svg class="chart-date-axis"/);
@@ -483,7 +485,7 @@ test("comparison curves default to thin strokes and reading controls support key
     locale: "zh", dailyAssets, trades: [], visibleSeriesIds: ["price", "totalAsset"], onSeriesChange() {},
   }));
   assert.match(html, /stroke-width="1.2"/);
-  assert.match(html, /<button type="button" class="chart-series-control" aria-label="标的收盘价 \(USD\)" aria-pressed="false"/);
+  assert.match(html, /<button type="button" class="chart-series-control is-selected" aria-label="隐藏标的收盘价曲线" aria-pressed="true"/);
   assert.doesNotMatch(html, /class="chart-highlight-area"/);
 });
 
@@ -498,7 +500,7 @@ test("the main chart provides eight numeric ticks and seven date positions", () 
   assert.equal((html.match(/chart-x-tick/g) ?? []).length, 7);
 });
 
-test("hiding price preserves the asset chart and old snapshots cannot hide their last usable core series", () => {
+test("price hides independently and unavailable asset curves do not force another core series", () => {
   const render = (assets, ids) => renderToStaticMarkup(React.createElement(ResultsCharts, {
     locale: "zh", dailyAssets: assets, trades: [], visibleSeriesIds: ids, onSeriesChange() {},
   }));
@@ -509,7 +511,7 @@ test("hiding price preserves the asset chart and old snapshots cannot hide their
   const legacy = render(dailyAssets.map(({ totalContributed, ...asset }) => asset), ["price", "totalAsset"]);
   assert.match(legacy, /overlay-series overlay-price/);
   assert.match(legacy, /重新运行/);
-  assert.match(legacy, /<button(?=[^>]*aria-pressed="true")(?=[^>]*disabled="")[^>]*>[\s\S]*?价格/);
+  assert.match(legacy, /<button(?=[^>]*data-series="price")(?=[^>]*aria-pressed="true")(?![^>]*disabled)/);
   assert.doesNotMatch(legacy, /overlay-series overlay-totalAsset/);
 });
 

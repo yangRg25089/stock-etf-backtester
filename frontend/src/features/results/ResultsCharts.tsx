@@ -6,9 +6,9 @@ import { isVolatilityObservation } from "./model";
 import { numericValue } from "./format";
 import { visibleIndexRange } from "./chartViewport";
 import type { ResultsChartsProps, SeriesDefinition } from "./chart/chartTypes";
-import { CHART } from "./chart/chartScale";
+import { CHART, chartPlotHeights } from "./chart/chartScale";
 import { ChartControls } from "./chart/ChartControls";
-import { SERIES, samplesForSeries, buildChartSeriesModel } from "./chart/chartSeriesModel";
+import { SERIES, samplesForSeries, buildChartSeriesModel, selectedChartSeries } from "./chart/chartSeriesModel";
 import { ChartDateAxis } from "./chart/ChartAxes";
 import { IndicatorChart } from "./chart/IndicatorChart";
 import { OverlayChart } from "./chart/OverlayChart";
@@ -39,7 +39,7 @@ export function ResultsCharts({
   const interaction = useChartInteraction(dailyAssets.length, CHART, busy);
   const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps } = interaction;
   const rootElement = useRef<HTMLDivElement | null>(null);
-  const [plotHeights, setPlotHeights] = useState({main: 340, auxiliary: 72});
+  const [plotHeights, setPlotHeights] = useState({main: 400, auxiliary: 88});
   const [renderedChartWidth, setRenderedChartWidth] = useState(CHART.width);
   const containerRef = useCallback((element: HTMLDivElement | null) => {
     chartContainerRef(element);
@@ -61,11 +61,9 @@ export function ResultsCharts({
       : (samplesById.get(series.id)?.length ?? 0) > 0),
     [samplesById, normalizedById, showFocusedAsset, comparisonAvailable],
   );
-  const hasVisibleCore = available.some(series =>
-    (series.id === "price" || series.id === "totalAsset") && visibleSeriesIds.includes(series.id));
   const selected = useMemo(
-    () => available.filter((series) => visibleSeriesIds.includes(series.id) || (!hasVisibleCore && series.id === "price")),
-    [available, visibleSeriesIds, hasVisibleCore],
+    () => selectedChartSeries(available, visibleSeriesIds),
+    [available, visibleSeriesIds],
   );
   const coreSeries = selected.filter(
     (series) => series.id === "price" || (series.id === "totalAsset" && showFocusedAsset),
@@ -76,9 +74,10 @@ export function ResultsCharts({
     (series): series is SeriesDefinition & { id: "drawdown" | "vix" } => series.id === "drawdown" || series.id === "vix",
   ).map(series => series.id === "vix" ? { ...series, label: (vixSymbol ?? "^VIX").replace(/^\^/, "") } : series);
   const savedLines = useMemo(() => technicalChartLines(technicalIndicators, dailyAssets, locale), [technicalIndicators, dailyAssets, locale]);
-  const priceVisible = coreSeries.some(series => series.id === "price");
-  const technicalLines = savedLines.filter(line => !hiddenTechnicalKinds.includes(line.kind) && (line.kind === "rsi" || priceVisible));
+  const technicalLines = savedLines.filter(line => !hiddenTechnicalKinds.includes(line.kind));
   const rsiLines = technicalLines.filter(line => line.kind === "rsi");
+  const overlayTechnicalLines = technicalLines.filter(line => line.kind !== "rsi");
+  const hasPriceReadout = normalizedById.get("price") !== null;
   useEffect(() => {
     const element = rootElement.current;
     const svg = element?.querySelector("svg.result-chart");
@@ -108,13 +107,14 @@ export function ResultsCharts({
       const dateAxis = element.querySelector(".chart-date-axis")?.getBoundingClientRect().height ?? 40;
       const overhead = toolbar + readout + dateAxis + 90;
       const available = viewportHeight - overhead;
-      const auxiliary = Math.max(64, Math.min(80, (available - 320) / Math.max(1, auxiliaryCount)));
-      const main = Math.max(240, Math.min(360, available - auxiliary * auxiliaryCount));
-      setPlotHeights(previous => previous.main === main && previous.auxiliary === auxiliary ? previous : {main, auxiliary});
+      const next = element.clientWidth < 680
+        ? { main: 280, auxiliary: 100 }
+        : chartPlotHeights(available, auxiliaryCount);
+      setPlotHeights(previous => previous.main === next.main && previous.auxiliary === next.auxiliary ? previous : next);
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
     const observer = new ResizeObserver(schedule);
-    for (const target of [viewportElement, element.querySelector(".chart-toolbar"), element.querySelector(".chart-crosshair-readout")]) if (target) observer.observe(target);
+    for (const target of [element, viewportElement, element.querySelector(".chart-toolbar"), element.querySelector(".chart-crosshair-readout"), element.querySelector(".chart-date-axis")]) if (target) observer.observe(target);
     window.addEventListener("resize", schedule); update();
     return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", schedule); };
   }, [renderedChartWidth, auxiliaryCount, comparisonSeries.length, strategyOrder.length]);
@@ -131,17 +131,17 @@ export function ResultsCharts({
   return (
     <div className={`charts-content touch-mode-${interaction.touchMode}${wheelZoomEnabled ? " is-wheel-zoom-active" : ""}`} ref={containerRef}>
       <ChartControls locale={locale} currency={currency} busy={busy} available={available} selected={selected}
-        savedLines={savedLines} hiddenTechnicalKinds={hiddenTechnicalKinds} priceVisible={priceVisible}
+        savedLines={savedLines} hiddenTechnicalKinds={hiddenTechnicalKinds}
         visibleStartDate={visibleStartDate} visibleEndDate={visibleEndDate} onSeriesChange={onSeriesChange} interaction={interaction}
         onTechnicalToggle={(kind, visible) => setHiddenTechnicalKinds(current => visible ? [...current, kind] : current.filter(item => item !== kind))} />
       {(samplesById.get("totalAsset")?.length ?? 0) > 0 && normalizedById.get("totalAsset") === null && (
         <p className="chart-data-note" role="status">{translate(locale, "chart.contributionValueUnavailable")}</p>
       )}
-      {selected.length === 0 ? (
+      {selected.length === 0 && technicalLines.length === 0 && !hasPriceReadout ? (
         <p className="chart-empty">{translate(locale, "chart.noVisibleSeries")}</p>
       ) : (
         <div className="chart-linked-stack">
-          {(coreSeries.length > 0 || visibleComparisons.length > 0) && (
+          {(coreSeries.length > 0 || visibleComparisons.length > 0 || overlayTechnicalLines.length > 0 || hasPriceReadout) && (
             <OverlayChart
               renderedWidth={renderedChartWidth}
               pixelHeight={plotHeights.main}
@@ -163,6 +163,8 @@ export function ResultsCharts({
               onTradeSelect={busy ? undefined : onTradeSelect}
               inspectedSeriesId={inspectedSeriesId}
               onInspectedSeriesChange={busy ? undefined : onInspectedSeriesChange}
+              visibleSeriesIds={visibleSeriesIds}
+              onSeriesChange={onSeriesChange}
             />
           )}
           {indicatorSeries.map((series) => (

@@ -181,6 +181,34 @@ def test_catalog_exposes_stable_presets_and_four_single_condition_templates() ->
     )
 
 
+def test_condition_catalog_exposes_each_buy_and_sell_comparator() -> None:
+    conditions = {item.kind.value: item for item in get_catalog().conditions}
+    assert {
+        kind: [clause.operator.value for clause in condition.buy_display_rule.clauses]
+        for kind, condition in conditions.items()
+    } == {
+        "vix": ["gte"],
+        "rsi": ["lte"],
+        "ma_deviation": ["lte"],
+        "ma_trend": ["gt"],
+        "bollinger": ["lte"],
+        "rate": ["lte"],
+    }
+    assert {
+        kind: [clause.operator.value for clause in condition.sell_display_rule.clauses]
+        for kind, condition in conditions.items()
+    } == {
+        "vix": ["lte", "lte"],
+        "rsi": ["gte"],
+        "ma_deviation": ["gte"],
+        "ma_trend": ["lte"],
+        "bollinger": ["gte", "lt"],
+        "rate": ["gte"],
+    }
+    bollinger_vix = conditions["bollinger"].sell_display_rule.clauses[1]
+    assert bollinger_vix.right.parameter_key == "exit.bollinger.vixCeiling"
+
+
 def test_every_notebook_input_and_new_field_has_one_registered_key() -> None:
     assert set(PARAMETER_DEFINITIONS) == EXPECTED_PARAMETER_KEYS
 

@@ -155,7 +155,10 @@ test("report chart follows selected identities and maps each saved date to one a
   assert.deepEqual(report.lines.map(line => line.id), ["price", result.id, other.id]);
   assert.equal(report.lines.find(line => line.id === other.id).points[0].index, 1);
   const empty = buildResultReport(run, result, "zh", catalog, null, { selectedIds: [], visibleSeriesIds: ["totalAsset"] });
-  assert.deepEqual(empty.lines.map(line => line.id), ["price"]);
+  assert.deepEqual(empty.lines.map(line => line.id), []);
+  assert.ok(empty.notes.includes("没有选中的曲线。"));
+  const priceOnly = buildResultReport(run, result, "zh", catalog, null, { selectedIds: [], visibleSeriesIds: ["price"] });
+  assert.deepEqual(priceOnly.lines.map(line => line.id), ["price"]);
 });
 
 test("report removes disabled branches and default execution without dropping effective zero/null settings", () => {

@@ -12,7 +12,7 @@ import type { SeriesDefinition, NormalizedComparisonSeries, IndicatorComparison 
 import { CHART, MAIN_WITHOUT_DATES, chartScale, xPosition, responsiveChartGeometry } from "./chartScale";
 import { axisTitle, seriesLabel, formatAxisValue, preciseValue } from "./chartFormat";
 import { returnTone } from "../returnTone";
-import { seriesIdentity } from "./chartSeriesModel";
+import { SERIES, seriesIdentity } from "./chartSeriesModel";
 import { ChartAxes } from "./ChartAxes";
 import { HighlightArea } from "./ChartSeries";
 import { useSeriesHighlight } from "./useSeriesHighlight";
@@ -38,6 +38,8 @@ export function OverlayChart({
   onTradeSelect,
   inspectedSeriesId,
   onInspectedSeriesChange,
+  visibleSeriesIds,
+  onSeriesChange,
 }: {
   renderedWidth?: number;
   pixelHeight?: number;
@@ -59,6 +61,8 @@ export function OverlayChart({
   onTradeSelect?(resultId: string, index: number): void;
   inspectedSeriesId?: string | null;
   onInspectedSeriesChange?(id: string | null): void;
+  visibleSeriesIds: string[];
+  onSeriesChange(id: string, visible: boolean): void;
 }) {
   const geometry = responsiveChartGeometry(MAIN_WITHOUT_DATES, renderedWidth, pixelHeight);
   const gradientId = `chart-gradient-${useId()}`;
@@ -77,9 +81,7 @@ export function OverlayChart({
   const highlight = useSeriesHighlight(visibleIdentities, onInspectedSeriesChange
     ? { id: inspectedSeriesId ?? null, onChange: onInspectedSeriesChange } : undefined);
   const highlightedId = highlight.highlightedId;
-  if (normalized.length === 0 && comparisonNormalized.length === 0) {
-    return <p className="chart-empty">{translate(locale, "chart.noOverlaySeries")}</p>;
-  }
+  const hasVisiblePlot = normalized.length > 0 || comparisonNormalized.length > 0 || technicalNormalized.length > 0;
 
   const dateCount = assets.length;
   const range = visibleIndexRange(dateCount, viewport);
@@ -126,16 +128,16 @@ export function OverlayChart({
     const point = line.points.find(sample => sample.index === cursor?.index);
     return point ? [{ y: scale.y(point.indexValue), color: line.color }] : [];
   });
-  const readings: CursorReading[] = normalized.filter(({ definition }) => definition.id === "price").map(({ definition, result }) => {
-    const point = result.points.find((sample) => sample.index === readingIndex);
-    const rawPoint = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
-    return {
-      label: definition.label ?? translate(locale, definition.labelKey),
-      value: `${preciseValue(rawPoint?.value, locale, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: point?.indexValue.toFixed(1) ?? "—" })}`,
-      color: definition.color,
-      series: { id: seriesIdentity(definition), seriesId: definition.id, label: axisTitle(locale, definition.id, currency) },
-    };
-  });
+  const priceResult = normalizedById.get("price");
+  const priceDefinition = SERIES.find(definition => definition.id === "price");
+  const pricePoint = priceResult?.points.find(sample => sample.index === readingIndex);
+  const rawPrice = samplesById.get("price")?.find(sample => sample.index === readingIndex);
+  const readings: CursorReading[] = priceResult && priceDefinition ? [{
+    label: priceDefinition.label ?? translate(locale, priceDefinition.labelKey),
+    value: `${preciseValue(rawPrice?.value, locale, currency)} · ${translate(locale, "chart.relativeIndexValue", { value: pricePoint?.indexValue.toFixed(1) ?? "—" })}`,
+    color: priceDefinition.color,
+    series: { id: seriesIdentity(priceDefinition), seriesId: priceDefinition.id, label: axisTitle(locale, priceDefinition.id, currency) },
+  }] : [];
   for (const definition of indicatorSeries) {
     const point = samplesById.get(definition.id)?.find((sample) => sample.index === readingIndex);
     readings.push({ label: definition.label ?? translate(locale, definition.labelKey), value: point ? formatAxisValue(point.value, locale, definition.id) : "—", color: definition.color,
@@ -170,8 +172,10 @@ export function OverlayChart({
     <figure className="chart-panel chart-overlay" data-window-start={viewport.start} data-window-end={viewport.end}>
       <p className="chart-overlay-description sr-only">{translate(locale, "chart.overlayDescription")}</p>
       <div className="chart-core-readout-row" role="group" aria-label={translate(locale, "chart.savedReadings")}>
-        <ChartReadout date={readingDate} readings={readings} strategies={strategyReadings} inspection={highlight} />
+        <ChartReadout date={readingDate} readings={readings} strategies={strategyReadings} inspection={highlight}
+          locale={locale} visibleSeriesIds={visibleSeriesIds} onSeriesChange={onSeriesChange} />
       </div>
+      {hasVisiblePlot ? <>
       <div className="chart-mobile-axis-label">{axisTitle(locale, "index")}</div>
       <div className="chart-canvas">
         <svg
@@ -314,6 +318,7 @@ export function OverlayChart({
             valueLabel={cursorValue === null ? undefined : formatAxisValue(cursorValue, locale, "index")} geometry={geometry} points={[...cursorPoints, ...comparisonCursorPoints, ...technicalCursorPoints]} />}
         </svg>
       </div>
+      </> : <p className="chart-empty chart-empty-main" role="status">{translate(locale, "chart.noVisibleCoreSeries")}</p>}
     </figure>
   );
 }

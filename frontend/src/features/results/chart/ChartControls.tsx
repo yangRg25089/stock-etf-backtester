@@ -14,7 +14,6 @@ interface ChartControlsProps {
   selected: SeriesDefinition[];
   savedLines: TechnicalChartLine[];
   hiddenTechnicalKinds: string[];
-  priceVisible: boolean;
   visibleStartDate: string;
   visibleEndDate: string;
   onSeriesChange(id: string, visible: boolean): void;
@@ -23,7 +22,7 @@ interface ChartControlsProps {
 }
 
 export function ChartControls({ locale, currency, busy, available, selected, savedLines, hiddenTechnicalKinds,
-  priceVisible, visibleStartDate, visibleEndDate, onSeriesChange, onTechnicalToggle, interaction }: ChartControlsProps) {
+  visibleStartDate, visibleEndDate, onSeriesChange, onTechnicalToggle, interaction }: ChartControlsProps) {
   const { touchMode, selectTouchMode, viewport, wheelZoomEnabled, toggleWheelZoom, zoomAt, resetRange } = interaction;
   const viewportSpan = viewport.end - viewport.start;
   const technicalKinds = [...new Set(savedLines.map(line => line.kind))];
@@ -33,10 +32,6 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
             {SERIES.map((series) => {
               const isAvailable = available.includes(series);
               const isVisible = selected.includes(series) && isAvailable;
-              const isLastCore = isVisible && (series.id === "price" || series.id === "totalAsset")
-                && selected.filter(item => item.id === "price" || item.id === "totalAsset").length === 1;
-              const alternativeCore = available.find(item => item.id !== series.id && (item.id === "price" || item.id === "totalAsset"));
-              const cannotHide = isLastCore && !alternativeCore;
               return (
                 <button
                   className={`legend-toggle${isVisible ? " is-visible" : ""}`}
@@ -44,12 +39,8 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
                   key={series.id}
                   data-series={series.id}
                   aria-pressed={isVisible}
-                  disabled={busy || !isAvailable || cannotHide}
-                  title={cannotHide ? translate(locale, "chart.keepCoreSeries") : undefined}
-                  onClick={() => {
-                    if (isLastCore && alternativeCore) onSeriesChange(alternativeCore.id, true);
-                    onSeriesChange(series.id, !isVisible);
-                  }}
+                  disabled={busy || !isAvailable}
+                  onClick={() => onSeriesChange(series.id, !isVisible)}
                 >
                   <span className="legend-swatch" style={{ backgroundColor: series.color }} aria-hidden="true" />
                   <span className="legend-check" aria-hidden="true">{isVisible ? "✓" : "−"}</span>
@@ -58,12 +49,11 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
               );
             })}
             {technicalKinds.map(kind => {
-              const visible = !hiddenTechnicalKinds.includes(kind) && (kind === "rsi" || priceVisible);
+              const visible = !hiddenTechnicalKinds.includes(kind);
               const label = kind === "bollinger" ? "BOLL" : kind.toUpperCase();
               return <button className={`legend-toggle${visible ? " is-visible" : ""}`} type="button" key={kind}
                 data-series={kind} aria-pressed={visible} disabled={busy}
                 onClick={() => {
-                  if (!visible && kind !== "rsi" && !priceVisible) onSeriesChange("price", true);
                   onTechnicalToggle(kind, visible);
                 }}>
                 <span className="legend-swatch" style={{ backgroundColor: savedLines.find(line => line.kind === kind)?.color }} aria-hidden="true" />

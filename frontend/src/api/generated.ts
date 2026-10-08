@@ -27,11 +27,37 @@ export type Catalog = {
   strategyLimits?: StrategyLimits;
 };
 
+export type ConditionComparator = "gt" | "gte" | "lt" | "lte";
+
 export type ConditionDefinition = {
   kind: ConditionKind;
   nameKey: string;
   buyParameterKeys: Array<string>;
   sellParameterKeys: Array<string>;
+  buyDisplayRule: ConditionDisplayRule;
+  sellDisplayRule: ConditionDisplayRule;
+};
+
+export type ConditionDisplayClause = {
+  left: ConditionDisplayOperand;
+  operator: ConditionComparator;
+  right: ConditionDisplayOperand;
+  sellTierRatioParameterKey?: string | null;
+};
+
+export type ConditionDisplayOperand = {
+  metricKey?: string | null;
+  metricParameters?: {
+  [key: string]: string;
+};
+  parameterKey?: string | null;
+};
+
+export type ConditionDisplayRule = {
+  logic?: ConditionLogic;
+  clauses: Array<ConditionDisplayClause>;
+  sellRatioParameterKey?: string | null;
+  noteKey?: string | null;
 };
 
 export type ConditionGroup = {

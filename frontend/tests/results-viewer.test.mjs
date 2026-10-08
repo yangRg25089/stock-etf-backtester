@@ -445,7 +445,7 @@ test("VIX chart settings come from the focused frozen strategy snapshot", () => 
     dispatch() {},
   }));
 
-  assert.match(html, /<button[^>]*chart-series-control[^>]*aria-label="标的收盘价 \(USD\)"[^>]*aria-pressed="false"/);
+  assert.match(html, /<button[^>]*chart-series-control[^>]*aria-label="隐藏标的收盘价曲线"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(html, /QQQ · 价格/);
   assert.match(html, /阈值 25/);
   assert.doesNotMatch(html, /阈值 99/);

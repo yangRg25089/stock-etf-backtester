@@ -92,6 +92,33 @@ function normalizeCatalogNumericValues(catalog: Catalog): Catalog {
   };
 }
 
+function isDisplayOperand(value: unknown, allowedKeys: Set<string>): boolean {
+  if (!isRecord(value)) return false;
+  const isMetric = typeof value.metricKey === "string" && value.metricKey.length > 0;
+  const isParameter = typeof value.parameterKey === "string" && allowedKeys.has(value.parameterKey);
+  if (isMetric === isParameter) return false;
+  if (isParameter) return value.metricParameters === undefined ||
+    (isRecord(value.metricParameters) && Object.keys(value.metricParameters).length === 0);
+  const bindings = value.metricParameters;
+  return bindings === undefined || (isRecord(bindings) && Object.values(bindings).every(key =>
+    typeof key === "string" && allowedKeys.has(key)));
+}
+
+function isDisplayRule(value: unknown, allowedKeys: Set<string>, side: "buy" | "sell"): boolean {
+  if (!isRecord(value) || !["AND", "OR"].includes(String(value.logic)) ||
+      !Array.isArray(value.clauses) || value.clauses.length === 0) return false;
+  if (value.sellRatioParameterKey !== undefined && value.sellRatioParameterKey !== null &&
+      (side !== "sell" || typeof value.sellRatioParameterKey !== "string" || !allowedKeys.has(value.sellRatioParameterKey))) return false;
+  if (value.noteKey !== undefined && value.noteKey !== null &&
+      (typeof value.noteKey !== "string" || value.noteKey.length === 0)) return false;
+  return value.clauses.every(clause => {
+    if (!isRecord(clause) || !["gt", "gte", "lt", "lte"].includes(String(clause.operator)) ||
+        !isDisplayOperand(clause.left, allowedKeys) || !isDisplayOperand(clause.right, allowedKeys)) return false;
+    return clause.sellTierRatioParameterKey === undefined || clause.sellTierRatioParameterKey === null ||
+      (side === "sell" && typeof clause.sellTierRatioParameterKey === "string" && allowedKeys.has(clause.sellTierRatioParameterKey));
+  });
+}
+
 function hasValidConditions(value: Record<string, unknown>, parameterKeys: Set<string>): boolean {
   if (value.conditions === undefined) return true;
   if (!Array.isArray(value.conditions) || !isRecord(value.conditionLimits)) return false;
@@ -103,6 +130,8 @@ function hasValidConditions(value: Record<string, unknown>, parameterKeys: Set<s
     const buy = condition.buyParameterKeys;
     const sell = condition.sellParameterKeys;
     if (!Array.isArray(buy) || !Array.isArray(sell) || ![...buy, ...sell].every(key => typeof key === "string" && parameterKeys.has(key))) return false;
+    if (!isDisplayRule(condition.buyDisplayRule, new Set(buy), "buy") ||
+        !isDisplayRule(condition.sellDisplayRule, new Set(sell), "sell")) return false;
     definitions.set(condition.kind, { buy, sell });
   }
   for (const preset of value.presets as PresetDefinition[]) {

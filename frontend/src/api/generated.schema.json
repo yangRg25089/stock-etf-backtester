@@ -240,6 +240,17 @@
     "title": "Catalog",
     "description": "Serializable immutable catalog snapshot consumed by API/UI layers."
   },
+  "ConditionComparator": {
+    "type": "string",
+    "enum": [
+      "gt",
+      "gte",
+      "lt",
+      "lte"
+    ],
+    "title": "ConditionComparator",
+    "description": "Display-safe comparison operators for the condition catalog."
+  },
   "ConditionDefinition": {
     "properties": {
       "kind": {
@@ -262,6 +273,12 @@
         },
         "type": "array",
         "title": "Sellparameterkeys"
+      },
+      "buyDisplayRule": {
+        "$ref": "#/components/schemas/ConditionDisplayRule"
+      },
+      "sellDisplayRule": {
+        "$ref": "#/components/schemas/ConditionDisplayRule"
       }
     },
     "additionalProperties": false,
@@ -270,9 +287,123 @@
       "kind",
       "nameKey",
       "buyParameterKeys",
-      "sellParameterKeys"
+      "sellParameterKeys",
+      "buyDisplayRule",
+      "sellDisplayRule"
     ],
     "title": "ConditionDefinition"
+  },
+  "ConditionDisplayClause": {
+    "properties": {
+      "left": {
+        "$ref": "#/components/schemas/ConditionDisplayOperand"
+      },
+      "operator": {
+        "$ref": "#/components/schemas/ConditionComparator"
+      },
+      "right": {
+        "$ref": "#/components/schemas/ConditionDisplayOperand"
+      },
+      "sellTierRatioParameterKey": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Selltierratioparameterkey"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "left",
+      "operator",
+      "right"
+    ],
+    "title": "ConditionDisplayClause"
+  },
+  "ConditionDisplayOperand": {
+    "properties": {
+      "metricKey": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Metrickey"
+      },
+      "metricParameters": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object",
+        "title": "Metricparameters"
+      },
+      "parameterKey": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Parameterkey"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "ConditionDisplayOperand"
+  },
+  "ConditionDisplayRule": {
+    "properties": {
+      "logic": {
+        "$ref": "#/components/schemas/ConditionLogic",
+        "default": "AND"
+      },
+      "clauses": {
+        "items": {
+          "$ref": "#/components/schemas/ConditionDisplayClause"
+        },
+        "type": "array",
+        "minItems": 1,
+        "title": "Clauses"
+      },
+      "sellRatioParameterKey": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Sellratioparameterkey"
+      },
+      "noteKey": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Notekey"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "clauses"
+    ],
+    "title": "ConditionDisplayRule"
   },
   "ConditionGroup": {
     "properties": {

@@ -6,6 +6,7 @@ import { parameterFieldId } from "../../shared/ui/parameterFieldId";
 import { ToggleSwitch } from "../../shared/ui/ToggleSwitch";
 import { DiagnosticList } from "../runs/DiagnosticList";
 import { conditionFieldOwner, conditionLeaves, conditionParameters, createCondition, ruleConditionCount, type ConditionNode } from "./conditions";
+import { conditionComparatorSymbol, conditionParameterOperator, formatConditionDisplayRule } from "./conditionExpression";
 
 type Side = "buy" | "sell";
 interface ConditionEditorProps {
@@ -53,6 +54,34 @@ function CollapsedConditionErrors({ node, errors, catalog, locale }: {
       const parameter = catalog.parameters?.find(item => error.fieldPath?.endsWith(`.${item.key}`));
       return parameter ? translate(locale, parameter.translationKey) : null;
     }} />
+  </div>;
+}
+
+function ConditionRuleSummary({ node, side, catalog, locale }: {
+  node: Extract<ConditionNode, { kind: ConditionKind }>;
+  side: Side;
+  catalog: Catalog;
+  locale: Locale;
+}) {
+  const definition = catalog.conditions?.find(item => item.kind === node.kind);
+  const rule = side === "buy" ? definition?.buyDisplayRule : definition?.sellDisplayRule;
+  if (!rule) return null;
+  const formatted = formatConditionDisplayRule(rule, conditionParameters(node), catalog.parameters ?? [], locale);
+  return <div className="condition-expression-summary">
+    <span className="condition-expression-prefix">{translate(locale, "conditions.triggerPrefix")}</span>
+    {formatted.clauses.map((clause, index) => <span className="condition-expression-group" key={`${node.id}-${index}`}>
+      {index > 0 && <span className="condition-expression-logic">{translate(locale, `conditions.logic.${formatted.logic.toLowerCase()}`)}</span>}
+      <span className="condition-expression-clause">
+        <span>{clause.left}</span>{" "}
+        <span className="condition-expression-operator" aria-label={clause.spokenOperator}>{clause.operator}</span>{" "}
+        <span>{clause.right}</span>
+        {clause.sellRatio && <span className="condition-sell-ratio"> · {translate(locale, "conditions.sellTierRatio", { ratio: clause.sellRatio })}</span>}
+      </span>
+    </span>)}
+    {formatted.sellRatio && <span className="condition-sell-ratio condition-rule-sell-ratio">
+      {translate(locale, "conditions.sellRatio", { ratio: formatted.sellRatio })}
+    </span>}
+    {formatted.note && <span className="condition-rule-note">{formatted.note}</span>}
   </div>;
 }
 
@@ -107,15 +136,23 @@ function ConditionNodeEditor(props: NodeProps) {
         </div>
       </header>}
       {!root && <CollapsedConditionErrors node={node} errors={errors} catalog={catalog} locale={locale} />}
+      <ConditionRuleSummary node={node} side={side} catalog={catalog} locale={locale} />
       <div className="strategy-parameter-grid" hidden={disabled}>
         {(keys ?? []).filter(key => !(fixedTrend && side === "sell" && key === "exit.ratio")).map(key => {
           const definition = catalog.parameters?.find(item => item.key === key);
           if (!definition) return null;
-          const reverseThreshold = side === "sell" && ["ma.buyDeviationPct", "rate.thresholdPct"].includes(key);
+          const conditionRule = side === "buy" ? metadata?.buyDisplayRule : metadata?.sellDisplayRule;
+          const operator = conditionRule ? conditionParameterOperator(conditionRule, key) : null;
+          const label = translate(locale, definition.translationKey);
+          const labelText = operator
+            ? `${label}${translate(locale, "conditions.comparatorSuffix", { operator: conditionComparatorSymbol(operator) })}`
+            : key.endsWith(".period")
+              ? `${label}${translate(locale, "conditions.calculationWindowSuffix")}`
+              : undefined;
           return <ParameterField key={key} definition={definition} value={params[key]} locale={locale}
             id={parameterFieldId(key, conditionFieldOwner(strategyId, node))} errors={nodeErrors}
             disabled={disabled} respectDependencies={false} currency={props.currency}
-            labelText={reverseThreshold ? translate(locale, "conditions.sellThreshold") : undefined}
+            labelText={labelText}
             onChange={value => onChange({ ...node, params: { ...params, [key]: value } })} />;
         })}
       </div>
@@ -193,6 +230,7 @@ export function ConditionEditor(props: ConditionEditorProps) {
           {node ? <ConditionNodeEditor {...props} node={node} side={side} depth={1} disabled={false} remaining={remaining}
             usedKinds={new Set(conditionLeaves(node).map(item => item.kind))} root={true} onChange={changed => onChange({ ...rules, [side]: changed })} />
             : buyContent ?? <p className="condition-empty">{translate(locale, side === "sell" && !custom ? "strategy.noSell" : "conditions.empty")}</p>}
+          {node && <p className="condition-timing-note">{translate(locale, "conditions.executionTiming")}</p>}
         </div>
       </section>;
     })}

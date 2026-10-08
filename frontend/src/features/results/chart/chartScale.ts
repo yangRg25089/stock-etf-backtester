@@ -4,9 +4,24 @@ import type { ChartPoint, ChartScale } from "./chartTypes";
 
 export const CHART = { height: 320, left: 92, right: 26, top: 20, bottom: 54, width: 800 };
 
-export const MAIN_WITHOUT_DATES = { ...CHART, height: 274, bottom: 8 };
+export const MAIN_WITHOUT_DATES = { ...CHART, height: 314, bottom: 8 };
 
-export const COMPACT_CHART = { ...CHART, height: 90, top: 8, bottom: 8 };
+export const COMPACT_CHART = { ...CHART, height: 100, top: 8, bottom: 8 };
+
+const MAIN_PLOT_MIN = 280;
+const MAIN_PLOT_MAX = 440;
+const AUXILIARY_PLOT_MIN = 80;
+const AUXILIARY_PLOT_MAX = 96;
+
+export function chartPlotHeights(availableHeight: number, auxiliaryCount: number): { main: number; auxiliary: number } {
+  const available = Number.isFinite(availableHeight) ? availableHeight : 640;
+  const count = Math.max(0, Math.trunc(auxiliaryCount));
+  const auxiliary = count > 0
+    ? Math.max(AUXILIARY_PLOT_MIN, Math.min(AUXILIARY_PLOT_MAX, (available - MAIN_PLOT_MAX) / count))
+    : AUXILIARY_PLOT_MAX;
+  const main = Math.max(MAIN_PLOT_MIN, Math.min(MAIN_PLOT_MAX, available - auxiliary * count));
+  return { main, auxiliary };
+}
 
 /** Keep the horizontal date mapping while giving narrow plots readable height. */
 export function responsiveChartGeometry(geometry: typeof CHART, renderedWidth: number, pixelHeight?: number): typeof CHART {
@@ -16,7 +31,7 @@ export function responsiveChartGeometry(geometry: typeof CHART, renderedWidth: n
   }
   if (!Number.isFinite(renderedWidth) || renderedWidth <= 0 || renderedWidth >= 680) return geometry;
   const scale = CHART.width / renderedWidth;
-  return { ...geometry, height: (geometry.height === COMPACT_CHART.height ? 90 : 240) * scale,
+  return { ...geometry, height: (geometry.height === COMPACT_CHART.height ? 100 : 280) * scale,
     top: geometry.top * scale, bottom: geometry.bottom * scale };
 }
 

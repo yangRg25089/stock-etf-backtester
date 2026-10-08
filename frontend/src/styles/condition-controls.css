@@ -43,6 +43,15 @@
 .condition-heading-actions { display: flex; align-items: center; flex-shrink: 0; gap: 4px; }
 .condition-collapsed-errors { margin: 0; padding: 6px; border: 1px solid #ebcaca; border-radius: 6px; background: #fff8f8; }
 .condition-collapsed-errors .diagnostic-list { margin: 0; }
+.condition-expression-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; min-width: 0; margin: 0 0 10px; padding: 8px 9px; border-left: 3px solid var(--app-accent); border-radius: 3px; background: var(--app-surface-muted); color: var(--app-text); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.condition-expression-prefix { color: var(--app-muted); font-weight: 600; }
+.condition-expression-group { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; }
+.condition-expression-operator { font-weight: 750; }
+.condition-expression-logic { color: var(--app-muted); font-weight: 700; }
+.condition-sell-ratio { color: var(--app-muted); font-size: 12px; }
+.condition-rule-sell-ratio { flex-basis: 100%; margin-left: 2px; }
+.condition-rule-note { flex-basis: 100%; color: var(--app-muted); font-size: 12px; }
+.condition-timing-note { margin: 8px 0 0; color: var(--app-muted); font-size: 11px; line-height: 1.5; }
 .diagnostic-field-name { display: block; margin-bottom: 2px; font-size: inherit; }
 .condition-enable-switch { flex: 0 0 44px; justify-content: center; width: 44px; min-height: 40px; }
 .condition-card { min-width: 0; padding: 10px; border: 1px solid var(--app-border); border-radius: 6px; background: white; }

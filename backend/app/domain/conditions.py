@@ -26,6 +26,51 @@ class ConditionKind(StrEnum):
     RATE = "rate"
 
 
+class ConditionComparator(StrEnum):
+    """Display-safe comparison operators for the condition catalog."""
+
+    GREATER_THAN = "gt"
+    GREATER_THAN_OR_EQUAL = "gte"
+    LESS_THAN = "lt"
+    LESS_THAN_OR_EQUAL = "lte"
+
+
+class ConditionDisplayOperand(DomainModel):
+    metric_key: str | None = Field(default=None, alias="metricKey")
+    metric_parameters: Mapping[str, str] = Field(
+        default_factory=dict, alias="metricParameters"
+    )
+    parameter_key: str | None = Field(default=None, alias="parameterKey")
+
+    @model_validator(mode="after")
+    def validate_operand(self) -> ConditionDisplayOperand:
+        if (self.metric_key is None) == (self.parameter_key is None):
+            raise ValueError("an operand must contain exactly one metric or parameter")
+        if self.parameter_key is not None and self.metric_parameters:
+            raise ValueError("parameter operands cannot have metric parameters")
+        if any(not key or not value for key, value in self.metric_parameters.items()):
+            raise ValueError("metric parameter bindings must be non-empty")
+        return self
+
+
+class ConditionDisplayClause(DomainModel):
+    left: ConditionDisplayOperand
+    operator: ConditionComparator
+    right: ConditionDisplayOperand
+    sell_tier_ratio_parameter_key: str | None = Field(
+        default=None, alias="sellTierRatioParameterKey"
+    )
+
+
+class ConditionDisplayRule(DomainModel):
+    logic: ConditionLogic = ConditionLogic.AND
+    clauses: tuple[ConditionDisplayClause, ...] = Field(min_length=1)
+    sell_ratio_parameter_key: str | None = Field(
+        default=None, alias="sellRatioParameterKey"
+    )
+    note_key: str | None = Field(default=None, alias="noteKey")
+
+
 class ConditionLimits(DomainModel):
     max_depth: int = Field(default=8, alias="maxDepth", ge=1)
     max_nodes: int = Field(default=96, alias="maxNodes", ge=1)

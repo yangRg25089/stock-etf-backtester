@@ -1,5 +1,6 @@
 import { useId, type CSSProperties, type ReactNode } from "react";
 import type { ReturnTone } from "./returnTone";
+import { translate, type Locale } from "../../i18n/messages";
 
 export interface ChartCursor {
   index: number;
@@ -30,7 +31,8 @@ export interface SeriesInspection {
   inspect(id: string | null, source: "hoveredId" | "focusedId" | "selectedId", pointer?: boolean, touch?: boolean): void;
 }
 
-function SeriesControl({ id, label, description, color, seriesId, resultId, date, className = "", inspection, children }: {
+function SeriesControl({ id, label, description, color, seriesId, resultId, date, className = "", inspection, children,
+  pressed, pressedLabel, onPressedChange }: {
   id: string;
   label: string;
   description: string;
@@ -41,21 +43,26 @@ function SeriesControl({ id, label, description, color, seriesId, resultId, date
   className?: string;
   inspection: SeriesInspection;
   children: ReactNode;
+  pressed?: boolean;
+  pressedLabel?: string;
+  onPressedChange?(): void;
 }) {
   const descriptionId = useId();
-  const selected = inspection.selectedId === id;
+  const selected = pressed ?? inspection.selectedId === id;
   return (
     <button type="button"
       className={`chart-series-control${className ? ` ${className}` : ""}${inspection.highlightedId === id ? " is-highlighted" : ""}${selected ? " is-selected" : ""}`}
-      aria-label={label} aria-pressed={selected} aria-describedby={descriptionId}
+      aria-label={pressedLabel ?? label} aria-pressed={selected} aria-describedby={descriptionId}
       style={{ "--series-color": color } as CSSProperties}
       data-series={seriesId ?? id} data-result-id={resultId} data-date={date}
       onMouseEnter={() => inspection.inspect(id, "hoveredId")}
       onMouseLeave={() => inspection.inspect(null, "hoveredId")}
       onFocus={() => inspection.inspect(id, "focusedId")}
       onBlur={() => inspection.inspect(null, "focusedId")}
-      onClick={event => inspection.inspect(id, "selectedId", event.detail > 0,
-        (event.nativeEvent as PointerEvent).pointerType === "touch")}>
+      onClick={event => onPressedChange
+        ? onPressedChange()
+        : inspection.inspect(id, "selectedId", event.detail > 0,
+          (event.nativeEvent as PointerEvent).pointerType === "touch")}>
       {children}
       <span className="chart-series-selection" aria-hidden="true">{selected ? "✓" : ""}</span>
       <span id={descriptionId} className="sr-only">{description}</span>
@@ -63,29 +70,44 @@ function SeriesControl({ id, label, description, color, seriesId, resultId, date
   );
 }
 
-function ReadingValues({ readings, inspection }: { readings: CursorReading[]; inspection?: SeriesInspection }) {
+function ReadingValues({ readings, inspection, locale, visibleSeriesIds, onSeriesChange }: {
+  readings: CursorReading[];
+  inspection?: SeriesInspection;
+  locale?: Locale;
+  visibleSeriesIds?: string[];
+  onSeriesChange?(id: string, visible: boolean): void;
+}) {
   return readings.map(({ label, value, color, series, tone }) => {
+    const priceVisible = visibleSeriesIds?.includes("price") ?? false;
+    const canTogglePrice = series?.seriesId === "price" && Boolean(inspection && onSeriesChange && locale);
     const reading = <span key={series?.id ?? label} className="chart-cursor-reading" style={color ? { "--reading-color": color } as CSSProperties : undefined}>
       <span>{label}</span> <strong className={tone ? `return-value is-${tone}` : undefined}>{value}</strong>
     </span>;
     return series && inspection
-      ? <SeriesControl key={series.id} {...series} description={value} color={color} inspection={inspection}>{reading}</SeriesControl>
+      ? <SeriesControl key={series.id} {...series} description={value} color={color} inspection={inspection}
+        pressed={canTogglePrice ? priceVisible : undefined}
+        pressedLabel={canTogglePrice ? translate(locale!, priceVisible ? "chart.hidePriceLine" : "chart.showPriceLine") : undefined}
+        onPressedChange={canTogglePrice ? () => onSeriesChange!("price", !priceVisible) : undefined}>{reading}</SeriesControl>
       : reading;
   });
 }
 
-export function ChartReadout({ date, readings, strategies = [], inspection }: {
+export function ChartReadout({ date, readings, strategies = [], inspection, locale, visibleSeriesIds, onSeriesChange }: {
   date?: string;
   readings: CursorReading[];
   strategies?: StrategyReading[];
   inspection: SeriesInspection;
+  locale: Locale;
+  visibleSeriesIds: string[];
+  onSeriesChange(id: string, visible: boolean): void;
 }) {
   if (!date) return null;
   return (
     <div className="chart-crosshair-readout" data-date={date}>
       <div className="chart-market-readout" data-date={date}>
         <time dateTime={date}>{date}</time>
-        <ReadingValues readings={readings} inspection={inspection} />
+        <ReadingValues readings={readings} inspection={inspection} locale={locale}
+          visibleSeriesIds={visibleSeriesIds} onSeriesChange={onSeriesChange} />
       </div>
       <div className="chart-strategy-readouts">{strategies.map(strategy => (
         <SeriesControl key={strategy.id} id={strategy.id} label={strategy.label} color={strategy.color} seriesId={strategy.seriesId}

@@ -125,8 +125,7 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
   const asset = model.normalizedById.get("totalAsset");
   const price = model.normalizedById.get("price");
   const visible = chartSelection?.visibleSeriesIds ?? ["price", "totalAsset"];
-  const assetVisible = visible.includes("totalAsset") && (selection.showFocusedAsset && asset || model.comparisonNormalized.length > 0);
-  const lines: ReportLine[] = price && (visible.includes("price") || !assetVisible)
+  const lines: ReportLine[] = price && visible.includes("price")
     ? [{ id: "price", label: translate(locale, "chart.price"), color: PRICE_COLOR, points: price.points }] : [];
   if (asset && selection.showFocusedAsset && visible.includes("totalAsset")) lines.push({ id: result.id,
     label: selection.totalAssetLabel, color: selection.totalAssetColor ?? PRICE_COLOR, points: asset.points });
@@ -138,7 +137,8 @@ export function buildResultReport(run: RunResponse | null, result: StrategyRun |
   if (chartSelection && (lines.filter(line => line.id !== "price").length !== 1 || !lines.some(line => line.id === result.id))) {
     notes.push(translate(locale, "report.chartScope"));
   }
-  if (!lines.some(line => line.id !== "price")) notes.push(translate(locale, "report.noStrategies"));
+  if (!lines.length) notes.push(translate(locale, "report.noVisibleCurves"));
+  else if (!lines.some(line => line.id !== "price")) notes.push(translate(locale, "report.noStrategies"));
   if (!costs) notes.push(translate(locale, "costs.notSaved"));
   if (!asset) notes.push(translate(locale, "report.principalMissing"));
   const diagnostics = [...(result.diagnostics ?? []), ...(result.metrics.diagnostics ?? [])];

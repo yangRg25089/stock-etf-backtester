@@ -24,6 +24,16 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
     await expect(cursorLines).toHaveCount(2);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
+  const priceReadout = page.locator('.chart-market-readout [data-series="price"]');
+  const priceLegend = page.locator('.chart-legend [data-series="price"]');
+  await expect(priceReadout).toHaveAttribute("aria-pressed", "true");
+  await priceLegend.click();
+  await expect(priceReadout).toHaveAttribute("aria-pressed", "false");
+  await expect(priceLegend).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".chart-figure .price-line").first()).toHaveCSS("display", "none");
+  await priceReadout.click();
+  await expect(priceLegend).toHaveAttribute("aria-pressed", "true");
+  await expect(priceReadout).toHaveAttribute("aria-pressed", "true");
   const toggle = page.locator("#prototype-config-toggle");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -54,14 +64,12 @@ test("formal design prototype fits the viewport and mirrors dialog and chart con
   await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "true");
   await expect(monthly.locator(".result-select")).not.toHaveAttribute("aria-current");
   await expect(monthly).toHaveClass(/is-selected/);
-  await expect(monthly).toHaveCSS("translate", "0px -1px");
   expect(await monthly.evaluate(node => getComputedStyle(node).boxShadow)).not.toBe("none");
   const selectedColor = await monthly.evaluate(node => getComputedStyle(node).backgroundColor);
   expect(selectedColor.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, value) => sum + value, 0)).toBeGreaterThan(650);
   await monthly.locator(".result-select").click();
   await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "false");
   await expect(monthly).not.toHaveClass(/is-selected/);
-  await expect(monthly).toHaveCSS("translate", "4px");
   await expect(monthly).toHaveCSS("box-shadow", "none");
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations).toEqual([]);

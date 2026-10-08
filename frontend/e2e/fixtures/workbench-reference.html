@@ -195,6 +195,8 @@
     #backtest-ui-preview .tick { fill: var(--muted); font-size: 10px; }
     #backtest-ui-preview .axis-title { fill: var(--text); font-size: 10px; font-weight: 600; }
     #backtest-ui-preview .price-line { vector-effect: non-scaling-stroke; fill: none; stroke: #9c4b0d; stroke-width: 1.2; }
+    #backtest-ui-preview .chart-figure.price-line-hidden .price-line,
+    #backtest-ui-preview .chart-figure.price-line-hidden .area-price { display: none; }
     #backtest-ui-preview .asset-line { vector-effect: non-scaling-stroke; fill: none; stroke: #30497d; stroke-width: 1.2; }
     #backtest-ui-preview .base-line { stroke: #8b9abb; stroke-width: 1; stroke-dasharray: 4 4; }
     #backtest-ui-preview .comparison-table-wrap { overflow-x: auto; }
@@ -503,7 +505,7 @@
             <div class="chart-linked-stack">
             <figure class="chart-figure">
               <div class="chart-core-readout-row">
-                <div class="chart-market-readout"><time datetime="2023-05-01">2023-05-01</time><button type="button" class="chart-series-control" aria-label="銘柄の終値 (USD)" aria-pressed="false" data-highlight="price">銘柄の終値 <strong>410.00 USD · 相対指数 174.8</strong></button><span>ドローダウン −8%</span><span>VIX 25</span></div>
+                <div class="chart-market-readout"><time datetime="2023-05-01">2023-05-01</time><button type="button" class="chart-series-control" aria-label="銘柄の終値チャートを非表示" aria-pressed="true" data-series="price" data-highlight="price">銘柄の終値 <strong>410.00 USD · 相対指数 174.8</strong></button><span>ドローダウン −8%</span><span>VIX 25</span></div>
                 <button type="button" class="chart-series-control chart-strategy-readout" aria-label="ボラティリティ積立" aria-pressed="false" data-highlight="asset"><span aria-hidden="true">3</span><strong>ボラティリティ積立</strong><span>資産 12,680.00 USD</span><span>元本 8,100.00 USD</span><span>元本リターン指数 156.5</span></button>
               </div>
               <svg viewBox="0 0 800 274" role="group" aria-label="価格の開始値と累計投入元本を基準100とした推移。横軸は日付">
@@ -709,8 +711,11 @@
       root.querySelectorAll(".strategy-dialog-close, .strategy-dialog-done").forEach((button) => button.addEventListener("click", () => closeDialog(strategyDialog)));
       strategyDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeDialog(strategyDialog); });
       const systemAppearance = matchMedia('(prefers-color-scheme: dark)');
-      let appearance = ['light', 'dark'].includes(localStorage.getItem('stock-etf-backtester.appearance.v2'))
-        ? localStorage.getItem('stock-etf-backtester.appearance.v2') : 'system';
+      let appearance = "system";
+      try {
+        const savedAppearance = localStorage.getItem('stock-etf-backtester.appearance.v2');
+        if (["light", "dark"].includes(savedAppearance)) appearance = savedAppearance;
+      } catch {}
       const applyAppearance = () => {
         const dark = appearance === 'dark' || (appearance === 'system' && systemAppearance.matches);
         root.dataset.appearance = dark ? 'dark' : 'light';
@@ -751,9 +756,6 @@
       root.querySelectorAll(".chart-legend button").forEach((button) => button.addEventListener("click", () => {
         const visible = button.getAttribute("aria-pressed") === "true";
         const core = [...root.querySelectorAll('.chart-legend button[data-series="price"], .chart-legend button[data-series="asset"]')];
-        if (visible && core.includes(button) && core.filter(item => item.getAttribute("aria-pressed") === "true").length === 1) {
-          core.find(item => item !== button).setAttribute("aria-pressed", "true");
-        }
         button.setAttribute("aria-pressed", String(!visible));
         for (const item of core) {
           const shown = item.getAttribute("aria-pressed") === "true";
@@ -841,6 +843,19 @@
       let pinnedSeries = null;
       let hoveredSeries = null;
       let focusedSeries = null;
+      let priceVisible = true;
+      const priceReadout = root.querySelector('.chart-market-readout [data-series="price"]');
+      const priceLegend = root.querySelector('.chart-legend [data-series="price"]');
+      const setPriceVisible = visible => {
+        priceVisible = visible;
+        priceReadout.setAttribute("aria-pressed", String(visible));
+        priceReadout.setAttribute("aria-label", visible ? "銘柄の終値チャートを非表示" : "銘柄の終値チャートを表示");
+        priceLegend.setAttribute("aria-pressed", String(visible));
+        root.querySelectorAll(".chart-figure").forEach(figure => figure.classList.toggle("price-line-hidden", !visible));
+      };
+      priceReadout.addEventListener("click", () => setPriceVisible(!priceVisible));
+      priceLegend.addEventListener("click", () => setPriceVisible(!priceVisible));
+      setPriceVisible(priceVisible);
       const applySeries = () => {
         const id = hoveredSeries ?? focusedSeries ?? pinnedSeries;
         root.querySelectorAll(".chart-figure").forEach(figure => {
@@ -848,7 +863,8 @@
           if (id) figure.classList.add("highlight-" + id);
           figure.classList.toggle("inspecting-asset", id === "asset");
         });
-        root.querySelectorAll("[data-highlight]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.highlight === pinnedSeries)));
+        root.querySelectorAll("[data-highlight]").forEach(button => button.setAttribute("aria-pressed",
+          button.dataset.series === "price" ? String(priceVisible) : String(button.dataset.highlight === pinnedSeries)));
       };
       root.querySelectorAll("[data-highlight]").forEach(item => {
         item.addEventListener("mouseenter", () => { hoveredSeries = item.dataset.highlight; applySeries(); });
@@ -856,6 +872,11 @@
         item.addEventListener("focus", () => { focusedSeries = item.dataset.highlight; applySeries(); });
         item.addEventListener("blur", () => { focusedSeries = null; applySeries(); });
         item.addEventListener("click", event => {
+          if (item.dataset.series === "price") {
+            if (event.detail > 0) focusedSeries = null;
+            applySeries();
+            return;
+          }
           pinnedSeries = pinnedSeries === item.dataset.highlight ? null : item.dataset.highlight;
           if (event.detail > 0) focusedSeries = null;
           applySeries();

@@ -4,6 +4,7 @@ import test from "node:test";
 
 const require = createRequire(import.meta.url);
 const { normalizeSeriesToBase100 } = require("../.test-output/features/results/chartModel.js");
+const { selectedChartSeries } = require("../.test-output/features/results/chart/chartSeriesModel.js");
 
 test("price normalization uses the first positive saved value as 100", () => {
   const points = [
@@ -53,4 +54,11 @@ test("unusable zero or negative baselines do not fabricate an overlay series", (
     { date: "2024-01-02", index: 0, value: 0 },
     { date: "2024-01-03", index: 1, value: -1 },
   ]), null);
+});
+
+test("core chart visibility follows explicit user selection, including no visible core series", () => {
+  const available = [{ id: "price" }, { id: "totalAsset" }, { id: "drawdown" }];
+  assert.deepEqual(selectedChartSeries(available, []), []);
+  assert.deepEqual(selectedChartSeries(available, ["drawdown"]).map(series => series.id), ["drawdown"]);
+  assert.deepEqual(selectedChartSeries(available, ["price"]).map(series => series.id), ["price"]);
 });

@@ -140,6 +140,36 @@ test("condition metadata rejects unknown keys, duplicate nodes and excessive dep
   assert.equal(isCatalog(deep), false);
 });
 
+test("condition catalog exposes the evaluated operators and compound sell rules", () => {
+  const expected = {
+    vix: { buy: ["gte"], sell: ["lte", "lte"], logic: "OR" },
+    rsi: { buy: ["lte"], sell: ["gte"], logic: "AND" },
+    ma_deviation: { buy: ["lte"], sell: ["gte"], logic: "AND" },
+    ma_trend: { buy: ["gt"], sell: ["lte"], logic: "AND" },
+    bollinger: { buy: ["lte"], sell: ["gte", "lt"], logic: "AND" },
+    rate: { buy: ["lte"], sell: ["gte"], logic: "AND" },
+  };
+  for (const [kind, rules] of Object.entries(expected)) {
+    const definition = backendCatalog.conditions.find(item => item.kind === kind);
+    assert.ok(definition, `missing condition ${kind}`);
+    assert.deepEqual(definition.buyDisplayRule.clauses.map(clause => clause.operator), rules.buy);
+    assert.deepEqual(definition.sellDisplayRule.clauses.map(clause => clause.operator), rules.sell);
+    assert.equal(definition.sellDisplayRule.logic, rules.logic);
+  }
+  const bollinger = backendCatalog.conditions.find(item => item.kind === "bollinger");
+  assert.equal(bollinger.sellDisplayRule.clauses[1].right.parameterKey, "exit.bollinger.vixCeiling");
+  assert.equal(bollinger.sellDisplayRule.clauses[1].operator, "lt");
+  const vix = backendCatalog.conditions.find(item => item.kind === "vix");
+  assert.deepEqual(vix.sellDisplayRule.clauses.map(clause => clause.right.parameterKey), ["exit.vix.low1", "exit.vix.low2"]);
+
+  const unknownOperator = structuredClone(backendCatalog);
+  unknownOperator.conditions.find(item => item.kind === "ma_trend").buyDisplayRule.clauses[0].operator = "equals";
+  assert.equal(isCatalog(unknownOperator), false);
+  const danglingBinding = structuredClone(backendCatalog);
+  danglingBinding.conditions.find(item => item.kind === "vix").buyDisplayRule.clauses[0].right.parameterKey = "missing.threshold";
+  assert.equal(isCatalog(danglingBinding), false);
+});
+
 test("catalog decimals are decoded as numbers before strategy defaults enter a draft", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify(backendCatalog));

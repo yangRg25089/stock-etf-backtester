@@ -43,7 +43,7 @@ test("MA and Bollinger use the saved price baseline and indicators appear in per
   assert.equal((html.match(/chart-x-axis-title/g) ?? []).length, 1);
   const withoutPrice = renderToStaticMarkup(React.createElement(ResultsCharts, { locale: "zh", dailyAssets: assets,
     trades: [], signals: [], technicalIndicators: [ma], visibleSeriesIds: ["totalAsset"], onSeriesChange() {} }));
-  assert.doesNotMatch(withoutPrice, /class="chart-technical-line"/);
+  assert.match(withoutPrice, /class="chart-technical-line"/);
 });
 
 for (const kind of ["ma", "rsi"]) test(`long saved histories with many ${kind.toUpperCase()} periods do not overflow chart aggregation`, () => {

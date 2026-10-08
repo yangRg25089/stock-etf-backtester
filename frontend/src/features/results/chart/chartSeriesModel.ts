@@ -16,6 +16,13 @@ export function seriesIdentity(series: SeriesDefinition): string {
   return series.resultId ?? series.id;
 }
 
+export function selectedChartSeries(
+  available: SeriesDefinition[],
+  visibleSeriesIds: string[],
+): SeriesDefinition[] {
+  return available.filter(series => visibleSeriesIds.includes(series.id));
+}
+
 export function samplesForSeries(
   seriesId: ChartSeriesId,
   assets: DailyAsset[],
