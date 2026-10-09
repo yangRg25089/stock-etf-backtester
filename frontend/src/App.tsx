@@ -33,6 +33,24 @@ function App() {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    const isChartGesture = (target: EventTarget | null) =>
+      target instanceof Element && target.closest("svg.result-chart") !== null;
+    const preventPagePinch = (event: TouchEvent) => {
+      if (event.touches.length > 1 && !isChartGesture(event.target)) event.preventDefault();
+    };
+    const preventBrowserGestureZoom = (event: Event) => {
+      if (!isChartGesture(event.target)) event.preventDefault();
+    };
+    document.addEventListener("touchmove", preventPagePinch, { capture: true, passive: false });
+    document.addEventListener("gesturestart", preventBrowserGestureZoom, { capture: true, passive: false });
+    document.addEventListener("gesturechange", preventBrowserGestureZoom, { capture: true, passive: false });
+    return () => {
+      document.removeEventListener("touchmove", preventPagePinch, true);
+      document.removeEventListener("gesturestart", preventBrowserGestureZoom, true);
+      document.removeEventListener("gesturechange", preventBrowserGestureZoom, true);
+    };
+  }, []);
   const [locale, setLocale] = useState<Locale>(readBrowserLocalePreference);
   const [returnColorPreference, setReturnColorPreference] = useState<ReturnColorPalette | null>(readBrowserReturnColorPreference);
   const returnPalette = resolveReturnColorPalette(locale, returnColorPreference);

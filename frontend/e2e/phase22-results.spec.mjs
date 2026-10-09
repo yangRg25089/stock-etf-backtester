@@ -92,8 +92,11 @@ test("fresh runs reset preferences, lock unsafe actions and progressively rank c
   await page.locator(".comparison-table tbody tr").filter({ hasText:"毎月定額積立" }).locator(".result-select").click();
   await expect(selected).toHaveCount(2);
   await page.locator('.chart-legend button[data-series="vix"]').click();
-  await page.locator(".chart-wheel-zoom-toggle").click();
-  await page.locator(".chart-range-controls button").filter({ hasText:"+" }).click();
+  const chart = page.locator(".chart-overlay");
+  await page.getByRole("button", { name: "期間を拡大" }).click();
+  await expect(chart).not.toHaveAttribute("data-window-start", "0");
+  await page.getByRole("button", { name: "全期間に戻す" }).click();
+  await expect(chart).toHaveAttribute("data-window-start", "0");
   await page.locator(".comparison-sort").first().click();
   const pending = structuredClone(saved);
   pending.runId = pending.snapshot.runId = pending.result.runId = "phase22-new-run";
@@ -147,7 +150,6 @@ test("fresh runs reset preferences, lock unsafe actions and progressively rank c
   await expect(selected).toHaveCount(0);
   await page.locator(".comparison-table").getByRole("button", { name: /ボラティリティ積立/ }).click();
   await expect(page.locator('.chart-legend button[data-series="vix"]')).toHaveAttribute("aria-pressed","true");
-  await expect(page.locator(".chart-wheel-zoom-toggle")).toHaveAttribute("aria-pressed","false");
   await expect(page.locator(".chart-overlay")).toHaveAttribute("data-window-start","0");
   await expect(page.locator(".chart-overlay")).toHaveAttribute("data-window-end","1");
   await expect(page.locator(".run-controls, .run-status-panel")).toHaveCount(0);

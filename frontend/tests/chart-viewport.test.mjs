@@ -8,8 +8,8 @@ const {
   clampChartViewport,
   nearestChartIndex,
   panChartViewport,
+  pinchChartViewport,
   samplesInViewport,
-  wheelZoomFactor,
   zoomChartViewport,
 } = require("../.test-output/features/results/chartViewport.js");
 
@@ -34,23 +34,15 @@ test("drag pans the same fraction of the visible history without crossing its li
   assert.deepEqual(panChartViewport(FULL_CHART_VIEWPORT, 0.2), FULL_CHART_VIEWPORT);
 });
 
-test("wheel zoom follows accumulated delta instead of counting trackpad events", () => {
-  const oneWheelGesture = wheelZoomFactor(-160);
-  const splitTrackpadGesture = Array.from({ length: 16 }, () => wheelZoomFactor(-10))
-    .reduce((factor, nextFactor) => factor * nextFactor, 1);
+test("pinch zoom uses the distance ratio and keeps the initial center date under the moving center", () => {
+  const zoomed = pinchChartViewport(FULL_CHART_VIEWPORT, 100, 200, 0.5, 0.6);
 
-  assert.ok(Math.abs(oneWheelGesture - 0.92) < 1e-12);
-  assert.ok(Math.abs(splitTrackpadGesture - oneWheelGesture) < 1e-12);
-  assert.ok(Math.abs(wheelZoomFactor(160) * oneWheelGesture - 1) < 1e-12);
-});
-
-test("wheel line and page deltas normalize to equivalent chart distances", () => {
-  const pixelDelta = wheelZoomFactor(-160, 0);
-  const lineDelta = wheelZoomFactor(-10, 1);
-  const pageDelta = wheelZoomFactor(-0.5, 2);
-
-  assert.ok(Math.abs(lineDelta - pixelDelta) < 1e-12);
-  assert.ok(Math.abs(pageDelta - pixelDelta) < 1e-12);
+  assert.ok(Math.abs(zoomed.end - zoomed.start - 0.5) < 1e-12);
+  assert.ok(Math.abs(zoomed.start + (zoomed.end - zoomed.start) * 0.6 - 0.5) < 1e-12);
+  assert.deepEqual(pinchChartViewport({ start: 0.2, end: 0.8 }, 200, 100, 0.5, 0.5), {
+    start: 0, end: 1,
+  });
+  assert.deepEqual(pinchChartViewport({ start: 0.2, end: 0.8 }, 200, 1, 0.5, 0.5), FULL_CHART_VIEWPORT);
 });
 
 test("viewport clamping keeps a usable range and samples include both line-edge neighbors", () => {

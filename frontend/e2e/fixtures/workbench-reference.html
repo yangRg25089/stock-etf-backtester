@@ -176,21 +176,17 @@
     #backtest-ui-preview .chart-legend,
     #backtest-ui-preview .chart-range-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
     #backtest-ui-preview .chart-phone-action-row { display: contents; }
-    #backtest-ui-preview .chart-touch-controls,
-    #backtest-ui-preview .chart-phone-menu-toggle,
-    #backtest-ui-preview .chart-phone-advanced-controls { display: none; }
+    #backtest-ui-preview .chart-phone-menu-toggle { display: none; }
     #backtest-ui-preview .chart-controls { justify-content: space-between; }
     #backtest-ui-preview .chart-legend button,
     #backtest-ui-preview .chart-range-controls button { min-height: 34px; padding: 0 8px; color: var(--muted); font-size: 12px; }
     #backtest-ui-preview .chart-legend button[aria-pressed="true"],
-    #backtest-ui-preview .chart-range-controls .zoom-mode[aria-pressed="true"] { color: white; background: var(--accent); border-color: var(--accent); }
     #backtest-ui-preview .swatch { display: inline-block; width: 14px; height: 2px; margin-right: 5px; vertical-align: middle; background: #9c4b0d; }
     #backtest-ui-preview .swatch.asset { background: #30497d; }
     #backtest-ui-preview .swatch.drawdown { background: #a7373a; }
     #backtest-ui-preview .swatch.vix { background: #7656a6; }
     #backtest-ui-preview .range-label { flex: 1 0 100%; color: var(--muted); font-size: 11px; }
     #backtest-ui-preview .chart-gesture-hint { margin: 0 0 4px; color: var(--muted); font-size: 11px; }
-    #backtest-ui-preview .is-wheel-zoom-active { outline: 2px solid #30497d80; outline-offset: 4px; }
     #backtest-ui-preview .chart-linked-stack { display: grid; gap: 0; overflow-x: auto; }
     #backtest-ui-preview .chart-figure { min-width: 680px; margin: 0; padding: 0; }
     #backtest-ui-preview .chart-figure svg { display: block; width: 100%; min-width: 680px; height: auto; user-select: none; -webkit-user-select: none; }
@@ -433,13 +429,10 @@
       #backtest-ui-preview .chart-controls.is-open { position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; display: block; width: min(220px, calc(100vw - 24px)); max-height: 65dvh; padding: 8px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 8px 24px #253c6d20; }
       #backtest-ui-preview .chart-controls.is-open .chart-legend { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; gap: 4px; }
       #backtest-ui-preview .chart-controls.is-open .chart-legend button { width: 100%; min-width: 0; min-height: 44px; padding: 3px 6px; font-size: 11px; }
-      #backtest-ui-preview .chart-phone-advanced-controls { display: grid; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-      #backtest-ui-preview .chart-phone-advanced-controls .icon-button { width: 100%; min-height: 44px; text-align: left; }
       #backtest-ui-preview .chart-phone-action-row { display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; min-width: 0; }
-      #backtest-ui-preview .chart-touch-controls, #backtest-ui-preview .chart-range-controls { display: flex; flex-wrap: nowrap; gap: 2px; min-width: 0; }
-      #backtest-ui-preview .chart-touch-controls { gap: 0; }
-      #backtest-ui-preview .chart-touch-controls button, #backtest-ui-preview .chart-range-controls button, #backtest-ui-preview .chart-phone-menu-toggle { flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; }
-      #backtest-ui-preview .chart-phone-action-row .zoom-mode, #backtest-ui-preview .chart-phone-action-row .range-label { display: none; }
+      #backtest-ui-preview .chart-range-controls { display: flex; flex-wrap: nowrap; gap: 2px; min-width: 0; }
+      #backtest-ui-preview .chart-range-controls button, #backtest-ui-preview .chart-phone-menu-toggle { flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; }
+      #backtest-ui-preview .chart-phone-action-row .range-label { display: none; }
       #backtest-ui-preview .chart-phone-menu-toggle { display: grid; place-items: center; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; font-size: 22px; line-height: 1; }
     }
     #backtest-ui-preview .prototype-downloads-toggle { display: none; }
@@ -516,11 +509,10 @@
             <div class="chart-toolbar">
               <div class="chart-controls" id="prototype-chart-controls">
                 <div class="chart-legend" role="group" aria-label="表示する系列"><button type="button" data-series="price" aria-pressed="true"><i class="swatch"></i>銘柄の終値 (USD)</button><button type="button" data-series="asset" aria-pressed="true"><i class="swatch asset"></i>戦略資産 (USD)</button><button type="button" data-series="drawdown" aria-pressed="true"><i class="swatch drawdown"></i>ドローダウン (%)</button><button type="button" data-series="vix" aria-pressed="true"><i class="swatch vix"></i>ボラティリティ指数</button></div>
-                <div class="chart-phone-advanced-controls"><button class="icon-button zoom-mode" type="button" aria-label="通常スクロールで拡大・縮小" title="通常スクロールで拡大・縮小" aria-pressed="false">⌕ 通常スクロールで拡大・縮小</button></div>
               </div>
-              <div class="chart-phone-action-row"><div class="chart-touch-controls" role="group" aria-label="全図共通の操作モード"><button type="button" aria-pressed="true">確認</button><button type="button" aria-pressed="false">移動</button></div><div class="chart-range-controls" role="group" aria-label="全図共通の期間操作"><span class="range-label sr-only">表示期間（全図共通）：2020-01-01 — 2026-09-29</span><button class="icon-button zoom-mode" type="button" aria-label="通常スクロールで拡大・縮小" title="通常スクロールで拡大・縮小" aria-pressed="false">⌕</button><button class="icon-button" type="button" aria-label="期間を縮小" title="期間を縮小">−</button><button class="icon-button" type="button" aria-label="期間を拡大" title="期間を拡大">＋</button><button class="icon-button" type="button" aria-label="全期間に戻す" title="全期間に戻す">↺</button></div><button class="chart-phone-menu-toggle" type="button" aria-label="チャートと指標の設定" aria-expanded="false" aria-controls="prototype-chart-controls">⋯</button></div>
+              <div class="chart-phone-action-row"><div class="chart-range-controls" role="group" aria-label="全図共通の期間操作"><span class="range-label sr-only">表示期間（全図共通）：2020-01-01 — 2026-09-29</span><button class="icon-button" type="button" aria-label="期間を縮小" title="期間を縮小">−</button><button class="icon-button" type="button" aria-label="期間を拡大" title="期間を拡大">＋</button><button class="icon-button" type="button" aria-label="全期間に戻す" title="全期間に戻す">↺</button></div><button class="chart-phone-menu-toggle" type="button" aria-label="チャートと指標の設定" aria-expanded="false" aria-controls="prototype-chart-controls">⋯</button></div>
             </div>
-            <p class="chart-gesture-hint sr-only">通常スクロールは結果欄を移動 · Ctrl/Command＋スクロールは全図を同期して拡大・縮小</p>
+            <p class="chart-gesture-hint sr-only">図内で二本指を動かして拡大・縮小、一本指で上下左右に移動、1秒長押しで値を確認できます。図の外ではページをスクロールできます。</p>
             <div class="chart-linked-stack">
             <figure class="chart-figure">
               <div class="chart-core-readout-row">
@@ -961,14 +953,7 @@
         svg.addEventListener("pointerenter", () => root.querySelector("#prototype-chart-body").classList.add("show-cursor"));
         svg.addEventListener("pointerleave", () => root.querySelector("#prototype-chart-body").classList.remove("show-cursor"));
       });
-      root.querySelectorAll(".zoom-mode").forEach(button => button.addEventListener("click", event => {
-        const enabled = event.currentTarget.getAttribute("aria-pressed") !== "true";
-        root.querySelectorAll(".zoom-mode").forEach(toggle => toggle.setAttribute("aria-pressed", String(enabled)));
-        root.querySelector("#prototype-chart-body").classList.toggle("is-wheel-zoom-active", enabled);
-      }));
-      root.querySelectorAll(".chart-touch-controls button").forEach(button => button.addEventListener("click", () => {
-        root.querySelectorAll(".chart-touch-controls button").forEach(toggle => toggle.setAttribute("aria-pressed", String(toggle === button)));
-      }));
+
     })();
   </script>
 </div>

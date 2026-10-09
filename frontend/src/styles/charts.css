@@ -3,11 +3,6 @@
   gap: 12px;
 }
 
-.charts-content.is-wheel-zoom-active {
-  outline: 2px solid color-mix(in srgb, var(--app-accent) 45%, transparent);
-  outline-offset: 4px;
-}
-
 .chart-toolbar {
   position: sticky;
   top: 0;
@@ -28,8 +23,7 @@
   gap: 8px;
 }
 
-.chart-phone-menu-toggle,
-.chart-phone-advanced-controls {
+.chart-phone-menu-toggle {
   display: none;
 }
 
@@ -99,20 +93,6 @@
   min-width: 0;
 }
 
-.chart-wheel-zoom-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 4px 8px;
-  color: var(--app-accent-strong);
-  background: var(--app-accent-soft);
-  border: 1px solid var(--app-accent);
-  border-radius: 5px;
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
 .chart-range-label {
   flex: 1 1 220px;
   color: var(--app-muted);
@@ -136,30 +116,7 @@
   cursor: not-allowed;
 }
 
-.chart-range-controls .chart-wheel-zoom-toggle {
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  color: var(--app-accent);
-  background: var(--app-surface);
-}
-
-.chart-wheel-zoom-toggle svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-width: 1.8;
-}
-
-.chart-wheel-zoom-toggle[aria-pressed="true"] {
-  color: var(--app-surface);
-  background: var(--app-accent);
-  border-color: var(--app-accent);
-}
-
-.chart-range-controls button:not(.chart-wheel-zoom-toggle):hover:not(:disabled) {
+.chart-range-controls button:hover:not(:disabled) {
   color: var(--app-surface);
   background: var(--app-accent);
   border-color: var(--app-accent);

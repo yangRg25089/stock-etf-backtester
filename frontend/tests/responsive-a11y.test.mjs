@@ -195,7 +195,8 @@ test("the design prototype mirrors the flattened workbench and result hierarchy"
   assert.doesNotMatch(prototype, /data-panel="comparison"|data-tab="comparison"|prototype-result-focus|data-tab="overview"|data-tab="metrics"/);
   assert.ok(prototype.indexOf('class="comparison-primary"') < prototype.indexOf('id="prototype-details-panel"'));
   assert.match(prototype, /class="detail-content" id="prototype-details-panel"/);
-  assert.match(prototype, /Ctrl\/Command＋スクロールは全図を同期して拡大・縮小/);
+  assert.match(prototype, /二本指を動かして拡大・縮小、一本指で上下左右に移動、1秒長押しで値を確認/);
+  assert.doesNotMatch(prototype, /Ctrl\/Command＋スクロールは全図を同期して拡大・縮小/);
   assert.doesNotMatch(prototype, /result-run-id|strategy-vix_dca-1|candidate-[0-9]/);
 });
 
@@ -372,12 +373,12 @@ test("space-saving workbench controls retain an accessible text name", () => {
   assert.doesNotMatch(css, /\.display-toggle|\.result-display-heading|\.result-display-toggles/);
 });
 
-test("primary workbench actions use the accent fill and selected chart modes are easy to spot", () => {
+test("primary workbench actions use the accent fill and legacy chart gesture controls are retired", () => {
   assert.match(blockFor(".workbench-config-toggle"), /background:\s*var\(--app-bg\)/);
   assert.doesNotMatch(blockFor(".workbench-config-toggle:hover svg,\n.workbench-config-toggle:focus-visible svg"), /background:|color:/);
   assert.match(css, /\.workbench-config-toggle:hover svg[\s\S]*?stroke-width:\s*2\.8/s);
   assert.match(blockFor(".add-strategy-button"), /background:\s*var\(--app-action\)/);
-  assert.match(blockFor(".chart-wheel-zoom-toggle[aria-pressed=\"true\"]"), /background:\s*var\(--app-accent\)/);
+  assert.doesNotMatch(css, /chart-wheel-zoom-toggle|chart-touch-controls|chart-phone-advanced-controls/);
 });
 
 test("base button styles precede and preserve emphasized action colors", () => {
@@ -391,11 +392,12 @@ test("base button styles precede and preserve emphasized action colors", () => {
   assert.doesNotMatch(app, /shared-settings-summary-icon|local-tag/);
 });
 
-test("wheel zoom mode and primary run icon have clear visual affordances", () => {
+test("chart gestures use mobile pointer input and the primary run icon remains clear", () => {
   assert.match(runActions, /className="run-play-icon"/);
   assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-action\)/);
   assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*48px/s);
-  assert.match(css, /\.chart-wheel-zoom-toggle\[aria-pressed="true"\]/);
+  assert.match(css, /\.result-chart\s*\{[^}]*touch-action:\s*none/s);
+  assert.doesNotMatch(css, /pan-y\s+pinch-zoom/);
   assert.match(css, /\.shared-settings-dialog/);
 });
 

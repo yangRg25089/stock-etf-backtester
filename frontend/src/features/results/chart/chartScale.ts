@@ -37,7 +37,11 @@ export function responsiveChartGeometry(geometry: typeof CHART, renderedWidth: n
 
 export function chartScale(
   values: number[],
-  { maximumAtZero = false, fixedBounds }: { maximumAtZero?: boolean; fixedBounds?: [number, number] } = {},
+  { maximumAtZero = false, fixedBounds, verticalOffsetRatio = 0 }: {
+    maximumAtZero?: boolean;
+    fixedBounds?: [number, number];
+    verticalOffsetRatio?: number;
+  } = {},
   geometry = CHART,
 ): ChartScale {
   let rawMinimum = Infinity;
@@ -50,8 +54,11 @@ export function chartScale(
   const padding = span === 0
     ? Math.max(Math.abs(rawMaximum) * 0.05, maximumAtZero ? 0.01 : 1)
     : span * 0.08;
-  const minimum = fixedBounds?.[0] ?? rawMinimum - padding;
-  const maximum = fixedBounds?.[1] ?? (maximumAtZero ? 0 : rawMaximum + padding);
+  const baseMinimum = fixedBounds?.[0] ?? rawMinimum - padding;
+  const baseMaximum = fixedBounds?.[1] ?? (maximumAtZero ? 0 : rawMaximum + padding);
+  const verticalShift = (baseMaximum - baseMinimum) * (Number.isFinite(verticalOffsetRatio) ? verticalOffsetRatio : 0);
+  const minimum = baseMinimum + verticalShift;
+  const maximum = baseMaximum + verticalShift;
   const plotHeight = geometry.height - geometry.top - geometry.bottom;
   return {
     minimum,

@@ -44,12 +44,6 @@ async function addStrategy(page, presetId) {
   await menu.locator(`.strategy-add-option[data-preset-id="${presetId}"]`).click();
 }
 
-async function controlWheel(page, deltaY) {
-  await page.keyboard.down("Control");
-  await page.mouse.wheel(0, deltaY);
-  await page.keyboard.up("Control");
-}
-
 test.describe("responsive product shell", () => {
   for (const width of VIEWPORTS) {
     for (const locale of ["ja", "zh"]) {
@@ -1079,34 +1073,19 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     expect(Number(baselineY)).toBeGreaterThanOrEqual(20);
     expect(Number(baselineY)).toBeLessThanOrEqual(266);
   };
-  const wheelResetButton = page.getByRole("button", { name: "全期間に戻す" });
-  const zoomSensitivityChart = page.locator(".chart-panel.chart-overlay .result-chart");
-  const wheelZoomMode = page.locator(".chart-wheel-zoom-toggle");
-  await expect(wheelZoomMode).toHaveAttribute("aria-pressed", "false");
-  await wheelZoomMode.click();
-  await expect(wheelZoomMode).toHaveAttribute("aria-pressed", "true");
-  await zoomSensitivityChart.hover();
-  const scrollBeforeWheelZoomMode = await page.locator(".workbench-results").evaluate((element) => element.scrollTop);
-  await page.mouse.wheel(0, -160);
-  await expect.poll(() => page.locator(".chart-panel.chart-overlay").getAttribute("data-window-start")).not.toBe("0");
-  await expect.poll(() => page.locator(".workbench-results").evaluate((element) => element.scrollTop)).toBe(scrollBeforeWheelZoomMode);
-  await expectSynchronizedWindows();
-  await wheelResetButton.click();
-  await wheelZoomMode.click();
-  await expect(wheelZoomMode).toHaveAttribute("aria-pressed", "false");
-  await zoomSensitivityChart.hover();
-  await controlWheel(page, -160);
-  const singleEventWindows = await expectSynchronizedWindows();
-  const singleEventSpan = Number(singleEventWindows.end) - Number(singleEventWindows.start);
-  await wheelResetButton.click();
-  await zoomSensitivityChart.hover();
-  for (let index = 0; index < 16; index += 1) {
-    await controlWheel(page, -10);
-  }
-  const splitEventWindows = await expectSynchronizedWindows();
-  const splitEventSpan = Number(splitEventWindows.end) - Number(splitEventWindows.start);
-  expect(splitEventSpan).toBeCloseTo(singleEventSpan, 2);
-  await wheelResetButton.click();
+  const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
+  const zoomInButton = page.getByRole("button", { name: "期間を拡大" });
+  const zoomOutButton = page.getByRole("button", { name: "期間を縮小" });
+  const fullRange = await page.locator(".chart-panel.chart-overlay").evaluate(node => [node.dataset.windowStart, node.dataset.windowEnd]);
+  await zoomInButton.click();
+  const buttonZoomedWindow = await expectSynchronizedWindows();
+  expect(Number(buttonZoomedWindow.end) - Number(buttonZoomedWindow.start)).toBeLessThan(1);
+  await zoomOutButton.click();
+  await expect.poll(async () => Number(await page.locator(".chart-panel.chart-overlay").getAttribute("data-window-end"))
+    - Number(await page.locator(".chart-panel.chart-overlay").getAttribute("data-window-start"))).toBeGreaterThan(0.99);
+  await resetRangeButton.click();
+  await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-start", fullRange[0]);
+  await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-end", fullRange[1]);
   for (const chartSelector of ["chart-overlay", "chart-drawdown", "chart-vix"]) {
     if (chartSelector === "chart-drawdown") {
       const panel = page.locator(".chart-panel.chart-drawdown");
@@ -1125,8 +1104,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
       await expect(page.locator(".chart-toolbar")).toBeInViewport();
       await expect(page.locator(".chart-range-controls")).toBeInViewport();
     }
-    const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
     if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
+    await zoomInButton.click();
+    const zoomedWindow = await expectSynchronizedWindows();
     const chart = page.locator(`.chart-panel.${chartSelector} .result-chart`);
     await chart.hover();
     await expect(chart).toHaveCSS("touch-action", "none");
@@ -1150,17 +1130,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     expect(afterPlainWheel.end).toBe(beforePlainWheel.end);
     expect(await page.evaluate(() => window.scrollY)).toBe(pageViewportBeforeWheel.scrollY);
 
-    const zoomAnchorBounds = await chart.boundingBox();
-    expect(zoomAnchorBounds).toBeTruthy();
-    await chart.hover({ position: { x: zoomAnchorBounds.width * 0.25, y: zoomAnchorBounds.height / 2 } });
-    const scrollBeforeZoom = await resultsPane.evaluate((element) => element.scrollTop);
-    await controlWheel(page, -160);
-    await expect.poll(async () => page.locator(`.chart-panel.${chartSelector}`).getAttribute("data-window-start")).not.toBe("0");
-    await expect.poll(() => resultsPane.evaluate((element) => element.scrollTop)).toBe(scrollBeforeZoom);
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(pageViewportBeforeWheel.scrollY);
-    expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(pageViewportBeforeWheel.scale);
-    const zoomedWindow = await expectSynchronizedWindows();
-    expect(Number(zoomedWindow.end) - Number(zoomedWindow.start)).toBeGreaterThan(0.9);
+    await expect.poll(() => page.evaluate(() => window.visualViewport?.scale)).toBe(pageViewportBeforeWheel.scale);
+    expect(Number(zoomedWindow.end) - Number(zoomedWindow.start)).toBeLessThan(1);
     await expectBaselineInsidePlot();
 
     const bounds = await chart.boundingBox();
@@ -1189,27 +1160,6 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     expect(draggedStart - zoomedStart, `${chartSelector} drag should match pointer distance`).toBeLessThan(nominalPan * 1.15);
     await expectBaselineInsidePlot();
   }
-  const resetRangeButton = wheelResetButton;
-  if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
-  const coreChartSvg = page.locator(".chart-panel.chart-overlay .result-chart");
-  await coreChartSvg.hover();
-  const browserViewBeforeCtrlWheel = await page.evaluate(() => ({
-    scrollY: window.scrollY,
-    innerWidth: window.innerWidth,
-    devicePixelRatio: window.devicePixelRatio,
-    scale: window.visualViewport?.scale,
-  }));
-  await page.keyboard.down("Control");
-  await page.mouse.wheel(0, -160);
-  await page.keyboard.up("Control");
-  await expect.poll(() => page.locator(".chart-panel.chart-overlay").getAttribute("data-window-start")).not.toBe("0");
-  expect(await page.evaluate(() => ({
-    scrollY: window.scrollY,
-    innerWidth: window.innerWidth,
-    devicePixelRatio: window.devicePixelRatio,
-    scale: window.visualViewport?.scale,
-  }))).toEqual(browserViewBeforeCtrlWheel);
-  await expectSynchronizedWindows();
   if (await resetRangeButton.isEnabled()) await resetRangeButton.click();
   await page.getByRole("button", { name: "期間を拡大" }).click();
   const keyboardZoomedWindow = await expectSynchronizedWindows();
@@ -2024,7 +1974,7 @@ test("context is concise and strategy dialogs show one combination label", async
   await closeStrategyDialog(page);
 });
 
-test("linked indicators keep natural units and wheel zoom can be released repeatedly", async ({ page }) => {
+test("linked indicators keep natural units and use explicit range controls", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 700 });
   await page.goto("/");
   await expect(page.locator(".run-submit-button")).toBeEnabled();
@@ -2061,29 +2011,28 @@ test("linked indicators keep natural units and wheel zoom can be released repeat
   expect(sizes[1].width).toBeCloseTo(sizes[0].width, 0);
   expect(sizes[1].height).toBeLessThan(sizes[0].height * .65);
   await expect(svg).toHaveCSS("user-select", "none");
-  const toggle = page.locator(".chart-wheel-zoom-toggle");
-  for (let cycle = 0; cycle < 3; cycle += 1) {
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
-    await expect(toggle).toHaveCSS("background-color", await themeColor(page, "--app-accent"));
-    await svg.scrollIntoViewIfNeeded();
-    const box = await svg.boundingBox();
-    const start = Number(await core.getAttribute("data-window-start"));
-    const end = Number(await core.getAttribute("data-window-end"));
-    await page.mouse.move(box.x + box.width * .55, Math.min(650, box.y + box.height * .4));
-    await page.mouse.wheel(0, -100);
-    await expect.poll(async () => Number(await core.getAttribute("data-window-end")) - Number(await core.getAttribute("data-window-start"))).toBeLessThan(end - start);
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-pressed", "false");
-    await expect(toggle).toHaveCSS("background-color", "rgb(255, 255, 255)");
-    const windowBefore = [await core.getAttribute("data-window-start"), await core.getAttribute("data-window-end")];
-    await svg.scrollIntoViewIfNeeded();
-    const nextBox = await svg.boundingBox();
-    await page.mouse.move(nextBox.x + nextBox.width * .55, Math.min(650, nextBox.y + nextBox.height * .4));
-    await page.mouse.wheel(0, 80);
-    await expect(core).toHaveAttribute("data-window-start", windowBefore[0]);
-    await expect(core).toHaveAttribute("data-window-end", windowBefore[1]);
-  }
+  const zoomIn = page.getByRole("button", { name: "期間を拡大" });
+  const zoomOut = page.getByRole("button", { name: "期間を縮小" });
+  const reset = page.getByRole("button", { name: "全期間に戻す" });
+  const fullRange = await core.evaluate(node => [node.dataset.windowStart, node.dataset.windowEnd]);
+  const rangeSpan = () => core.evaluate(node => Number(node.dataset.windowEnd) - Number(node.dataset.windowStart));
+  await zoomIn.click();
+  await expect.poll(rangeSpan).toBeLessThan(1);
+  const linkedRanges = await stack.locator("figure").evaluateAll(figures => figures.map(figure =>
+    [figure.dataset.windowStart, figure.dataset.windowEnd]));
+  expect(new Set(linkedRanges.map(range => range.join(":")).values()).size).toBe(1);
+  await zoomOut.click();
+  await expect.poll(rangeSpan).toBeGreaterThan(0.99);
+  if (await reset.isEnabled()) await reset.click();
+  await expect(core).toHaveAttribute("data-window-start", fullRange[0]);
+  await expect(core).toHaveAttribute("data-window-end", fullRange[1]);
+  await svg.hover();
+  const results = page.locator(".workbench-results");
+  const scrollBeforeWheel = await results.evaluate(node => node.scrollTop);
+  await page.mouse.wheel(0, 120);
+  await expect.poll(() => results.evaluate(node => node.scrollTop)).toBeGreaterThan(scrollBeforeWheel);
+  await expect(core).toHaveAttribute("data-window-start", fullRange[0]);
+  await expect(core).toHaveAttribute("data-window-end", fullRange[1]);
   await svg.scrollIntoViewIfNeeded();
   const box = await svg.boundingBox();
   await page.evaluate(() => window.getSelection()?.removeAllRanges());

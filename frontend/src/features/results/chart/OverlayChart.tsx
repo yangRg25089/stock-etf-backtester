@@ -31,6 +31,7 @@ export function OverlayChart({
   strategyOrder,
   currency,
   viewport,
+  verticalOffsetRatio,
   chartInteractionProps,
   cursor,
   volatilityComparisons,
@@ -54,6 +55,7 @@ export function OverlayChart({
   strategyOrder: string[];
   currency?: string;
   viewport: ChartViewport;
+  verticalOffsetRatio: number;
   chartInteractionProps: ChartInteractionProps;
   cursor: ChartCursor | null;
   volatilityComparisons: IndicatorComparison[];
@@ -97,7 +99,7 @@ export function OverlayChart({
     ...comparisonNormalized.flatMap(({ result }) => samplesInViewport(result.points, viewport, dateCount).map((point) => point.indexValue)),
     ...technicalNormalized.flatMap(line => samplesInViewport(line.points, viewport, dateCount).map(point => point.indexValue)),
   ];
-  const scale = chartScale(values, {}, geometry);
+  const scale = chartScale(values, { verticalOffsetRatio }, geometry);
   const titleId = "chart-title-overlay";
   const descriptionId = "chart-description-overlay";
   const primaryAsset = normalized.find(({ definition }) => definition.id === "totalAsset");

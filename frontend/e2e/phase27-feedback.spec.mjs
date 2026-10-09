@@ -102,32 +102,29 @@ test("saved results begin unselected and trade details visibly identify the inde
   await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
 });
 
-test("wheel over permanent chart readings scrolls results in either zoom mode and chains after overflow", async ({ page }) => {
+test("wheel over permanent chart readings scrolls results and chains after overflow", async ({ page }) => {
   const saved = await savedRun(page);
   await openSaved(page, saved);
   await page.setViewportSize({ width: 1440, height: 600 });
   await selectVix(page);
   const readout = page.locator(".chart-core-readout-row");
   const results = page.locator(".workbench-results");
-  for (const zoom of [false, true]) {
-    if (zoom) await page.locator(".chart-wheel-zoom-toggle").click();
-    await readout.hover();
-    const before = await results.evaluate(node => node.scrollTop);
-    const range = await page.locator(".chart-overlay").getAttribute("data-window-start");
-    await page.mouse.wheel(0, 140);
-    await expect.poll(() => results.evaluate(node => node.scrollTop)).toBeGreaterThan(before);
-    await expect(page.locator(".chart-overlay")).toHaveAttribute("data-window-start", range);
-    await readout.evaluate(node => {
-      const row = node.firstElementChild;
-      for (let index = 0; index < 10; index++) row.appendChild(row.firstElementChild.cloneNode(true));
-      node.scrollTop = node.scrollHeight;
-    });
-    await readout.hover();
-    await readout.evaluate(node => { node.scrollTop = node.scrollHeight; });
-    const edge = await results.evaluate(node => node.scrollTop);
-    await page.mouse.wheel(0, 140);
-    await expect.poll(() => results.evaluate(node => node.scrollTop)).toBeGreaterThan(edge);
-  }
+  await readout.hover();
+  const before = await results.evaluate(node => node.scrollTop);
+  const range = await page.locator(".chart-overlay").getAttribute("data-window-start");
+  await page.mouse.wheel(0, 140);
+  await expect.poll(() => results.evaluate(node => node.scrollTop)).toBeGreaterThan(before);
+  await expect(page.locator(".chart-overlay")).toHaveAttribute("data-window-start", range);
+  await readout.evaluate(node => {
+    const row = node.firstElementChild;
+    for (let index = 0; index < 10; index++) row.appendChild(row.firstElementChild.cloneNode(true));
+    node.scrollTop = node.scrollHeight;
+  });
+  await readout.hover();
+  await readout.evaluate(node => { node.scrollTop = node.scrollHeight; });
+  const edge = await results.evaluate(node => node.scrollTop);
+  await page.mouse.wheel(0, 140);
+  await expect.poll(() => results.evaluate(node => node.scrollTop)).toBeGreaterThan(edge);
 });
 
 test("native dialogs prevent background scrolling and overscroll while their own content remains scrollable", async ({ page }) => {

@@ -14,9 +14,9 @@ test("phone chart toolbar stays in one row and folds visibility controls", async
   expect((await toolbar.boundingBox()).height).toBeLessThanOrEqual(56);
   const toggle = page.locator(".chart-phone-menu-toggle");
   await expect(toggle).toBeVisible();
-  const directActions = await page.locator(".chart-phone-action-row > button, .chart-phone-action-row .chart-touch-controls button, .chart-phone-action-row .chart-range-controls button").evaluateAll(nodes =>
+  const directActions = await page.locator(".chart-phone-action-row > button, .chart-phone-action-row .chart-range-controls button").evaluateAll(nodes =>
     nodes.filter(node => getComputedStyle(node).display !== "none").map(node => ({ top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height })));
-  expect(directActions.length).toBeGreaterThanOrEqual(6);
+  expect(directActions.length).toBe(4);
   expect(Math.max(...directActions.map(box => box.top + box.height)) - Math.min(...directActions.map(box => box.top))).toBeLessThanOrEqual(48);
 
   await toggle.click();
@@ -31,7 +31,7 @@ test("phone chart toolbar stays in one row and folds visibility controls", async
   await expect(page.locator(".chart-controls")).toBeHidden();
   await page.setViewportSize({ width: 1024, height: 812 });
   await expect(page.locator(".chart-phone-menu-toggle")).toBeHidden();
-  await expect(page.locator(".chart-range-controls button")).toHaveCount(4);
+  await expect(page.locator(".chart-range-controls button")).toHaveCount(3);
   for (const button of await page.locator(".chart-range-controls button").all()) await expect(button).toBeVisible();
   expect(await page.locator(".chart-phone-action-row").evaluate(element => getComputedStyle(element).display)).toBe("contents");
   await page.setViewportSize({ width: 320, height: 812 });

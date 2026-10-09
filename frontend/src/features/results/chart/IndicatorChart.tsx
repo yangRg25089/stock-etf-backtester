@@ -23,6 +23,7 @@ export function IndicatorChart({
   thresholdValue,
   hasBuySignalObservations,
   viewport,
+  verticalOffsetRatio,
   chartInteractionProps,
   cursor,
   comparisons = [],
@@ -37,6 +38,7 @@ export function IndicatorChart({
   thresholdValue: number | null;
   hasBuySignalObservations: boolean;
   viewport: ChartViewport;
+  verticalOffsetRatio: number;
   chartInteractionProps: ChartInteractionProps;
   cursor: ChartCursor | null;
   comparisons?: IndicatorComparison[];
@@ -57,6 +59,7 @@ export function IndicatorChart({
   const scale = chartScale(values, {
     maximumAtZero: series.id === "drawdown",
     fixedBounds: series.id === "rsi" ? [0, 100] : undefined,
+    verticalOffsetRatio,
   }, geometry);
   const points = lineCoordinates(chartSamples, scale, assets.length, viewport);
   const titleId = `chart-title-${series.id}`;

@@ -363,7 +363,7 @@ test("chart legend only changes visible chart series", () => {
     onSeriesChange() {},
   }));
   assert.equal((html.match(/class="result-chart"/g) ?? []).length, 1);
-  assert.match(html, /class="icon-only-button chart-wheel-zoom-toggle"[^>]*aria-pressed="false"/);
+  assert.doesNotMatch(html, /chart-wheel-zoom-toggle|chart-touch-controls|放大镜|查看.*平移/);
   assert.match(html, /aria-pressed="false"><span/);
   assert.ok(html.includes("</span>回撤 (%)</button>"));
   assert.match(html, /aria-label="显示的图表"/);

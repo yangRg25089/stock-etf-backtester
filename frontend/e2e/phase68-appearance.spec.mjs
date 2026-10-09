@@ -108,33 +108,3 @@ test('1920x1080 keeps main and three auxiliary plots within the results viewport
     expect(layout.bottom).toBeLessThanOrEqual(layout.outerBottom+1);
   }
 });
-
-test('touch Inspect retains linked readings, Pan moves the window, vertical swipes scroll',async({browser,baseURL})=>{
-  const context=await browser.newContext({baseURL,viewport:{width:375,height:900},isMobile:true,hasTouch:true});
-  const page=await context.newPage();await openSaved(page,await savedRun(page));await page.setViewportSize({width:375,height:900});
-  await page.locator('.comparison-table tr[data-result-id=report-strategy] .result-select').click();
-  const session=await context.newCDPSession(page);
-  const chart=page.locator('.chart-overlay svg.result-chart');await chart.scrollIntoViewIfNeeded();
-  const gesture=async(a,b)=>{
-    await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[a]});
-    await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[b]});
-    await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
-  };
-  const points=async()=>{const b=await chart.boundingBox();return [{x:Math.round(b.x+b.width*.4),y:Math.round(b.y+b.height*.45)},{x:Math.round(b.x+b.width*.8),y:Math.round(b.y+b.height*.45)}];};
-  const before=await page.locator('.chart-crosshair-readout').getAttribute('data-date');
-  await gesture(...await points());
-  await expect(page.locator('.chart-overlay .chart-crosshair')).toHaveCount(1);
-  const date=await page.locator('.chart-crosshair-readout').getAttribute('data-date');expect(date).not.toBe(before);
-  for(const crosshair of await page.locator('.chart-crosshair').all()) await expect(crosshair).toHaveAttribute('data-date',date);
-  await page.locator('.chart-range-controls button').nth(2).click();
-  await page.getByRole('button',{name:'移動',exact:true}).click();
-  await chart.scrollIntoViewIfNeeded();
-  const old=await page.locator('.chart-overlay').getAttribute('data-window-start');
-  const p=await points();await gesture(p[1],p[0]);
-  await expect(page.locator('.chart-overlay')).not.toHaveAttribute('data-window-start',old);
-  await page.getByRole('button',{name:'確認',exact:true}).click();await chart.scrollIntoViewIfNeeded();
-  const y=await page.evaluate(()=>scrollY);const b=await chart.boundingBox();
-  await session.send('Input.synthesizeScrollGesture',{x:Math.round(b.x+b.width*.5),y:Math.round(b.y+b.height*.65),yDistance:-150,gestureSourceType:'touch',speed:300});
-  await expect.poll(()=>page.evaluate(()=>scrollY)).toBeGreaterThan(y);
-  await context.close();
-});

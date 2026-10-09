@@ -164,19 +164,9 @@
   .workbench-results .chart-controls.is-phone-open .chart-legend { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; gap: 4px; }
   .workbench-results .chart-controls.is-phone-open .legend-toggle { width: 100%; min-height: 44px; }
   .workbench-results .chart-phone-action-row { display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; min-width: 0; }
-  .workbench-results .chart-phone-action-row .chart-touch-controls,
   .workbench-results .chart-phone-action-row .chart-range-controls { display: flex; flex-wrap: nowrap; gap: 2px; min-width: 0; }
-  .workbench-results .chart-phone-action-row .chart-touch-controls { gap: 0; }
-  .workbench-results .chart-phone-action-row .chart-range-controls .chart-wheel-zoom-toggle,
-  .workbench-results .chart-phone-action-row .chart-range-controls .chart-wheel-zoom-status { display: none; }
-  .workbench-results .chart-phone-action-row .chart-touch-controls button,
   .workbench-results .chart-phone-action-row .chart-range-controls button,
   .workbench-results .chart-phone-menu-toggle { flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; }
   .workbench-results .chart-phone-menu-toggle { display: grid; place-items: center; color: var(--app-foreground); background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 5px; font-size: 22px; line-height: 1; }
-  .workbench-results .chart-phone-advanced-controls { display: grid; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--app-border); }
-  .workbench-results .chart-phone-advanced-controls .chart-wheel-zoom-toggle { display: flex; width: 100%; min-height: 44px; justify-content: flex-start; gap: 8px; }
-  .workbench-results .chart-phone-advanced-controls .chart-wheel-zoom-status { white-space: normal; }
-  .chart-touch-controls { gap: 0; }
-  .chart-touch-controls button { padding-inline: 1px; font-size: 10px; }
   .chart-range-controls { gap: 2px; }
 }

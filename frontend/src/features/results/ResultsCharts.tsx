@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { translate } from "../../i18n/messages";
 import { useChartInteraction } from "./useChartInteraction";
 import { technicalChartLines } from "./technicalIndicators";
@@ -37,14 +37,10 @@ export function ResultsCharts({
 }: ResultsChartsProps) {
   const [hiddenTechnicalKinds, setHiddenTechnicalKinds] = useState<string[]>([]);
   const interaction = useChartInteraction(dailyAssets.length, CHART, busy);
-  const { viewport, cursor, wheelZoomEnabled, chartContainerRef, chartInteractionProps } = interaction;
+  const { viewport, verticalOffsetByChart, cursor, chartInteractionProps } = interaction;
   const rootElement = useRef<HTMLDivElement | null>(null);
   const [plotHeights, setPlotHeights] = useState({main: 400, auxiliary: 88});
   const [renderedChartWidth, setRenderedChartWidth] = useState(CHART.width);
-  const containerRef = useCallback((element: HTMLDivElement | null) => {
-    chartContainerRef(element);
-    rootElement.current = element;
-  }, [chartContainerRef]);
   const volatilityComparisons = volatilitySeries.slice(1).map((source, index) => ({
     label: source.symbol.replace(/^\^/, ""), color: ["#b06a16", "#385cbe"][index % 2],
     samples: samplesForSeries("vix", dailyAssets, source.signals, source.symbol),
@@ -129,7 +125,7 @@ export function ResultsCharts({
   const visibleEndDate = dailyAssets[Math.round(range.end)]?.date ?? "—";
   const visibleComparisons = selected.some(series => series.id === "totalAsset") ? comparisonNormalized : [];
   return (
-    <div className={`charts-content touch-mode-${interaction.touchMode}${wheelZoomEnabled ? " is-wheel-zoom-active" : ""}`} ref={containerRef}>
+    <div className="charts-content" ref={rootElement}>
       <ChartControls locale={locale} currency={currency} busy={busy} available={available} selected={selected}
         savedLines={savedLines} hiddenTechnicalKinds={hiddenTechnicalKinds}
         visibleStartDate={visibleStartDate} visibleEndDate={visibleEndDate} onSeriesChange={onSeriesChange} interaction={interaction}
@@ -156,6 +152,7 @@ export function ResultsCharts({
               strategyOrder={strategyOrder}
               currency={currency}
               viewport={viewport}
+              verticalOffsetRatio={verticalOffsetByChart.overlay ?? 0}
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
               volatilityComparisons={indicatorSeries.some(series => series.id === "vix") ? volatilityComparisons : []}
@@ -180,6 +177,7 @@ export function ResultsCharts({
               thresholdValue={thresholdValue}
               hasBuySignalObservations={hasBuySignalObservations}
               viewport={viewport}
+              verticalOffsetRatio={verticalOffsetByChart[series.id] ?? 0}
               chartInteractionProps={chartInteractionProps}
               cursor={cursor}
               comparisons={series.id === "vix" ? volatilityComparisons : []}
@@ -190,7 +188,7 @@ export function ResultsCharts({
             pixelHeight={plotHeights.auxiliary}
             series={{ id: "rsi", color: rsiLines[0].color, labelKey: "chart.rsiAxis", label: rsiLines[0].label }}
             samples={rsiLines[0].samples} comparisons={rsiLines.slice(1)} thresholdValue={null} hasBuySignalObservations={false}
-            viewport={viewport} chartInteractionProps={chartInteractionProps} cursor={cursor} />}
+            viewport={viewport} verticalOffsetRatio={verticalOffsetByChart.rsi ?? 0} chartInteractionProps={chartInteractionProps} cursor={cursor} />}
           <ChartDateAxis dates={dailyAssets.map((asset) => asset.date)} locale={locale} viewport={viewport} cursor={cursor}
             textScale={renderedChartWidth < 680 ? CHART.width / renderedChartWidth : 1} />
         </div>
