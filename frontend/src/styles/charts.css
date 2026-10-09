@@ -28,6 +28,15 @@
   gap: 8px;
 }
 
+.chart-phone-menu-toggle,
+.chart-phone-advanced-controls {
+  display: none;
+}
+
+.chart-phone-action-row {
+  display: contents;
+}
+
 .chart-legend {
   display: flex;
   flex-wrap: wrap;

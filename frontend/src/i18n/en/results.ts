@@ -140,6 +140,7 @@ export const resultsMessages: Record<string, string> = {
   "chart.touch.inspect": "Inspect",
   "chart.touch.pan": "Pan",
   "chart.legend": "Visible charts",
+  "chart.displayControls": "Chart and indicator controls",
   "chart.overlayTitle": "Price and principal return",
   "chart.overlayDescription": "Price starts at 100. Assets are total assets ÷ cumulative principal × 100. Values above 100 show gains over contributed principal.",
   "chart.baseReference": "Base 100",

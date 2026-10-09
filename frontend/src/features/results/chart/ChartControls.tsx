@@ -5,6 +5,7 @@ import { MIN_CHART_VIEWPORT_SPAN } from "../chartViewport";
 import type { SeriesDefinition } from "./chartTypes";
 import { SERIES } from "./chartSeriesModel";
 import { seriesLabel } from "./chartFormat";
+import { usePhoneMenu } from "../../../shared/ui/usePhoneMenu";
 
 interface ChartControlsProps {
   locale: Locale;
@@ -26,8 +27,14 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
   const { touchMode, selectTouchMode, viewport, wheelZoomEnabled, toggleWheelZoom, zoomAt, resetRange } = interaction;
   const viewportSpan = viewport.end - viewport.start;
   const technicalKinds = [...new Set(savedLines.map(line => line.kind))];
+  const { open, setOpen, trigger, panel, id } = usePhoneMenu();
+  const wheelZoomLabel = translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom");
+  const wheelZoomButton = (className = "") => <button className={`icon-only-button chart-wheel-zoom-toggle${className ? ` ${className}` : ""}`}
+    type="button" aria-label={wheelZoomLabel} title={wheelZoomLabel} aria-pressed={wheelZoomEnabled} onClick={toggleWheelZoom}>
+    <span aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg></span>
+  </button>;
   return (<div className="chart-toolbar">
-        <div className="chart-controls">
+        <div ref={panel} id={id} className={`chart-controls${open ? " is-phone-open" : ""}`}>
           <div className="chart-legend" role="group" aria-label={translate(locale, "chart.legend")}>
             {SERIES.map((series) => {
               const isAvailable = available.includes(series);
@@ -61,7 +68,12 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
               </button>;
             })}
           </div>
+          <div className="chart-phone-advanced-controls">
+            {wheelZoomEnabled && <span className="chart-wheel-zoom-status" role="status">{translate(locale, "chart.wheelZoomActive")}</span>}
+            {wheelZoomButton()}
+          </div>
         </div>
+        <div className="chart-phone-action-row">
         <div className="chart-touch-controls" role="group" aria-label={translate(locale, "chart.touchMode")}>
           {(["inspect", "pan"] as const).map(mode => <button type="button" key={mode} disabled={busy} aria-pressed={touchMode === mode}
             onClick={() => selectTouchMode(mode)}>{translate(locale, `chart.touch.${mode}`)}</button>)}
@@ -75,21 +87,7 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
           <span className="chart-range-label sr-only">
             {translate(locale, "chart.visibleRange", { start: visibleStartDate, end: visibleEndDate })}
           </span>
-          <button
-            className="icon-only-button chart-wheel-zoom-toggle"
-            type="button"
-            aria-label={translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom")}
-            title={translate(locale, wheelZoomEnabled ? "chart.disableWheelZoom" : "chart.enableWheelZoom")}
-            aria-pressed={wheelZoomEnabled}
-            onClick={toggleWheelZoom}
-          >
-            <span aria-hidden="true">
-              <svg viewBox="0 0 20 20" focusable="false">
-                <circle cx="8.5" cy="8.5" r="5.5" />
-                <path d="m13 13 4 4" />
-              </svg>
-            </span>
-          </button>
+          {wheelZoomButton()}
           <button type="button" aria-label={translate(locale, "chart.zoomOut")} title={translate(locale, "chart.zoomOut")} disabled={viewportSpan >= 1} onClick={() => zoomAt(1.25)}>
             <span aria-hidden="true">−</span>
           </button>
@@ -99,6 +97,10 @@ export function ChartControls({ locale, currency, busy, available, selected, sav
           <button className="icon-only-button chart-range-reset" type="button" aria-label={translate(locale, "chart.resetRange")} title={translate(locale, "chart.resetRange")} disabled={busy || (viewportSpan >= 1 && !interaction.cursor)} onClick={resetRange}>
             <span aria-hidden="true">↺</span>
           </button>
+        </div>
+        <button ref={trigger} id={`${id}-toggle`} className="chart-phone-menu-toggle" type="button"
+          aria-label={translate(locale, "chart.displayControls")} aria-expanded={open} aria-controls={id}
+          onClick={() => setOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
         </div>
       </div>);
 }

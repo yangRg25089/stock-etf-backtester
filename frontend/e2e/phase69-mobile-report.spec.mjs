@@ -13,6 +13,7 @@ async function checkFixedColumn(table) {
     head: t.tHead.rows[0].cells[0].getBoundingClientRect().x,
     body: t.tBodies[0].rows[0].cells[0].getBoundingClientRect().x,
     other: t.tHead.rows[0].cells[1].getBoundingClientRect().x,
+    inset: (() => { const s = t.closest('.table-expanded-overflow,.data-table-scroll,.comparison-table-scroll'); return s.getBoundingClientRect().left + s.clientLeft; })(),
   }));
   await table.evaluate(t => { const s = t.closest('.table-expanded-overflow,.data-table-scroll,.comparison-table-scroll'); s.scrollLeft = 120; });
   const shifted = await table.evaluate(t => ({
@@ -23,6 +24,7 @@ async function checkFixedColumn(table) {
   expect(Math.abs(initial.head - shifted.head)).toBeLessThan(1);
   expect(Math.abs(initial.body - shifted.body)).toBeLessThan(1);
   expect(Math.abs(shifted.head - shifted.body)).toBeLessThan(1);
+  expect(Math.abs(initial.head - initial.inset)).toBeLessThan(1);
   expect(initial.other - shifted.other, await table.evaluate(t => JSON.stringify({class:t.className,parent:t.parentElement.className,scroll:t.closest('.table-expanded-overflow,.data-table-scroll,.comparison-table-scroll').scrollLeft,width:t.scrollWidth}))).toBeGreaterThan(100);
 }
 

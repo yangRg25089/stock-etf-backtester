@@ -141,6 +141,7 @@ export const resultsMessages: Record<string, string> = {
   "chart.touch.inspect": "查看",
   "chart.touch.pan": "平移",
   "chart.legend": "显示的图表",
+  "chart.displayControls": "曲线与指标设置",
   "chart.overlayTitle": "价格与本金收益",
   "chart.overlayDescription": "价格：起点 = 100。资产：总资产 ÷ 累计本金 × 100。超过100的部分表示相对投入本金的盈利。",
   "chart.baseReference": "基准 100",

@@ -141,6 +141,7 @@ export const resultsMessages: Record<string, string> = {
   "chart.touch.inspect": "確認",
   "chart.touch.pan": "移動",
   "chart.legend": "表示するチャート",
+  "chart.displayControls": "チャート・指標の設定",
   "chart.overlayTitle": "価格・元本リターン",
   "chart.overlayDescription": "価格：開始値 = 100。資産：総資産 ÷ 累計元本 × 100。100 を超える部分が投入元本に対する利益です。",
   "chart.baseReference": "基準 100",

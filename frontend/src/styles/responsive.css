@@ -134,10 +134,7 @@
 }
 
 @media (max-width: 767px) {
-  :root {
-    --app-topbar-height: 108px;
-    --table-expanded-sticky-top: var(--app-topbar-height);
-  }
+  .app-frame { --table-expanded-sticky-top: var(--app-topbar-height); }
 
   .main-content {
     width: min(100% - 30px, 1180px);
