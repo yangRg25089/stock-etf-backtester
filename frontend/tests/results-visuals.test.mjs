@@ -106,7 +106,7 @@ test("trades anchor to the contributed-capital asset curve even when price is vi
     locale: "ja", dailyAssets: assets, trades, signals: [], visibleSeriesIds, onSeriesChange() {},
   }));
   const html = render(["price", "totalAsset"]);
-  const assetPoints = html.match(/<polyline class="overlay-series-line overlay-totalAsset[^\"]*" points="([^\"]+)"/)[1].split(" ").map(point => point.split(",").map(Number));
+  const assetPoints = html.match(/<polyline\b[^>]*class="overlay-series-line overlay-totalAsset[^\"]*" points="([^\"]+)"/)[1].split(" ").map(point => point.split(",").map(Number));
   assert.doesNotMatch(html, /chart-trade-marker/);
   const { tradeMarkerPoints } = require("../.test-output/features/results/chartTradeMarkers.js");
   const markers = tradeMarkerPoints(trades, assets.map((asset, index) => ({ date: asset.date, x: assetPoints[index][0], y: assetPoints[index][1] })))

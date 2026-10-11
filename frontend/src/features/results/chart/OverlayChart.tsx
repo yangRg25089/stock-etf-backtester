@@ -250,11 +250,11 @@ export function OverlayChart({
             return (
               <g className={`overlay-series overlay-${definition.id}`} key={definition.id}>
                 {points.length > 1 ? (
-                  <polyline className={`overlay-series-line overlay-${definition.id}${highlightedId === seriesIdentity(definition) ? " is-highlighted" : ""}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={definition.color} strokeWidth={highlightedId === seriesIdentity(definition) ? 2.4 : 1.2} vectorEffect="non-scaling-stroke" tabIndex={0} aria-label={lastTitle}>
+                  <polyline role="img" className={`overlay-series-line overlay-${definition.id}${highlightedId === seriesIdentity(definition) ? " is-highlighted" : ""}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={definition.color} strokeWidth={highlightedId === seriesIdentity(definition) ? 2.4 : 1.2} vectorEffect="non-scaling-stroke" tabIndex={0} aria-label={lastTitle}>
                     <title>{lastTitle}</title>
                   </polyline>
                 ) : (
-                  points.length === 1 && <circle className="overlay-single-point" cx={points[0]?.x} cy={points[0]?.y} r="3" fill={definition.color} tabIndex={0} aria-label={lastTitle}>
+                  points.length === 1 && <circle role="img" className="overlay-single-point" cx={points[0]?.x} cy={points[0]?.y} r="3" fill={definition.color} tabIndex={0} aria-label={lastTitle}>
                     <title>{lastTitle}</title>
                   </circle>
                 )}
@@ -272,7 +272,7 @@ export function OverlayChart({
               return (
                 <g className="comparison-overlay-series" data-result-id={comparison.id} key={comparison.id}>
                   {points.length > 1 && (
-                    <polyline
+                    <polyline role="img"
                       className={`comparison-overlay-series-line${highlightedId === comparison.id ? " is-highlighted" : ""}`}
                       points={points.map((point) => `${point.x},${point.y}`).join(" ")}
                       fill="none"
@@ -288,7 +288,7 @@ export function OverlayChart({
               );
             })}
             {technicalNormalized.flatMap(line => chartSegments(samplesInViewport(line.points, viewport, dateCount)).filter(segment => segment.length > 1).map((segment, index) => (
-              <polyline key={`${line.id}-${index}`} className="chart-technical-line" data-kind={line.kind} data-baseline={priceBaseline}
+              <polyline role="img" key={`${line.id}-${index}`} className="chart-technical-line" data-kind={line.kind} data-baseline={priceBaseline}
                 points={segment.map(point => `${xPosition(point.index, dateCount, viewport)},${scale.y(point.indexValue)}`).join(" ")}
                 fill="none" stroke={line.color} strokeDasharray={line.dashed ? "5 3" : undefined}
                 strokeWidth={highlightedId === line.id ? 2.4 : 1.1} vectorEffect="non-scaling-stroke" aria-label={line.label}>

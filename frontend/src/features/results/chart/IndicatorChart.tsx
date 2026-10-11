@@ -111,7 +111,7 @@ export function IndicatorChart({
               color={comparison.color} gradientId={`${fillId}-${comparisonIndex}-${index}-comparison`} bottom={geometry.height - geometry.bottom} />))}
             {comparisons.flatMap(comparison => {
               const line = lineCoordinates(samplesInViewport(comparison.samples, viewport, assets.length), scale, assets.length, viewport);
-              return chartSegments(line).filter(segment => segment.length > 1).map((segment, index) => <polyline key={`${comparison.label}-${index}`} className="chart-series-line"
+              return chartSegments(line).filter(segment => segment.length > 1).map((segment, index) => <polyline role="img" key={`${comparison.label}-${index}`} className="chart-series-line"
                 points={segment.map(point => `${point.x},${point.y}`).join(" ")} fill="none" stroke={comparison.color}
                 strokeWidth={1.2} vectorEffect="non-scaling-stroke" aria-label={comparison.label}><title>{comparison.label}</title></polyline>);
             })}
@@ -121,7 +121,7 @@ export function IndicatorChart({
               </line>
             )}
             {points.length > 1 ? (
-              chartSegments(points).filter(segment => segment.length > 1).map((segment, index) => <polyline
+              chartSegments(points).filter(segment => segment.length > 1).map((segment, index) => <polyline role="img"
                 key={index}
                 className={`chart-series-line${series.id === "vix" ? " chart-vix-line" : ""}`}
                 points={segment.map((point) => `${point.x},${point.y}`).join(" ")}
@@ -135,7 +135,7 @@ export function IndicatorChart({
                 <title>{lineLabel}</title>
               </polyline>)
             ) : points.length === 1 && series.id !== "vix" ? (
-              <circle className="chart-series-point" cx={points[0]?.x} cy={points[0]?.y} r="3" tabIndex={0} aria-label={lineLabel}>
+              <circle role="img" className="chart-series-point" cx={points[0]?.x} cy={points[0]?.y} r="3" tabIndex={0} aria-label={lineLabel}>
                 <title>{lineLabel}</title>
               </circle>
             ) : null}
