@@ -136,7 +136,7 @@ function ConditionNodeEditor(props: NodeProps) {
         </div>
       </header>}
       {!root && <CollapsedConditionErrors node={node} errors={errors} catalog={catalog} locale={locale} />}
-      <ConditionRuleSummary node={node} side={side} catalog={catalog} locale={locale} />
+      {!disabled && <ConditionRuleSummary node={node} side={side} catalog={catalog} locale={locale} />}
       <div className="strategy-parameter-grid" hidden={disabled}>
         {(keys ?? []).filter(key => !(fixedTrend && side === "sell" && key === "exit.ratio")).map(key => {
           const definition = catalog.parameters?.find(item => item.key === key);

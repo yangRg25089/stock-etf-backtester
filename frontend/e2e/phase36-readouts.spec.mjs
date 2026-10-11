@@ -42,7 +42,7 @@ test("the persistent readout replaces the caption and owns hover, pin, release a
   const readout = core.locator(".chart-core-readout-row");
   await expect(core.locator("figcaption")).toHaveCount(0);
   await expect(core.locator(".overlay-legend, .overlay-legend-item")).toHaveCount(0);
-  const price = readout.getByRole("button", { name: "銘柄の終値 (USD)", exact: true });
+  const price = readout.locator("button[data-series=price]");
   await expect(price).toContainText("USD");
   const strategy = readout.getByRole("button", { name: "ボラティリティ積立", exact: true });
   await expect(strategy).toContainText("元本");
@@ -66,7 +66,8 @@ test("the persistent readout replaces the caption and owns hover, pin, release a
   await price.click();
   await page.mouse.move(0, 0);
   await page.locator("#result-details-toggle").focus();
-  await expect(price).toHaveAttribute("aria-pressed", "true");
+  await expect(price).toHaveAttribute("aria-pressed", "false");
+  await expect(core.locator("polyline.overlay-price")).toHaveCount(0);
   await expect(strategy).toHaveAttribute("aria-pressed", "false");
   await expect(core.locator(".chart-trade-marker")).toHaveCount(0);
   await price.click();
@@ -79,7 +80,7 @@ test("the persistent readout replaces the caption and owns hover, pin, release a
   await expect(strategy).toHaveAttribute("aria-pressed", "true");
   expect(await appearance()).toEqual(hovering);
   await page.locator(".locale-select").selectOption("zh");
-  await expect(readout.getByRole("button", { name: "标的收盘价 (USD)", exact: true })).toBeVisible();
+  await expect(readout.locator("button[data-series=price]")).toBeVisible();
   for (const width of [1440, 1024, 768, 320]) {
     await page.setViewportSize({ width, height: 900 });
     if (width === 320) await page.locator(".workbench-results").scrollIntoViewIfNeeded();

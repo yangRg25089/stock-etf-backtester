@@ -73,6 +73,10 @@ test("saved Train/Test candidates preserve every CSV byte and PNG across locales
       }
       const waiting = page.waitForEvent("download"); await page.locator("[data-report-kind=png]").click();
       const bytes = await readFile(await (await waiting).path()); expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+      // Chromium silently throttles bursts above 10 downloads per second. Keep
+      // each five-file candidate batch outside that browser-enforced window.
+      // https://github.com/chromium/chromium/blob/main/third_party/blink/renderer/core/frame/local_frame.cc
+      await page.waitForTimeout(1100);
     }
   }
 });

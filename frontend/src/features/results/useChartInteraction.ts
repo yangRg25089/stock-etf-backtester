@@ -40,11 +40,7 @@ interface SingleTouchGesture {
   startX: number;
   startY: number;
   startRatio: number;
-  startPlotY: number;
-  plotHeight: number;
   viewport: ChartViewport;
-  verticalOffsetRatio: number;
-  chartId: string;
 }
 
 interface PinchGesture {
@@ -60,11 +56,7 @@ interface MouseGesture {
   startX: number;
   startY: number;
   startRatio: number;
-  startPlotY: number;
-  plotHeight: number;
   viewport: ChartViewport;
-  verticalOffsetRatio: number;
-  chartId: string;
   dragging: boolean;
 }
 
@@ -72,12 +64,9 @@ type TouchGesture = SingleTouchGesture | PinchGesture;
 
 const TOUCH_MOVE_THRESHOLD = 7;
 const LONG_PRESS_DELAY_MS = 1000;
-const MAX_VERTICAL_OFFSET_RATIO = 4;
 
 export function useChartInteraction(count: number, baseGeometry: ChartGeometry, disabled = false) {
   const [viewport, setViewport] = useState<ChartViewport>(FULL_CHART_VIEWPORT);
-  const [verticalOffsetByChart, setVerticalOffsetByChart] = useState<Record<string, number>>({});
-  const verticalOffsetsRef = useRef(verticalOffsetByChart);
   const [cursor, setCursor] = useState<ChartCursor | null>(null);
   const touchPointers = useRef(new Map<number, PointerSample>());
   const touchGesture = useRef<TouchGesture | null>(null);
@@ -87,11 +76,6 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
   const clearLongPressTimer = () => {
     if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
     longPressTimer.current = null;
-  };
-  const setVerticalOffset = (chartId: string, value: number) => {
-    const bounded = Math.max(-MAX_VERTICAL_OFFSET_RATIO, Math.min(MAX_VERTICAL_OFFSET_RATIO, value));
-    verticalOffsetsRef.current = { ...verticalOffsetsRef.current, [chartId]: bounded };
-    setVerticalOffsetByChart(verticalOffsetsRef.current);
   };
   const sampleFromEvent = (event: ReactPointerEvent<SVGSVGElement>): PointerSample => {
     const svg = event.currentTarget;
@@ -128,17 +112,12 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
     }
   };
   const applyPan = (
-    baseline: Pick<SingleTouchGesture, "startRatio" | "startPlotY" | "plotHeight" | "viewport" | "verticalOffsetRatio" | "chartId">,
+    baseline: Pick<SingleTouchGesture, "startRatio" | "viewport">,
     sample: PointerSample,
   ) => {
     setViewport(panChartViewport(baseline.viewport, sample.ratio - baseline.startRatio));
-    const verticalDelta = sample.plotBottom > sample.plotTop
-      ? (sample.y - baseline.startPlotY) / baseline.plotHeight
-      : 0;
-    setVerticalOffset(baseline.chartId, baseline.verticalOffsetRatio + verticalDelta);
   };
   const beginSingleTouch = (sample: PointerSample) => {
-    const plotHeight = sample.plotBottom - sample.plotTop;
     const gesture: SingleTouchGesture = {
       kind: "single",
       phase: "pending",
@@ -146,11 +125,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
       startX: sample.clientX,
       startY: sample.clientY,
       startRatio: sample.ratio,
-      startPlotY: sample.y,
-      plotHeight,
       viewport,
-      verticalOffsetRatio: verticalOffsetsRef.current[sample.chartId] ?? 0,
-      chartId: sample.chartId,
     };
     touchGesture.current = gesture;
     clearLongPressTimer();
@@ -223,11 +198,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
       startX: event.clientX,
       startY: event.clientY,
       startRatio: sample.ratio,
-      startPlotY: sample.y,
-      plotHeight: sample.plotBottom - sample.plotTop,
       viewport,
-      verticalOffsetRatio: verticalOffsetsRef.current[sample.chartId] ?? 0,
-      chartId: sample.chartId,
       dragging: false,
     };
   };
@@ -323,8 +294,6 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
     mouseGesture.current = null;
     setCursor(null);
     setViewport(FULL_CHART_VIEWPORT);
-    verticalOffsetsRef.current = {};
-    setVerticalOffsetByChart({});
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<SVGSVGElement>) => {
@@ -379,5 +348,5 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
     onKeyDown,
   };
 
-  return { viewport, verticalOffsetByChart, cursor, chartInteractionProps, zoomAt, resetRange };
+  return { viewport, cursor, chartInteractionProps, zoomAt, resetRange };
 }

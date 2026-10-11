@@ -41,9 +41,9 @@ async function appearance(page) {
 test("legend identifies the underlying closing price in both languages", async ({ page }) => {
   await openSaved(page, await computed(page));
   const price = page.locator('.chart-series-control[data-series="price"]');
-  await expect(price).toHaveAccessibleName("銘柄の終値 (USD)");
+  await expect(price).toHaveAccessibleName("銘柄の終値チャートを非表示");
   await page.locator(".locale-select").selectOption("zh");
-  await expect(price).toHaveAccessibleName("标的收盘价 (USD)");
+  await expect(price).toHaveAccessibleName("隐藏标的收盘价曲线");
 });
 
 test("legend hover and click use identical curves, fills and trade points with clear pinned styling", async ({ page }) => {
@@ -92,7 +92,7 @@ test("legend hover and click use identical curves, fills and trade points with c
   expect((await appearance(page)).markers).toHaveLength(0);
 });
 
-test("deselection clears the strategy pin and keeps the last core series visible", async ({ page }) => {
+test("deselection clears the strategy pin and preserves independent price visibility", async ({ page }) => {
   const saved = await computed(page);
   await openSaved(page, saved);
   await selectResult(page, "ボラティリティ積立");
@@ -105,7 +105,7 @@ test("deselection clears the strategy pin and keeps the last core series visible
   await expect(primary).toHaveCount(0);
   await expect(page.locator(".chart-trade-marker, .comparison-overlay-series-line.is-highlighted")).toHaveCount(0);
   const priceToggle = page.locator('.chart-legend button[data-series="price"]');
-  await expect(priceToggle).toBeDisabled();
+  await expect(priceToggle).toBeEnabled();
   await expect(priceToggle).toHaveAttribute("aria-pressed", "true");
 });
 
@@ -254,7 +254,7 @@ test("table height controls stay visible through horizontal scroll and saved-run
   await expect(page.locator('.comparison-table .result-select[aria-pressed="true"]')).toHaveCount(0);
   await expect(page.locator(".comparison-table-region .table-expand-button")).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator(".comparison-table th[aria-sort]")).toContainText("投入額に対する利益率");
-  await expect(page.locator('.chart-series-control[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('.chart-strategy-readout[aria-pressed="true"]')).toHaveCount(0);
   await expect(page.locator(".chart-trade-marker, .comparison-overlay-series-line.is-highlighted")).toHaveCount(0);
   await expect(page.locator(".chart-strategy-readout[aria-pressed='true']")).toHaveCount(0);
 });

@@ -59,7 +59,7 @@ async function settle(page) {
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
-test("phone chart supports pinch zoom and single-finger horizontal and vertical panning", async ({ browser, baseURL }) => {
+test("phone chart supports pinch zoom and single-finger horizontal panning without moving the value axis", async ({ browser, baseURL }) => {
   const { context, page, chart, session } = await openPhoneResult(browser, baseURL);
   const frame = await geometry(page, chart);
   const scale = await page.evaluate(() => window.visualViewport?.scale);
@@ -120,7 +120,7 @@ test("phone chart supports pinch zoom and single-finger horizontal and vertical 
   await touch(session, "touchStart", [verticalPoint]);
   await touch(session, "touchMove", [{ ...verticalPoint, y: verticalPoint.y + 35 }]);
   await settle(page);
-  await expect(chart.locator(".overlay-series-line").first()).not.toHaveAttribute("points", path);
+  await expect(chart.locator(".overlay-series-line").first()).toHaveAttribute("points", path);
   await touch(session, "touchEnd");
   await context.close();
 });

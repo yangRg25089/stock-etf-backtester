@@ -144,6 +144,7 @@ test("maintenance UI reference reflects the phone layout and has no browser erro
   page.on("pageerror", error => browserErrors.push(error.message));
   await page.setViewportSize({ width: 320, height: 812 });
   await page.goto(new URL("./fixtures/workbench-reference.html", import.meta.url).href);
+  expect(await page.evaluate(() => document.characterSet)).toBe("UTF-8");
   const toolbar = page.locator(".chart-toolbar");
   expect((await toolbar.boundingBox()).height).toBeLessThanOrEqual(56);
   await page.locator(".chart-phone-menu-toggle").click();

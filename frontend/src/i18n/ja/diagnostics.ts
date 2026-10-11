@@ -85,7 +85,7 @@ export const diagnosticsMessages: Record<string, string> = {
   "market.no_valid_bars": "有効な価格データを取得できません。",
   "market.period_before_listing": "指定期間にこの銘柄のデータがありません。",
   "market.available_from": "{symbol} の取得開始日：{date}",
-  "market.adjust_period": "可用期間へ調整",
+  "market.adjust_period": "取得可能な期間に調整",
   "market.observation_outside_calendar": "価格データの取引日が取引所カレンダーと一致しません。",
   "market.observation_timestamp_unavailable": "価格データの確定日時を確認できません。",
   "market.price_basis_unavailable": "株式分割を反映した価格を確認できません。",

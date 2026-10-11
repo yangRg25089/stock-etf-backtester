@@ -112,7 +112,7 @@ test("all permitted results fit a bounded comparison with a sticky header and re
   }
 });
 
-test("only selected comparison rows lift forward without shifting table columns or row layout", async ({ page }) => {
+test("selected comparison rows remain outlined without shifting sticky columns or row layout", async ({ page }) => {
   const saved = await savedRun(page);
   await installRunFixture(page, saved);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -122,13 +122,13 @@ test("only selected comparison rows lift forward without shifting table columns 
   const monthly = rows.filter({ hasText: "毎月定額積立" });
   const initial = rows.filter({ hasText: "ボラティリティ積立" });
   await initial.locator(".result-select").click();
-  await expect(initial).toHaveCSS("translate", "0px -1px");
+  await expect(initial).toHaveCSS("translate", "none");
   const before = await monthly.evaluate(node => ({ top: node.offsetTop, height: node.offsetHeight, color: getComputedStyle(node).backgroundColor }));
   const columns = await monthly.locator("th, td").evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
   await monthly.locator(".result-select").click();
   await page.mouse.move(1400, 850);
-  await expect(monthly).toHaveCSS("translate", "0px -1px");
-  await expect(initial).toHaveCSS("translate", "0px -1px");
+  await expect(monthly).toHaveCSS("translate", "none");
+  await expect(initial).toHaveCSS("translate", "none");
   const initialColorAfterFocusMoves = await initial.evaluate(node => getComputedStyle(node).backgroundColor);
   expect(initialColorAfterFocusMoves.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, value) => sum + value, 0)).toBeGreaterThan(650);
   await initial.hover();
@@ -142,12 +142,12 @@ test("only selected comparison rows lift forward without shifting table columns 
   expect(await monthly.locator("th, td").evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width))).toEqual(columns);
   await monthly.locator(".result-select").click();
   await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "false");
-  await expect(monthly).toHaveCSS("translate", "4px");
+  await expect(monthly).toHaveCSS("translate", "none");
   await expect(monthly).toHaveCSS("box-shadow", "none");
   await monthly.locator(".result-select").focus();
   await page.keyboard.press("Enter");
   await expect(monthly.locator(".result-select")).toHaveAttribute("aria-pressed", "true");
-  await expect(monthly).toHaveCSS("translate", "0px -1px");
+  await expect(monthly).toHaveCSS("translate", "none");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(monthly).toHaveCSS("transition-duration", "0s");
   await page.locator(".locale-select").selectOption("zh");
@@ -264,14 +264,17 @@ test("disabled rules stay compact, retain their parameters and expand from their
   const dialog = page.locator(".strategy-dialog");
   const sell = dialog.locator('[data-rule-side="sell"]');
   await expect(sell.locator(".strategy-parameter-grid")).toBeHidden();
+  await expect(sell.locator(".condition-expression-summary")).toHaveCount(0);
   const switchButton = sell.locator(".condition-heading").getByRole("switch");
   await switchButton.click();
   const threshold = sell.locator('input[id$="-exit-vix-low1"]');
   await threshold.fill("11");
   await switchButton.click();
   await expect(sell.locator(".strategy-parameter-grid")).toBeHidden();
+  await expect(sell.locator(".condition-expression-summary")).toHaveCount(0);
   await switchButton.click();
   await expect(threshold).toBeVisible();
+  await expect(sell.locator(".condition-expression-summary")).toBeVisible();
   await expect(threshold).toHaveValue("11");
   await switchButton.click();
   const geometry = await dialog.locator(".strategy-dialog-content").evaluate(node => ({ client: node.clientHeight, scroll: node.scrollHeight }));
@@ -284,10 +287,18 @@ test("disabled rules stay compact, retain their parameters and expand from their
   const card = dialog.locator('[data-rule-side="buy"] .condition-card').first();
   await card.getByRole("switch").click();
   await expect(card.locator(".strategy-parameter-grid")).toBeHidden();
+  await expect(card.locator(".condition-expression-summary")).toHaveCount(0);
   expect((await card.boundingBox()).height).toBeLessThanOrEqual(80);
   await card.getByRole("switch").click();
   await expect(card.locator('input[id$="-vix-buyThreshold"]')).toBeVisible();
   await expect(card.locator('input[id$="-vix-buyThreshold"]')).toHaveValue("25");
+  await expect(card.locator(".condition-expression-summary")).toBeVisible();
+  const buy = dialog.locator('[data-rule-side="buy"]');
+  const groupSwitch = buy.locator(".condition-heading").first().getByRole("switch");
+  await groupSwitch.click();
+  await expect(buy.locator(".condition-expression-summary")).toHaveCount(0);
+  await groupSwitch.click();
+  await expect(card.locator(".condition-expression-summary")).toBeVisible();
   const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(report.violations).toEqual([]);
   await page.screenshot({ path: test.info().outputPath("compact-strategy-dialog.png") });
@@ -375,24 +386,24 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
   const buy = dialog.locator('[data-rule-side="buy"]');
   await buy.locator('select[data-parameter-key="vix.symbol"]').selectOption("^VXN");
   await expect(buy.locator(".condition-heading")).toContainText("ボラティリティ");
-  await expect(buy.getByLabel("指数買付しきい値", { exact: true })).toBeVisible();
+  await expect(buy.getByLabel("指数買付しきい値（≥）", { exact: true })).toBeVisible();
   const sell = dialog.locator('[data-rule-side="sell"]');
   await sell.locator(".condition-heading").getByRole("switch").click();
   await sell.locator('select[data-parameter-key="vix.symbol"]').selectOption("^VXD");
-  await expect(sell.getByLabel("売却しきい値 1", { exact: true })).toBeVisible();
-  await expect(sell.getByLabel("売却しきい値 2", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("売却しきい値 1（≤）", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("売却しきい値 2（≤）", { exact: true })).toBeVisible();
   await dialog.locator(".dialog-done").click();
   await expect(page.locator(".strategy-nav-card").first()).toContainText("VXN ≥ 25");
   await expect(page.locator(".strategy-nav-card").first()).not.toContainText("VIX:");
   await page.locator(".locale-select").selectOption("zh");
   await page.locator(".strategy-card-open").click();
   await expect(buy.locator(".condition-heading")).toContainText("波动率");
-  await expect(buy.getByLabel("指数买入阈值", { exact: true })).toBeVisible();
-  await expect(sell.getByLabel("卖出阈值 1", { exact: true })).toBeVisible();
-  await expect(sell.getByLabel("卖出阈值 2", { exact: true })).toBeVisible();
+  await expect(buy.getByLabel("指数买入阈值（≥）", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("卖出阈值 1（≤）", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("卖出阈值 2（≤）", { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 760 });
   expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
-  await sell.getByLabel("卖出阈值 2", { exact: true }).scrollIntoViewIfNeeded();
+  await sell.getByLabel("卖出阈值 2（≤）", { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath("volatility-tier-labels.png") });
   await dialog.locator(".dialog-done").click();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -401,7 +412,7 @@ test("volatility condition names remain accurate for VXN and VXD", async ({ page
   await page.locator(".strategy-card-open").last().click();
   await sell.locator(".condition-heading").getByRole("switch").click();
   await sell.locator('select[data-parameter-key="vix.symbol"]').selectOption("^VXN");
-  await expect(sell.getByLabel("指数上限", { exact: true })).toBeVisible();
+  await expect(sell.getByLabel("指数上限（<）", { exact: true })).toBeVisible();
   await expect(sell).toContainText("此条件使用的指数。");
   await dialog.locator(".dialog-done").click();
 });
@@ -797,7 +808,7 @@ test("terminal progress remains busy until full result GET without storing resul
   expect(await page.evaluate(async () => (await indexedDB.databases()).map(item => item.name))).toEqual([]);
 });
 
-test("selected strategies retain their own trade markers and core curves always switch", async ({ page }) => {
+test("selected strategies retain their own trade markers and core visibility remains independent", async ({ page }) => {
   const saved = await savedRun(page);
   const first = saved.result.strategyRuns.find(item => item.role === "strategy");
   const sampleDates = first.dailyAssets.filter(asset => Number(asset.totalContributed) > 0).slice(0, 2).map(asset => asset.date);
@@ -862,13 +873,14 @@ test("selected strategies retain their own trade markers and core curves always 
   await expect(priceToggle).toBeEnabled();
   await priceToggle.click();
   await expect(priceToggle).toHaveAttribute("aria-pressed", "false");
-  await expect(assetToggle).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".comparison-overlay-series[data-result-id]")).toHaveCount(1);
+  await expect(assetToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".comparison-overlay-series[data-result-id]")).toHaveCount(0);
+  await expect(page.locator(".chart-empty-main")).toBeVisible();
   await priceToggle.click();
   await expect(priceToggle).toHaveAttribute("aria-pressed", "true");
 });
 
-test("hiding the only visible core curve switches to the available alternative", async ({ page }) => {
+test("hiding all core curves shows an explicit empty main chart", async ({ page }) => {
   const saved = await savedRun(page);
   await installRunFixture(page, saved);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -880,6 +892,9 @@ test("hiding the only visible core curve switches to the available alternative",
   await expect(priceToggle).toBeEnabled();
   await priceToggle.click();
   await expect(priceToggle).toHaveAttribute("aria-pressed", "false");
-  await expect(assetToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(assetToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".overlay-series-line.overlay-totalAsset")).toHaveCount(0);
+  await expect(page.locator(".chart-empty-main")).toBeVisible();
+  await assetToggle.click();
   await expect(page.locator(".overlay-series-line.overlay-totalAsset")).toBeVisible();
 });

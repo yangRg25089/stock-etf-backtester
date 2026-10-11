@@ -12,7 +12,7 @@ test("condition summaries use the catalog comparators, parameters, and sell tier
   const buy = formatConditionDisplayRule(vix.buyDisplayRule,
     { "vix.symbol": "^VIX", "vix.buyThreshold": 25 }, catalog.parameters, "en");
   assert.deepEqual(buy.clauses.map(clause => [clause.left, clause.operator, clause.right]), [
-    ["VIX (^VIX)", "≥", "25"],
+    ["Volatility index (^VIX)", "≥", "25"],
   ]);
 
   const sell = formatConditionDisplayRule(vix.sellDisplayRule, {
@@ -64,5 +64,15 @@ test("condition labels and timing guidance are translated in Japanese, Chinese, 
       "conditions.metric.close", "conditions.metric.movingAverage", "conditions.metric.bollingerLower",
       "conditions.metric.bollingerUpper", "conditions.metric.rate",
     ]) assert.notEqual(translate(locale, key), key, `${locale} is missing ${key}`);
+  }
+});
+
+
+test("volatility condition summaries identify VXN without calling it VIX", () => {
+  const rule = catalog.conditions.find(item => item.kind === "vix").buyDisplayRule;
+  for (const locale of ["en", "ja", "zh"]) {
+    const summary = formatConditionDisplayRule(rule, {"vix.symbol": "^VXN", "vix.buyThreshold": 25}, catalog.parameters, locale);
+    assert.match(summary.clauses[0].left, /VXN/);
+    assert.doesNotMatch(summary.clauses[0].left, /VIX/);
   }
 });

@@ -60,7 +60,7 @@ export const commonMessages: Record<string, string> = {
   "enum.auto": "Automatic",
   "enum.monthly": "Monthly",
   "enum.upfront": "Invest the full amount on day one",
-  "enum.percent_point": "Percentage points (e.g. 5 = 5%)",
+  "enum.percent_point": "Percent value (e.g. 5 = 5%)",
   "enum.decimal": "Decimal (e.g. 0.05 = 5%)",
   "enum.basis_points": "Basis points (e.g. 500 = 5%)",
   "unit.day_of_month": "day",

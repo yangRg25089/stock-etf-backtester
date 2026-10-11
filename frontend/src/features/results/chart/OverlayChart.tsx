@@ -31,7 +31,6 @@ export function OverlayChart({
   strategyOrder,
   currency,
   viewport,
-  verticalOffsetRatio,
   chartInteractionProps,
   cursor,
   volatilityComparisons,
@@ -55,7 +54,6 @@ export function OverlayChart({
   strategyOrder: string[];
   currency?: string;
   viewport: ChartViewport;
-  verticalOffsetRatio: number;
   chartInteractionProps: ChartInteractionProps;
   cursor: ChartCursor | null;
   volatilityComparisons: IndicatorComparison[];
@@ -99,7 +97,7 @@ export function OverlayChart({
     ...comparisonNormalized.flatMap(({ result }) => samplesInViewport(result.points, viewport, dateCount).map((point) => point.indexValue)),
     ...technicalNormalized.flatMap(line => samplesInViewport(line.points, viewport, dateCount).map(point => point.indexValue)),
   ];
-  const scale = chartScale(values, { verticalOffsetRatio }, geometry);
+  const scale = chartScale(values, {}, geometry);
   const titleId = "chart-title-overlay";
   const descriptionId = "chart-description-overlay";
   const primaryAsset = normalized.find(({ definition }) => definition.id === "totalAsset");
@@ -210,17 +208,18 @@ export function OverlayChart({
                 key={definition.id}
                 points={chartPoints.map((point) => ({ x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }))}
                 color={definition.color}
+                bottom={geometry.height - geometry.bottom}
                 gradientId={gradientId}
               />
             ))}
             {comparisonNormalized.filter(comparison => comparison.id === highlightedId).map(comparison => (
               <HighlightArea key={comparison.id}
                 points={samplesInViewport(comparison.result.points, viewport, dateCount).map(point => ({ x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }))}
-                color={comparison.color} gradientId={gradientId} />
+                color={comparison.color} bottom={geometry.height - geometry.bottom} gradientId={gradientId} />
             ))}
             {technicalNormalized.filter(line => line.id === highlightedId).flatMap(line => chartSegments(samplesInViewport(line.points, viewport, dateCount)).map((segment, index) => (
               <HighlightArea key={`${line.id}-${index}`} points={segment.map(point => ({ x: xPosition(point.index, dateCount, viewport), y: scale.y(point.indexValue) }))}
-                color={line.color} gradientId={`${gradientId}-${index}`} />
+                color={line.color} bottom={geometry.height - geometry.bottom} gradientId={`${gradientId}-${index}`} />
             )))}
             <line
               className="chart-baseline-line"

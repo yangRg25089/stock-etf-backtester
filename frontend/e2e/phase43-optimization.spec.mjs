@@ -48,14 +48,14 @@ test("Train/Test selection, matching baselines, modal boundaries and portable of
   await expect(page.locator(".search-periods")).toContainText("2024-02-28");
   await expect(page.locator(".comparison-period")).toHaveText("学習");
   await expect(page.locator(".search-table thead")).toContainText("学習 XIRR");
-  await expect(page.locator(".search-table thead")).toContainText("検証 XIRR");
-  await page.getByRole("button", { name: "候補 #1 の検証結果を見る", exact: true }).click();
+  await expect(page.locator(".search-table thead")).toContainText("テスト XIRR");
+  await page.getByRole("button", { name: "候補 #1 のテスト結果を見る", exact: true }).click();
   await expect(page.locator(".search-test-select").first()).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#result-panel-performance")).toBeVisible();
-  await expect(page.locator(".result-detail-name")).toContainText("検証");
+  await expect(page.locator(".result-detail-name")).toContainText("テスト");
   await expect(page.locator(".result-detail-name")).toContainText("2024-02-29 → 2024-03-01");
   const main = page.locator(".chart-overlay");
-  await expect(main).toContainText("検証");
+  await expect(main).toContainText("テスト");
   expect(await main.locator("[data-result-id]").count()).toBeGreaterThan(0);
   await expect(page.locator(".result-search-section")).toBeVisible();
   for (const language of ["日本語", "中文"]) {

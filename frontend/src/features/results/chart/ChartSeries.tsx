@@ -1,10 +1,8 @@
-import { CHART } from "./chartScale";
-
-export function HighlightArea({ points, color, gradientId, bottom = CHART.height - CHART.bottom }: {
+export function HighlightArea({ points, color, gradientId, bottom }: {
   points: Array<{ x: number; y: number }>;
   color: string;
   gradientId: string;
-  bottom?: number;
+  bottom: number;
 }) {
   const first = points[0];
   const last = points.at(-1);

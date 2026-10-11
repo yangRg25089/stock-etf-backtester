@@ -195,7 +195,7 @@ test("the design prototype mirrors the flattened workbench and result hierarchy"
   assert.doesNotMatch(prototype, /data-panel="comparison"|data-tab="comparison"|prototype-result-focus|data-tab="overview"|data-tab="metrics"/);
   assert.ok(prototype.indexOf('class="comparison-primary"') < prototype.indexOf('id="prototype-details-panel"'));
   assert.match(prototype, /class="detail-content" id="prototype-details-panel"/);
-  assert.match(prototype, /二本指を動かして拡大・縮小、一本指で上下左右に移動、1秒長押しで値を確認/);
+  assert.match(prototype, /二本指を動かして拡大・縮小、一本指で左右に移動、1秒長押しで値を確認/);
   assert.doesNotMatch(prototype, /Ctrl\/Command＋スクロールは全図を同期して拡大・縮小/);
   assert.doesNotMatch(prototype, /result-run-id|strategy-vix_dca-1|candidate-[0-9]/);
 });

@@ -43,7 +43,7 @@ test("saved execution costs, net fills and offline CSV stay independent of draft
   expect(await play.isDisabled()).toBe(disabled);
   await dialog.locator("#field-execution-slippagePct").fill("0.1");
   await dialog.locator("#field-execution-spreadPct").fill("0.2");
-  await dialog.getByRole("switch", { name: "端株を許可", exact: true }).click();
+  await dialog.getByRole("switch", { name: "小数株での取引を許可", exact: true }).click();
   await dialog.locator(".dialog-done").click();
   await expect(dialog).toHaveCount(0);
   expect(await costPanel.innerText()).toBe(original);

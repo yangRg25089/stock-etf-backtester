@@ -37,16 +37,12 @@ test('measured wide plots use actual pixel height instead of growing with width'
   }
 });
 
-test("vertical chart panning shifts only the value domain while preserving the plot's pixel mapping", () => {
-  const values = [10, 20, 30];
-  const automatic = chartScale(values);
-  const shifted = chartScale(values, { verticalOffsetRatio: 0.25 });
-  const span = automatic.maximum - automatic.minimum;
-  const plotHeight = CHART.height - CHART.top - CHART.bottom;
-
-  assert.ok(Math.abs(shifted.minimum - automatic.minimum - span * 0.25) < 1e-9);
-  assert.ok(Math.abs(shifted.maximum - automatic.maximum - span * 0.25) < 1e-9);
-  assert.ok(Math.abs(shifted.y(20) - automatic.y(20) - plotHeight * 0.25) < 1e-9);
+test("indicator value scales retain natural fixed bounds", () => {
+  const scale = chartScale([20, 40, 60], { fixedBounds: [0, 100] }, COMPACT_CHART);
+  assert.equal(scale.minimum, 0);
+  assert.equal(scale.maximum, 100);
+  assert.equal(scale.y(100), COMPACT_CHART.top);
+  assert.equal(scale.y(0), COMPACT_CHART.height - COMPACT_CHART.bottom);
 });
 
 test("mobile viewport prevents page pinch zoom while charts own their touch gestures", () => {

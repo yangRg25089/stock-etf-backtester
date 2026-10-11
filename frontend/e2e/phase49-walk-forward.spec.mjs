@@ -22,7 +22,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   await restoreSavedRecord(page, { ...fixture.record, csv: fixture.csv });
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(3);
   await page.locator(".comparison-table").getByRole("button", { name: "グリッド検索", exact: true }).click();
-  await expect(page.locator(".comparison-period").filter({ hasText: "ローリング検証" })).toBeVisible();
+  await expect(page.locator(".comparison-period").filter({ hasText: "ウォークフォワード検証" })).toBeVisible();
   await expect(page.locator(".result-search-section")).toBeVisible();
   await expect(page.locator(".search-window-select option")).toHaveCount(2);
   await expect(page.locator(".search-table tbody tr")).toHaveCount(2);
@@ -39,7 +39,7 @@ test("rolling windows, continuous OOS chart, selected signal parameters and save
   await expect(page.locator(".search-oos-select")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".chart-overlay [data-result-id]").first()).toBeVisible();
   await expect(page.locator("#result-panel-performance")).toBeVisible();
-  await expect(page.locator(".result-detail-name")).toContainText("ローリング検証");
+  await expect(page.locator(".result-detail-name")).toContainText("ウォークフォワード検証");
   await expect(page.locator(".result-detail-name")).toContainText("2020-01-01 → 2021-02-05");
   for (const kind of ["summary", "daily-assets", "trades", "search-results"]) {
     const waiting = page.waitForEvent("download");

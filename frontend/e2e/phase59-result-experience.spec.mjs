@@ -17,7 +17,18 @@ test("comparison selection pins the same curve/readings as hover and chart click
   await expect(page.locator(".selected-strategy-chip")).toHaveCount(1);
   await page.mouse.move(1350, 55);
   const main = page.locator(".chart-overlay");
-  const pinnedArea = await main.locator(".chart-highlight-area").getAttribute("d");
+  // Axis domains and responsive height can change after selecting another series.
+  // Check the fill against its current curve rather than earlier pixel coordinates.
+  const expectPrimaryFill = async () => {
+    const line = main.locator("polyline.is-highlighted");
+    await expect(line).toHaveCount(1);
+    const points = await line.getAttribute("points");
+    expect(await main.locator(".chart-highlight-area").getAttribute("d")).toContain(`L ${points.split(" ").join(" L ")}`);
+    const color = await rowFor(page, primary.id).evaluate(node => getComputedStyle(node).getPropertyValue("--result-color").trim());
+    await expect(line).toHaveAttribute("stroke", color);
+    await expect(main.locator(".chart-highlight-fill stop").first()).toHaveAttribute("stop-color", color);
+  };
+  await expectPrimaryFill();
   await expect(main.locator(`.chart-trade-marker[data-result-id="${primary.id}"]`).first()).toBeVisible();
   await rowFor(page, dca.id).click();
   await expect(readingFor(page, dca.id)).toHaveAttribute("aria-pressed", "true");
@@ -31,11 +42,11 @@ test("comparison selection pins the same curve/readings as hover and chart click
   await expect(focusedChip.locator(".selected-strategy-detail-label")).toBeVisible();
   await expect(page.locator(".result-detail-name")).toContainText("毎月定額積立");
   await readingFor(page, primary.id).hover();
-  expect(await main.locator(".chart-highlight-area").getAttribute("d")).toBe(pinnedArea);
+  await expectPrimaryFill();
   await readingFor(page, primary.id).click();
   await page.mouse.move(1350, 55);
   await expect(readingFor(page, primary.id)).toHaveAttribute("aria-pressed", "true");
-  expect(await main.locator(".chart-highlight-area").getAttribute("d")).toBe(pinnedArea);
+  await expectPrimaryFill();
   await expect(page.locator(".result-detail-name")).toContainText("ボラティリティ");
   await expect(focusedChip).toHaveAttribute("data-result-id", primary.id);
   await rowFor(page, dca.id).click();
@@ -147,6 +158,8 @@ for (const locale of ["ja", "zh", "en"]) test(`visible file actions, compact exe
   for (const theme of ["dark", "light"]) {
     await page.locator(".appearance-toggle").click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    // Audit the settled theme, not intermediate table background transitions.
+    await page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))));
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
     await page.screenshot({ path: test.info().outputPath(`${theme}-desktop.png`) });
   }

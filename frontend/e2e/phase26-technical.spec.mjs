@@ -55,11 +55,13 @@ test("selected saved MA, Bollinger and RSI show periods, exact readings, common 
   await expect(core.locator(".chart-core-readout-row")).toContainText("RSI2");
   await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
   await page.locator('.legend-toggle[data-series="price"]').click();
-  await expect(core.locator(".chart-technical-line")).toHaveCount(0);
-  await expect(page.locator('.legend-toggle[data-series="ma"]')).toHaveAttribute("aria-pressed", "false");
+  await expect(core.locator(".chart-technical-line")).toHaveCount(4);
+  await expect(page.locator('.legend-toggle[data-series="ma"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".chart-rsi")).toBeVisible();
   await page.locator('.legend-toggle[data-series="ma"]').click();
-  await expect(page.locator('.legend-toggle[data-series="price"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(core.locator('polyline[data-kind="ma"]')).toHaveCount(0);
+  await expect(page.locator('.legend-toggle[data-series="price"]')).toHaveAttribute("aria-pressed", "false");
+  await page.locator('.legend-toggle[data-series="ma"]').click();
   await expect(core.locator('polyline[data-kind="ma"]')).toHaveCount(1);
   await page.locator('.legend-toggle[data-series="bollinger"]').click();
   await expect(core.locator('polyline[data-kind="bollinger"]')).toHaveCount(0);
@@ -140,6 +142,8 @@ test("long histories retain all technical lines and responsive interactions with
   await page.keyboard.press("Shift+ArrowLeft");
   await expect(core.locator(".chart-crosshair")).toBeVisible();
   await page.locator('.legend-toggle[data-series="price"]').click();
+  await expect(core.locator(".chart-technical-line")).toHaveCount(18);
+  await page.locator('.legend-toggle[data-series="ma"]').click();
   await expect(core.locator(".chart-technical-line")).toHaveCount(0);
   await page.locator('.legend-toggle[data-series="ma"]').click();
   await expect(core.locator(".chart-technical-line")).toHaveCount(18);

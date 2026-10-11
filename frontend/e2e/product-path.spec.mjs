@@ -545,7 +545,6 @@ test("catalog lists all presets, independent condition toggles, and locale chang
 test("strategy dialog stays usable at 320px and returns focus to its card", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 780 });
   await page.goto("/");
-  await page.getByRole("button", { name: "設定", exact: true }).click();
   const trigger = page.locator(".strategy-card-open").first();
   await trigger.click();
   await expect(page.locator(".strategy-dialog")).toBeVisible();
@@ -908,11 +907,11 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   const mainPlotHeight = await plotHeight(".chart-panel.chart-overlay");
   expect(mainPlotHeight, `1920px main plot height: ${mainPlotHeight}px`).toBeGreaterThanOrEqual(320);
   expect(mainPlotHeight, `1920px main plot height: ${mainPlotHeight}px`).toBeLessThanOrEqual(420);
-  await expect(page.locator(".chart-range-label")).toContainText("全図共通");
+  await expect(page.locator(".chart-range-label")).toContainText("全チャート共通");
   for (const selector of [".chart-drawdown", ".chart-vix"]) {
     const size = await page.locator(`${selector} svg.result-chart`).evaluate(svg => ({ width: svg.getBoundingClientRect().width, height: svg.getBoundingClientRect().height }));
-    expect(size.height).toBeGreaterThanOrEqual(64);
-    expect(size.height).toBeLessThanOrEqual(80);
+    expect(size.height).toBeGreaterThanOrEqual(80);
+    expect(size.height).toBeLessThanOrEqual(96);
     expect(await plotHeight(selector)).toBeGreaterThan(30);
   }
   await expect(page.locator(".chart-x-axis-title")).toHaveCount(1);
@@ -1069,9 +1068,12 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     return windows[0];
   };
   const expectBaselineInsidePlot = async () => {
-    const baselineY = await page.locator(".chart-panel.chart-overlay .chart-baseline-line").getAttribute("y1");
-    expect(Number(baselineY)).toBeGreaterThanOrEqual(20);
-    expect(Number(baselineY)).toBeLessThanOrEqual(266);
+    const geometry = await page.locator(".chart-panel.chart-overlay svg.result-chart").evaluate(svg => ({
+      y: Number(svg.querySelector(".chart-baseline-line").getAttribute("y1")),
+      top: Number(svg.dataset.plotTop), bottom: Number(svg.dataset.plotBottom),
+    }));
+    expect(geometry.y).toBeGreaterThanOrEqual(geometry.top);
+    expect(geometry.y).toBeLessThanOrEqual(geometry.bottom);
   };
   const resetRangeButton = page.getByRole("button", { name: "全期間に戻す" });
   const zoomInButton = page.getByRole("button", { name: "期間を拡大" });
@@ -1083,6 +1085,9 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await zoomOutButton.click();
   await expect.poll(async () => Number(await page.locator(".chart-panel.chart-overlay").getAttribute("data-window-end"))
     - Number(await page.locator(".chart-panel.chart-overlay").getAttribute("data-window-start"))).toBeGreaterThan(0.99);
+  await expect(resetRangeButton).toBeDisabled();
+  await zoomInButton.click();
+  await expect(resetRangeButton).toBeEnabled();
   await resetRangeButton.click();
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-start", fullRange[0]);
   await expect(page.locator(".chart-panel.chart-overlay")).toHaveAttribute("data-window-end", fullRange[1]);
@@ -1185,7 +1190,8 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(chartAccessibility.violations, JSON.stringify(chartAccessibility.violations, null, 2)).toEqual([]);
   await page.screenshot({ path: test.info().outputPath("financial-charts.png"), fullPage: true });
   await page.setViewportSize({ width: 320, height: 900 });
-  await expect(page.locator(".workbench-config")).toBeHidden();
+  await expect(page.locator(".workbench-config")).toBeVisible();
+  await expect(page.locator(".workbench-mobile-views")).toHaveCount(0);
   const chartLayout = await page.evaluate(() => ({
     viewport: window.innerWidth,
     document: document.documentElement.scrollWidth,
@@ -1213,6 +1219,11 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator('[data-export-kind="daily-assets"]')).toBeEnabled();
   await expect(page.locator('[data-export-kind="trades"]')).toBeEnabled();
   await expect(page.locator('[data-export-kind="search-results"]')).toBeDisabled();
+  const openDownloads = async () => {
+    const toggle = page.locator(".result-downloads-toggle");
+    if (await toggle.isVisible() && await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
+  };
+  await openDownloads();
   const downloadPromise = page.waitForEvent("download");
   await page.locator('[data-export-kind="summary"]').click();
   const download = await downloadPromise;
@@ -1241,14 +1252,14 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   expect(tradesCsv).toContain("date");
   expect(tradesCsv).toContain("quantity");
 
-  await page.getByRole("button", { name: "設定", exact: true }).click();
   await expect(page.locator(".workbench-config")).toBeVisible();
   await page.locator(".strategy-card-open").filter({ hasText: "ボラティリティ積立" }).click();
   await expect(page.locator(".strategy-dialog")).toBeVisible();
   await page.locator(".strategy-dialog #field-strategy-vix_dca-1-vix-buyThreshold").fill("28");
   await closeStrategyDialog(page);
-  await page.getByRole("button", { name: "結果", exact: true }).click();
+  await page.locator(".workbench-results").scrollIntoViewIfNeeded();
   await expect(page.locator(".snapshot-warning")).toHaveCount(0);
+  await openDownloads();
   const staleDownloadPromise = page.waitForEvent("download");
   await page.locator('[data-export-kind="summary"]').click();
   const staleDownload = await staleDownloadPromise;
@@ -1265,6 +1276,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
   await expect(page.locator(".comparison-table tbody tr")).toHaveCount(0);
   await restoreSavedRecord(page, { result: saved });
   const restoredStrategy = saved.result.strategyRuns.find(item => item.id === "strategy-vix_dca-1");
+  await openDownloads();
   const restoredDownloadPromise = page.waitForEvent("download");
   await page.locator('[data-export-kind="summary"]').click();
   const restoredCsv = await readFile(await (await restoredDownloadPromise).path(), "utf8");
@@ -1834,17 +1846,26 @@ test("linked figures share widths, use bounded plot heights, and highlight legen
   await page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true }).click();
   for (const width of [1440, 1920, 1280]) {
     await page.setViewportSize({ width, height: 900 });
+    // ResizeObserver recalculates SVG view boxes after the CSS width changes.
+    // Retain the original bounds while waiting for that layout update.
+    await expect.poll(async () => page.locator(".result-chart").evaluateAll(charts => {
+      const sizes = charts.map(chart => chart.getBoundingClientRect());
+      return sizes.length === 3
+        && Math.max(...sizes.map(size => size.width)) - Math.min(...sizes.map(size => size.width)) <= 3
+        && sizes[0].height >= 280 && sizes[0].height <= 440
+        && sizes.slice(1).every(size => size.height >= 80 && size.height <= 96);
+    })).toBe(true);
     const sizes = await page.locator(".result-chart").evaluateAll((charts) => charts.map((chart) => {
       const bounds = chart.getBoundingClientRect();
       return { width: bounds.width, height: bounds.height };
     }));
     expect(sizes).toHaveLength(3);
     expect(Math.max(...sizes.map((size) => size.width)) - Math.min(...sizes.map((size) => size.width))).toBeLessThanOrEqual(3);
-    expect(sizes[0].height).toBeGreaterThanOrEqual(240);
-    expect(sizes[0].height).toBeLessThanOrEqual(360);
+    expect(sizes[0].height).toBeGreaterThanOrEqual(280);
+    expect(sizes[0].height).toBeLessThanOrEqual(440);
     for (const size of sizes.slice(1)) {
-      expect(size.height).toBeGreaterThanOrEqual(64);
-      expect(size.height).toBeLessThanOrEqual(80);
+      expect(size.height).toBeGreaterThanOrEqual(80);
+      expect(size.height).toBeLessThanOrEqual(96);
     }
     const gaps = await page.locator(".chart-linked-stack figure").evaluateAll(figures => figures.slice(1).map((figure,index) => figure.getBoundingClientRect().top - figures[index].getBoundingClientRect().bottom));
     for (const gap of gaps) expect(Math.abs(gap)).toBeLessThanOrEqual(1);
@@ -1888,10 +1909,13 @@ test("linked figures share widths, use bounded plot heights, and highlight legen
     await expect(page.locator(".chart-date-axis .chart-x-axis-title")).toHaveCount(1);
     await expect(page.locator(`[data-chart-id="${bottomChart}"] .chart-x-axis-title`)).toHaveCount(0);
     const plotPixels = svg => (Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop)) / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height;
-    const plots = await page.locator(".chart-panel.is-compact svg.result-chart").evaluateAll(charts => charts.map(svg => (Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop)) / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height));
-    for (const height of plots) { expect(height).toBeGreaterThanOrEqual(48); expect(height).toBeLessThanOrEqual(64); }
+    // Visibility changes trigger ResizeObserver to redistribute the stack height.
+    await expect.poll(() => page.locator(".chart-panel.is-compact svg.result-chart").evaluateAll(charts => charts.every(svg => {
+      const height = (Number(svg.dataset.plotBottom) - Number(svg.dataset.plotTop)) / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height;
+      return height >= 63.5 && height <= 96.5;
+    }))).toBe(true);
     const main = await core.locator("svg.result-chart").evaluate(plotPixels);
-    expect(main).toBeGreaterThanOrEqual(212); expect(main).toBeLessThanOrEqual(332);
+    expect(main).toBeGreaterThanOrEqual(252); expect(main).toBeLessThanOrEqual(440);
   }
   const initialWindow = await core.getAttribute("data-window-start");
   const priceLegend = core.locator('.chart-series-control[data-series="price"]');
@@ -1920,11 +1944,16 @@ test("linked figures share widths, use bounded plot heights, and highlight legen
   await priceLegend.click();
   await page.mouse.move(0, 0);
   await page.locator(".chart-range-controls button").first().focus();
-  await expect(priceLegend).toHaveAttribute("aria-pressed", "true");
-  await expect(core.locator(".overlay-price.is-highlighted")).toHaveAttribute("stroke-width", "2.4");
+  await expect(priceLegend).toHaveAttribute("aria-pressed", "false");
+  await expect(core.locator("polyline.overlay-price")).toHaveCount(0);
+  await expect(assetLegend).toHaveAttribute("aria-pressed", "true");
   await assetLegend.click();
   await page.mouse.move(0, 0);
+  await page.locator(".chart-range-controls button").first().focus();
   await expect(priceLegend).toHaveAttribute("aria-pressed", "false");
+  await expect(assetLegend).toHaveAttribute("aria-pressed", "false");
+  await expect(core.locator(".chart-highlight-area")).toHaveCount(0);
+  await assetLegend.click();
   await expect(assetLegend).toHaveAttribute("aria-pressed", "true");
   await assetLegend.click();
   await expect(assetLegend).toHaveAttribute("aria-pressed", "false");
@@ -2001,8 +2030,8 @@ test("linked indicators keep natural units and use explicit range controls", asy
   await expect(indicator.locator("svg.result-chart")).toHaveAccessibleName(/ドローダウン.*%/);
   const indicatorGeometry = await indicator.locator("svg.result-chart").evaluate(el => ({width:el.viewBox.baseVal.width, height:el.getBoundingClientRect().height}));
   expect(indicatorGeometry.width).toBe(800);
-  expect(indicatorGeometry.height).toBeGreaterThanOrEqual(64);
-  expect(indicatorGeometry.height).toBeLessThanOrEqual(80);
+  expect(indicatorGeometry.height).toBeGreaterThanOrEqual(80);
+  expect(indicatorGeometry.height).toBeLessThanOrEqual(96);
   const sizes = await stack.locator("svg.result-chart").evaluateAll((charts) => charts.map((chart) => {
     const b = chart.getBoundingClientRect();
     return { width: b.width, height: b.height };
@@ -2260,11 +2289,11 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await expect(page.locator(".chart-overlay .chart-trade-marker").first()).toHaveAttribute("data-anchor-series", "totalAsset");
   await expect(asset).toBeEnabled();
   await asset.click();
-  await expect(price).toHaveAttribute("aria-pressed", "true");
+  await expect(price).toHaveAttribute("aria-pressed", "false");
   await expect(asset).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".chart-overlay polyline.overlay-price")).toHaveCount(1);
+  await expect(page.locator(".chart-overlay polyline.overlay-price")).toHaveCount(0);
+  await expect(page.locator(".chart-empty")).toBeVisible();
   await asset.click();
-  await price.click();
   await expect(page.locator(".chart-overlay polyline.overlay-totalAsset")).toHaveCount(1);
   await expect(page.locator(".chart-range-controls")).toBeVisible();
   await page.getByRole("button", { name: "期間を拡大", exact: true }).click();
@@ -2279,7 +2308,7 @@ test("hiding price preserves the principal return chart and legacy snapshots kee
   await page.reload();
   await expect(page.locator(".chart-overlay svg.result-chart")).toBeVisible();
   await expect(page.locator(".chart-overlay polyline.overlay-price")).toHaveCount(1);
-  await expect(price).toBeDisabled();
+  await expect(price).toBeEnabled();
   await expect(asset).toBeDisabled();
   await expect(page.locator(".chart-data-note")).toBeVisible();
   await expect(page.locator(".chart-overlay .overlay-totalAsset")).toHaveCount(0);

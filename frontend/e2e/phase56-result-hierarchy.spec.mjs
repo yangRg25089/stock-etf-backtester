@@ -25,7 +25,7 @@ test("comparison stays primary and focused details stay distinct from chart sele
     const detailTop = document.querySelector("#result-strategy-details").getBoundingClientRect().top;
     const targetTop = document.querySelector(".result-detail-target").getBoundingClientRect().top;
     const tabsTop = document.querySelector("#result-panel-performance").getBoundingClientRect().top;
-    return comparisonTop < chartTop && chartTop < detailTop && detailTop < targetTop && targetTop < tabsTop;
+    return comparisonTop < chartTop && chartTop < detailTop && detailTop < targetTop && targetTop <= tabsTop;
   })).toBe(true);
   await expect(tabs).toHaveCount(0);
   await expect(page.locator("#result-panel-trades")).toBeVisible();
@@ -48,7 +48,8 @@ test("comparison stays primary and focused details stay distinct from chart sele
   await expect(page.locator(".comparison-table .is-focused, .comparison-table [aria-current]")).toHaveCount(0);
   const selectedRow = selectedButton.locator("xpath=ancestor::tr");
   const inactiveRow = otherButton.locator("xpath=ancestor::tr");
-  expect((await selectedRow.boundingBox()).x).toBeLessThan((await inactiveRow.boundingBox()).x);
+  expect((await selectedRow.boundingBox()).x).toBeCloseTo((await inactiveRow.boundingBox()).x, 0);
+  await expect(selectedRow).toHaveCSS("translate", "none");
   const selectedColor = await selectedRow.evaluate(row => getComputedStyle(row).backgroundColor);
   expect(selectedColor).not.toBe(await inactiveRow.evaluate(row => getComputedStyle(row).backgroundColor));
   const brightness = selectedColor.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, channel) => sum + channel, 0);
