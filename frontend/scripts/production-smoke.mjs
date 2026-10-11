@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
@@ -91,6 +92,15 @@ try {
     const stylesheet = await fetch(new URL(stylesheetPath, baseURL));
     assert.equal(stylesheet.status, 200);
     assert.match(stylesheet.headers.get("content-type") ?? "", /text\/css/);
+  }
+
+  // Split modules must be served as JavaScript, never an SPA fallback page.
+  const assets = await readdir(path.join(frontendRoot, "dist", "assets"));
+  for (const name of assets.filter(name => name.endsWith(".js"))) {
+    const asset = await fetch(new URL(`/assets/${name}`, baseURL));
+    assert.equal(asset.status, 200, name);
+    assert.match(asset.headers.get("content-type") ?? "", /javascript/, name);
+    assert.doesNotMatch(await asset.text(), /<html/i, name);
   }
 
   const catalogResponse = await fetch(`${baseURL}/api/v1/catalog`);

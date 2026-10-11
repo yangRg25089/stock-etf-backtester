@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { Catalog, RunResponse, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { triggerFileDownload } from "./exportModel";
-import { renderResultReport } from "./reportImage";
 import { buildResultReport, isResultReportAvailable, type ReportChartSelection } from "./reportModel";
 
 interface ReportDownloadButtonProps {
@@ -18,10 +17,10 @@ interface ReportDownloadButtonProps {
 
 export function ReportDownloadButton({ run, result, parent, catalog, locale, chartSelection, onError, busy = false }: ReportDownloadButtonProps) {
   const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<"load" | "render" | null>(null);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
-    setPending(false); setFailed(false);
+    setPending(false); setFailed(null);
     return () => controller.current?.abort();
   }, [run?.runId, result?.id, locale, busy]);
   const download = async () => {
@@ -30,12 +29,16 @@ export function ReportDownloadButton({ run, result, parent, catalog, locale, cha
     if (!report) return;
     const request = new AbortController();
     controller.current = request;
-    setPending(true); setFailed(false);
+    setPending(true); setFailed(null);
+    let loaded = false;
     try {
+      const { renderResultReport } = await import("./reportImage");
+      loaded = true;
+      if (request.signal.aborted) return;
       const blob = await renderResultReport(report, request.signal);
       if (!request.signal.aborted) triggerFileDownload(blob, report.filename);
     } catch {
-      if (!request.signal.aborted) { setFailed(true); onError?.(); }
+      if (!request.signal.aborted) { setFailed(loaded ? "render" : "load"); onError?.(); }
     } finally {
       if (!request.signal.aborted) setPending(false);
     }
@@ -49,7 +52,7 @@ export function ReportDownloadButton({ run, result, parent, catalog, locale, cha
         {pending ? <span className="spinner" aria-hidden="true" /> : <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4" /></svg>}
         {translate(locale, "report.filename")}
       </button>
-      {failed && <p className="field-error report-download-error" role="alert">{translate(locale, "report.error")}</p>}
+      {failed && <p className="field-error report-download-error" role="alert">{translate(locale, failed === "load" ? "report.loadError" : "report.error")}</p>}
     </div>
   );
 }
