@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.catalog.definitions import PARAMETER_DEFINITIONS
 
-_MANIFEST = Path(__file__).parents[3] / "docs" / "fixtures" / "notebook-mapping.json"
+_MANIFEST = Path(__file__).parent / "fixtures" / "notebook-mapping.json"
 
 
 def _manifest() -> dict[str, object]:
