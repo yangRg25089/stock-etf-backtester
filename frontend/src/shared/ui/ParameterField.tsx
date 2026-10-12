@@ -7,6 +7,7 @@ import {
   type Locale,
 } from "../../i18n/messages";
 import { parameterFieldId } from "./parameterFieldId";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 interface ParameterFieldProps {
   definition: ParameterDefinition;
@@ -205,18 +206,15 @@ export function ParameterField({
   let control;
   if (definition.type === "boolean" && appearance === "switch") {
     control = (
-      <button
+      <ToggleSwitch
         {...common}
         className="parameter-switch"
-        type="button"
-        role="switch"
-        aria-label={label}
-        aria-checked={value === true}
-        onClick={() => onChange(value !== true)}
+        label={label}
+        checked={value === true}
+        onChange={onChange}
       >
-        <span className="switch-track" aria-hidden="true"><span className="switch-thumb" /></span>
         <span className="switch-state">{translate(locale, value === true ? "field.enabled" : "field.disabled")}</span>
-      </button>
+      </ToggleSwitch>
     );
   } else if (definition.type === "boolean") {
     control = (

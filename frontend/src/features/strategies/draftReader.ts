@@ -1,5 +1,7 @@
 import type { Catalog, ConditionGroup, ConditionLeaf, ParameterDefinition, RunResponse, StrategyRules } from "../../api/generated";
-import { isBoundedJson, isNumericSearchValue, isRecord, matchesContract, runDataContext, validExecutionSettings } from "../../api/contractReader";
+import { isBoundedJson, matchesContract, runDataContext, validExecutionSettings } from "../../api/contractReader";
+import { isNumericSearchValue } from "../../shared/decimalText";
+import { isRecord } from "../../shared/lib/record";
 import { createInitialWorkspaceState, createStrategyDraft, strategyInstanceLimit, type BacktestDraft, type WorkspaceState } from "./model";
 
 function parameterShape(value: unknown, definition: ParameterDefinition): boolean {

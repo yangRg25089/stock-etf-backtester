@@ -1,4 +1,4 @@
-import { compareDecimals, isNumericSearchValue } from "../../api/contractReader";
+import { compareDecimals, isNumericSearchValue } from "../../shared/decimalText";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatCurrency } from "./format";
 export function TaxValue({ value, currency, locale }: {value: string | number | null | undefined; currency?: string | null; locale: Locale}) {

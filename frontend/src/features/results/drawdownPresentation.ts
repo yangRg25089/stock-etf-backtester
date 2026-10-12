@@ -1,4 +1,4 @@
-import { compareDecimals } from "../../api/contractReader";
+import { compareDecimals } from "../../shared/decimalText";
 import type { DrawdownEpisode, PerformanceAnalysis } from "../../api/generated";
 
 export const MINIMUM_VISIBLE_DRAWDOWN = "-0.025";

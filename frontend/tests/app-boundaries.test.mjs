@@ -1,10 +1,24 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { readStyles } from "./helpers/readSources.mjs";
 import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
+
+test("pure decimal consumers depend on shared primitives rather than API schema validation", () => {
+  const directory = new URL("../src/features/results/", import.meta.url);
+  for (const name of readdirSync(directory).filter(name => /\.[jt]sx?$/.test(name))) {
+    const source = readFileSync(new URL(name, directory), "utf8");
+    for (const match of source.matchAll(/import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["']/g)) {
+      if (match[2].endsWith("api/contractReader")) {
+        assert.doesNotMatch(match[1], /\b(compareDecimals|decimalIdentity|isNumericSearchValue|isRecord)\b/, name);
+      }
+    }
+  }
+  const shared = readFileSync(new URL("../src/shared/decimalText.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(shared, /\bfrom\s+["'][^"']*api\//);
+});
 
 test("the app composition layer does not own the run protocol or workspace reducer", () => {
   const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");

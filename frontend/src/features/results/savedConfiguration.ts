@@ -1,5 +1,5 @@
 import type { RunResponse, SearchResult, StrategyRun } from "../../api/generated";
-import { isRecord } from "../../api/contractReader";
+import { isRecord } from "../../shared/lib/record";
 
 export function savedCandidate(search: Pick<SearchResult, "candidates"> | null | undefined, id: string) {
   return search?.candidates.find(item => item.candidateId === id || item.testResult?.resultId === id);

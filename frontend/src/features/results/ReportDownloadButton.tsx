@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Catalog, RunResponse, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
-import { triggerFileDownload } from "./exportModel";
+import { triggerFileDownload } from "../../shared/lib/fileDownload";
 import { buildResultReport, isResultReportAvailable, type ReportChartSelection } from "./reportModel";
 
 interface ReportDownloadButtonProps {

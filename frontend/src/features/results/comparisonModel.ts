@@ -1,5 +1,5 @@
 import type { MetricSummary, StrategyRun } from "../../api/generated";
-import { compareDecimals, isNumericSearchValue } from "../../api/contractReader";
+import { compareDecimals, isNumericSearchValue } from "../../shared/decimalText";
 import type { Locale } from "../../i18n/messages";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
 import { languageTag } from "./format";

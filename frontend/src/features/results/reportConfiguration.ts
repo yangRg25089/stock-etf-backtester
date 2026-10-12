@@ -1,4 +1,4 @@
-import { compareDecimals, isNumericSearchValue } from "../../api/contractReader";
+import { compareDecimals, isNumericSearchValue } from "../../shared/decimalText";
 import type { Catalog, ConditionGroup, ConditionLeaf, FrozenStrategyInstance } from "../../api/generated";
 import { translate, unitLabel, type Locale } from "../../i18n/messages";
 import { formatCurrency, formatPercent, formatPlainNumber } from "./format";

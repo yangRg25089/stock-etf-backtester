@@ -1,5 +1,6 @@
 import type { Catalog } from "../../api/generated";
-import { isBoundedJson, isIsoDateTime, isRecord } from "../../api/contractReader";
+import { isBoundedJson, isIsoDateTime } from "../../api/contractReader";
+import { isRecord } from "../../shared/lib/record";
 import { readDraft } from "../strategies/draftReader";
 import type { BacktestDraft } from "../strategies/model";
 import { compatibleCatalogVersion } from "../strategies/catalogCompatibility";

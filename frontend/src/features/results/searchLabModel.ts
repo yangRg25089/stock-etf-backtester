@@ -1,5 +1,6 @@
 import type { SearchCandidate, SearchResult, SearchResultDimension } from "../../api/generated";
-import { compareDecimals, decimalIdentity, isRecord, isNumericSearchValue } from "../../api/contractReader";
+import { compareDecimals, decimalIdentity, isNumericSearchValue } from "../../shared/decimalText";
+import { isRecord } from "../../shared/lib/record";
 import { isSuccessfulRunStatus } from "../../api/runStatus";
 
 export type SearchStage = "train" | "test";

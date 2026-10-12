@@ -1,3 +1,5 @@
+import { compareDecimals, decimalIdentity, isNumericSearchValue } from "../shared/decimalText";
+export { compareDecimals, decimalIdentity, isNumericSearchValue } from "../shared/decimalText";
 import { isRecord } from "../shared/lib/record";
 export { isRecord } from "../shared/lib/record";
 import schemasJson from "./generated.schema.json";
@@ -19,15 +21,6 @@ const patterns = new Map<string, RegExp>();
 const UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 export const MAX_JSON_VALUES = 2_000_000;
 const MAX_JSON_STRING = 65_536;
-
-export function isNumericSearchValue(value: unknown): value is string | number {
-  if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value !== "string" || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)
-    || !Number.isFinite(Number(value))) return false;
-  const [coefficient, exponent = "0"] = value.split(/[eE]/);
-  const fractionalPlaces = coefficient.split(".")[1]?.length ?? 0;
-  return Math.abs(Number(exponent) - fractionalPlaces) <= 4096;
-}
 
 export function sameJson(left: unknown, right: unknown): boolean {
   if (left === right) return true;
@@ -201,30 +194,6 @@ function validEpisodes(rows: DrawdownEpisode[] | null | undefined): boolean {
       && (row.state === "recovered" ? row.recoveredDate === row.endDate && row.recoveryDays === days(row.bottomDate, row.endDate)
         : row.recoveredDate == null && row.recoveryDays == null);
   });
-}
-
-/** Compare saved decimal values without rounding them through a JS float. */
-export function decimalIdentity(value: string | number): string {
-  const [coefficient, exponent = "0"] = String(value).toLowerCase().split("e");
-  const [whole, fraction = ""] = coefficient.replace(/^[+-]/, "").split(".");
-  const raw = (whole + fraction).replace(/^0+/, "");
-  const digits = raw.replace(/0+$/, "");
-  return digits ? `${coefficient.startsWith("-") ? "-" : ""}${digits}e${Number(exponent) - fraction.length + raw.length - digits.length}` : "0";
-}
-
-export function compareDecimals(left: string | number, right: string | number): number {
-  const parts = (value: string | number) => {
-    const identity = decimalIdentity(value);
-    const [digits, exponent = "0"] = identity.replace(/^-/, "").split("e");
-    return { digits, order: digits.length + Number(exponent), sign: identity === "0" ? 0 : identity.startsWith("-") ? -1 : 1 };
-  };
-  const a = parts(left), b = parts(right);
-  if (a.sign !== b.sign) return a.sign - b.sign;
-  if (!a.sign) return 0;
-  if (a.order !== b.order) return Math.sign(a.order - b.order) * a.sign;
-  const length = Math.max(a.digits.length, b.digits.length);
-  const x = a.digits.padEnd(length, "0"), y = b.digits.padEnd(length, "0");
-  return (x === y ? 0 : x < y ? -1 : 1) * a.sign;
 }
 
 function validTradeExplanation(trade: Trade): boolean {

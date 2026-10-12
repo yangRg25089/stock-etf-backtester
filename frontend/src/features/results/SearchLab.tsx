@@ -1,7 +1,7 @@
 import { ResultTableScroll } from "./ResultTableFrame";
 import { useState, type CSSProperties } from "react";
 import type { SearchCandidate } from "../../api/generated";
-import { compareDecimals, decimalIdentity } from "../../api/contractReader";
+import { compareDecimals, decimalIdentity } from "../../shared/decimalText";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatPercent, formatPlainNumber } from "./format";
 import { ReturnPercent } from "./ReturnPercent";

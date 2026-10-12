@@ -5,7 +5,7 @@ import { useWorkbenchShortcut } from "../../shared/ui/useWorkbenchShortcut";
 import { translate, type Locale } from "../../i18n/messages";
 import { strategyInstanceName } from "../../shared/lib/strategyInstanceName";
 import type { BacktestDraft } from "../strategies/model";
-import { triggerFileDownload } from "../results/exportModel";
+import { triggerFileDownload } from "../../shared/lib/fileDownload";
 import { createStrategyPackage, packageBlob, packageDraft, PackageError, readPackageFile, type PackageFile } from "./packageModel";
 
 interface PackageControlsProps {

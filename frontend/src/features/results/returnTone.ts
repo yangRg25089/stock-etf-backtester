@@ -1,4 +1,4 @@
-import { compareDecimals, isNumericSearchValue } from "../../api/contractReader";
+import { compareDecimals, isNumericSearchValue } from "../../shared/decimalText";
 
 export type ReturnTone = "positive" | "negative" | "neutral" | "missing";
 export type ReturnKind = "return" | "drawdown";

@@ -1,4 +1,4 @@
-import { compareDecimals, isNumericSearchValue } from "../../api/contractReader";
+import { compareDecimals, isNumericSearchValue } from "../../shared/decimalText";
 import type { Locale } from "../../i18n/messages";
 
 export type TableSortDirection = "ascending" | "descending";

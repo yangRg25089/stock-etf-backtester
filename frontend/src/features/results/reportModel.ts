@@ -1,4 +1,4 @@
-import { compareDecimals, isNumericSearchValue } from "../../api/contractReader";
+import { compareDecimals, isNumericSearchValue } from "../../shared/decimalText";
 import type { Catalog, PeriodReturn, RunResponse, StrategyRun } from "../../api/generated";
 import { searchOutcomes } from "../../api/searchResults";
 import { isSuccessfulRunStatus } from "../../api/runStatus";
