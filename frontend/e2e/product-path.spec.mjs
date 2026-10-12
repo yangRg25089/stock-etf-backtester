@@ -1114,7 +1114,7 @@ test("default VIX can run to a focused saved result, display toggles, and matchi
     const zoomedWindow = await expectSynchronizedWindows();
     const chart = page.locator(`.chart-panel.${chartSelector} .result-chart`);
     await chart.hover();
-    await expect(chart).toHaveCSS("touch-action", "none");
+  await expect(chart).toHaveCSS("touch-action", "pan-y");
     const resultsPane = page.locator(".workbench-results");
     const beforePlainWheel = await expectSynchronizedWindows();
     const plainWheel = await resultsPane.evaluate((element) => ({

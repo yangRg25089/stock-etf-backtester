@@ -56,7 +56,7 @@ test("mobile viewport prevents page pinch zoom while charts own their touch gest
   assert.match(app, /touches\.length > 1[^\n]*preventDefault/s);
   assert.match(app, /addEventListener\("gesturestart"/);
   assert.match(app, /target\.closest\("svg\.result-chart"\)/);
-  assert.match(charts, /\.result-chart\s*\{[^}]*touch-action:\s*none/s);
+  assert.match(charts, /\.result-chart\s*\{[^}]*touch-action:\s*pan-y/s);
   assert.doesNotMatch(linked, /touch-action:\s*(?:pan-y|pinch-zoom)/);
 });
 

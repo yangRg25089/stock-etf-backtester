@@ -1,16 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { openSaved, savedRun } from "./helpers/reports.mjs";
 
-async function openPhoneResult(browser, baseURL) {
+async function openPhoneResult(browser, baseURL, width = 375) {
   const context = await browser.newContext({
     baseURL,
-    viewport: { width: 375, height: 812 },
+    viewport: { width, height: 812 },
     isMobile: true,
     hasTouch: true,
   });
   const page = await context.newPage();
   await openSaved(page, await savedRun(page));
-  await page.setViewportSize({ width: 375, height: 812 });
+  await page.setViewportSize({ width, height: 812 });
   await page.locator('.comparison-table tr[data-result-id="report-strategy"] .result-select').click();
   const chart = page.locator(".chart-panel.chart-overlay svg.result-chart");
   await chart.scrollIntoViewIfNeeded();
@@ -65,7 +65,7 @@ test("phone chart supports pinch zoom and single-finger horizontal panning witho
   const scale = await page.evaluate(() => window.visualViewport?.scale);
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute("content", /initial-scale=1(?:\.0)?/);
   await expect(page.locator('meta[name="viewport"]')).not.toHaveAttribute("content", /maximum-scale|user-scalable/);
-  await expect(chart).toHaveCSS("touch-action", "none");
+  await expect(chart).toHaveCSS("touch-action", "pan-y");
   expect(scale).toBe(1);
   const legacyGesture = await page.evaluate(() => {
     const event = new Event("gesturestart", { bubbles: true, cancelable: true });
@@ -89,13 +89,15 @@ test("phone chart supports pinch zoom and single-finger horizontal panning witho
   const initialEnd = await page.locator(".chart-overlay").getAttribute("data-window-end");
   const pinchStart = [point(frame, 0.12), point(frame, 0.78)];
   const pinchEnd = [point(frame, 0.03), point(frame, 0.96)];
+  const scrollBeforePinch = await page.evaluate(() => window.scrollY);
   expect(pinchStart.every(item => item.x < frame.viewportWidth && item.y >= frame.y && item.y <= frame.y + frame.height)).toBe(true);
   await touch(session, "touchStart", pinchStart);
-  await touch(session, "touchMove", pinchEnd);
+  await touch(session, "touchMove", pinchEnd.map(target => ({ ...target, y: target.y + 30 })));
   await settle(page);
   const pinchedStart = await page.locator(".chart-overlay").getAttribute("data-window-start");
   const pinchedEnd = await page.locator(".chart-overlay").getAttribute("data-window-end");
   expect(pinchedStart).not.toBe(initialStart);
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBeforePinch);
   expect(Number(pinchedEnd) - Number(pinchedStart)).toBeLessThan(Number(initialEnd) - Number(initialStart));
   await touch(session, "touchEnd");
   await settle(page);
@@ -142,6 +144,10 @@ test("one-second long press retains a linked crosshair; legacy chart modes are g
   await settle(page);
   const movedDate = await reading.getAttribute("data-date");
   expect(movedDate).not.toBe(heldDate);
+  const scrollBeforeInspect = await page.evaluate(() => window.scrollY);
+  await touch(session, "touchMove", [{ ...target, x: target.x + 35, y: target.y - 50 }]);
+  await settle(page);
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBeforeInspect);
   for (const crosshair of await page.locator(".chart-crosshair").all()) {
     await expect(crosshair).toHaveAttribute("data-date", movedDate);
   }
@@ -151,4 +157,73 @@ test("one-second long press retains a linked crosshair; legacy chart modes are g
   await expect(page.getByRole("button", { name: /查看|平移|放大镜|滚轮缩放/ })).toHaveCount(0);
   expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
   await context.close();
+});
+
+test("zoomed chart yields diagonal vertical swipes and accepts a new horizontal gesture afterwards", async ({ browser, baseURL }) => {
+  const { context, page, chart, session } = await openPhoneResult(browser, baseURL);
+  try {
+    await page.getByRole("button", { name: "期間を拡大" }).click();
+    await chart.scrollIntoViewIfNeeded();
+    const beforeRange = await page.locator(".chart-overlay").getAttribute("data-window-start");
+    const target = point(await geometry(page, chart), 0.6, 0.5);
+    const beforeScroll = await page.evaluate(() => window.scrollY);
+    await touch(session, "touchStart", [target]);
+    for (const delta of [20, 50, 90, 120]) {
+      await touch(session, "touchMove", [{ ...target, x: target.x + delta / 6, y: target.y - delta }]);
+      await page.waitForTimeout(30);
+    }
+    await touch(session, "touchEnd");
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(beforeScroll + 40);
+    await expect(page.locator(".chart-overlay")).toHaveAttribute("data-window-start", beforeRange);
+    await chart.scrollIntoViewIfNeeded();
+    const next = point(await geometry(page, chart), 0.6, 0.5);
+    await touch(session, "touchStart", [next]);
+    await touch(session, "touchMove", [{ ...next, x: next.x - 45 }]);
+    await settle(page);
+    expect(Number(await page.locator(".chart-overlay").getAttribute("data-window-start"))).toBeGreaterThan(Number(beforeRange));
+    await touch(session, "touchEnd");
+  } finally { await context.close(); }
+});
+
+for (const width of [320, 375]) for (const selector of [".chart-overlay", ".chart-drawdown"]) for (const direction of [-1, 1]) {
+  test(`vertical touch from ${selector} scrolls the page ${direction < 0 ? "down" : "up"} at ${width}px without panning dates`, async ({ browser, baseURL }) => {
+    const { context, page, session } = await openPhoneResult(browser, baseURL, width);
+    try {
+      const chart = page.locator(`${selector} svg.result-chart`);
+      await expect(chart).toHaveCount(1);
+      await chart.scrollIntoViewIfNeeded();
+      const frame = await geometry(page, chart);
+      const target = point(frame, 0.55, 0.5);
+      const before = await page.evaluate(() => window.scrollY);
+      const range = await page.locator(".chart-overlay").getAttribute("data-window-start");
+      const path = await chart.locator("polyline").first().getAttribute("points");
+      await touch(session, "touchStart", [target]);
+      for (const delta of [20, 50, 90, 120]) {
+        await touch(session, "touchMove", [{ ...target, y: target.y + direction * delta }]);
+        await page.waitForTimeout(30);
+      }
+      await touch(session, "touchEnd");
+      await expect.poll(async () => (await page.evaluate(() => window.scrollY) - before) * -direction).toBeGreaterThan(40);
+      await expect(page.locator(".chart-overlay")).toHaveAttribute("data-window-start", range);
+      await expect(chart.locator("polyline").first()).toHaveAttribute("points", path);
+      await page.waitForTimeout(1100);
+      await expect(page.locator(".chart-overlay .chart-crosshair")).toHaveCount(0);
+    } finally { await context.close(); }
+  });
+}
+
+test("touch cancellation clears the hold timer and a new hold still works", async ({ browser, baseURL }) => {
+  const { context, page, chart, session } = await openPhoneResult(browser, baseURL);
+  try {
+    const target = point(await geometry(page, chart), 0.55);
+    await touch(session, "touchStart", [target]);
+    await page.waitForTimeout(350);
+    await touch(session, "touchCancel");
+    await page.waitForTimeout(800);
+    await expect(page.locator(".chart-overlay .chart-crosshair")).toHaveCount(0);
+    await touch(session, "touchStart", [target]);
+    await page.waitForTimeout(1100);
+    await expect(page.locator(".chart-overlay .chart-crosshair")).toHaveCount(1);
+    await touch(session, "touchEnd");
+  } finally { await context.close(); }
 });

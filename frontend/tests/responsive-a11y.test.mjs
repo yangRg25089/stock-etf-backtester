@@ -396,7 +396,7 @@ test("chart gestures use mobile pointer input and the primary run icon remains c
   assert.match(runActions, /className="run-play-icon"/);
   assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--app-action\)/);
   assert.match(css, /\.run-submit-button\s*\{[^}]*width:\s*48px/s);
-  assert.match(css, /\.result-chart\s*\{[^}]*touch-action:\s*none/s);
+  assert.match(css, /\.result-chart\s*\{[^}]*touch-action:\s*pan-y/s);
   assert.doesNotMatch(css, /pan-y\s+pinch-zoom/);
   assert.match(css, /\.shared-settings-dialog/);
 });

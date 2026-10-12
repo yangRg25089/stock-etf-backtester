@@ -31,7 +31,11 @@ test("chart help describes horizontal panning without vertical panning in all lo
   assert.match(translate("ja", "chart.interactionHelp"), /左右/);
   assert.match(translate("zh", "chart.interactionHelp"), /左右/);
   for (const locale of ["ja", "zh", "en"]) {
-    assert.doesNotMatch(translate(locale, "chart.interactionHelp"), /上下|全方向|縦方向|縦に|纵向|up.?down|vertically|any direction/i);
+    const help = translate(locale, "chart.interactionHelp");
+    const panSentence = help.split(/[。.!]/).find(sentence => /ドラッグ|拖动|Drag/.test(sentence));
+    assert.ok(panSentence);
+    assert.doesNotMatch(panSentence, /上下|全方向|縦方向|縦に|纵向|up.?down|vertically|any direction/i);
+    assert.match(help, /上下にスワイプするとページ|上下滑动可滚动页面|Swipe up or down to scroll the page/);
   }
 });
 

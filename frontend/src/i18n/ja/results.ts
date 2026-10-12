@@ -173,7 +173,7 @@ export const resultsMessages: Record<string, string> = {
   "chart.zoomIn": "期間を拡大",
   "chart.zoomOut": "期間を縮小",
   "chart.resetRange": "全期間に戻す",
-  "chart.interactionHelp": "2本指で日付範囲を拡大・縮小できます。左右にドラッグすると表示期間を移動します。1秒間長押しすると十字線と保存済みの値を表示します。チャート外ではページをスクロールできます。Shift + 左右キーで保存日の値を確認し、Escape で十字線を解除します。",
+  "chart.interactionHelp": "2本指で日付範囲を拡大・縮小できます。左右にドラッグすると表示期間を移動します。1秒間長押しすると十字線と保存済みの値を表示します。上下にスワイプするとページをスクロールできます。Shift + 左右キーで保存日の値を確認し、Escape で十字線を解除します。",
   "chart.noSeriesInWindow": "この期間に表示できるデータはありません。",
   "chart.seriesUnavailable": "この系列のデータはありません。",
   "chart.noVisibleSeries": "表示するチャートが選択されていません。上から選択してください。",

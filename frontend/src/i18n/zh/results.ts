@@ -173,7 +173,7 @@ export const resultsMessages: Record<string, string> = {
   "chart.zoomIn": "放大时间范围",
   "chart.zoomOut": "缩小时间范围",
   "chart.resetRange": "恢复全部期间",
-  "chart.interactionHelp": "双指捏合可缩放日期范围，单指左右拖动可平移日期；长按 1 秒显示十字线和当日读数。图表外可滚动页面。Shift + 左右键查看保存日读数，Escape 解除十字定位。",
+  "chart.interactionHelp": "双指捏合可缩放日期范围，单指左右拖动可平移日期；长按 1 秒显示十字线和当日读数。上下滑动可滚动页面。Shift + 左右键查看保存日读数，Escape 解除十字定位。",
   "chart.noSeriesInWindow": "所选时间范围内没有可显示的数据。",
   "chart.seriesUnavailable": "此系列没有数据。",
   "chart.noVisibleSeries": "没有选中的图表，请从上方选择要显示的图表。",

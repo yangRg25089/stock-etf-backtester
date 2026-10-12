@@ -35,7 +35,7 @@ interface PointerSample {
 
 interface SingleTouchGesture {
   kind: "single";
-  phase: "pending" | "pan" | "inspect";
+  phase: "pending" | "pan" | "scroll" | "inspect";
   pointerId: number;
   startX: number;
   startY: number;
@@ -72,6 +72,20 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
   const touchGesture = useRef<TouchGesture | null>(null);
   const mouseGesture = useRef<MouseGesture | null>(null);
   const longPressTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Native vertical scrolling stays available until pinch or long-press owns
+    // the gesture. Pointer-event cancellation cannot suppress native scrolling.
+    const preserveChartGesture = (event: TouchEvent) => {
+      const gesture = touchGesture.current;
+      if (!event.cancelable || !gesture || !(event.target instanceof Element)) return;
+      const ownsGesture = gesture.kind === "pinch" || gesture.phase === "inspect";
+      const chart = event.target.closest("svg.result-chart");
+      if (ownsGesture && [...touchPointers.current.values()].some(pointer => pointer.svg === chart)) event.preventDefault();
+    };
+    document.addEventListener("touchmove", preserveChartGesture, { capture: true, passive: false });
+    return () => document.removeEventListener("touchmove", preserveChartGesture, true);
+  }, []);
 
   const clearLongPressTimer = () => {
     if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
@@ -226,6 +240,11 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
       if (gesture.phase === "pending") {
         if (Math.hypot(sample.clientX - gesture.startX, sample.clientY - gesture.startY) < TOUCH_MOVE_THRESHOLD) return;
         clearLongPressTimer();
+        if (Math.abs(sample.clientY - gesture.startY) > Math.abs(sample.clientX - gesture.startX)) {
+          gesture.phase = "scroll";
+          setCursor(null);
+          return;
+        }
         gesture.phase = "pan";
         setCursor(null);
         capturePointer(sample);

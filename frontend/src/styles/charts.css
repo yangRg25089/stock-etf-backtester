@@ -143,7 +143,7 @@
   height: auto;
   min-width: 680px;
   overflow: visible;
-  touch-action: none;
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   cursor: grab;

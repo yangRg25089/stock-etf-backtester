@@ -172,7 +172,7 @@ export const resultsMessages: Record<string, string> = {
   "chart.zoomIn": "Zoom in",
   "chart.zoomOut": "Zoom out",
   "chart.resetRange": "Reset to full period",
-  "chart.interactionHelp": "Pinch with two fingers to zoom the date range. Drag left or right to pan through dates. Hold for one second to show the crosshair and saved readings. The page scrolls outside charts. Shift + arrow keys inspect saved dates; Escape clears the crosshair.",
+  "chart.interactionHelp": "Pinch with two fingers to zoom the date range. Drag left or right to pan through dates. Hold for one second to show the crosshair and saved readings. Swipe up or down to scroll the page. Shift + arrow keys inspect saved dates; Escape clears the crosshair.",
   "chart.noSeriesInWindow": "No data is available in this period.",
   "chart.seriesUnavailable": "This series has no data.",
   "chart.noVisibleSeries": "No charts are selected. Choose one above.",
