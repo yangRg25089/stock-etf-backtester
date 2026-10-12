@@ -93,7 +93,7 @@
 }
 
 .field-error {
-  color: #8a262a;
+  color: var(--app-error-text);
   font-size: 12px;
 }
 

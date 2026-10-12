@@ -1,4 +1,5 @@
 import { isRecord } from "../shared/lib/record";
+import { matchesContract } from "./contractReader";
 import type { Catalog, ConditionGroup, ConditionLeaf, ParameterDefinition, ParameterGroupDefinition, PresetDefinition, StrategyRules } from "./generated";
 
 export class CatalogApiError extends Error {
@@ -9,38 +10,6 @@ export class CatalogApiError extends Error {
     this.name = "CatalogApiError";
     this.status = status;
   }
-}
-
-function isParameterDefinition(value: unknown): value is ParameterDefinition {
-  return (
-    isRecord(value) &&
-    typeof value.key === "string" &&
-    typeof value.type === "string" &&
-    "default" in value &&
-    Array.isArray(value.applicablePresets) &&
-    Array.isArray(value.dependencies) &&
-    typeof value.translationKey === "string" &&
-    typeof value.groupId === "string"
-  );
-}
-
-function isParameterGroupDefinition(value: unknown): value is ParameterGroupDefinition {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.translationKey === "string"
-  );
-}
-
-function isPresetDefinition(value: unknown): value is PresetDefinition {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.nameKey === "string" &&
-    typeof value.descriptionKey === "string" &&
-    Array.isArray(value.parameterKeys) &&
-    (value.searchDimensions === undefined || Array.isArray(value.searchDimensions))
-  );
 }
 
 function normalizeNumericValue(type: ParameterDefinition["type"], value: unknown): unknown {
@@ -158,13 +127,11 @@ function hasValidConditions(value: Record<string, unknown>, parameterKeys: Set<s
 export function isCatalog(value: unknown): value is Catalog {
   if (
     !isRecord(value) ||
-    typeof value.version !== "string" ||
+    !matchesContract("Catalog", value) ||
     !Array.isArray(value.parameters) ||
     !Array.isArray(value.parameterGroups) ||
     !Array.isArray(value.presets) ||
-    !value.parameters.every(isParameterDefinition) ||
-    !value.parameterGroups.every(isParameterGroupDefinition) ||
-    !value.presets.every(isPresetDefinition)
+    !value.parameters.every(parameter => isRecord(parameter) && "default" in parameter && Array.isArray(parameter.dependencies))
   ) {
     return false;
   }
@@ -182,6 +149,7 @@ export function isCatalog(value: unknown): value is Catalog {
     groupTranslationKeys.size === groups.length &&
     parameters.every(({ groupId }) => groupIds.has(groupId)) &&
     presetIds.size === presets.length &&
+    presets.every(preset => preset.defaultParams === undefined || isRecord(preset.defaultParams)) &&
     presets.every(({ parameterKeys: keys }) => keys.every((key) => parameterKeys.has(key))) &&
     presets.every(preset => (preset.searchDimensions ?? []).every(dimension => {
       if (!isRecord(dimension) || typeof dimension.key !== "string" || !parameterKeys.has(dimension.key) || !Array.isArray(dimension.values) || !dimension.values.length) return false;

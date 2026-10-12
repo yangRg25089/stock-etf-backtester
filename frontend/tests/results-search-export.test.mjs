@@ -83,6 +83,19 @@ test("large searches render an initial page and expose the remaining candidate c
   assert.match(html, /残り 5 件を表示/);
 });
 
+test("failed candidates with saved metrics remain visible but cannot load a curve", () => {
+  const failed = { ...candidate("failed-with-metrics", 1), status: "failed",
+    diagnostics: [{ code: "calculation_failed", messageKey: "diagnostics.calculation_failed", severity: "error" }] };
+  const html = renderToStaticMarkup(React.createElement(SearchResults, {
+    locale: "en", searchResult: { strategyId: "grid-instance", dimensions: [],
+      candidates: [failed], rankedCandidateIds: [], totalCandidateCount: 1 },
+  }));
+  assert.match(html, /class="result-select" disabled=""[^>]*>1<\/button>/);
+  assert.match(html, /Failed/);
+  assert.match(html, /121\.00/);
+  assert.doesNotMatch(html, /<tr class="is-selected"/);
+});
+
 test("CSV API binds kind, run, and focused result and parses the server filename", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];

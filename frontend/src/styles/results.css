@@ -20,9 +20,9 @@
   align-items: baseline;
   gap: 4px 8px;
   padding: 9px 10px;
-  color: #603234;
+  color: var(--app-error-text);
   background: var(--app-error-bg);
-  border: 1px solid #ecd4d5;
+  border: 1px solid var(--app-error-border);
   border-radius: 4px;
   font-size: 12px;
   overflow-wrap: anywhere;

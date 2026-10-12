@@ -5,7 +5,7 @@
   margin: auto;
   padding: 0;
   overflow: hidden;
-  color: var(--app-text);
+  color: var(--app-foreground);
   background: var(--app-bg);
   border: 1px solid var(--app-border);
   border-radius: 12px;
@@ -75,7 +75,7 @@
   margin: auto;
   padding: 0;
   overflow: hidden;
-  color: var(--app-text);
+  color: var(--app-foreground);
   background: var(--app-bg);
   border: 1px solid var(--app-border);
   border-radius: 12px;

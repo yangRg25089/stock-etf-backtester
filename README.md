@@ -80,13 +80,13 @@ uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT --workers 1 -
 
 Set `STOCK_ETF_BACKTESTER_SERVE_FRONTEND=1`, `STOCK_ETF_BACKTESTER_FRONTEND_DIR=frontend/dist` and `STOCK_ETF_BACKTESTER_TRUST_RENDER_PROXY=1`. No authentication secrets are needed. The proxy flag takes effect only when Render also sets `RENDER=true`; the application uses the Cloudflare-overwritten `CF-Connecting-IP` and ignores `X-Forwarded-For`. Keep Uvicorn proxy rewriting disabled. Use exactly one process and instance so quotas are shared. Missing or malformed edge IPs share a conservative fallback quota. Local requests ignore forwarding headers.
 
-The public build allows **5 run submission attempts per IP per rolling 60 seconds**, **240 API requests**, and **20 instrument metadata requests**. A service-wide quota of **20 run submissions per 60 seconds** also applies. Invalid submissions and idempotent retries count as attempts. A rejected request returns HTTP 429, `Retry-After`, and a localized waiting time without creating a run; saved results and ordinary controls remain accessible. API write bodies are capped at 1 MiB. Counters are bounded, expire lazily, and reset on restart. Robots directives discourage indexing, and user agents identifying themselves as bots, spiders, crawlers or Scrapy are refused; `/robots.txt` and `/health` remain available. These are basic abuse controls for one instance.
+The public build allows **5 run submission attempts per IP per rolling 60 seconds**, **240 API requests**, and **20 instrument metadata requests**. A service-wide quota of **20 run submissions per 60 seconds** also applies. Invalid submissions and idempotent retries count as attempts. A rejected request returns HTTP 429, `Retry-After`, and a localized waiting time without creating a run; saved results and ordinary controls remain accessible. API write bodies are capped at 1 MiB. Counters are bounded, expire lazily, and reset on restart. Robots directives discourage indexing, and user agents identifying themselves as bots, spiders, crawlers or Scrapy are refused; `/robots.txt` and `/health` remain available. The executor also admits at most **8 running and queued jobs combined**. When full, a new run receives a localized HTTP 503 without a run record; retries of an accepted idempotency key still return that run. Cancelled jobs occupy their slot until drained by the executor. These are basic abuse controls for one instance. Completed results and candidate details still accumulate in memory until restart; the queue limit does not bound retained result bytes.
 
 Set the health check path to `/health`. Keep automatic deployment disabled and deploy manually after the verification commands above pass, including the real Yahoo and production browser flows. Repository-hosted Actions workflows are excluded by the publication policy. Runtime version files pin Python 3.11 and Node 22; Render supplies `PORT`.
 
 ## Themes
 
-The dropdown offers **Classic**, **Wine**, **Navy**, **Blush** and **Forest**. Classic preserves the original blue/orange palette; the other four use palettes selected from [Color Hunt popular](https://colorhunt.co/palettes/popular). Semantic colors adapt text contrast while strategy identity colors and return colors remain independent. Theme preferences are saved locally.
+Appearance defaults to the operating system. One Light/Dark button saves a manual preference in localStorage; there is no Auto button or theme list. Light preserves the original Classic blue/orange palette. Shared semantic tokens define both appearances; strategy identity and return colors remain independent.
 
 ## Phone layout
 
@@ -94,7 +94,7 @@ The header keeps the brand, run/reset controls and a menu button on one row, wit
 
 Click or use Enter/Space on a header strategy to choose its details; selected curves stay visible. Choices are disabled during execution and retain 44px touch targets.
 
-The workbench uses 8px outer margins and separate configuration/results views. Strategy lists grow with content up to a screen-dependent maximum, and boundary scrolling continues to the page. Result actions and chart controls stay compact; trade headings share a row with their expand button.
+The workbench uses 8px outer margins with settings above results on phones. Strategy lists grow with content up to a screen-dependent maximum, and boundary scrolling continues to the page. Result actions and chart controls stay compact; trade headings share a row with their expand button.
 
 ## License and publication
 
@@ -105,7 +105,7 @@ The optional 20% tax model deducts tax on each profitable sale using average hol
 
 ## Result appearance and saved fills
 
-Appearance defaults to the operating system. The Light/Dark button fixes a manual preference; Auto restores live system changes. Light retains the original Classic colors. Result details show performance and period tables first, optional costs/search next, and trades last. Expanded tables keep their controls and column headers visible. On phones, Inspect scrubs saved daily readings; Pan moves the shared time window, while vertical gestures scroll the page.
+Appearance follows the system until Light/Dark is clicked, then keeps the saved manual preference. Light retains the original Classic colors. Result details show performance and period tables first, optional costs/search next, and trades last. Expanded tables keep their controls and column headers visible. On phones, pinch within a chart to zoom the date range, drag horizontally to pan, or hold for one second to inspect saved daily readings. Vertical swipes scroll the page; there are no Inspect/Pan mode or magnifier controls.
 
 Trade CSV appends `totalAssetAfter`: whole-account assets immediately after each fill, valued at that day's saved simulation price, with fees/tax already reflected in cash. Old missing values remain unavailable. Zero tax is shown as “—”; explicit all-zero costs and tax columns are hidden only in visible presentation. CSV retains raw zero values.
 

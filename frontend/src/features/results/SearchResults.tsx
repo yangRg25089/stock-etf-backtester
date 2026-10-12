@@ -1,6 +1,7 @@
 import { ResultTableFrame } from "./ResultTableFrame";
 import { useState } from "react";
 import type { SearchCandidate, SearchResult } from "../../api/generated";
+import { searchOutcomeId } from "./searchLabModel";
 import { translate, type Locale } from "../../i18n/messages";
 import { DiagnosticList } from "../runs/DiagnosticList";
 import { formatCurrency } from "./format";
@@ -43,16 +44,19 @@ function orderedCandidates(searchResult: Pick<SearchResult, "candidates" | "rank
 
 function CandidateRow({ locale, candidate, selectedCandidateId, onSelect, dimensions, split }: { locale: Locale; candidate: SearchCandidate; selectedCandidateId?: string; onSelect?(id: string): void; dimensions: string[]; split: boolean }) {
   const metrics = candidate.metrics;
-  const selected = selectedCandidateId === candidate.candidateId || selectedCandidateId === candidate.testResult?.resultId;
+  const selected = selectedCandidateId !== undefined &&
+    (selectedCandidateId === candidate.candidateId || selectedCandidateId === candidate.testResult?.resultId);
+  const selectable = searchOutcomeId(candidate, "train") !== null;
+  const testSelectable = searchOutcomeId(candidate, "test") !== null;
   const diagnostics = [
     ...(candidate.diagnostics ?? []),
     ...(metrics?.diagnostics ?? []),
     ...(candidate.testResult?.diagnostics ?? []),
   ];
   return (
-    <tr className={selected ? "is-selected" : ""} onClick={metrics ? () => onSelect?.(candidate.candidateId) : undefined}>
+    <tr className={selected ? "is-selected" : ""} onClick={selectable ? () => onSelect?.(candidate.candidateId) : undefined}>
       <th scope="row">
-        <button type="button" className="result-select" disabled={!metrics} aria-pressed={selectedCandidateId === candidate.candidateId}
+        <button type="button" className="result-select" disabled={!selectable} aria-pressed={selectedCandidateId === candidate.candidateId}
           onClick={event => { event.stopPropagation(); onSelect?.(candidate.candidateId); }}>{candidate.sequence}</button>
       </th>
       <td><span className="status-tag">{translate(locale, `status.${candidate.status}`)}</span></td>
@@ -70,7 +74,7 @@ function CandidateRow({ locale, candidate, selectedCandidateId, onSelect, dimens
       <td><ReturnPercent value={metrics?.maximumDrawdown} locale={locale} kind="drawdown" /></td>
       {split && <>
         <td><ReturnPercent value={metrics?.xirr} locale={locale} /></td>
-        <td><button type="button" className="search-test-select" disabled={!candidate.testResult?.metrics}
+        <td><button type="button" className="search-test-select" disabled={!testSelectable}
           aria-pressed={selectedCandidateId === candidate.testResult?.resultId}
           aria-label={translate(locale, "search.viewTest", { number: String(candidate.sequence) })}
           onClick={event => { event.stopPropagation(); if (candidate.testResult) onSelect?.(candidate.testResult.resultId); }}>

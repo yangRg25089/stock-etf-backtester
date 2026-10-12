@@ -25,25 +25,25 @@
 }
 .parameter-switch .switch-thumb { transform: none; }
 .parameter-switch[aria-checked="true"] .switch-track { background: var(--app-accent); }
-.parameter-switch[aria-checked="true"] .switch-thumb { transform: translateX(14px); background: white; }
+.parameter-switch[aria-checked="true"] .switch-thumb { transform: translateX(14px); background: var(--app-surface); }
 .parameter-switch:disabled { opacity: .55; cursor: not-allowed; }
 .field-segments { display: inline-flex; padding: 3px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface-muted); }
 .field-segment { position: relative; cursor: pointer; }
 .field-segment input { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
 .field-segment > span { display: grid; place-items: center; min-width: 54px; min-height: 36px; border-radius: 4px; font-weight: 650; }
-.field-segment input:checked + span { color: white; background: var(--app-accent); }
+.field-segment input:checked + span { color: var(--app-surface); background: var(--app-accent); }
 .field-segment input:focus-visible + span { outline: 3px solid var(--app-accent); outline-offset: 2px; }
 .field-segment input:disabled + span { opacity: .55; cursor: not-allowed; }
 .strategy-rule-sections { display: grid; gap: 16px; margin-bottom: 16px; }
 .strategy-rule-section { min-width: 0; padding: 12px; border: 1px solid var(--app-border); border-radius: 8px; background: var(--app-surface-muted); }
-.strategy-rule-section[data-rule-side="sell"] { border-color: #dbcdce; background: #faf6f6; }
+.strategy-rule-section[data-rule-side="sell"] { border-color: var(--app-border); background: color-mix(in srgb, var(--app-red) 4%, var(--app-surface)); }
 .condition-heading, .condition-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; margin-bottom: 8px; }
 .condition-heading h3, .condition-card-heading h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; margin: 0; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .condition-kind-name { color: var(--app-muted); font-size: 12px; font-weight: 500; }
 .condition-heading-actions { display: flex; align-items: center; flex-shrink: 0; gap: 4px; }
-.condition-collapsed-errors { margin: 0; padding: 6px; border: 1px solid #ebcaca; border-radius: 6px; background: #fff8f8; }
+.condition-collapsed-errors { margin: 0; padding: 6px; border: 1px solid var(--app-error-border); border-radius: 6px; background: var(--app-error-bg); }
 .condition-collapsed-errors .diagnostic-list { margin: 0; }
-.condition-expression-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; min-width: 0; margin: 0 0 10px; padding: 8px 9px; border-left: 3px solid var(--app-accent); border-radius: 3px; background: var(--app-surface-muted); color: var(--app-text); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.condition-expression-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; min-width: 0; margin: 0 0 10px; padding: 8px 9px; border-left: 3px solid var(--app-accent); border-radius: 3px; background: var(--app-surface-muted); color: var(--app-foreground); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
 .condition-expression-prefix { color: var(--app-muted); font-weight: 600; }
 .condition-expression-group { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; }
 .condition-expression-operator { font-weight: 750; }
@@ -54,14 +54,14 @@
 .condition-timing-note { margin: 8px 0 0; color: var(--app-muted); font-size: 11px; line-height: 1.5; }
 .diagnostic-field-name { display: block; margin-bottom: 2px; font-size: inherit; }
 .condition-enable-switch { flex: 0 0 44px; justify-content: center; width: 44px; min-height: 40px; }
-.condition-card { min-width: 0; padding: 10px; border: 1px solid var(--app-border); border-radius: 6px; background: white; }
+.condition-card { min-width: 0; padding: 10px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); }
 .search-dimension-editor { margin-top: 16px; }
 .search-dimension-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
 .search-dimension-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); color: var(--app-muted); cursor: pointer; }
-.search-dimension-toggle[aria-pressed="true"] { background: var(--app-accent); border-color: var(--app-accent); color: white; font-weight: 650; }
+.search-dimension-toggle[aria-pressed="true"] { background: var(--app-accent); border-color: var(--app-accent); color: var(--app-surface); font-weight: 650; }
 .search-dimension-toggle:disabled { opacity: .55; cursor: not-allowed; }
 .search-values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px; margin-top: 12px; }
-.search-value-card { min-width: 0; padding: 10px; background: white; border: 1px solid var(--app-border); border-radius: 6px; }
+.search-value-card { min-width: 0; padding: 10px; background: var(--app-surface); border: 1px solid var(--app-border); border-radius: 6px; }
 .search-value-card .number-list-control { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
 .search-value-card .number-list-control > .text-button { min-height: 40px; }
 .search-combination-settings { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
@@ -80,7 +80,7 @@
 .condition-add-select { max-width: 260px; }
 .condition-empty { margin: 4px 0; color: var(--app-muted); font-size: 12px; }
 .condition-remove { display: inline-grid; place-items: center; min-width: 32px; min-height: 32px; padding: 0; }
-.condition-remove:hover:not(:disabled) { color: var(--app-red); border-color: var(--app-red); background: #fff1f1; }
+.condition-remove:hover:not(:disabled) { color: var(--app-red); border-color: var(--app-red); background: var(--app-error-bg); }
 .strategy-rule-section.is-disabled, .condition-card.is-disabled, .condition-group.is-disabled { border-color: var(--app-border); background: var(--app-bg); }
 @media (max-width: 767px) {
   .strategy-rule-section { padding: 8px; }

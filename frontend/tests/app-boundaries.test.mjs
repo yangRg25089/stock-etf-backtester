@@ -48,3 +48,11 @@ test("shared focus, muted controls and errors use semantic color tokens", () => 
     assert.equal((css.match(new RegExp(`${color}\\b`, "g")) ?? []).length, 1, `${color} should be defined once`);
   }
 });
+
+test("every application color variable has a definition in the shared token layer", () => {
+  const css = readStyles();
+  const definitions = new Set([...css.matchAll(/(--app-[\w-]+)\s*:/g)].map(match => match[1]));
+  for (const match of css.matchAll(/var\((--app-[\w-]+)/g)) {
+    assert.ok(definitions.has(match[1]), `Missing semantic token ${match[1]}`);
+  }
+});

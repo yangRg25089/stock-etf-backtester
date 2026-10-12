@@ -65,6 +65,20 @@ test("catalog mock satisfies the runtime OpenAPI contract", () => {
   assert.equal(isCatalog(mockCatalog), true);
 });
 
+test("catalog metadata uses generated wire types instead of permissive manual shapes", () => {
+  for (const mutate of [
+    value => { value.parameters[0].type = "unsupported"; },
+    value => { value.parameters[0].allowedValues = {}; },
+    value => { value.parameters[0].dependencies = [12]; },
+    value => { value.presets[0].defaultParams = []; },
+    value => { value.presets[0].executionModule = 42; },
+  ]) {
+    const malformed = structuredClone(mockCatalog);
+    mutate(malformed);
+    assert.equal(isCatalog(malformed), false);
+  }
+});
+
 test("catalog rejects duplicate field identities and dangling preset fields", () => {
   const duplicate = { ...mockCatalog, parameters: [...mockCatalog.parameters, mockCatalog.parameters[0]] };
   const dangling = {
