@@ -20,6 +20,10 @@ class RunInitializationError(RuntimeError):
     """A run reservation could not be converted into an accepted record."""
 
 
+class RunCapacityExceeded(RuntimeError):
+    """A new run cannot be accepted until an executor slot becomes available."""
+
+
 @dataclass(frozen=True, slots=True)
 class RunReservation:
     run_id: str
@@ -40,7 +44,7 @@ class RunStore(Protocol):
     """Storage operations required by the local run manager."""
 
     def reserve(
-        self, idempotency_key: str, request_fingerprint: str
+        self, idempotency_key: str, request_fingerprint: str, *, accept_new: bool = True
     ) -> RunReservation: ...
 
     def publish(self, reservation: RunReservation, response: RunResponse) -> None: ...
@@ -89,7 +93,9 @@ class InMemoryRunStore:
         with self._lock:
             return self._candidates.get((run_id, candidate_id))
 
-    def reserve(self, idempotency_key: str, request_fingerprint: str) -> RunReservation:
+    def reserve(
+        self, idempotency_key: str, request_fingerprint: str, *, accept_new: bool = True
+    ) -> RunReservation:
         """Return the unique run reservation for this key and request identity."""
 
         if not idempotency_key.strip():
@@ -110,6 +116,8 @@ class InMemoryRunStore:
                     owner=False,
                 )
 
+            if not accept_new:
+                raise RunCapacityExceeded("run executor queue is full")
             run_id = str(uuid4())
             self._reservations[idempotency_key] = _ReservationState(
                 run_id=run_id,

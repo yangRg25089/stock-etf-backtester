@@ -1,4 +1,5 @@
 export const diagnosticsMessages: Record<string, string> = {
+  "api.errors.run_capacity_exceeded": "The run queue is full. Please try again shortly.",
   "data.providers": "Providers",
   "data.currency": "Currency",
   "data.requestedPeriod": "Requested period",

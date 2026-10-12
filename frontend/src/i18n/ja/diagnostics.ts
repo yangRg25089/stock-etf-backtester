@@ -1,4 +1,5 @@
 export const diagnosticsMessages: Record<string, string> = {
+  "api.errors.run_capacity_exceeded": "実行待ちの上限に達しました。しばらくしてから再試行してください。",
   "data.providers": "提供元",
   "data.currency": "通貨",
   "data.requestedPeriod": "指定期間",

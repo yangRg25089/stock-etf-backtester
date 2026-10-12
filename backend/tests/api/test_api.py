@@ -64,6 +64,29 @@ class _ConflictingRunService(_FakeRunService):
         raise IdempotencyConflict("submission differs from the original request")
 
 
+def test_full_run_queue_returns_localized_503_without_accepting_a_run() -> None:
+    from app.runs.store import RunCapacityExceeded
+
+    class FullService(_FakeRunService):
+        def submit_run(
+            self, submission: RunSubmission, *, idempotency_key: str
+        ) -> RunResponse:
+            raise RunCapacityExceeded("internal capacity detail")
+
+    response = _request(
+        "POST",
+        "/api/v1/runs",
+        service=FullService(),
+        headers={"Idempotency-Key": "full-queue"},
+        json_body={"draft": _draft([_strategy("active")]), "scope": "all_enabled"},
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "run_capacity_exceeded"
+    assert response.json()["error"]["messageKey"] == "api.errors.run_capacity_exceeded"
+    assert "internal capacity detail" not in response.text
+    assert "Location" not in response.headers
+
+
 class _EventRunService(_FakeRunService):
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float

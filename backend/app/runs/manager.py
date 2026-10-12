@@ -66,7 +66,11 @@ class RunManager:
         data_provider: RunDataProvider | None = None,
         catalog: Catalog | None = None,
         executor: Executor | None = None,
+        max_pending_runs: int = 8,
     ) -> None:
+        if max_pending_runs < 1:
+            raise ValueError("max_pending_runs must be positive")
+        self._max_pending_runs = max_pending_runs
         self._state_lock = RLock()
         self._cancellations: dict[str, Event] = {}
         self._store = store
@@ -84,12 +88,16 @@ class RunManager:
         request_fingerprint = _fingerprint(
             submission.model_dump(mode="json", by_alias=True)
         )
-        reservation = self._store.reserve(idempotency_key, request_fingerprint)
+        with self._state_lock:
+            reservation = self._store.reserve(
+                idempotency_key,
+                request_fingerprint,
+                accept_new=len(self._cancellations) < self._max_pending_runs,
+            )
+            if reservation.owner:
+                self._cancellations[reservation.run_id] = Event()
         if not reservation.owner:
             return self._store.wait_for_record(reservation)
-
-        with self._state_lock:
-            self._cancellations[reservation.run_id] = Event()
         try:
             snapshot = RunSnapshot(
                 runId=reservation.run_id,

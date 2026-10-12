@@ -36,6 +36,86 @@ from app.runs.types import RunResponse, RunSubmission
 _DATES = (date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4))
 
 
+def test_queue_capacity_rejects_new_jobs_but_preserves_retries() -> None:
+    from app.runs.store import RunCapacityExceeded
+
+    executor = _ManualExecutor()
+    store = InMemoryRunStore()
+    manager = RunManager(
+        store=store,
+        data_provider=_FixtureProvider(),
+        executor=executor,
+        max_pending_runs=2,
+    )
+    submission = _grid_submission("capacity-grid")
+    first = manager.submit_run(submission, idempotency_key="capacity-1")
+    second = manager.submit_run(submission, idempotency_key="capacity-2")
+    assert manager.submit_run(submission, idempotency_key="capacity-1") == first
+    with pytest.raises(RunCapacityExceeded):
+        manager.submit_run(submission, idempotency_key="capacity-3")
+    assert len(executor.jobs) == 2
+    assert len(store._records) == len(store._reservations) == 2
+    manager.stop_run(second.run_id)
+    # A cancelled job still occupies the executor queue until it is drained.
+    with pytest.raises(RunCapacityExceeded):
+        manager.submit_run(submission, idempotency_key="capacity-3")
+    executor.run_next()
+    third = manager.submit_run(submission, idempotency_key="capacity-3")
+    assert third.run_id not in {first.run_id, second.run_id}
+    assert len(executor.jobs) == 2
+
+
+def test_concurrent_submissions_cannot_overbook_queue_capacity() -> None:
+    from app.runs.store import RunCapacityExceeded
+
+    executor = _ManualExecutor()
+    store = InMemoryRunStore()
+    manager = RunManager(store=store, executor=executor, max_pending_runs=3)
+    submission = _grid_submission("capacity-grid")
+
+    def submit(index: int) -> bool:
+        try:
+            manager.submit_run(submission, idempotency_key=f"capacity-{index}")
+            return True
+        except RunCapacityExceeded:
+            return False
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        assert sum(pool.map(submit, range(12))) == 3
+    assert len(executor.jobs) == len(store._records) == len(store._reservations) == 3
+
+
+def test_executor_rejection_releases_the_admission_slot() -> None:
+    class RejectingExecutor(_ManualExecutor):
+        def submit(
+            self, function: Callable[..., object], /, *args: object, **kwargs: object
+        ) -> None:
+            raise RuntimeError("executor unavailable")
+
+    manager = RunManager(
+        store=InMemoryRunStore(), executor=RejectingExecutor(), max_pending_runs=1
+    )
+    submission = _grid_submission("capacity-grid")
+    first = manager.submit_run(submission, idempotency_key="rejected-1")
+    second = manager.submit_run(submission, idempotency_key="rejected-2")
+    assert first.status is second.status is StrategyStatus.FAILED
+    assert first.run_id != second.run_id
+
+
+def test_execution_failure_releases_the_admission_slot() -> None:
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(), executor=executor, max_pending_runs=1
+    )
+    submission = _grid_submission("capacity-grid")
+    first = manager.submit_run(submission, idempotency_key="failed-1")
+    executor.run_next()
+    assert manager.get_run(first.run_id).status is StrategyStatus.FAILED
+    second = manager.submit_run(submission, idempotency_key="failed-2")
+    assert first.run_id != second.run_id
+    assert len(executor.jobs) == 1
+
+
 def test_saved_nav_analysis_is_shared_by_benchmarks_candidates_and_frozen_inputs():
     import csv
     import io

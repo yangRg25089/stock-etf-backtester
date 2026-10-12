@@ -1,4 +1,5 @@
 export const diagnosticsMessages: Record<string, string> = {
+  "api.errors.run_capacity_exceeded": "运行队列已满，请稍后重试。",
   "data.providers": "提供方",
   "data.currency": "币种",
   "data.requestedPeriod": "指定期间",

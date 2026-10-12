@@ -29,7 +29,7 @@ from app.domain.status import (
     is_terminal,
 )
 from app.engine_version import ENGINE_VERSION
-from app.runs.store import IdempotencyConflict, RunChange
+from app.runs.store import IdempotencyConflict, RunCapacityExceeded, RunChange
 from app.runs.types import RunProgressEvent, RunStrategySummary
 
 from .errors import APIException
@@ -119,6 +119,10 @@ def submit_run(
             409,
             "idempotency_conflict",
             "api.errors.idempotency_conflict",
+        ) from error
+    except RunCapacityExceeded as error:
+        raise APIException(
+            503, "run_capacity_exceeded", "api.errors.run_capacity_exceeded"
         ) from error
     response.headers["Location"] = f"/api/v1/runs/{accepted.run_id}"
     return accepted
