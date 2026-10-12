@@ -79,9 +79,14 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
     const preserveChartGesture = (event: TouchEvent) => {
       const gesture = touchGesture.current;
       if (!event.cancelable || !gesture || !(event.target instanceof Element)) return;
-      const ownsGesture = gesture.kind === "pinch" || gesture.phase === "inspect";
+      if (gesture.kind !== "pinch" && gesture.phase !== "inspect") return;
       const chart = event.target.closest("svg.result-chart");
-      if (ownsGesture && [...touchPointers.current.values()].some(pointer => pointer.svg === chart)) event.preventDefault();
+      for (const pointer of touchPointers.current.values()) {
+        if (pointer.svg === chart) {
+          event.preventDefault();
+          return;
+        }
+      }
     };
     document.addEventListener("touchmove", preserveChartGesture, { capture: true, passive: false });
     return () => document.removeEventListener("touchmove", preserveChartGesture, true);
@@ -90,6 +95,11 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
   const clearLongPressTimer = () => {
     if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
     longPressTimer.current = null;
+  };
+  const clearPointerState = () => {
+    touchPointers.current.clear();
+    touchGesture.current = null;
+    mouseGesture.current = null;
   };
   const sampleFromEvent = (event: ReactPointerEvent<SVGSVGElement>): PointerSample => {
     const svg = event.currentTarget;
@@ -180,9 +190,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
   useEffect(() => {
     if (disabled) {
       clearLongPressTimer();
-      touchPointers.current.clear();
-      touchGesture.current = null;
-      mouseGesture.current = null;
+      clearPointerState();
       setCursor(null);
     }
     return clearLongPressTimer;
@@ -308,9 +316,7 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
 
   const resetRange = () => {
     clearLongPressTimer();
-    touchPointers.current.clear();
-    touchGesture.current = null;
-    mouseGesture.current = null;
+    clearPointerState();
     setCursor(null);
     setViewport(FULL_CHART_VIEWPORT);
   };
