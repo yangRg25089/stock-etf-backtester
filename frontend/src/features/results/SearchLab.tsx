@@ -105,7 +105,7 @@ export function SearchLab({ result, locale, selectedId, pending, onSelect }: {
     <p className="field-hint">{translate(locale, "search.fixedSliceHelp")}</p>
     <div className="search-axis-pages-row">{axisControl("x", matrix?.xValues.length ?? neighbors?.values.length ?? 0)}{matrix && axisControl("y", matrix.yValues.length)}</div>
     <ResultTableScroll className="search-lab-scroll" label={translate(locale, view === "heatmap" ? "search.heatmap" : "search.neighbors")}>
-      {matrix ? <table className="data-table search-heatmap-table"><caption className="search-matrix-caption"><span>{label(yKey)} ↓ · {label(xKey)} → · {metricLabel}</span><span>{sortAxisButton("x")}{sortAxisButton("y")}</span></caption>
+      {matrix ? <table className="data-table search-heatmap-table"><caption className="search-matrix-caption"><div><span>{label(yKey)} ↓ · {label(xKey)} → · {metricLabel}</span><span>{sortAxisButton("x")}{sortAxisButton("y")}</span></div></caption>
         <thead><tr><th scope="col">{label(yKey)}</th>{orderedXValues.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map(value => <th scope="col" key={decimalIdentity(value)}>{String(value)}</th>)}</tr></thead>
         <tbody>{orderedYValues.slice(yOffset, yOffset + AXIS_PAGE_SIZE).map(value => <tr key={decimalIdentity(value)}><th scope="row">{String(value)}</th>
           {orderedXValues.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map(xValue => <td key={decimalIdentity(xValue)}>{cell(matrix.cells[matrixYIndexes.get(decimalIdentity(value))!][matrixXIndexes.get(decimalIdentity(xValue))!])}</td>)}</tr>)}</tbody>

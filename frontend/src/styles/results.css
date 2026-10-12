@@ -336,8 +336,9 @@
 .table-sort:hover:enabled { color: var(--app-accent-strong); }
 .comparison-sort:focus-visible,
 .table-sort:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
-.search-matrix-caption { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.search-matrix-caption > span:last-child { display: inline-flex; flex-wrap: wrap; gap: 10px; }
+.search-matrix-caption { display: table-caption; white-space: normal; }
+.search-matrix-caption > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.search-matrix-caption > div > span:last-child { display: inline-flex; flex-wrap: wrap; gap: 10px; }
 .result-rank { min-width: 1.2em; color: var(--app-foreground); font-variant-numeric: tabular-nums; }
 .comparison-table tbody tr:hover:not(.is-selected) { --table-row-background: var(--app-accent-soft); background: var(--table-row-background); }
 

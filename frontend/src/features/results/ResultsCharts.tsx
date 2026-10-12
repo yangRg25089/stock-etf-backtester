@@ -36,7 +36,8 @@ export function ResultsCharts({
   onInspectedSeriesChange,
 }: ResultsChartsProps) {
   const [hiddenTechnicalKinds, setHiddenTechnicalKinds] = useState<string[]>([]);
-  const interaction = useChartInteraction(dailyAssets.length, CHART, busy);
+  const calendarKey = useMemo(() => dailyAssets.map(asset => asset.date).join("|"), [dailyAssets]);
+  const interaction = useChartInteraction(dailyAssets.length, CHART, busy, calendarKey);
   const { viewport, cursor, chartInteractionProps } = interaction;
   const rootElement = useRef<HTMLDivElement | null>(null);
   const [plotHeights, setPlotHeights] = useState({main: 400, auxiliary: 88});

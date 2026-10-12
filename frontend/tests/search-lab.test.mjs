@@ -62,7 +62,7 @@ test("neighbor slice fixes all other values and reads Train/Test metrics indepen
 test("search heatmap axes and neighbor values expose accessible sorting controls", () => {
   const result = savedSearch();
   const matrix = renderToStaticMarkup(React.createElement(SearchLab, { result, locale: "en" }));
-  assert.match(matrix, /class="search-matrix-caption"/);
+  assert.match(matrix, /<caption class="search-matrix-caption"><div>/);
   assert.match(matrix, /aria-label="Sort X axis descending"/);
   assert.match(matrix, /aria-label="Sort Y axis descending"/);
 

@@ -65,7 +65,7 @@ type TouchGesture = SingleTouchGesture | PinchGesture;
 const TOUCH_MOVE_THRESHOLD = 7;
 const LONG_PRESS_DELAY_MS = 1000;
 
-export function useChartInteraction(count: number, baseGeometry: ChartGeometry, disabled = false) {
+export function useChartInteraction(count: number, baseGeometry: ChartGeometry, disabled = false, calendarKey: string | number = count) {
   const [viewport, setViewport] = useState<ChartViewport>(FULL_CHART_VIEWPORT);
   const [cursor, setCursor] = useState<ChartCursor | null>(null);
   const touchPointers = useRef(new Map<number, PointerSample>());
@@ -195,6 +195,14 @@ export function useChartInteraction(count: number, baseGeometry: ChartGeometry, 
     }
     return clearLongPressTimer;
   }, [disabled]);
+
+  useEffect(() => {
+    // A different saved calendar cannot inherit index-based readings or gestures.
+    clearLongPressTimer();
+    clearPointerState();
+    setCursor(null);
+    setViewport(FULL_CHART_VIEWPORT);
+  }, [calendarKey]);
 
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (disabled || event.button !== 0) return;
