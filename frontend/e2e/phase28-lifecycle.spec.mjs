@@ -118,6 +118,14 @@ test("a late stop response cannot replace a completed newer run or its selection
   await finish(page, second);
   const selected = page.locator(".comparison-table").getByRole("button", { name: "ボラティリティ積立", exact: true });
   await selected.click();
+  let previousPoints;
+  let stableSamples = 0;
+  await expect.poll(async () => {
+    const points = await page.locator("polyline.overlay-totalAsset").getAttribute("points");
+    stableSamples = points === previousPoints ? stableSamples + 1 : 0;
+    previousPoints = points;
+    return stableSamples;
+  }, { intervals: [50, 100, 200] }).toBeGreaterThanOrEqual(2);
   const curve = await page.locator("polyline.overlay-totalAsset").getAttribute("points");
   await releaseStop(page, stopped);
   await expect(page.locator(".result-stopped")).toHaveCount(0);
