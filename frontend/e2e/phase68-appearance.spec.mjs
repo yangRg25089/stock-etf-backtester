@@ -73,10 +73,13 @@ test('expanded trade header follows the outer viewport and stays horizontally al
     await region.locator('tbody tr').nth(35).scrollIntoViewIfNeeded();
     await expect.poll(async()=>{
       const c=await region.locator('.table-height-controls').boundingBox();
-      const h=await region.locator('thead').boundingBox();
+      const h=await region.locator('thead th').first().boundingBox();
       return Math.abs(h.y-(c.y+c.height));
     }).toBeLessThan(2);
-    await region.locator('.table-expanded-overflow').evaluate(el=>el.scrollLeft=el.scrollWidth-el.clientWidth);
+    await region.locator('.table-expanded-overflow').evaluate(async el=>{
+      el.scrollLeft=el.scrollWidth-el.clientWidth;
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    });
     const aligned=await region.locator('table').evaluate(t=>Array.from(t.tHead.rows[0].cells).map((c,i)=>Math.abs(c.getBoundingClientRect().x-t.tBodies[0].rows[0].cells[i].getBoundingClientRect().x)));
     expect(Math.max(...aligned)).toBeLessThan(1);
     const previousDirection=await region.locator("thead th").last().getAttribute("aria-sort");

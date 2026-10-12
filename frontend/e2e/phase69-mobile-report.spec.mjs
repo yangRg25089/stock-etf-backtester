@@ -9,6 +9,7 @@ async function checkFixedColumn(table) {
     t.style.minWidth = `${Math.max(t.scrollWidth, scroll.clientWidth + 400)}px`;
     scroll.scrollLeft = 0;
   });
+  await table.page().evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const initial = await table.evaluate(t => ({
     head: t.tHead.rows[0].cells[0].getBoundingClientRect().x,
     body: t.tBodies[0].rows[0].cells[0].getBoundingClientRect().x,
@@ -16,6 +17,7 @@ async function checkFixedColumn(table) {
     inset: (() => { const s = t.closest('.table-expanded-overflow,.data-table-scroll,.comparison-table-scroll'); return s.getBoundingClientRect().left + s.clientLeft; })(),
   }));
   await table.evaluate(t => { const s = t.closest('.table-expanded-overflow,.data-table-scroll,.comparison-table-scroll'); s.scrollLeft = 120; });
+  await table.page().evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const shifted = await table.evaluate(t => ({
     head: t.tHead.rows[0].cells[0].getBoundingClientRect().x,
     body: t.tBodies[0].rows[0].cells[0].getBoundingClientRect().x,

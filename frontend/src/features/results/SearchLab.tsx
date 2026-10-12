@@ -1,3 +1,4 @@
+import { ResultTableScroll } from "./ResultTableFrame";
 import { useState, type CSSProperties } from "react";
 import type { SearchCandidate } from "../../api/generated";
 import { compareDecimals, decimalIdentity } from "../../api/contractReader";
@@ -103,7 +104,7 @@ export function SearchLab({ result, locale, selectedId, pending, onSelect }: {
     </div>
     <p className="field-hint">{translate(locale, "search.fixedSliceHelp")}</p>
     <div className="search-axis-pages-row">{axisControl("x", matrix?.xValues.length ?? neighbors?.values.length ?? 0)}{matrix && axisControl("y", matrix.yValues.length)}</div>
-    <div className="data-table-scroll search-lab-scroll" tabIndex={0} role="region" aria-label={translate(locale, view === "heatmap" ? "search.heatmap" : "search.neighbors")}>
+    <ResultTableScroll className="search-lab-scroll" label={translate(locale, view === "heatmap" ? "search.heatmap" : "search.neighbors")}>
       {matrix ? <table className="data-table search-heatmap-table"><caption className="search-matrix-caption"><span>{label(yKey)} ↓ · {label(xKey)} → · {metricLabel}</span><span>{sortAxisButton("x")}{sortAxisButton("y")}</span></caption>
         <thead><tr><th scope="col">{label(yKey)}</th>{orderedXValues.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map(value => <th scope="col" key={decimalIdentity(value)}>{String(value)}</th>)}</tr></thead>
         <tbody>{orderedYValues.slice(yOffset, yOffset + AXIS_PAGE_SIZE).map(value => <tr key={decimalIdentity(value)}><th scope="row">{String(value)}</th>
@@ -113,6 +114,6 @@ export function SearchLab({ result, locale, selectedId, pending, onSelect }: {
         <SortableHeader locale={locale} label={metricLabel} sortKey="metric" sort={neighborSort} firstDirection={metric === "drawdown" ? "ascending" : "descending"} disabled={pending} onSort={setNeighborSort} />
       </tr></thead>
         <tbody>{orderedNeighborRows.slice(xOffset, xOffset + AXIS_PAGE_SIZE).map(({ value, candidate }) => <tr key={decimalIdentity(value)}><th scope="row">{String(value)}</th><td>{cell(candidate)}</td></tr>)}</tbody></table>}
-    </div>
+    </ResultTableScroll>
   </details>;
 }

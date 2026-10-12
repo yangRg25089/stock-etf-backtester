@@ -41,7 +41,7 @@ test("phone menu has labeled preference rows and one vertical column", () => {
 test("trade title and expand button share the same controls row in all languages", () => {
   for (const locale of ["ja", "zh", "en"]) {
     const html = renderToStaticMarkup(React.createElement(TradeTable, { locale, status: "completed", trades: [] }));
-    assert.match(html, /class="table-height-controls"><h4 class="table-height-controls-title">[^<]+<\/h4><button/);
+    assert.match(html, /class="table-height-controls result-table-heading"><h4 class="table-height-controls-title">[^<]+<\/h4><button/);
     assert.match(html, /aria-expanded="false"/);
     assert.match(html, /disabled=""/);
     const unavailable = renderToStaticMarkup(React.createElement(TradeTable, { locale, status: "unavailable", trades: [] }));

@@ -129,7 +129,7 @@ test("expanded table headings follow the measured phone navigation height", asyn
   const alignment = await section.evaluate(element => {
     const heading = element.querySelector(".performance-group-heading").getBoundingClientRect();
     const nav = document.querySelector(".app-topbar").getBoundingClientRect();
-    const tableHead = element.querySelector("thead").getBoundingClientRect();
+    const tableHead = element.querySelector("thead th").getBoundingClientRect();
     return { navBottom: nav.bottom, headingTop: heading.top, headingBottom: heading.bottom, tableHeadTop: tableHead.top };
   });
   expect(alignment.headingTop).toBeCloseTo(alignment.navBottom, 0);

@@ -1,11 +1,10 @@
-import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
-import { useEffect, useId, useRef, useState } from "react";
+import { ResultTableFrame } from "./ResultTableFrame";
+import { useEffect, useRef, useState } from "react";
 import type { DrawdownEpisode, StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatExactPercent } from "./format";
 import { ReturnPercent } from "./ReturnPercent";
 import { MonthlyHeatmap } from "./MonthlyHeatmap";
-import { TableExpandButton } from "./TableExpandButton";
 import { SortableHeader } from "./SortableHeader";
 import { visibleDrawdownEpisodes, type DrawdownLocation } from "./drawdownPresentation";
 import { sortTableRows, type TableSort, type TableSortDirection } from "./tableSorting";
@@ -13,9 +12,7 @@ import { sortTableRows, type TableSort, type TableSortDirection } from "./tableS
 type DrawdownSortKey = "peakDate" | "bottomDate" | "drawdown" | "recoveredDate" | "durationDays" | "recoveryDays";
 
 function DrawdownTable({ locale, episodes, busy, location }: { locale: Locale; episodes: DrawdownEpisode[]; busy: boolean; location?: DrawdownLocation | null }) {
-  const [heightExpanded, setHeightExpanded] = useState(false);
   const [sort, setSort] = useState<TableSort<DrawdownSortKey> | null>(null);
-  const tableId = useId();
   const rows = useRef(new Map<string, HTMLTableRowElement>());
   const [highlighted, setHighlighted] = useState<string | null>(null);
   useEffect(() => {
@@ -40,17 +37,11 @@ function DrawdownTable({ locale, episodes, busy, location }: { locale: Locale; e
       <td>{row.recoveryDays == null ? "—" : `${row.recoveryDays} ${translate(locale, "unit.calendar_day")}`}</td>
     </tr>)}</tbody>
   </table>;
-  return <section className={`performance-group${heightExpanded ? " is-height-expanded" : ""}`}>
-    <div className="performance-group-heading">
-      <h4 id="performance-episodes-heading">{translate(locale, "performance.episodes")}</h4>
-      <TableExpandButton locale={locale} tableName={translate(locale, "performance.episodes")} controls={tableId}
-        expanded={heightExpanded} disabled={busy || visible.length === 0} onToggle={() => setHeightExpanded(value => !value)} />
-    </div>
-    {visible.length === 0 ? <p className="metric-empty">{translate(locale, "performance.noEpisodes")}</p> :
-      <div id={tableId} className={`data-table-scroll performance-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} tabIndex={0} role="region" aria-label={translate(locale, "performance.episodes")}>
-        {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
-      </div>}
-  </section>;
+  return <ResultTableFrame locale={locale} title={translate(locale, "performance.episodes")} titleId="performance-episodes-heading"
+    variant="performance" scrollClassName="performance-table-scroll" disabled={busy || visible.length === 0}
+    emptyContent={visible.length === 0 ? <p className="metric-empty">{translate(locale, "performance.noEpisodes")}</p> : undefined}>
+    {table}
+  </ResultTableFrame>;
 }
 
 export function PeriodPerformance({ locale, result, busy = false, location }: { locale: Locale; result: StrategyRun | null; busy?: boolean; location?: DrawdownLocation | null }) {

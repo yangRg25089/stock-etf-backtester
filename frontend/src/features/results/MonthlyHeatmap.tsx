@@ -1,9 +1,8 @@
-import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
-import { useId, useState } from "react";
+import { ResultTableFrame } from "./ResultTableFrame";
+import { useState } from "react";
 import type { PeriodReturn } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatExactPercent, formatPercent } from "./format";
-import { TableExpandButton } from "./TableExpandButton";
 import { SortableHeader } from "./SortableHeader";
 import { sortTableRows, type TableSort, type TableSortDirection } from "./tableSorting";
 import { ReturnPercent } from "./ReturnPercent";
@@ -14,9 +13,7 @@ type MonthlySortKey = "year" | "annual" | `month-${number}`;
 
 export function MonthlyHeatmap({ locale, values, annualValues = [], busy = false }: { locale: Locale; values: PeriodReturn[]; annualValues?: PeriodReturn[]; busy?: boolean }) {
   const [inspected, setInspected] = useState<PeriodReturn | null>(null);
-  const [heightExpanded, setHeightExpanded] = useState(false);
   const [sort, setSort] = useState<TableSort<MonthlySortKey> | null>(null);
-  const tableId = useId();
   const years = [...new Set([...values, ...annualValues].map(row => row.year))];
   const cells = new Map(values.map(row => [`${row.year}-${row.month}`, row]));
   const annualCells = new Map(annualValues.map(row => [row.year, row]));
@@ -45,18 +42,12 @@ export function MonthlyHeatmap({ locale, values, annualValues = [], busy = false
       firstDirection="descending" disabled={busy} onSort={setSort} />)}{sortable("annual", translate(locale, "performance.annual"), "descending")}</tr></thead>
     <tbody>{orderedYears.map(({ year }) => <tr key={year}><th scope="row">{year}</th>{months.map(month => cell(cells.get(`${year}-${month}`), `month-${month}`))}{cell(annualCells.get(year), "annual", true)}</tr>)}</tbody>
   </table>;
-  return <section className={`performance-group monthly-performance${heightExpanded ? " is-height-expanded" : ""}`}>
-    <div className="performance-group-heading">
-      <h4 id="performance-monthly-heading">{translate(locale, "performance.monthly")}</h4>
-      <TableExpandButton locale={locale} tableName={translate(locale, "performance.monthly")} controls={tableId}
-        expanded={heightExpanded} disabled={busy} onToggle={() => setHeightExpanded(value => !value)} />
-    </div>
-    <div id={tableId} className={`data-table-scroll performance-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} role="region" tabIndex={0} aria-label={translate(locale, "performance.monthly")}>
-      {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
-    </div>
-    <p className="heatmap-detail" role="status">{inspected ? <>
+  return <ResultTableFrame locale={locale} title={translate(locale, "performance.monthly")} titleId="performance-monthly-heading"
+    variant="performance" className="monthly-performance" scrollClassName="performance-table-scroll" disabled={busy}
+    footer={<p className="heatmap-detail" role="status">{inspected ? <>
       {inspected.year}{inspected.month == null ? ` · ${translate(locale, "performance.annual")}` : `-${String(inspected.month).padStart(2, "0")}`} · <ReturnPercent value={inspected.navReturn} locale={locale} />
       {inspected.unavailableReason && ` · ${translate(locale, `performance.reason.${inspected.unavailableReason}`)}`}
-    </> : translate(locale, "performance.heatmapHint")}</p>
-  </section>;
+    </> : translate(locale, "performance.heatmapHint")}</p>}>
+    {table}
+  </ResultTableFrame>;
 }

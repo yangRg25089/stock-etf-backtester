@@ -1,10 +1,9 @@
-import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
-import { useId, useState } from "react";
+import { ResultTableFrame } from "./ResultTableFrame";
+import { useState } from "react";
 import type { StrategyStatus, Trade, UnexecutedSignal } from "../../api/generated";
 import { isSuccessfulRunStatus } from "../../api/runStatus";
 import { translate, type Locale } from "../../i18n/messages";
 import { formatCurrency, formatQuantity } from "./format";
-import { TableExpandButton } from "./TableExpandButton";
 import { SortableHeader } from "./SortableHeader";
 import { sortTableRows, type TableSort, type TableSortDirection } from "./tableSorting";
 import { signalLabel } from "./tradeSignalLabel";
@@ -22,9 +21,7 @@ interface TradeTableProps {
 }
 
 export function TradeTable({ locale, status, trades, busy = false, onTradeSelect, unexecutedSignals = [], onSignalSelect }: TradeTableProps) {
-  const [heightExpanded, setHeightExpanded] = useState(false);
   const [sort, setSort] = useState<TableSort<TradeSortKey> | null>(null);
-  const scrollId = useId();
   if (!isSuccessfulRunStatus(status)) {
     return <><h4 className="table-height-controls-title">{translate(locale, "results.tab.trades")}</h4>
       <p className="metric-empty" role="status">{translate(locale, "trade.unavailable")}</p></>;
@@ -72,20 +69,11 @@ export function TradeTable({ locale, status, trades, busy = false, onTradeSelect
   </table>;
   return (
     <div className="trade-table-content">
-      <div className={`table-height-region trade-table-region${heightExpanded ? " is-height-expanded" : ""}`}>
-        <div className="table-height-controls">
-          <h4 className="table-height-controls-title">{translate(locale, "results.tab.trades")}</h4>
-          <TableExpandButton locale={locale} tableName={translate(locale, "results.tab.trades")}
-            controls={scrollId} expanded={heightExpanded} disabled={busy || trades.length === 0}
-            onToggle={() => setHeightExpanded(previous => !previous)} />
-        </div>
-        <div id={scrollId} className={`data-table-scroll trade-table-scroll${heightExpanded ? " is-height-expanded" : ""}`}
-        tabIndex={0}
-        role="region"
-        aria-label={translate(locale, "trade.tableTitle", { count: String(trades.length) })}>
-          {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
-        </div>
-      </div>
+      <ResultTableFrame locale={locale} title={translate(locale, "results.tab.trades")}
+        label={translate(locale, "trade.tableTitle", { count: String(trades.length) })}
+        className="trade-table-region" scrollClassName="trade-table-scroll" disabled={busy || trades.length === 0}>
+        {table}
+      </ResultTableFrame>
       {trades.length === 0 && (
         <p className="trade-empty" role="status">{translate(locale, "trade.none")}</p>
       )}

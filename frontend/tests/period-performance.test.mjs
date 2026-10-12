@@ -66,7 +66,7 @@ test("combined monthly/annual returns and drawdown episodes have table-height co
     const target = button.match(/aria-controls="([^"]+)"/)[1];
     assert.ok(html.includes(`id="${target}"`));
   }
-  assert.match(html, /class="performance-group-heading"/);
+  assert.match(html, /class="performance-group-heading result-table-heading"/);
 });
 
 test("all performance data columns expose sortable headers without reordering the saved input by default", () => {
@@ -87,7 +87,7 @@ test("all performance data columns expose sortable headers without reordering th
   assert.equal((html.match(/class="table-sort"/g) ?? []).length, 20);
   assert.equal((html.match(/aria-sort=/g) ?? []).length, 0);
   assert.ok(html.indexOf("2023") < html.indexOf("2024"));
-  assert.match(html, /class="performance-group monthly-performance"/);
+  assert.match(html, /class="performance-group monthly-performance result-table-frame"/);
   assert.doesNotMatch(html, /heatmap-palette-toggle/);
 });
 

@@ -201,28 +201,24 @@ test("the design prototype mirrors the flattened workbench and result hierarchy"
 });
 
 test("wide data tables scroll inside their panels instead of widening the page", () => {
-  const scrollPanel = blockFor(".comparison-table-scroll,\n.data-table-scroll");
+  const scrollPanel = blockFor(".result-table-scroll");
   assert.match(scrollPanel, /max-width:\s*100%/);
-  assert.match(scrollPanel, /overflow-x:\s*auto/);
+  assert.match(scrollPanel, /overflow:\s*auto/);
   assert.match(blockFor(".search-table"), /min-width:\s*720px/);
   assert.match(blockFor(".search-table td:last-child"), /white-space:\s*normal/);
 });
 
-test("comparison and trade tables permit vertical scroll chaining without losing horizontal containment", () => {
-  const panel = blockFor(".comparison-table-scroll,\n.trade-table-scroll");
-  assert.match(panel, /overscroll-behavior:\s*contain auto/);
+test("all result tables share scroll chaining", () => {
+  assert.match(blockFor(".result-table-scroll"), /overscroll-behavior:\s*contain auto/);
 });
 
 test("expanded table titles share the results-scroll sticky behavior and stay within the owning table", () => {
-  const controls = blockFor(".table-height-region.is-height-expanded .table-height-controls");
-  const performanceHeading = blockFor(".performance-group.is-height-expanded > .performance-group-heading");
+  const controls = blockFor(".result-table-frame.is-height-expanded > .result-table-heading");
   assert.match(controls, /position:\s*sticky/);
   assert.match(controls, /top:\s*var\(--table-expanded-sticky-top/);
-  assert.match(performanceHeading, /position:\s*sticky/);
-  assert.match(performanceHeading, /top:\s*var\(--table-expanded-sticky-top/);
   assert.match(css, /\.collapsible-panel:has\(\.is-height-expanded\)\s*\{\s*overflow:\s*clip;/);
-  assert.match(css, /\.comparison-table-region\.is-height-expanded \.comparison-table thead[\s\S]*?position:\s*static/s);
-  assert.match(css, /\.trade-table-region\.is-height-expanded \.trade-table-scroll thead th[\s\S]*?position:\s*static/s);
+  assert.match(blockFor(".table-expanded-overflow thead"), /position:\s*static/);
+  assert.match(blockFor(".table-expanded-overflow thead th"), /transform:\s*translateY/);
   assert.match(css, /--table-expanded-sticky-top:\s*var\(--app-topbar-height\)/);
 });
 
@@ -314,10 +310,9 @@ test("workbench explanatory text meets the readable type scale", () => {
 
 test("all result table scrollers share one vertical max-height", () => {
   assert.match(css, /--result-table-max-height:\s*min\(360px,\s*45dvh\)/);
-  const sharedScrollerRule = css.match(/\.comparison-table-scroll,\s*\.trade-table-scroll,\s*\.search-table-scroll,\s*\.performance-table-scroll,\s*\.search-lab-scroll\s*\{([^}]*)\}/s);
-  assert.ok(sharedScrollerRule, "every results table scroller belongs to the shared rule");
-  assert.match(sharedScrollerRule[1], /max-height:\s*var\(--result-table-max-height\)/);
-  assert.match(sharedScrollerRule[1], /overflow-y:\s*auto/);
+  const sharedScrollerRule = blockFor(".result-table-scroll");
+  assert.match(sharedScrollerRule, /max-height:\s*var\(--result-table-max-height\)/);
+  assert.match(sharedScrollerRule, /overflow:\s*auto/);
 });
 
 test("only selected comparison rows use an identity tint without translating sticky cells", () => {

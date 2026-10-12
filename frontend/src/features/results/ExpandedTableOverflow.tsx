@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 
-/** Keep the original semantic header and sorting controls aligned with its rows.
- * Horizontal overflow creates a scroll ancestor, so CSS sticky alone cannot
- * follow the outer result/page viewport. Translate only this saved header. */
+/** Horizontal overflow prevents native headers following the outer viewport.
+ * Keep the original sorting controls and first column aligned using shared
+ * offsets; translating cells avoids WebKit's table-section painting conflict. */
 export function ExpandedTableOverflow({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -23,6 +23,7 @@ export function ExpandedTableOverflow({ children }: { children: ReactNode }) {
       const desiredTop = Math.max(outerTop, controls?.getBoundingClientRect().bottom ?? outerTop);
       const offset = Math.max(0, Math.min(desiredTop - rect.top, rect.height - head.offsetHeight));
       element.style.setProperty("--table-header-offset", `${offset}px`);
+      element.style.setProperty("--table-column-offset", `${element.scrollLeft}px`);
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
     const observer = new ResizeObserver(schedule);

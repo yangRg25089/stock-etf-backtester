@@ -1,5 +1,5 @@
-import { ExpandedTableOverflow } from "./ExpandedTableOverflow";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { ResultTableFrame } from "./ResultTableFrame";
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
 import type { StrategyRun } from "../../api/generated";
 import { translate, type Locale } from "../../i18n/messages";
 import { savedEvaluationPhase } from "./savedConfiguration";
@@ -9,7 +9,6 @@ import { resultColor } from "./colors";
 import { investedPrincipalValue, isCompletedResult, resultDisplayName } from "./model";
 import { hasTaxColumn, COMPARISON_COLUMNS, DEFAULT_COMPARISON_SORT, sortedComparisons, type ComparisonSort } from "./comparisonModel";
 import { TaxValue } from "./TaxValue";
-import { TableExpandButton } from "./TableExpandButton";
 import { SortableHeader } from "./SortableHeader";
 
 const useRowLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -33,8 +32,6 @@ export function ResultComparison({
   onSortChange = () => undefined,
   onSelect = () => undefined,
 }: ResultComparisonProps) {
-  const [heightExpanded, setHeightExpanded] = useState(false);
-  const scrollId = useId();
   const rows = useRef(new Map<string, HTMLTableRowElement>());
   const previousTops = useRef(new Map<string, number>());
   const showTax = hasTaxColumn(strategyRuns);
@@ -124,17 +121,9 @@ export function ResultComparison({
       })}
     </tbody>
   </table>;
-  return (
-    <div className={`table-height-region comparison-table-region${heightExpanded ? " is-height-expanded" : ""}`}>
-      <div className="table-height-controls"><h4 className="table-height-controls-title">{translate(locale, "results.tab.comparison")}</h4>
-        <TableExpandButton locale={locale} tableName={translate(locale, "results.tab.comparison")}
-          controls={scrollId} expanded={heightExpanded} disabled={busy}
-          onToggle={() => setHeightExpanded(previous => !previous)} />
-      </div>
-      <div id={scrollId} className={`comparison-table-scroll${heightExpanded ? " is-height-expanded" : ""}`} tabIndex={0} role="region"
-        aria-label={translate(locale, "results.comparisonTitle")}>
-        {heightExpanded ? <ExpandedTableOverflow>{table}</ExpandedTableOverflow> : table}
-      </div>
-    </div>
-  );
+  return <ResultTableFrame locale={locale} title={translate(locale, "results.tab.comparison")}
+    label={translate(locale, "results.comparisonTitle")} className="comparison-table-region"
+    scrollClassName="comparison-table-scroll" disabled={busy}>
+    {table}
+  </ResultTableFrame>;
 }
