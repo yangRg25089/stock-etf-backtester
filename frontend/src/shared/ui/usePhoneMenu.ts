@@ -24,7 +24,11 @@ export function usePhoneMenu() {
       if (phone.matches && panel.current?.contains(active)) trigger.current?.focus({ preventScroll: true });
       else if (!phone.matches && active === trigger.current) {
         const controls = panel.current?.querySelectorAll<HTMLElement>("button, input, select, a[href], [tabindex]");
-        Array.from(controls ?? []).find(control => !control.matches(":disabled") && control.tabIndex >= 0 && control.getClientRects().length > 0)?.focus({ preventScroll: true });
+        for (const control of controls ?? []) {
+          if (control.matches(":disabled") || control.tabIndex < 0 || control.getClientRects().length === 0) continue;
+          control.focus({ preventScroll: true });
+          break;
+        }
       }
     };
     document.addEventListener("focusin", rememberFocus);
