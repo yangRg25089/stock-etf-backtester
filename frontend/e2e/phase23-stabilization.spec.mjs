@@ -129,6 +129,7 @@ test("selected comparison rows remain outlined without shifting sticky columns o
   await page.mouse.move(1400, 850);
   await expect(monthly).toHaveCSS("translate", "none");
   await expect(initial).toHaveCSS("translate", "none");
+  await expect.poll(() => initial.evaluate(node => node.getAnimations().some(animation => animation.playState === "running"))).toBe(false);
   const initialColorAfterFocusMoves = await initial.evaluate(node => getComputedStyle(node).backgroundColor);
   expect(initialColorAfterFocusMoves.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, value) => sum + value, 0)).toBeGreaterThan(650);
   await initial.hover();
