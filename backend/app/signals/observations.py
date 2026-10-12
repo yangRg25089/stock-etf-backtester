@@ -225,7 +225,7 @@ def _price_evaluation(
                 day,
                 strategy.id,
                 "market.price",
-                _field_path(index, "run.symbol"),
+                "run.symbol",
                 DataKind.MARKET,
                 symbol,
             ),

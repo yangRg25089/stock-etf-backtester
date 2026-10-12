@@ -522,6 +522,12 @@ def test_missing_market_session_is_unavailable_instead_of_silently_skipped() -> 
     states = _states(result.strategies[0], missing_day)
     assert states["market.price"] is SignalState.UNAVAILABLE
     assert result.strategies[0].available is False
+    missing_price = next(
+        item
+        for item in result.strategies[0].diagnostics
+        if item.details.get("signalId") == "market.price"
+    )
+    assert missing_price.field_path == "run.symbol"
 
 
 def test_duplicate_market_dates_are_rejected_instead_of_overwritten() -> None:

@@ -38,7 +38,7 @@ from app.domain.contracts import (
     SharedSettings,
 )
 from app.domain.immutability import freeze_mapping
-from app.domain.status import Diagnostic, DiagnosticCode
+from app.domain.status import Diagnostic, DiagnosticCode, unique_diagnostics
 from app.runs.data import StrategyDataLoad
 
 _LOGGER = logging.getLogger(__name__)
@@ -433,14 +433,14 @@ class YahooRunDataProvider:
                     )
                 )
                 loaded[strategy.id] = StrategyDataLoad(
-                    diagnostics=_unique_diagnostics(diagnostics)
+                    diagnostics=unique_diagnostics(diagnostics)
                 )
                 continue
 
             loaded[strategy.id] = StrategyDataLoad(
                 calendar=calendar,
                 snapshot=snapshot,
-                diagnostics=_unique_diagnostics(diagnostics),
+                diagnostics=unique_diagnostics(diagnostics),
                 dateAdjustments=date_adjustments,
             )
         return loaded
@@ -536,25 +536,6 @@ def _failed_loads(
         strategy.id: StrategyDataLoad(diagnostics=(diagnostic,))
         for strategy in strategies
     }
-
-
-def _unique_diagnostics(
-    diagnostics: Sequence[Diagnostic],
-) -> tuple[Diagnostic, ...]:
-    seen: set[tuple[DiagnosticCode, str, Date | None, str | None]] = set()
-    unique: list[Diagnostic] = []
-    for diagnostic in diagnostics:
-        key = (
-            diagnostic.code,
-            diagnostic.message_key,
-            diagnostic.as_of,
-            diagnostic.source,
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(diagnostic)
-    return tuple(unique)
 
 
 __all__ = ["YahooRunDataProvider"]

@@ -4,6 +4,27 @@ from app.data.run_planning import _apply_market_gap_policy
 from app.domain.status import Diagnostic, DiagnosticCode
 
 
+def test_diagnostic_merge_preserves_distinct_inputs_and_field_paths() -> None:
+    from app.runs.yahoo_data import unique_diagnostics
+
+    first = Diagnostic(
+        code=DiagnosticCode.REQUIRED_DATA_UNAVAILABLE,
+        messageKey="macro.missing_sessions",
+        source="yahoo",
+        fieldPath="strategies[0].params.vix.symbol",
+        details={"symbol": "^VIX", "missingSessions": ["2024-01-02"]},
+    )
+    other_input = first.model_copy(update={"details": {"symbol": "^TNX"}})
+    other_field = first.model_copy(
+        update={"field_path": "strategies[1].params.vix.symbol"}
+    )
+    assert unique_diagnostics((first, first, other_input, other_field)) == (
+        first,
+        other_input,
+        other_field,
+    )
+
+
 def test_listing_boundary_removes_only_verified_pre_listing_sessions() -> None:
     days = (date(2024, 1, 29), date(2024, 1, 30), date(2024, 1, 31), date(2024, 2, 1))
     diagnostics = (
