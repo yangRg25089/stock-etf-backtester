@@ -52,6 +52,7 @@ for (const theme of ["light", "dark"]) for (const palette of ["red-up", "green-u
     await expect(page.locator(".heatmap-value")).toHaveCount(0);
     expect(cells.every(cell => cell.inside)).toBe(true);
     await page.locator(".monthly-performance").scrollIntoViewIfNeeded();
+    const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     await page.screenshot({ path: test.info().outputPath("heatmap-original.png") });
     if (width < 768) await page.locator(".result-downloads-toggle").click();
     await pngDownload(page, "heatmap-original-report.png");
@@ -62,6 +63,6 @@ for (const theme of ["light", "dark"]) for (const palette of ["red-up", "green-u
     expect(audit.fills.some(row => row.color === "#243447")).toBe(false);
     expect(audit.text.filter(row => row.value === "+123.45%").some(row => row.color === "#ffffff")).toBe(true);
     // Keep the contrast gate truthful under the user-approved original palette.
-    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+    expect(accessibility.violations).toEqual([]);
   });
 }
