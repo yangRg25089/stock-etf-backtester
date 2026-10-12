@@ -4,14 +4,14 @@ import { openSaved, savedRun, pngDownload } from "./helpers/reports.mjs";
 import { openTopbarMenu } from "./helpers/runtime.mjs";
 
 for (const theme of ["light", "dark"]) for (const palette of ["red-up", "green-up"]) for (const width of [320, 1440]) {
-  test(`heatmap backing preserves all swatches and white labels at ${width}px ${theme} ${palette}`, async ({ page }) => {
+  test(`original heatmap preserves all swatches and white labels at ${width}px ${theme} ${palette}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: theme });
     await page.addInitScript(() => {
-      window.heatmapReportAudit = { backings: [], text: [] };
-      const rounded = CanvasRenderingContext2D.prototype.roundRect;
-      CanvasRenderingContext2D.prototype.roundRect = function (...args) {
-        window.heatmapReportAudit.backings.push({ color: this.fillStyle, bounds: args });
-        return rounded.apply(this, args);
+      window.heatmapReportAudit = { fills: [], text: [] };
+      const fill = CanvasRenderingContext2D.prototype.fillRect;
+      CanvasRenderingContext2D.prototype.fillRect = function (...args) {
+        window.heatmapReportAudit.fills.push({ color: this.fillStyle, bounds: args });
+        return fill.apply(this, args);
       };
       const text = CanvasRenderingContext2D.prototype.fillText;
       CanvasRenderingContext2D.prototype.fillText = function (...args) {
@@ -39,25 +39,29 @@ for (const theme of ["light", "dark"]) for (const palette of ["red-up", "green-u
     }
     const swatches = ["rgb(239, 74, 74)", "rgb(247, 45, 45)", "rgb(191, 34, 34)", "rgb(154, 26, 26)", "rgb(24, 213, 127)", "rgb(29, 200, 122)", "rgb(12, 154, 90)", "rgb(8, 116, 67)"];
     const cells = await page.locator(".heatmap-table tbody tr:first-child td:not(.heatmap-annual) .heatmap-cell").evaluateAll(nodes => nodes.map(node => {
-      const label = node.querySelector(".heatmap-value"), cell = node.getBoundingClientRect(), bounds = label.getBoundingClientRect();
-      return { fill: getComputedStyle(node).backgroundColor, text: getComputedStyle(label).color, backing: getComputedStyle(label).backgroundColor,
+      const cell = node.getBoundingClientRect();
+      const range = document.createRange(); range.selectNodeContents(node); const bounds = range.getBoundingClientRect();
+      return { fill: getComputedStyle(node).backgroundColor, text: getComputedStyle(node).color,
         inside: bounds.left >= cell.left && bounds.right <= cell.right && bounds.top >= cell.top && bounds.bottom <= cell.bottom };
     }));
     expect(cells).toHaveLength(12);
     expect(cells.slice(0, 8).map(cell => cell.fill)).toEqual(palette === "red-up" ? swatches : [...swatches.slice(4), ...swatches.slice(0, 4)]);
     for (const cell of cells.filter((_, index) => index !== 8 && index !== 9)) {
-      expect(cell.text).toBe("rgb(255, 255, 255)"); expect(cell.backing).toBe("rgb(36, 52, 71)");
+      expect(cell.text).toBe("rgb(255, 255, 255)");
     }
-    expect(cells[8].backing).toBe("rgba(0, 0, 0, 0)"); expect(cells[9].backing).toBe("rgba(0, 0, 0, 0)");
+    await expect(page.locator(".heatmap-value")).toHaveCount(0);
     expect(cells.every(cell => cell.inside)).toBe(true);
     await page.locator(".monthly-performance").scrollIntoViewIfNeeded();
-    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
-    await page.screenshot({ path: test.info().outputPath("heatmap-backing.png") });
+    await page.screenshot({ path: test.info().outputPath("heatmap-original.png") });
     if (width < 768) await page.locator(".result-downloads-toggle").click();
-    await pngDownload(page, "heatmap-backing-report.png");
+    await pngDownload(page, "heatmap-original-report.png");
     const audit = await page.evaluate(() => window.heatmapReportAudit);
-    expect(audit.backings.length).toBeGreaterThanOrEqual(10);
-    expect(audit.backings.every(row => row.color === "#243447" && row.bounds[2] <= 1104 / 14 - 4 && row.bounds[3] <= 18)).toBe(true);
+    const reportColors = audit.fills.filter(row => row.bounds[3] === 34).map(row => row.color);
+    const hexSwatches = ["#ef4a4a", "#f72d2d", "#bf2222", "#9a1a1a", "#18d57f", "#1dc87a", "#0c9a5a", "#087443"];
+    for (const color of hexSwatches) expect(reportColors).toContain(color);
+    expect(audit.fills.some(row => row.color === "#243447")).toBe(false);
     expect(audit.text.filter(row => row.value === "+123.45%").some(row => row.color === "#ffffff")).toBe(true);
+    // Keep the contrast gate truthful under the user-approved original palette.
+    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   });
 }

@@ -101,11 +101,10 @@ test("period performance keeps named scroll regions and headings without duplica
 });
 
 
-test("colored heatmap values have a compact dark backing shared by PNG exports", () => {
+test("original colored heatmap labels and PNG have no dark backing", () => {
   const values = ["0.01", "-0.01", "0", null].map((navReturn, index) => ({ year: 2024, month: index + 1, navReturn }));
   const html = renderToStaticMarkup(React.createElement(MonthlyHeatmap, { locale: "en", values }));
-  assert.equal((html.match(/class="heatmap-value"/g) ?? []).length, 4);
-  assert.match(heatmapCss, /--heatmap-label-background:\s*#243447/);
-  assert.match(heatmapCss, /\.heatmap-cell\.is-positive \.heatmap-value,\s*\.heatmap-cell\.is-negative \.heatmap-value\s*\{[^}]*background:\s*var\(--heatmap-label-background\)/s);
-  assert.match(reportImageSource, /color\("--heatmap-label-background"\)/);
+  assert.doesNotMatch(html, /heatmap-value/);
+  assert.doesNotMatch(heatmapCss, /heatmap-label-background|heatmap-value/);
+  assert.doesNotMatch(reportImageSource, /heatmap-label-background|roundRect/);
 });

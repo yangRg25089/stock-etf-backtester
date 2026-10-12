@@ -205,14 +205,7 @@ export async function renderResultReport(report: ResultReport, signal?: AbortSig
       context.fillStyle = fill; context.fillRect(x + 2, y, cellWidth - 4, 34);
       if (column === 13) { context.strokeStyle = palette.accent; context.lineWidth = 2; context.strokeRect(x + 2, y, cellWidth - 4, 34); }
       const value = `${tone === "positive" ? "+" : ""}${formatPercent(row?.navReturn, "en")}`;
-      const size = Math.max(10, Math.min(14, 14 * (cellWidth - 12) / Math.max(1, (() => { font(14, 600); return context.measureText(value).width; })())));
-      if (tone === "positive" || tone === "negative") {
-        font(size, 600);
-        context.fillStyle = color("--heatmap-label-background");
-        context.beginPath();
-        context.roundRect(x + 4, y + 8, context.measureText(value).width + 4, size + 4, 2);
-        context.fill();
-      }
+      const size = Math.max(10, Math.min(14, 14 * (cellWidth - 8) / Math.max(1, (() => { font(14, 600); return context.measureText(value).width; })())));
       text(value, x + 6, y + 10, size, tone === "positive" || tone === "negative" ? "#fff" : palette.muted, 600);
     }
     y += 42;

@@ -35,7 +35,7 @@ export function MonthlyHeatmap({ locale, values, annualValues = [], busy = false
       className={`heatmap-cell is-${tone}${colorLevel ? ` is-level-${colorLevel}` : ""}${inspected === row ? " is-inspected" : ""}`}
       aria-label={label(row)} title={`${label(row, formatExactPercent(row.navReturn))} · ${row.startDate} → ${row.endDate}`}
       onMouseEnter={() => setInspected(row)} onFocus={() => setInspected(row)} onClick={() => setInspected(row)}>
-      <span className="heatmap-value">{tone === "positive" ? "+" : ""}{formatPercent(row.navReturn, locale)}</span>
+      {tone === "positive" ? "+" : ""}{formatPercent(row.navReturn, locale)}
     </button></td>;
   };
   const table = <table className="data-table heatmap-table">

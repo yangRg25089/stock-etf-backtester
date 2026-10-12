@@ -1,5 +1,4 @@
 .app-frame {
-  --heatmap-label-background: #243447;
   --heatmap-red-1: #ef4a4a;
   --heatmap-red-2: #f72d2d;
   --heatmap-red-3: #bf2222;
@@ -39,9 +38,6 @@
 
 .heatmap-cell.is-positive,
 .heatmap-cell.is-negative { color: #fff; }
-.heatmap-value { display: inline-block; padding: 1px 2px; border-radius: 2px; line-height: 1.2; white-space: nowrap; }
-.heatmap-cell.is-positive .heatmap-value,
-.heatmap-cell.is-negative .heatmap-value { background: var(--heatmap-label-background); }
 .heatmap-cell.is-positive.is-level-1 { background: var(--heatmap-positive-1); }
 .heatmap-cell.is-positive.is-level-2 { background: var(--heatmap-positive-2); }
 .heatmap-cell.is-positive.is-level-3 { background: var(--heatmap-positive-3); }
