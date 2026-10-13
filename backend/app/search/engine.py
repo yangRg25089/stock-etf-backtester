@@ -24,6 +24,7 @@ from app.domain.contracts import (
     DataSnapshot,
     FrozenRunConfig,
     FrozenStrategyInstance,
+    MetricSummary,
     ResultRole,
     RunSettings,
     StrategyPresetId,
@@ -37,10 +38,7 @@ from app.domain.status import (
     StrategyStatus,
 )
 from app.ledger.engine import LEDGER_METHOD_VERSION
-from app.metrics import (
-    METRIC_METHOD_VERSION,
-    MetricsResult,
-)
+from app.metrics import METRIC_METHOD_VERSION
 from app.search.types import (
     SearchCandidate,
     SearchHeatmapSlice,
@@ -80,7 +78,7 @@ class _CandidateValidation:
         return self.config is not None and self.strategy is not None
 
 
-_CalculationCache = MutableMapping[str, tuple[MetricsResult, tuple[Diagnostic, ...]]]
+_CalculationCache = MutableMapping[str, tuple[MetricSummary, tuple[Diagnostic, ...]]]
 
 
 def run_grid_search(
@@ -219,14 +217,14 @@ def run_grid_search(
                 if original is None:
                     raise RuntimeError("saved candidate detail is missing")
                 save_candidate(original.model_copy(update={"id": candidate_id}))
-            metrics_result, diagnostics = cached
+            summary, diagnostics = cached
             candidates.append(
                 _completed_candidate(
                     candidate_id,
                     sequence,
                     candidate_strategy,
                     fingerprint,
-                    metrics_result,
+                    summary,
                     diagnostics,
                     reused=True,
                 )
@@ -256,21 +254,19 @@ def run_grid_search(
                 )
                 continue
             assert calculated.metrics is not None
-            metrics_result = MetricsResult(
-                summary=calculated.metrics, daily_assets=calculated.daily_assets
-            )
+            summary = calculated.metrics
             diagnostics = calculated.diagnostics
             if save_candidate is not None:
                 save_candidate(calculated.as_run(candidate_strategy))
                 detail_ids[fingerprint] = candidate_id
-            cache[fingerprint] = (metrics_result, diagnostics)
+            cache[fingerprint] = (summary, diagnostics)
             candidates.append(
                 _completed_candidate(
                     candidate_id,
                     sequence,
                     candidate_strategy,
                     fingerprint,
-                    metrics_result,
+                    summary,
                     diagnostics,
                     reused=False,
                 )
@@ -519,7 +515,7 @@ def _completed_candidate(
     sequence: int,
     strategy: FrozenStrategyInstance,
     fingerprint: str,
-    result: MetricsResult,
+    summary: MetricSummary,
     diagnostics: tuple[Diagnostic, ...],
     *,
     reused: bool,
@@ -539,7 +535,7 @@ def _completed_candidate(
         calculationFingerprint=fingerprint,
         parameterValues=strategy.params,
         reusedCalculation=reused,
-        metrics=result.summary,
+        metrics=summary,
         diagnostics=diagnostics,
     )
 

@@ -565,6 +565,19 @@ def test_search_reuses_calculations_without_merging_candidate_identity() -> None
     assert first.candidates[0].metrics == second.candidates[0].metrics
 
 
+def test_search_cache_retains_only_summary_metrics_not_daily_curves() -> None:
+    cache = {}
+    result = run_grid_search(
+        _input(_config(dimensions=["vix.buyThreshold"])), calculation_cache=cache
+    )
+    assert cache
+    for summary, diagnostics in cache.values():
+        assert isinstance(summary, MetricSummary)
+        assert not hasattr(summary, "daily_assets")
+        assert summary in tuple(item.metrics for item in result.candidates)
+        assert isinstance(diagnostics, tuple)
+
+
 def test_persisted_search_materializes_curves_from_a_metrics_only_cache() -> None:
     source = _input(_config(dimensions=["vix.buyThreshold", "rsi.buyThreshold"]))
     cache = {}
