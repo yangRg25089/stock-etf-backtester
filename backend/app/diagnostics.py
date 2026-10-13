@@ -2,6 +2,7 @@
 
 import logging
 
+from app.domain.resources import ResultStorageFull
 from app.domain.status import Diagnostic, DiagnosticCode, DiagnosticSeverity
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,6 +41,10 @@ def calculation_diagnostic(
     return Diagnostic(
         code=DiagnosticCode.CALCULATION_FAILED,
         severity=DiagnosticSeverity.ERROR,
-        messageKey="diagnostics.calculation_failed",
+        messageKey=(
+            "runs.result_storage_full"
+            if isinstance(error, ResultStorageFull)
+            else "diagnostics.calculation_failed"
+        ),
         details=details,
     )

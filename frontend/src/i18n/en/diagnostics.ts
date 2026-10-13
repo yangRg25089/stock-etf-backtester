@@ -1,4 +1,6 @@
 export const diagnosticsMessages: Record<string, string> = {
+  "api.errors.result_storage_full": "Result storage is full. Existing results remain available; new runs are disabled until the app restarts.",
+  "runs.result_storage_full": "This run exceeded available result storage. Existing results remain available. Try a smaller search or shorter period.",
   "api.errors.run_capacity_exceeded": "The run queue is full. Please try again shortly.",
   "data.providers": "Providers",
   "data.currency": "Currency",

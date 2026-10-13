@@ -1,4 +1,6 @@
 export const diagnosticsMessages: Record<string, string> = {
+  "api.errors.result_storage_full": "結果の保存容量が上限に達しました。保存済みの結果は表示できますが、アプリの再起動まで新しい実行はできません。",
+  "runs.result_storage_full": "この実行に必要な結果保存容量が不足しています。既存の結果は引き続き参照できます。検索範囲または対象期間を短くしてください。",
   "api.errors.run_capacity_exceeded": "実行待ちの上限に達しました。しばらくしてから再試行してください。",
   "data.providers": "提供元",
   "data.currency": "通貨",

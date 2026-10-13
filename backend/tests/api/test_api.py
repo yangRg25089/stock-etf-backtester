@@ -87,6 +87,27 @@ def test_full_run_queue_returns_localized_503_without_accepting_a_run() -> None:
     assert "Location" not in response.headers
 
 
+def test_full_result_storage_returns_localized_503_without_internal_details():
+    from app.domain.resources import ResultStorageFull
+
+    class FullService(_FakeRunService):
+        def submit_run(self, submission, *, idempotency_key):
+            raise ResultStorageFull("private sqlite path")
+
+    response = _request(
+        "POST",
+        "/api/v1/runs",
+        service=FullService(),
+        headers={"Idempotency-Key": "full-storage"},
+        json_body={"draft": _draft([_strategy("active")]), "scope": "all_enabled"},
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "result_storage_full"
+    assert response.json()["error"]["messageKey"] == "api.errors.result_storage_full"
+    assert "private sqlite" not in response.text
+    assert "Location" not in response.headers
+
+
 class _EventRunService(_FakeRunService):
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float

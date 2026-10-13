@@ -1,4 +1,6 @@
 export const diagnosticsMessages: Record<string, string> = {
+  "api.errors.result_storage_full": "结果存储已满。已有结果仍可查看，服务重启前无法接收新运行。",
+  "runs.result_storage_full": "本次运行所需的结果存储空间不足。已有结果仍可查看，请减少搜索组合或缩短回测期间。",
   "api.errors.run_capacity_exceeded": "运行队列已满，请稍后重试。",
   "data.providers": "提供方",
   "data.currency": "币种",

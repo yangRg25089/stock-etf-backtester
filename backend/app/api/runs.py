@@ -22,6 +22,7 @@ from app.domain.contracts import (
     StrategyInstance,
     StrategyRun,
 )
+from app.domain.resources import ResultStorageFull
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
@@ -123,6 +124,10 @@ def submit_run(
     except RunCapacityExceeded as error:
         raise APIException(
             503, "run_capacity_exceeded", "api.errors.run_capacity_exceeded"
+        ) from error
+    except ResultStorageFull as error:
+        raise APIException(
+            503, "result_storage_full", "api.errors.result_storage_full"
         ) from error
     response.headers["Location"] = f"/api/v1/runs/{accepted.run_id}"
     return accepted

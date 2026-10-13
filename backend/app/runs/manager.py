@@ -14,6 +14,7 @@ from threading import Event, RLock
 from app.calendar import schedule
 from app.catalog.service import Catalog, get_catalog
 from app.config.validation import DataRequirement
+from app.diagnostics import calculation_diagnostic as _calculation_diagnostic
 from app.domain.cancellation import RunCancelled
 from app.domain.contracts import (
     FrozenRunConfig,
@@ -79,6 +80,13 @@ class RunManager:
         self._executor = executor or ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="backtest-run"
         )
+
+    def shutdown(self) -> None:
+        """Cancel outstanding work and drain workers before closing result storage."""
+        with self._state_lock:
+            for cancellation in self._cancellations.values():
+                cancellation.set()
+        self._executor.shutdown(wait=True)
 
     def submit_run(
         self, submission: RunSubmission, *, idempotency_key: str
@@ -1104,34 +1112,6 @@ def _search_outcome(
         diagnostics=diagnostics,
         metrics=best.metrics,
         search_result=search_result,
-    )
-
-
-def _calculation_diagnostic(
-    error: Exception,
-    *,
-    run_id: str,
-    stage: str,
-    strategy_id: str | None = None,
-) -> Diagnostic:
-    _LOGGER.warning(
-        "Run calculation stage failed",
-        extra={
-            "event": "run_calculation_stage_failed",
-            "run_id": run_id,
-            "stage": stage,
-            "strategy_id": strategy_id,
-            "exception_type": type(error).__name__,
-        },
-    )
-    details: dict[str, object] = {"runId": run_id, "stage": stage}
-    if strategy_id is not None:
-        details["strategyId"] = strategy_id
-    return Diagnostic(
-        code=DiagnosticCode.CALCULATION_FAILED,
-        severity=DiagnosticSeverity.ERROR,
-        messageKey="diagnostics.calculation_failed",
-        details=details,
     )
 
 

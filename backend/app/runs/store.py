@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 from threading import Condition, Event, RLock
 from time import monotonic
@@ -9,6 +10,7 @@ from typing import Protocol
 from uuid import uuid4
 
 from app.domain.contracts import StrategyRun
+from app.domain.resources import ResultStorageFull
 from app.runs.types import RunResponse
 
 
@@ -77,13 +79,16 @@ class _ReservationState:
 class InMemoryRunStore:
     """Atomically claim idempotency keys and retain each run's latest response."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_runs: int | None = None) -> None:
+        if max_runs is not None and max_runs < 1:
+            raise ValueError("max_runs must be positive")
+        self._max_runs = max_runs
         self._lock = RLock()
         self._changed = Condition(self._lock)
         self._reservations: dict[str, _ReservationState] = {}
-        self._records: dict[str, RunResponse] = {}
+        self._records: MutableMapping[str, RunResponse] = {}
         self._versions: dict[str, int] = {}
-        self._candidates: dict[tuple[str, str], StrategyRun] = {}
+        self._candidates: MutableMapping[tuple[str, str], StrategyRun] = {}
 
     def save_candidate(self, run_id: str, candidate: StrategyRun) -> None:
         with self._lock:
@@ -118,6 +123,7 @@ class InMemoryRunStore:
 
             if not accept_new:
                 raise RunCapacityExceeded("run executor queue is full")
+            self._check_storage_room()
             run_id = str(uuid4())
             self._reservations[idempotency_key] = _ReservationState(
                 run_id=run_id,
@@ -129,6 +135,11 @@ class InMemoryRunStore:
                 request_fingerprint=request_fingerprint,
                 owner=True,
             )
+
+    def _check_storage_room(self) -> None:
+        """Check new claims only; an existing retry still owns its saved record."""
+        if self._max_runs is not None and len(self._reservations) >= self._max_runs:
+            raise ResultStorageFull("saved run limit reached")
 
     def publish(self, reservation: RunReservation, response: RunResponse) -> None:
         """Make the full snapshot visible to retries and run queries."""
@@ -149,7 +160,13 @@ class InMemoryRunStore:
 
         with self._lock:
             state = self._state_for(reservation)
-            state.error = error
+            # Retain only a failure marker, not exception tracebacks containing
+            # large snapshot/serialization locals for the lifetime of the run.
+            state.error = (
+                ResultStorageFull("temporary result storage is full")
+                if isinstance(error, ResultStorageFull)
+                else RunInitializationError("the original run could not be initialized")
+            )
             state.ready.set()
 
     def wait_for_record(self, reservation: RunReservation) -> RunResponse:
@@ -159,6 +176,8 @@ class InMemoryRunStore:
             state = self._state_for(reservation)
         state.ready.wait()
         with self._lock:
+            if isinstance(state.error, ResultStorageFull):
+                raise ResultStorageFull(str(state.error))
             if state.error is not None:
                 raise RunInitializationError(
                     "the original run could not be initialized"

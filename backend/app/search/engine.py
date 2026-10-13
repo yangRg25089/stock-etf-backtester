@@ -31,6 +31,7 @@ from app.domain.contracts import (
     StrategyRun,
 )
 from app.domain.immutability import thaw_value
+from app.domain.resources import ResultStorageFull
 from app.domain.status import (
     Diagnostic,
     DiagnosticCode,
@@ -271,7 +272,7 @@ def run_grid_search(
                     reused=False,
                 )
             )
-        except RunCancelled:
+        except (RunCancelled, ResultStorageFull):
             raise
         except Exception as error:
             diagnostic = calculation_diagnostic(

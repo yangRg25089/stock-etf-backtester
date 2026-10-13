@@ -6,17 +6,29 @@ import io
 from decimal import Decimal
 
 import httpx
+import pytest
 
 from app.main import app
 from app.runs.manager import RunManager
 from app.runs.store import InMemoryRunStore
+from app.runs.temporary_store import TemporaryRunStore
 from tests.e2e.fixture_provider import ImmediateExecutor, WalkForwardFixtureProvider
 
 
-def test_walk_forward_api_displays_oos_and_exports_every_saved_training_window():
+@pytest.fixture(params=[InMemoryRunStore, TemporaryRunStore])
+def result_store(request):
+    store = request.param()
+    yield store
+    if isinstance(store, TemporaryRunStore):
+        store.close()
+
+
+def test_walk_forward_api_displays_oos_and_exports_every_saved_training_window(
+    result_store,
+):
     provider = WalkForwardFixtureProvider()
     manager = RunManager(
-        store=InMemoryRunStore(), data_provider=provider, executor=ImmediateExecutor()
+        store=result_store, data_provider=provider, executor=ImmediateExecutor()
     )
     previous = app.state.run_service
     app.state.run_service = manager

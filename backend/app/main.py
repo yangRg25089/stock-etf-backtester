@@ -1,5 +1,7 @@
+import asyncio
 import os
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -18,7 +20,7 @@ from app.api.errors import (
 from app.api.export import router as export_router
 from app.api.runs import router as runs_router
 from app.runs.manager import RunManager
-from app.runs.store import InMemoryRunStore
+from app.runs.temporary_store import TemporaryRunStore
 from app.runs.yahoo_data import YahooRunDataProvider
 from app.security import PublicAccessMiddleware
 
@@ -31,7 +33,34 @@ def create_app(environment: Mapping[str, str] | None = None) -> FastAPI:
     """Create the local or production app from its explicit runtime settings."""
     settings = os.environ if environment is None else environment
     public = settings.get("STOCK_ETF_BACKTESTER_SERVE_FRONTEND") == "1"
+    if public:
+        configured_dir = Path(
+            settings.get("STOCK_ETF_BACKTESTER_FRONTEND_DIR", "frontend/dist")
+        )
+        repository_root = Path(__file__).resolve().parents[2]
+        frontend_dir = configured_dir
+        if not frontend_dir.is_absolute():
+            frontend_dir = repository_root / frontend_dir
+        if not frontend_dir.is_dir():
+            raise RuntimeError(
+                f"frontend build directory does not exist: {frontend_dir}"
+            )
+
+    store = TemporaryRunStore()
+    manager = RunManager(store=store, data_provider=YahooRunDataProvider())
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            try:
+                await asyncio.to_thread(manager.shutdown)
+            finally:
+                store.close()
+
     app = FastAPI(
+        lifespan=lifespan,
         title="Stock ETF Backtester API",
         version="0.1.0",
         description=(
@@ -47,10 +76,7 @@ def create_app(environment: Mapping[str, str] | None = None) -> FastAPI:
     app.add_exception_handler(
         RequestValidationError, request_validation_exception_handler
     )
-    app.state.run_service = RunManager(
-        store=InMemoryRunStore(),
-        data_provider=YahooRunDataProvider(),
-    )
+    app.state.run_service = manager
 
     @app.get("/health", response_model=HealthResponse, tags=["system"])
     def health() -> HealthResponse:
@@ -71,17 +97,6 @@ def create_app(environment: Mapping[str, str] | None = None) -> FastAPI:
         )
 
     if public:
-        configured_dir = Path(
-            settings.get("STOCK_ETF_BACKTESTER_FRONTEND_DIR", "frontend/dist")
-        )
-        repository_root = Path(__file__).resolve().parents[2]
-        frontend_dir = configured_dir
-        if not frontend_dir.is_absolute():
-            frontend_dir = repository_root / frontend_dir
-        if not frontend_dir.is_dir():
-            raise RuntimeError(
-                f"frontend build directory does not exist: {frontend_dir}"
-            )
         app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
     return app
