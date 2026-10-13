@@ -110,3 +110,5 @@ Appearance follows the system until Light/Dark is clicked, then keeps the saved 
 Trade CSV appends `totalAssetAfter`: whole-account assets immediately after each fill, valued at that day's saved simulation price, with fees/tax already reflected in cash. Old missing values remain unavailable. Zero tax is shown as “—”; explicit all-zero costs and tax columns are hidden only in visible presentation. CSV retains raw zero values.
 
 Run complete functional and UI acceptance locally. After deployment, confirm only the deployed revision and `/health`.
+
+The end date is always a **specified date**. The initial date comes from the catalog; each submission freezes the requested date. When data availability requires an adjustment, the saved effective date and warning are shown. Runs never silently advance the requested end date.

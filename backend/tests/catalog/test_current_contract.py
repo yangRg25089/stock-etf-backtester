@@ -101,3 +101,15 @@ def test_removed_fixed_contribution_parameters_are_rejected():
         "accumulation.fixedDcaEnabled",
         "accumulation.fixedDcaRatio",
     }
+
+
+def test_specified_end_date_is_preserved_and_latest_submission_is_rejected():
+    draft = _draft([_strategy("monthly_dca")])
+    draft["shared"]["run"]["endMode"] = "fixed"
+    fixed = validate_draft(draft)
+    assert fixed.valid
+    assert fixed.config_for().shared.run.end_date == date(2024, 2, 1)
+    draft["shared"]["run"]["endMode"] = "latest"
+    latest = validate_draft(draft)
+    assert not latest.valid
+    assert any(item.field_path == "run.endMode" for item in latest.diagnostics_for())
