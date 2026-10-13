@@ -1,3 +1,5 @@
+import { RequestTimeoutError, withRequestTimeout } from "./requestTimeout";
+import { readEventChunk } from "./eventReader";
 import { fallbackApiError, readApiError } from "./errors";
 import type {
   Diagnostic,
@@ -66,6 +68,20 @@ function isResponseForContract(contract: ResponseContract, payload: unknown): bo
 }
 
 async function requestJson<T>(
+  url: string,
+  init: RequestInit,
+  signal: AbortSignal | undefined,
+  contract: ResponseContract,
+): Promise<T> {
+  try {
+    return await withRequestTimeout(signal, requestSignal => readJsonResponse<T>(url, init, requestSignal, contract));
+  } catch (error) {
+    if (error instanceof RequestTimeoutError) throw fallbackError(null);
+    throw error;
+  }
+}
+
+async function readJsonResponse<T>(
   url: string,
   init: RequestInit,
   signal: AbortSignal | undefined,
@@ -162,31 +178,33 @@ export async function subscribeToRunEvents(
 ): Promise<void> {
   let response: Response;
   try {
-    response = await fetch(
-      `/api/v1/runs/${encodeURIComponent(runId)}/events`,
-      { headers: { Accept: "text/event-stream" }, signal },
-    );
+    response = await withRequestTimeout(signal, async requestSignal => {
+      const response = await fetch(
+        `/api/v1/runs/${encodeURIComponent(runId)}/events`,
+        { headers: { Accept: "text/event-stream" }, signal: requestSignal },
+      );
+      if (!response.ok) {
+        let payload: unknown;
+        try {
+          payload = await response.json();
+        } catch {
+          throw fallbackError(response.status);
+        }
+        const error = readApiError(payload);
+        if (!error) throw fallbackError(response.status);
+        throw new RunApiError(
+          error.code,
+          error.messageKey,
+          error.diagnostics ?? [],
+          response.status,
+          error.retryAfterSeconds ?? null,
+        );
+      }
+      return response;
+    });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
-    throw fallbackError(null);
-  }
-
-  if (!response.ok) {
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw fallbackError(response.status);
-    }
-    const error = readApiError(payload);
-    if (!error) throw fallbackError(response.status);
-    throw new RunApiError(
-      error.code,
-      error.messageKey,
-      error.diagnostics ?? [],
-      response.status,
-      error.retryAfterSeconds ?? null,
-    );
+    throw error instanceof RunApiError ? error : fallbackError(null);
   }
 
   if (!response.headers.get("content-type")?.startsWith("text/event-stream")) {
@@ -204,7 +222,7 @@ export async function subscribeToRunEvents(
   let streamEnded = false;
   try {
     while (!streamEnded) {
-      const chunk = await reader.read();
+      const chunk = await readEventChunk(reader, signal);
       streamEnded = chunk.done;
       const text = decoder.decode(chunk.value, { stream: !chunk.done });
       if (text) {

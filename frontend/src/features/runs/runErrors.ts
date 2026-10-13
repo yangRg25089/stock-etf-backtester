@@ -8,3 +8,27 @@ export function asRunApiError(error: unknown): RunApiError {
     severity: "error",
   }]);
 }
+
+export function isTransientRunError(error: unknown): error is RunApiError {
+  return error instanceof RunApiError && error.code !== "invalid_response" && (
+    error.status === null && error.code === "provider_request_failed"
+    || error.status === 429
+    || error.status !== null && error.status >= 500
+  );
+}
+
+export function waitForRunRecovery(signal?: AbortSignal, delay = 500): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, delay);
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+  });
+}

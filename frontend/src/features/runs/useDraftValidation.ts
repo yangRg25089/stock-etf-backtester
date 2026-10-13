@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Catalog, Diagnostic } from "../../api/generated";
 import { validateDraft, type RunApiError } from "../../api/runs";
 import { serializeDraftForApi, type BacktestDraft } from "../strategies/model";
-import { asRunApiError } from "./runErrors";
+import { asRunApiError, isTransientRunError } from "./runErrors";
 
 interface ValidationState {
   draft: BacktestDraft;
@@ -31,7 +31,13 @@ export function useDraftValidation(catalog: Catalog | null, draft: BacktestDraft
       void validateDraft(serializeDraftForApi(draft), controller.signal).then(response => {
         if (!controller.signal.aborted) setState({ draft, response });
       }).catch(error => {
-        if (!controller.signal.aborted) setState({ draft, response: null, error: asRunApiError(error) });
+        if (!controller.signal.aborted) {
+          const failure = asRunApiError(error);
+          setState(current => ({ draft,
+            response: current?.draft === draft && isTransientRunError(failure) ? current.response : null,
+            error: failure,
+          }));
+        }
       });
     }, 300);
     return () => { window.clearTimeout(timer); controller.abort(); };

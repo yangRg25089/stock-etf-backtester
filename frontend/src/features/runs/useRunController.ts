@@ -13,7 +13,7 @@ import {
 import { draftFromRun, workspaceForDraft } from "../strategies/draftReader";
 import { restoreWorkspaceState, saveLastRunStrategy } from "../strategies/workspacePersistence";
 import { packageDraft, type PackageFile } from "../files/packageModel";
-import { observeRun } from "./observeRun";
+import { observeRunUntilTerminal } from "./observeRun";
 import { asRunApiError } from "./runErrors";
 import { useDraftValidation } from "./useDraftValidation";
 import { clearActiveRunId, readActiveRunId, saveActiveRunId } from "./activeRunSession";
@@ -57,6 +57,7 @@ export function useRunController(
       try {
         const restore = (value: RunResponse) => {
           if (controller.signal.aborted || submittedRunRef.current) return;
+          setRunError(null);
           rememberRun(value);
           setDateAdjustments(runDataContext(value.snapshot)?.dateAdjustments ?? []);
           setWorkspace((current) => {
@@ -86,10 +87,11 @@ export function useRunController(
         activeRunId.current = response.runId;
         runSubmissionLocked.current = true;
         setRunBusy(true);
-        const completed = await observeRun(response.runId, restoreProgress, controller.signal,
-          () => !submittedRunRef.current);
+        const completed = await observeRunUntilTerminal(response.runId, restoreProgress, controller.signal,
+          () => !submittedRunRef.current, restore, error => setRunError(asRunApiError(error)));
         if (completed && isTerminalRunStatus(completed.status)) {
           clearActiveRunId(response.runId);
+          setRunError(null);
           restore(completed);
         }
       } catch (error) {
@@ -138,7 +140,7 @@ export function useRunController(
   }, [catalog, setWorkspace, preflightFailed, retryValidation]);
 
   const availability = !workspace ? { disabled: true, reasonKey: "run.validationPending" }
-    : validationError
+    : validationError && !currentValidation
       ? { disabled: true, reasonKey: validationError.messageKey }
       : getRunAvailability(workspace, currentValidation);
   const canStop = runBusy && (!activeRunId.current
@@ -210,13 +212,21 @@ export function useRunController(
       });
       // Keep observing the accepted job even when an early Stop request fails.
       if (stopRequested.current) void requestStop(accepted.runId, controller);
-      const completed = await observeRun(
+      const completed = await observeRunUntilTerminal(
         accepted.runId,
         (event) => dispatch({ type: "run.progress", value: event }),
         controller.signal,
+        () => !controller.signal.aborted,
+        value => {
+          setDateAdjustments(runDataContext(value.snapshot)?.dateAdjustments ?? []);
+          setRunError(null);
+          dispatch({ type: "run.update", value, applyResolvedDates: true });
+        },
+        error => setRunError(asRunApiError(error)),
       );
       if (completed) {
         if (isTerminalRunStatus(completed.status)) clearActiveRunId(accepted.runId);
+        setRunError(null);
         rememberRun(completed, submittedDraft.shared.currency);
         setDateAdjustments(runDataContext(completed.snapshot)?.dateAdjustments ?? []);
         dispatch({ type: "run.update", value: completed, applyResolvedDates: true });
