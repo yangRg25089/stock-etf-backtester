@@ -30,10 +30,11 @@ from app.domain.status import (
     is_terminal,
 )
 from app.engine_version import ENGINE_VERSION
-from app.runs.store import IdempotencyConflict, RunCapacityExceeded, RunChange
-from app.runs.types import RunProgressEvent, RunStrategySummary
+from app.runs.store import IdempotencyConflict, RunCapacityExceeded, RunProgressChange
+from app.runs.types import RunProgressEvent
 
 from .errors import APIException
+from .responses import ModelJSONResponse
 from .types import (
     APIErrorResponse,
     DraftValidationRequest,
@@ -59,15 +60,19 @@ class RunService(Protocol):
 
     def get_run(self, run_id: str) -> RunResponse | None: ...
 
+    def get_run_json(self, run_id: str) -> bytes | None: ...
+
     def stop_run(self, run_id: str) -> RunResponse | None: ...
 
     def get_candidate(self, run_id: str, candidate_id: str) -> StrategyRun | None: ...
 
     def instrument_metadata(self, symbol: str) -> InstrumentMetadata: ...
 
+    def get_run_progress(self, run_id: str) -> RunProgressEvent | None: ...
+
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float
-    ) -> RunChange | None: ...
+    ) -> RunProgressChange | None: ...
 
 
 @router.post(
@@ -107,7 +112,7 @@ def submit_run(
     idempotency_key: str = Header(
         alias="Idempotency-Key", min_length=1, max_length=128
     ),
-) -> RunResponse:
+) -> ModelJSONResponse:
     """Freeze the selected strategy inputs and enqueue them with the run service."""
 
     catalog = get_catalog()
@@ -130,7 +135,7 @@ def submit_run(
             503, "result_storage_full", "api.errors.result_storage_full"
         ) from error
     response.headers["Location"] = f"/api/v1/runs/{accepted.run_id}"
-    return accepted
+    return ModelJSONResponse(accepted, status_code=202, headers=response.headers)
 
 
 @router.get(
@@ -146,33 +151,35 @@ def read_instrument(symbol: str, request: Request) -> InstrumentMetadata:
     response_model=RunResponse,
     responses={404: {"model": APIErrorResponse}, 503: {"model": APIErrorResponse}},
 )
-def read_run(run_id: str, request: Request) -> RunResponse:
+def read_run(run_id: str, request: Request) -> Response:
     """Return the current immutable snapshot and progress for a submitted run."""
 
-    record = _run_service(request).get_run(run_id)
+    record = _run_service(request).get_run_json(run_id)
     if record is None:
         raise APIException(
             404,
             "run_not_found",
             "api.errors.run_not_found",
         )
-    return record
+    return Response(record, media_type="application/json")
 
 
 @router.post("/runs/{run_id}/stop", response_model=RunResponse)
-def stop_run(run_id: str, request: Request) -> RunResponse:
+def stop_run(run_id: str, request: Request) -> ModelJSONResponse:
     record = _run_service(request).stop_run(run_id)
     if record is None:
         raise APIException(404, "run_not_found", "api.errors.run_not_found")
-    return record
+    return ModelJSONResponse(record)
 
 
 @router.get("/runs/{run_id}/candidates/{candidate_id}", response_model=StrategyRun)
-def read_candidate(run_id: str, candidate_id: str, request: Request) -> StrategyRun:
+def read_candidate(
+    run_id: str, candidate_id: str, request: Request
+) -> ModelJSONResponse:
     candidate = _run_service(request).get_candidate(run_id, candidate_id)
     if candidate is None:
         raise APIException(404, "result_not_found", "api.errors.result_not_found")
-    return candidate
+    return ModelJSONResponse(candidate)
 
 
 @router.get(
@@ -198,7 +205,7 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
     """Stream small run status updates; fetch the full result once at terminal."""
 
     service = _run_service(request)
-    if service.get_run(run_id) is None:
+    if service.get_run_progress(run_id) is None:
         raise APIException(
             404,
             "run_not_found",
@@ -218,8 +225,8 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
                 yield ": keep-alive\n\n"
                 continue
             version = change.version
-            payload = _run_event_payload(change)
-            event = "terminal" if is_terminal(change.response.status) else "progress"
+            payload = change.event.model_dump(mode="json", by_alias=True)
+            event = "terminal" if is_terminal(change.event.status) else "progress"
             serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
             yield (f"id: {change.version}\nevent: {event}\ndata: {serialized}\n\n")
             if event == "terminal":
@@ -233,24 +240,6 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
-
-
-def _run_event_payload(change: RunChange) -> dict[str, object]:
-    response = change.response
-    strategy_runs = () if response.result is None else response.result.strategy_runs
-    return RunProgressEvent(
-        runId=response.run_id,
-        status=response.status,
-        progress=response.progress,
-        strategyStatuses={item.id: item.status for item in strategy_runs},
-        strategySummaries={
-            item.id: RunStrategySummary(
-                metrics=item.metrics, diagnostics=item.diagnostics
-            )
-            for item in strategy_runs
-            if is_terminal(item.status)
-        },
-    ).model_dump(mode="json", by_alias=True)
 
 
 def _build_submission(

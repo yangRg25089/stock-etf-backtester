@@ -39,8 +39,8 @@ from app.domain.status import (
     unique_diagnostics,
 )
 from app.runs.data import RunDataProvider, StrategyDataLoad, UnconfiguredRunDataProvider
-from app.runs.store import RunChange, RunStore
-from app.runs.types import RunProgress, RunResponse, RunSubmission
+from app.runs.store import RunProgressChange, RunStore
+from app.runs.types import RunProgress, RunProgressEvent, RunResponse, RunSubmission
 from app.search import GridSearchInput, run_grid_search
 from app.simulation import SimulationResult, simulate_strategy
 
@@ -198,6 +198,9 @@ class RunManager:
     def get_run(self, run_id: str) -> RunResponse | None:
         return self._store.get(run_id)
 
+    def get_run_json(self, run_id: str) -> bytes | None:
+        return self._store.get_json(run_id)
+
     def instrument_metadata(self, symbol: str) -> InstrumentMetadata:
         suggestion = next(
             (
@@ -225,10 +228,13 @@ class RunManager:
             ),
         )
 
+    def get_run_progress(self, run_id: str) -> RunProgressEvent | None:
+        return self._store.get_progress(run_id)
+
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float
-    ) -> RunChange | None:
-        return self._store.wait_for_change(run_id, after_version, timeout_seconds)
+    ) -> RunProgressChange | None:
+        return self._store.wait_for_progress(run_id, after_version, timeout_seconds)
 
     def _load_strategy_data(
         self, submission: RunSubmission, run_id: str
@@ -559,6 +565,7 @@ class RunManager:
                             )
                         )
                     self._complete_run(run_id, benchmark_id, benchmark_outcome)
+                    del benchmark_outcome
 
             validation_by_id = {
                 validation.strategy_id: validation
@@ -601,22 +608,23 @@ class RunManager:
                         )
                     )
                 self._complete_run(run_id, strategy.id, outcome)
+                del outcome
 
             self._clear_current(run_id)
-            response = self._store.get(run_id)
-            if response is not None:
+            progress = self._store.get_progress(run_id)
+            if progress is not None:
                 _LOGGER.info(
                     "Run execution finished",
                     extra={
                         "event": "run_finished",
                         "run_id": run_id,
-                        "status": response.status.value,
-                        "data_sources": list(response.snapshot.data_provenance.sources),
+                        "status": progress.status.value,
+                        "data_sources": list(snapshot.data_provenance.sources),
                         "calendar_as_of": _iso_date(
-                            response.snapshot.data_provenance.calendar_as_of
+                            snapshot.data_provenance.calendar_as_of
                         ),
                         "market_data_through": _iso_date(
-                            response.snapshot.data_provenance.market_data_through
+                            snapshot.data_provenance.market_data_through
                         ),
                     },
                 )
@@ -767,17 +775,15 @@ class RunManager:
                 return
             self._check_cancelled(run_id)
             for status in (StrategyStatus.LOADING, StrategyStatus.RUNNING):
-                response = self._store.get(run_id)
-                assert response is not None and response.result is not None
-                self._save_result(
+                assert response.result is not None
+                response = self._save_result(
                     response,
                     tuple(
                         item.with_status(status) if item.id == strategy_id else item
                         for item in response.result.strategy_runs
                     ),
                 )
-            response = self._store.get(run_id)
-            assert response is not None and response.progress is not None
+            assert response.progress is not None
             self._store.update(
                 response.model_copy(
                     update={
@@ -860,7 +866,7 @@ class RunManager:
 
     def _save_result(
         self, response: RunResponse, strategy_runs: Sequence[StrategyRun]
-    ) -> None:
+    ) -> RunResponse:
         result = RunResult(runId=response.run_id, strategyRuns=tuple(strategy_runs))
         progress = response.progress
         if progress is not None:
@@ -871,11 +877,11 @@ class RunManager:
                     )
                 }
             )
-        self._store.update(
-            response.model_copy(
-                update={"status": result.status, "progress": progress, "result": result}
-            )
+        updated = response.model_copy(
+            update={"status": result.status, "progress": progress, "result": result}
         )
+        self._store.update(updated)
+        return updated
 
     def _fail_unfinished(self, run_id: str, diagnostic: Diagnostic) -> None:
         with self._state_lock:

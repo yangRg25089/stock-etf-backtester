@@ -4,23 +4,25 @@ from __future__ import annotations
 
 import atexit
 import json
+import math
 import sqlite3
 import zlib
-from collections.abc import Iterator, MutableMapping
+from collections.abc import Callable, Iterator, Mapping, MutableMapping
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import RLock
-from typing import Generic, TypeVar, cast
+from typing import Any, Generic, TypeAlias, TypeVar, cast, get_args
 
 from pydantic import BaseModel
 
 from app.domain.contracts import StrategyRun
+from app.domain.immutability import FrozenMap, freeze_mapping
 from app.domain.resources import ResultStorageFull
 from app.domain.status import StrategyStatus
 from app.runs.store import InMemoryRunStore
-from app.runs.types import RunResponse
+from app.runs.types import RunProgressEvent, RunResponse
 
 _Key = TypeVar("_Key", str, tuple[str, str])
 _Model = TypeVar("_Model", bound=BaseModel)
@@ -28,41 +30,116 @@ DEFAULT_STORAGE_BYTES = 512 * 1024 * 1024
 DEFAULT_STORED_RUNS = 128
 
 
-def _pack(value: object) -> object:
-    """Tag every container so user dictionary keys cannot impersonate scalars."""
-    if isinstance(value, dict):
-        return {"map": [[key, _pack(item)] for key, item in value.items()]}
-    if isinstance(value, (tuple, list)):
-        return {
-            "tuple" if isinstance(value, tuple) else "list": [
-                _pack(item) for item in value
-            ]
-        }
-    if isinstance(value, datetime):
-        return {"datetime": value.isoformat()}
-    if isinstance(value, date):
-        return {"date": value.isoformat()}
-    if isinstance(value, Decimal):
-        return {"decimal": str(value)}
-    return value
+_NativeChange: TypeAlias = "dict[str | int, _NativeChange] | Decimal | date | float"
+_NativeScalarPath: TypeAlias = tuple[list[str | int], str, str]
 
 
-def _unpack(value: object) -> object:
-    if not isinstance(value, dict):
+def _has_untyped_values(annotation: object) -> bool:
+    return annotation in (object, Any) or any(
+        _has_untyped_values(part) for part in get_args(annotation)
+    )
+
+
+def _native_scalar_paths(model: BaseModel) -> Iterator[_NativeScalarPath]:
+    """Remember types only in arbitrary mappings; model fields have a schema."""
+
+    def visit(
+        value: object, path: list[str | int], arbitrary: bool = False
+    ) -> Iterator[_NativeScalarPath]:
+        if isinstance(value, BaseModel):
+            for name, field in type(value).model_fields.items():
+                yield from visit(
+                    getattr(value, name),
+                    [*path, name],
+                    arbitrary or _has_untyped_values(field.annotation),
+                )
+        elif isinstance(value, Mapping):
+            for key, item in value.items():
+                yield from visit(item, [*path, key], True)
+        elif isinstance(value, (tuple, list)):
+            for index, item in enumerate(value):
+                yield from visit(item, [*path, index], arbitrary)
+        elif arbitrary:
+            if isinstance(value, datetime):
+                yield path, "datetime", value.isoformat()
+            elif isinstance(value, date):
+                yield path, "date", value.isoformat()
+            elif isinstance(value, Decimal):
+                yield path, "decimal", str(value)
+            elif isinstance(value, float) and not math.isfinite(value):
+                yield path, "float", str(value)
+
+    yield from visit(model, [])
+
+
+def _encode_model(model: BaseModel) -> bytes:
+    # Stream native metadata rather than building a second tree of every value.
+    compressor = zlib.compressobj()
+    parts: list[bytes] = []
+
+    def write(body: bytes) -> None:
+        chunk = compressor.compress(body)
+        if chunk:
+            parts.append(chunk)
+
+    write(b"[")
+    for index, scalar in enumerate(_native_scalar_paths(model)):
+        if index:
+            write(b",")
+        write(json.dumps(scalar, separators=(",", ":")).encode())
+    write(b"]\n")
+    write(model.model_dump_json(by_alias=True).encode())
+    parts.append(compressor.flush())
+    return b"".join(parts)
+
+
+def _restore_native(value: object, changes: _NativeChange) -> object:
+    if not isinstance(changes, dict):
+        return changes
+    if not changes:
         return value
-    if "map" in value:
-        return {key: _unpack(item) for key, item in value["map"]}
-    if "tuple" in value:
-        return tuple(_unpack(item) for item in value["tuple"])
-    if "list" in value:
-        return [_unpack(item) for item in value["list"]]
-    if "datetime" in value:
-        return datetime.fromisoformat(value["datetime"])
-    if "date" in value:
-        return date.fromisoformat(value["date"])
-    if "decimal" in value:
-        return Decimal(value["decimal"])
-    raise ValueError("invalid stored model encoding")
+    if isinstance(value, BaseModel):
+        return value.model_copy(
+            update={
+                str(name): _restore_native(getattr(value, str(name)), change)
+                for name, change in changes.items()
+            }
+        )
+    if isinstance(value, Mapping):
+        updated = dict(value)
+        for key, change in changes.items():
+            updated[key] = _restore_native(value[key], change)
+        return freeze_mapping(updated) if isinstance(value, FrozenMap) else updated
+    if isinstance(value, (tuple, list)):
+        items = list(value)
+        for index, change in changes.items():
+            if not isinstance(index, int):
+                raise ValueError("invalid stored sequence path")
+            items[index] = _restore_native(items[index], change)
+        return tuple(items) if isinstance(value, tuple) else items
+    raise ValueError("invalid stored model path")
+
+
+def _decode_model(body: bytes, model: type[_Model]) -> _Model:
+    header, payload = zlib.decompress(body).split(b"\n", 1)
+    # Pydantic's JSON reader avoids a complete intermediate Python dict tree.
+    value = model.model_validate_json(payload)
+    changes: dict[str | int, _NativeChange] = {}
+    decoders: dict[str, Callable[[str], Decimal | date | float]] = {
+        "decimal": Decimal,
+        "float": float,
+        "date": date.fromisoformat,
+        "datetime": datetime.fromisoformat,
+    }
+    for path, kind, scalar in json.loads(header):
+        target = changes
+        for key in path[:-1]:
+            child = target.setdefault(key, {})
+            if not isinstance(child, dict):
+                raise ValueError("invalid stored scalar path")
+            target = child
+        target[path[-1]] = decoders[kind](scalar)
+    return cast(_Model, _restore_native(value, changes))
 
 
 class _PayloadDatabase:
@@ -99,21 +176,23 @@ class _PayloadDatabase:
             if pages >= self.normal_pages:
                 raise ResultStorageFull("temporary result storage is full")
 
-    def write(self, kind: str, identity: str, body: bytes, *, control: bool) -> None:
+    def write(
+        self, payloads: tuple[tuple[str, str, bytes], ...], *, control: bool
+    ) -> None:
         with self.lock:
             try:
                 with self.connection:
-                    # Release the old blob pages inside this same transaction.
-                    # UPSERT can allocate a second large blob before freeing the
-                    # first; that would exhaust even terminal-state reserves.
-                    self.connection.execute(
-                        "DELETE FROM payloads WHERE kind=? AND identity=?",
-                        (kind, identity),
-                    )
-                    self.connection.execute(
-                        "INSERT INTO payloads VALUES (?, ?, ?)",
-                        (kind, identity, body),
-                    )
+                    for kind, identity, body in payloads:
+                        # Reuse old blob pages in the same transaction; UPSERT
+                        # would allocate the new blob before freeing the old.
+                        self.connection.execute(
+                            "DELETE FROM payloads WHERE kind=? AND identity=?",
+                            (kind, identity),
+                        )
+                        self.connection.execute(
+                            "INSERT INTO payloads VALUES (?, ?, ?)",
+                            (kind, identity, body),
+                        )
                     pages = self.connection.execute("PRAGMA page_count").fetchone()[0]
                     if not control and pages > self.normal_pages:
                         raise ResultStorageFull("temporary result storage is full")
@@ -134,6 +213,23 @@ class _PayloadDatabase:
             atexit.unregister(self.close)
 
 
+def _uses_terminal_reserve(value: BaseModel) -> bool:
+    failure_states = {
+        StrategyStatus.CANCELLED,
+        StrategyStatus.FAILED,
+        StrategyStatus.UNAVAILABLE,
+    }
+    return isinstance(value, RunResponse) and (
+        value.status is StrategyStatus.QUEUED
+        or value.status in failure_states
+        or (
+            value.status is StrategyStatus.COMPLETED_WITH_WARNING
+            and value.result is not None
+            and any(row.status in failure_states for row in value.result.strategy_runs)
+        )
+    )
+
+
 class _PayloadMap(MutableMapping[_Key, _Model], Generic[_Key, _Model]):
     """Typed immutable model payloads; no result objects are cached in RAM."""
 
@@ -148,30 +244,12 @@ class _PayloadMap(MutableMapping[_Key, _Model], Generic[_Key, _Model]):
             ).fetchone()
         if row is None:
             raise KeyError(key)
-        return self.model.model_validate(_unpack(json.loads(zlib.decompress(row[0]))))
+        return _decode_model(row[0], self.model)
 
     def __setitem__(self, key: _Key, value: _Model) -> None:
-        failure_states = {
-            StrategyStatus.CANCELLED,
-            StrategyStatus.FAILED,
-            StrategyStatus.UNAVAILABLE,
-        }
-        control = isinstance(value, RunResponse) and (
-            value.status is StrategyStatus.QUEUED
-            or value.status in failure_states
-            or (
-                value.status is StrategyStatus.COMPLETED_WITH_WARNING
-                and value.result is not None
-                and any(
-                    row.status in failure_states for row in value.result.strategy_runs
-                )
-            )
-        )
         self.database.write(
-            self.kind,
-            json.dumps(key),
-            zlib.compress(json.dumps(_pack(value.model_dump())).encode()),
-            control=control,
+            ((self.kind, json.dumps(key), _encode_model(value)),),
+            control=_uses_terminal_reserve(value),
         )
 
     def __contains__(self, key: object) -> bool:
@@ -220,12 +298,34 @@ class TemporaryRunStore(InMemoryRunStore):
     ) -> None:
         super().__init__(max_runs=max_runs)
         self._database = _PayloadDatabase(max_bytes)
+        self._progress = _PayloadMap[str, RunProgressEvent](
+            self._database, "progress", RunProgressEvent
+        )
         self._records = _PayloadMap[str, RunResponse](
             self._database, "runs", RunResponse
         )
         self._candidates = _PayloadMap[tuple[str, str], StrategyRun](
             self._database, "candidates", StrategyRun
         )
+
+    def _save_payload(self, response: RunResponse, event: RunProgressEvent) -> None:
+        identity = json.dumps(response.run_id)
+        self._database.write(
+            (
+                ("runs", identity, _encode_model(response)),
+                ("progress", identity, _encode_model(event)),
+            ),
+            control=_uses_terminal_reserve(response),
+        )
+
+    def get_json(self, run_id: str) -> bytes | None:
+        """Read the saved wire snapshot without rebuilding its model tree."""
+        with self._lock, self._database.lock:
+            row = self._database.connection.execute(
+                "SELECT body FROM payloads WHERE kind='runs' AND identity=?",
+                (json.dumps(run_id),),
+            ).fetchone()
+            return zlib.decompress(row[0]).split(b"\n", 1)[1] if row else None
 
     def _check_storage_room(self) -> None:
         super()._check_storage_room()

@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from app.domain.contracts import StrategyRun
 from app.domain.resources import ResultStorageFull
-from app.runs.types import RunResponse
+from app.runs.types import RunProgressEvent, RunResponse
 
 
 class IdempotencyConflict(ValueError):
@@ -42,8 +42,22 @@ class RunChange:
     response: RunResponse
 
 
+@dataclass(frozen=True, slots=True)
+class RunProgressChange:
+    """Versioned SSE projection without saved curve or trade payloads."""
+
+    version: int
+    event: RunProgressEvent
+
+
 class RunStore(Protocol):
     """Storage operations required by the local run manager."""
+
+    def get_progress(self, run_id: str) -> RunProgressEvent | None: ...
+
+    def wait_for_progress(
+        self, run_id: str, after_version: int, timeout_seconds: float
+    ) -> RunProgressChange | None: ...
 
     def reserve(
         self, idempotency_key: str, request_fingerprint: str, *, accept_new: bool = True
@@ -58,6 +72,8 @@ class RunStore(Protocol):
     def update(self, response: RunResponse) -> None: ...
 
     def get(self, run_id: str) -> RunResponse | None: ...
+
+    def get_json(self, run_id: str) -> bytes | None: ...
 
     def save_candidate(self, run_id: str, candidate: StrategyRun) -> None: ...
 
@@ -88,6 +104,7 @@ class InMemoryRunStore:
         self._reservations: dict[str, _ReservationState] = {}
         self._records: MutableMapping[str, RunResponse] = {}
         self._versions: dict[str, int] = {}
+        self._progress: MutableMapping[str, RunProgressEvent] = {}
         self._candidates: MutableMapping[tuple[str, str], StrategyRun] = {}
 
     def save_candidate(self, run_id: str, candidate: StrategyRun) -> None:
@@ -146,9 +163,11 @@ class InMemoryRunStore:
 
         if response.run_id != reservation.run_id:
             raise ValueError("published response must match its reservation")
+        response = RunResponse.model_validate(response)
+        event = RunProgressEvent.from_response(response)
         with self._lock:
             state = self._state_for(reservation)
-            self._records[reservation.run_id] = response
+            self._save_payload(response, event)
             self._versions[reservation.run_id] = (
                 self._versions.get(reservation.run_id, 0) + 1
             )
@@ -190,16 +209,50 @@ class InMemoryRunStore:
     def update(self, response: RunResponse) -> None:
         """Replace only the observable status/progress/result for a known run."""
 
+        response = RunResponse.model_validate(response)
+        event = RunProgressEvent.from_response(response)
         with self._lock:
             if response.run_id not in self._records:
                 raise KeyError(f"unknown run: {response.run_id}")
-            self._records[response.run_id] = response
+            self._save_payload(response, event)
             self._versions[response.run_id] = self._versions.get(response.run_id, 0) + 1
             self._changed.notify_all()
+
+    def _save_payload(self, response: RunResponse, event: RunProgressEvent) -> None:
+        self._records[response.run_id] = response
+        self._progress[response.run_id] = event
 
     def get(self, run_id: str) -> RunResponse | None:
         with self._lock:
             return self._records.get(run_id)
+
+    def get_json(self, run_id: str) -> bytes | None:
+        with self._lock:
+            record = self._records.get(run_id)
+            return record.model_dump_json(by_alias=True).encode() if record else None
+
+    def get_progress(self, run_id: str) -> RunProgressEvent | None:
+        with self._lock:
+            return self._progress.get(run_id)
+
+    def wait_for_progress(
+        self, run_id: str, after_version: int, timeout_seconds: float
+    ) -> RunProgressChange | None:
+        with self._changed:
+            self._changed.wait_for(
+                lambda: (
+                    run_id not in self._versions
+                    or self._versions[run_id] > after_version
+                ),
+                timeout=max(0.0, timeout_seconds),
+            )
+            event = self._progress.get(run_id)
+            version = self._versions.get(run_id, 0)
+            return (
+                RunProgressChange(version, event)
+                if event is not None and version > after_version
+                else None
+            )
 
     def wait_for_change(
         self, run_id: str, after_version: int, timeout_seconds: float
@@ -209,12 +262,16 @@ class InMemoryRunStore:
         deadline = monotonic() + max(0.0, timeout_seconds)
         with self._changed:
             while True:
-                response = self._records.get(run_id)
-                if response is None:
+                version = self._versions.get(run_id)
+                if version is None:
                     return None
-                version = self._versions.get(run_id, 0)
                 if version > after_version:
-                    return RunChange(version=version, response=response)
+                    response = self._records.get(run_id)
+                    return (
+                        None
+                        if response is None
+                        else RunChange(version=version, response=response)
+                    )
                 remaining = deadline - monotonic()
                 if remaining <= 0:
                     return None

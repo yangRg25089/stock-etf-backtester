@@ -402,3 +402,96 @@ def test_partial_success_can_use_terminal_reserve_at_real_sqlite_page_limit():
         assert store.wait_for_record(store.reserve("one", "fingerprint")) == warning
     finally:
         store.close()
+
+
+def test_long_curve_encoding_does_not_expand_every_typed_scalar():
+    import zlib
+    from datetime import timedelta
+
+    from app.runs.manager import RunManager
+    from app.runs.store import InMemoryRunStore
+    from tests.runs.test_manager import _FixtureProvider, _ManualExecutor, _submission
+
+    executor = _ManualExecutor()
+    manager = RunManager(
+        store=InMemoryRunStore(), data_provider=_FixtureProvider(), executor=executor
+    )
+    accepted = manager.submit_run(_submission("long"), idempotency_key="long")
+    executor.run_next()
+    result = manager.get_run(accepted.run_id).result.strategy_runs[0]
+    sample = result.daily_assets[0]
+    curve = tuple(
+        sample.model_copy(update={"date": date(2010, 1, 1) + timedelta(days=i)})
+        for i in range(4200)
+    )
+    result = result.model_copy(update={"daily_assets": curve})
+    store = TemporaryRunStore()
+    try:
+        store.save_candidate("long", result)
+        body = store._database.connection.execute(
+            "SELECT body FROM payloads WHERE kind='candidates'"
+        ).fetchone()[0]
+        assert len(zlib.decompress(body)) < len(result.model_dump_json().encode()) * 1.5
+        assert store.get_candidate("long", result.id) == result
+    finally:
+        store.close()
+
+
+def test_progress_and_idle_wait_do_not_decode_saved_curves(monkeypatch):
+    from app.runs.temporary_store import _PayloadMap
+
+    store = TemporaryRunStore()
+    try:
+        claim, original = record(store)
+
+        original_read = _PayloadMap.__getitem__
+
+        def forbidden_read(mapping, key):
+            if mapping.kind == "runs":
+                pytest.fail("progress must not hydrate full result payloads")
+            return original_read(mapping, key)
+
+        monkeypatch.setattr(_PayloadMap, "__getitem__", forbidden_read)
+        change = store.wait_for_progress(claim.run_id, 0, 0)
+        assert change.version == 1
+        assert change.event.run_id == original.run_id
+        assert store.get_progress(claim.run_id) == change.event
+        assert not isinstance(store._progress, dict)
+        assert store.wait_for_change(claim.run_id, 1, 0) is None
+        assert store.wait_for_progress(claim.run_id, 1, 0) is None
+        assert store.wait_for_progress("missing", 0, 0) is None
+    finally:
+        store.close()
+
+
+def test_saved_http_json_does_not_hydrate_result_models(monkeypatch):
+    import json
+
+    from app.runs.temporary_store import _PayloadMap
+
+    store = TemporaryRunStore()
+    try:
+        claim, original = record(store)
+
+        def forbidden_read(mapping, key):
+            pytest.fail("HTTP snapshot reads must not decode model trees")
+
+        monkeypatch.setattr(_PayloadMap, "__getitem__", forbidden_read)
+        assert json.loads(store.get_json(claim.run_id)) == json.loads(
+            original.model_dump_json(by_alias=True)
+        )
+        assert store.get_json("missing") is None
+    finally:
+        store.close()
+
+
+def test_untyped_search_dimension_preserves_decimal_values():
+    from app.domain.contracts import SearchResultDimension
+    from app.runs.temporary_store import _decode_model, _encode_model
+
+    original = SearchResultDimension(
+        key="rsi.buyThreshold", values=(Decimal("20.5"), Decimal("30"))
+    )
+    restored = _decode_model(_encode_model(original), SearchResultDimension)
+    assert restored == original
+    assert all(isinstance(value, Decimal) for value in restored.values)

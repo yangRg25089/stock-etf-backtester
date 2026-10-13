@@ -42,6 +42,10 @@ class _SavedRunService:
     def get_run(self, run_id: str) -> RunResponse | None:
         return self.run if run_id == self.run.run_id else None
 
+    def get_run_json(self, run_id: str) -> bytes | None:
+        run = self.get_run(run_id)
+        return run.model_dump_json(by_alias=True).encode() if run else None
+
 
 class _ImmediateExecutor:
     def submit(

@@ -1048,3 +1048,76 @@ def test_live_user_grid_values_freeze_trades_curves_and_csv_in_memory(tmp_path):
         asyncio.run(read_saved())
     finally:
         app.state.run_service = previous_service
+
+
+def test_live_long_qqq_vix_and_rsi_keep_full_curves_in_temporary_storage():
+    from app.runs.temporary_store import TemporaryRunStore
+
+    previous = app.state.run_service
+    store = TemporaryRunStore()
+    app.state.run_service = RunManager(
+        store=store, data_provider=YahooRunDataProvider(), executor=_InlineExecutor()
+    )
+
+    async def verify():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://long-history-live"
+        ) as client:
+            body = {
+                "draft": {
+                    "shared": {
+                        "run": {
+                            "symbol": "QQQ",
+                            "startDate": "2010-01-01",
+                            "endDate": "2026-10-07",
+                        },
+                        "contribution": {"amount": 100, "day": 1},
+                    },
+                    "strategies": [
+                        {"id": "volatility", "presetId": "vix_dca", "params": {}},
+                        {"id": "rsi", "presetId": "rsi_dca", "params": {}},
+                    ],
+                },
+                "scope": "all_enabled",
+            }
+            accepted = await client.post(
+                "/api/v1/runs",
+                json=body,
+                headers={"Idempotency-Key": "long-history-live"},
+            )
+            assert accepted.status_code == 202, accepted.text
+            saved_response = await client.get(
+                f"/api/v1/runs/{accepted.json()['runId']}"
+            )
+            assert saved_response.status_code == 200
+            saved = saved_response.json()
+            assert saved["status"] == "completed", [
+                (r["id"], r["status"], r["diagnostics"])
+                for r in saved["result"]["strategyRuns"]
+            ]
+            assert len(saved["result"]["strategyRuns"]) == 4
+            for row in saved["result"]["strategyRuns"]:
+                assert row["status"] == "completed", row["diagnostics"]
+                assert len(row["dailyAssets"]) > 4000
+                assert row["dailyAssets"][0]["date"] == "2010-01-04"
+                assert row["dailyAssets"][-1]["date"] == "2026-10-07"
+                assert Decimal(row["metrics"]["endingEquity"]) > 0
+            for identity in ["volatility", "rsi", "benchmark:monthly-dca"]:
+                exported = await client.get(
+                    f"/api/v1/runs/{saved['runId']}/export/daily-assets",
+                    params={"focusedResultId": identity},
+                )
+                assert exported.status_code == 200
+                rows = list(csv.DictReader(io.StringIO(exported.text)))
+                assert len(rows) > 4000
+                assert rows[0]["date"] == "2010-01-04"
+                assert rows[-1]["date"] == "2026-10-07"
+            event = store.get_progress(saved["runId"])
+            assert event.status.value == "completed"
+            assert len(event.strategy_summaries) == 4
+
+    try:
+        asyncio.run(verify())
+    finally:
+        app.state.run_service = previous
+        store.close()

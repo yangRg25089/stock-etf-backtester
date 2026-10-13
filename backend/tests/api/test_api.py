@@ -17,7 +17,8 @@ from app.domain.status import StrategyStatus
 from app.main import app
 from app.runs.data import StrategyDataLoad
 from app.runs.manager import RunManager
-from app.runs.store import IdempotencyConflict, InMemoryRunStore, RunChange
+from app.runs.store import IdempotencyConflict, InMemoryRunStore, RunProgressChange
+from app.runs.types import RunProgressEvent
 
 
 class _FakeRunService:
@@ -54,6 +55,14 @@ class _FakeRunService:
 
     def get_run(self, run_id: str) -> RunResponse | None:
         return self.responses.get(run_id)
+
+    def get_run_json(self, run_id):
+        response = self.get_run(run_id)
+        return response.model_dump_json(by_alias=True).encode() if response else None
+
+    def get_run_progress(self, run_id):
+        response = self.get_run(run_id)
+        return None if response is None else RunProgressEvent.from_response(response)
 
 
 class _ConflictingRunService(_FakeRunService):
@@ -111,24 +120,25 @@ def test_full_result_storage_returns_localized_503_without_internal_details():
 class _EventRunService(_FakeRunService):
     def wait_for_run_change(
         self, run_id: str, after_version: int, timeout_seconds: float
-    ) -> RunChange | None:
+    ) -> RunProgressChange | None:
         del timeout_seconds
         response = self.responses.get(run_id)
         if response is None or after_version >= 1:
             return None
-        return RunChange(
+        total = response.progress.total_strategies if response.progress else 0
+        return RunProgressChange(
             version=1,
-            response=response.model_copy(
-                update={
-                    "status": StrategyStatus.COMPLETED,
-                    "progress": response.progress.model_copy(
-                        update={
-                            "completed_strategies": response.progress.total_strategies
-                        }
-                    )
-                    if response.progress is not None
-                    else None,
-                }
+            event=RunProgressEvent.from_response(
+                response.model_copy(
+                    update={
+                        "status": StrategyStatus.COMPLETED,
+                        "progress": response.progress.model_copy(
+                            update={"completed_strategies": total}
+                        )
+                        if response.progress is not None
+                        else None,
+                    }
+                )
             ),
         )
 

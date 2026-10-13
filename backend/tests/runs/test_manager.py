@@ -1301,3 +1301,25 @@ def test_stop_and_candidate_http_contracts_use_saved_results(monkeypatch) -> Non
             assert manager.stop_run(run_id).status is StrategyStatus.COMPLETED
 
     asyncio.run(exercise())
+
+
+def test_strategy_status_transitions_reuse_one_loaded_result():
+    class CountingStore(InMemoryRunStore):
+        reads = 0
+
+        def get(self, run_id):
+            self.reads += 1
+            return super().get(run_id)
+
+    store = CountingStore()
+    executor = _ManualExecutor()
+    manager = RunManager(store=store, executor=executor)
+    accepted = manager.submit_run(_submission("one-read"), idempotency_key="one-read")
+    before = store._versions[accepted.run_id]
+    store.reads = 0
+    manager._set_current(accepted.run_id, "one-read")
+    assert store.reads == 1
+    assert store._versions[accepted.run_id] == before + 3
+    event = store.get_progress(accepted.run_id)
+    assert event.progress.current_strategy_id == "one-read"
+    assert event.strategy_statuses["one-read"] is StrategyStatus.RUNNING

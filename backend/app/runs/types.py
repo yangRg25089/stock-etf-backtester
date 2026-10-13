@@ -111,6 +111,23 @@ class RunProgressEvent(DomainModel):
         default_factory=dict, alias="strategySummaries", max_length=34
     )
 
+    @classmethod
+    def from_response(cls, response: RunResponse) -> "RunProgressEvent":
+        rows = () if response.result is None else response.result.strategy_runs
+        return cls(
+            runId=response.run_id,
+            status=response.status,
+            progress=response.progress,
+            strategyStatuses={row.id: row.status for row in rows},
+            strategySummaries={
+                row.id: RunStrategySummary(
+                    metrics=row.metrics, diagnostics=row.diagnostics
+                )
+                for row in rows
+                if is_terminal(row.status)
+            },
+        )
+
     @model_validator(mode="after")
     def consistent_terminal_data(self) -> "RunProgressEvent":
         if (
