@@ -10,11 +10,9 @@ export function asRunApiError(error: unknown): RunApiError {
 }
 
 export function isTransientRunError(error: unknown): error is RunApiError {
-  return error instanceof RunApiError && error.code !== "invalid_response" && (
-    error.status === null && error.code === "provider_request_failed"
-    || error.status === 429
-    || error.status !== null && error.status >= 500
-  );
+  if (!(error instanceof RunApiError) || error.code === "invalid_response") return false;
+  if (error.status === null) return error.code === "provider_request_failed";
+  return error.status === 429 || error.status >= 500;
 }
 
 export function waitForRunRecovery(signal?: AbortSignal, delay = 500): Promise<void> {
