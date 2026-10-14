@@ -242,3 +242,111 @@ for (const phase of ['event headers', 'event error body', 'result headers', 'res
     } finally { globalThis.fetch = originalFetch; }
   });
 }
+
+for (const source of ['events', 'result']) {
+  test(`recovery honors the ${source} response's Retry-After instead of retrying early`, async context => {
+    const retrySeconds = source === 'events' ? 37 : 60;
+    const controller = new AbortController();
+    const active = wireRun(`retry-${source}`, 'running');
+    const saved = wireRun(active.runId, 'completed');
+    const originalFetch = globalThis.fetch;
+    let streams = 0, reads = 0;
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const limited = () => new Response(JSON.stringify({ error: {
+      code: 'rate_limited', messageKey: 'api.errors.rate_limited', diagnostics: [], retryAfterSeconds: retrySeconds,
+    } }), { status: 429, headers: { 'Retry-After': String(retrySeconds) } });
+    globalThis.fetch = async url => {
+      if (url.endsWith('/events')) {
+        streams++;
+        if (streams === 1) return source === 'events' ? limited() : new Response(': keep-alive\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
+        return new Response(`event: terminal\ndata: ${JSON.stringify(terminal(active.runId))}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+      }
+      reads++;
+      if (reads === 1) return source === 'result' ? limited() : new Response(JSON.stringify(active));
+      return new Response(JSON.stringify(saved));
+    };
+    const pending = observeRun(active.runId, () => {}, controller.signal);
+    try {
+      await new Promise(resolve => setImmediate(resolve));
+      context.mock.timers.tick(5000);
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(streams, 1, 'must not reconnect before the provider retry interval');
+      assert.equal(reads, source === 'events' ? 0 : 1, 'the shared API bucket also limits recovery reads');
+      context.mock.timers.tick((retrySeconds - 5) * 1000);
+      await new Promise(resolve => setImmediate(resolve));
+      context.mock.timers.tick(500);
+      assert.deepEqual(await pending, saved);
+      assert.equal(streams, 2);
+    } finally {
+      controller.abort();
+      await pending.catch(() => {});
+      globalThis.fetch = originalFetch;
+    }
+  });
+}
+
+test('slow observation recovery also honors the final rate-limit response', async context => {
+  const { observeRunUntilTerminal } = require('../.test-output/features/runs/observeRun.js');
+  const controller = new AbortController();
+  const active = wireRun('slow-retry-limit', 'running');
+  const saved = wireRun(active.runId, 'completed');
+  const originalFetch = globalThis.fetch;
+  let streams = 0, warnings = 0;
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  globalThis.fetch = async url => {
+    if (!url.endsWith('/events')) return new Response(JSON.stringify(streams < 5 ? active : saved));
+    streams++;
+    if (streams === 4) return new Response(JSON.stringify({ error: {
+      code: 'rate_limited', messageKey: 'api.errors.rate_limited', diagnostics: [], retryAfterSeconds: 60,
+    } }), { status: 429 });
+    return new Response(streams < 4 ? ': keep-alive\n\n' : `event: terminal\ndata: ${JSON.stringify(terminal(active.runId))}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+  };
+  const pending = observeRunUntilTerminal(active.runId, () => {}, controller.signal, () => true, () => {}, () => { warnings++; });
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await new Promise(resolve => setImmediate(resolve));
+      context.mock.timers.tick(500);
+    }
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(warnings, 1);
+    assert.equal(streams, 4);
+    context.mock.timers.tick(30000);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(streams, 4, 'slow retry must not precede Retry-After');
+    context.mock.timers.tick(30000);
+    assert.deepEqual(await pending, saved);
+  } finally {
+    controller.abort();
+    await pending.catch(() => {});
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a terminal result rate limit is respected before the recovery GET', async context => {
+  const controller = new AbortController();
+  const saved = wireRun('terminal-retry-limit', 'completed');
+  const originalFetch = globalThis.fetch;
+  let reads = 0;
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  globalThis.fetch = async url => {
+    if (url.endsWith('/events')) return new Response(`event: terminal\ndata: ${JSON.stringify(terminal(saved.runId))}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+    reads++;
+    return reads === 1 ? new Response(JSON.stringify({ error: {
+      code: 'rate_limited', messageKey: 'api.errors.rate_limited', diagnostics: [], retryAfterSeconds: 60,
+    } }), { status: 429 }) : new Response(JSON.stringify(saved));
+  };
+  const pending = observeRun(saved.runId, () => {}, controller.signal);
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    context.mock.timers.tick(5000);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(reads, 1, 'the recovery GET must respect the first GET rate limit');
+    context.mock.timers.tick(55000);
+    assert.deepEqual(await pending, saved);
+    assert.equal(reads, 2);
+  } finally {
+    controller.abort();
+    await pending.catch(() => {});
+    globalThis.fetch = originalFetch;
+  }
+});

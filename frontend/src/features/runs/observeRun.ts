@@ -19,6 +19,11 @@ export async function observeRun(
       if (!isTransientRunError(error) || recoveries >= 3) throw error;
       if (!canReadResult()) return null;
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      if (error.retryAfterSeconds) {
+        await waitForRunRecovery(signal, error.retryAfterSeconds * 1000);
+        if (!canReadResult()) return null;
+      }
+      let retryAfterSeconds = 0;
       try {
         const snapshot = await fetchRun(runId, signal);
         if (!canReadResult()) return null;
@@ -26,8 +31,9 @@ export async function observeRun(
         onRecoveredSnapshot?.(snapshot);
       } catch (readError) {
         if (!isTransientRunError(readError)) throw readError;
+        retryAfterSeconds = readError.retryAfterSeconds ?? 0;
       }
-      await waitForRunRecovery(signal, Math.min(5000, Math.max(500, (error.retryAfterSeconds ?? 0) * 1000)));
+      await waitForRunRecovery(signal, Math.max(500, retryAfterSeconds * 1000));
     }
   }
 }
@@ -47,7 +53,7 @@ export async function observeRunUntilTerminal(
     } catch (error) {
       if (!isTransientRunError(error)) throw error;
       onConnectionError(error);
-      await waitForRunRecovery(signal, 30000);
+      await waitForRunRecovery(signal, Math.max(30000, (error.retryAfterSeconds ?? 0) * 1000));
     }
   }
   return null;
