@@ -495,3 +495,29 @@ def test_untyped_search_dimension_preserves_decimal_values():
     restored = _decode_model(_encode_model(original), SearchResultDimension)
     assert restored == original
     assert all(isinstance(value, Decimal) for value in restored.values)
+
+
+def test_progress_insert_failure_rolls_back_snapshot_progress_and_version():
+    import sqlite3
+
+    from app.runs.types import RunProgressEvent
+
+    store = TemporaryRunStore()
+    try:
+        claim, original = record(store)
+        store._database.connection.executescript(
+            "CREATE TRIGGER reject_progress BEFORE INSERT ON payloads "
+            "WHEN NEW.kind='progress' BEGIN "
+            "SELECT RAISE(ABORT, 'fixture progress insert failure'); END;"
+        )
+        failed = original.model_copy(update={"status": StrategyStatus.FAILED})
+        with pytest.raises(sqlite3.IntegrityError, match="progress insert failure"):
+            store.update(failed)
+        assert store.get(claim.run_id) == original
+        assert store.get_progress(claim.run_id) == RunProgressEvent.from_response(
+            original
+        )
+        assert store.wait_for_change(claim.run_id, 0, 0).version == 1
+        assert store.wait_for_progress(claim.run_id, 1, 0) is None
+    finally:
+        store.close()
