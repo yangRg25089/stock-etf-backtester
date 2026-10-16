@@ -477,10 +477,10 @@ def test_saved_http_json_does_not_hydrate_result_models(monkeypatch):
             pytest.fail("HTTP snapshot reads must not decode model trees")
 
         monkeypatch.setattr(_PayloadMap, "__getitem__", forbidden_read)
-        assert json.loads(store.get_json(claim.run_id)) == json.loads(
+        assert json.loads(b"".join(store.iter_json(claim.run_id))) == json.loads(
             original.model_dump_json(by_alias=True)
         )
-        assert store.get_json("missing") is None
+        assert store.iter_json("missing") is None
     finally:
         store.close()
 
@@ -519,5 +519,53 @@ def test_progress_insert_failure_rolls_back_snapshot_progress_and_version():
         )
         assert store.wait_for_change(claim.run_id, 0, 0).version == 1
         assert store.wait_for_progress(claim.run_id, 1, 0) is None
+    finally:
+        store.close()
+
+
+def test_json_stream_bounds_output_and_preserves_exact_saved_wire():
+    store = TemporaryRunStore()
+    try:
+        claim, saved = record(
+            store,
+            params={
+                "dates": [date(2024, 3, 1)] * 3000,
+                "decimal": Decimal("0.1234567890123456789"),
+                "text": "中文🙂\n" * 30_000,
+            },
+        )
+        chunks = list(store.iter_json(claim.run_id))
+        assert len(chunks) > 1
+        assert all(0 < len(chunk) <= 64 * 1024 for chunk in chunks)
+        assert b"".join(chunks) == saved.model_dump_json(by_alias=True).encode()
+        assert store.iter_json("missing") is None
+    finally:
+        store.close()
+
+
+def test_json_stream_freezes_at_lookup_and_does_not_hold_database_locks():
+    store = TemporaryRunStore()
+    try:
+        claim, saved = record(store, params={"padding": "x" * 200_000})
+        old_stream = store.iter_json(claim.run_id)
+        failed = saved.model_copy(update={"status": StrategyStatus.FAILED})
+        store.update(failed)
+        assert b"".join(old_stream) == saved.model_dump_json(by_alias=True).encode()
+
+        stream = store.iter_json(claim.run_id)
+        first = next(stream)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(store.update, saved).result(timeout=2)
+            assert (
+                executor.submit(store.get_progress, claim.run_id)
+                .result(timeout=2)
+                .status
+                is StrategyStatus.QUEUED
+            )
+        store.close()
+        # An already captured response needs neither the store nor its files.
+        assert (
+            first + b"".join(stream) == failed.model_dump_json(by_alias=True).encode()
+        )
     finally:
         store.close()

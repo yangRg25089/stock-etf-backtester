@@ -42,9 +42,11 @@ class _SavedRunService:
     def get_run(self, run_id: str) -> RunResponse | None:
         return self.run if run_id == self.run.run_id else None
 
-    def get_run_json(self, run_id: str) -> bytes | None:
+    def iter_run_json(self, run_id):
         run = self.get_run(run_id)
-        return run.model_dump_json(by_alias=True).encode() if run else None
+        if run is None:
+            return None
+        return (part for part in (run.model_dump_json(by_alias=True).encode(),))
 
 
 class _ImmediateExecutor:

@@ -7,7 +7,7 @@ import json
 import math
 import sqlite3
 import zlib
-from collections.abc import Callable, Iterator, Mapping, MutableMapping
+from collections.abc import Callable, Generator, Iterator, Mapping, MutableMapping
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -21,7 +21,7 @@ from app.domain.contracts import StrategyRun
 from app.domain.immutability import FrozenMap, freeze_mapping
 from app.domain.resources import ResultStorageFull
 from app.domain.status import StrategyStatus
-from app.runs.store import InMemoryRunStore
+from app.runs.store import JSON_CHUNK_BYTES, InMemoryRunStore
 from app.runs.types import RunProgressEvent, RunResponse
 
 _Key = TypeVar("_Key", str, tuple[str, str])
@@ -140,6 +140,27 @@ def _decode_model(body: bytes, model: type[_Model]) -> _Model:
             target = child
         target[path[-1]] = decoders[kind](scalar)
     return cast(_Model, _restore_native(value, changes))
+
+
+def _iter_wire_json(body: bytes) -> Generator[bytes, None, None]:
+    """Bound decompressed output, discarding native metadata without buffering it."""
+    decoder = zlib.decompressobj()
+    in_header = True
+    for offset in range(0, len(body), JSON_CHUNK_BYTES):
+        compressed = body[offset : offset + JSON_CHUNK_BYTES]
+        while True:
+            block = decoder.decompress(compressed, JSON_CHUNK_BYTES)
+            compressed = decoder.unconsumed_tail
+            full_chunk = len(block) == JSON_CHUNK_BYTES
+            if in_header:
+                _, separator, block = block.partition(b"\n")
+                in_header = not separator
+            if block:
+                yield block
+            if not compressed and not full_chunk:
+                break
+    if not decoder.eof or in_header:
+        raise zlib.error("incomplete saved result")
 
 
 class _PayloadDatabase:
@@ -318,14 +339,14 @@ class TemporaryRunStore(InMemoryRunStore):
             control=_uses_terminal_reserve(response),
         )
 
-    def get_json(self, run_id: str) -> bytes | None:
-        """Read the saved wire snapshot without rebuilding its model tree."""
+    def iter_json(self, run_id: str) -> Generator[bytes, None, None] | None:
+        """Capture one compressed snapshot, releasing locks before streaming it."""
         with self._lock, self._database.lock:
             row = self._database.connection.execute(
                 "SELECT body FROM payloads WHERE kind='runs' AND identity=?",
                 (json.dumps(run_id),),
             ).fetchone()
-            return zlib.decompress(row[0]).split(b"\n", 1)[1] if row else None
+        return _iter_wire_json(row[0]) if row else None
 
     def _check_storage_room(self) -> None:
         super()._check_storage_room()

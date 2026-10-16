@@ -56,9 +56,11 @@ class _FakeRunService:
     def get_run(self, run_id: str) -> RunResponse | None:
         return self.responses.get(run_id)
 
-    def get_run_json(self, run_id):
+    def iter_run_json(self, run_id):
         response = self.get_run(run_id)
-        return response.model_dump_json(by_alias=True).encode() if response else None
+        if response is None:
+            return None
+        return (part for part in (response.model_dump_json(by_alias=True).encode(),))
 
     def get_run_progress(self, run_id):
         response = self.get_run(run_id)

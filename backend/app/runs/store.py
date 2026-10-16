@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Generator, MutableMapping
 from dataclasses import dataclass, field
 from threading import Condition, Event, RLock
 from time import monotonic
@@ -12,6 +12,8 @@ from uuid import uuid4
 from app.domain.contracts import StrategyRun
 from app.domain.resources import ResultStorageFull
 from app.runs.types import RunProgressEvent, RunResponse
+
+JSON_CHUNK_BYTES = 64 * 1024
 
 
 class IdempotencyConflict(ValueError):
@@ -73,7 +75,7 @@ class RunStore(Protocol):
 
     def get(self, run_id: str) -> RunResponse | None: ...
 
-    def get_json(self, run_id: str) -> bytes | None: ...
+    def iter_json(self, run_id: str) -> Generator[bytes, None, None] | None: ...
 
     def save_candidate(self, run_id: str, candidate: StrategyRun) -> None: ...
 
@@ -226,10 +228,16 @@ class InMemoryRunStore:
         with self._lock:
             return self._records.get(run_id)
 
-    def get_json(self, run_id: str) -> bytes | None:
+    def iter_json(self, run_id: str) -> Generator[bytes, None, None] | None:
         with self._lock:
             record = self._records.get(run_id)
-            return record.model_dump_json(by_alias=True).encode() if record else None
+            if record is None:
+                return None
+            body = record.model_dump_json(by_alias=True).encode()
+        return (
+            body[offset : offset + JSON_CHUNK_BYTES]
+            for offset in range(0, len(body), JSON_CHUNK_BYTES)
+        )
 
     def get_progress(self, run_id: str) -> RunProgressEvent | None:
         with self._lock:

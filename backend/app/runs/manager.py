@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Generator, Iterable, Mapping, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
@@ -198,8 +198,8 @@ class RunManager:
     def get_run(self, run_id: str) -> RunResponse | None:
         return self._store.get(run_id)
 
-    def get_run_json(self, run_id: str) -> bytes | None:
-        return self._store.get_json(run_id)
+    def iter_run_json(self, run_id: str) -> Generator[bytes, None, None] | None:
+        return self._store.iter_json(run_id)
 
     def instrument_metadata(self, symbol: str) -> InstrumentMetadata:
         suggestion = next(

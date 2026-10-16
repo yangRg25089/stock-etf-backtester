@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Generator, Mapping
 from typing import Protocol, cast
 
 from fastapi import APIRouter, Header, Request, Response
@@ -34,7 +34,7 @@ from app.runs.store import IdempotencyConflict, RunCapacityExceeded, RunProgress
 from app.runs.types import RunProgressEvent
 
 from .errors import APIException
-from .responses import ModelJSONResponse
+from .responses import ModelJSONResponse, StreamingJSONResponse
 from .types import (
     APIErrorResponse,
     DraftValidationRequest,
@@ -60,7 +60,7 @@ class RunService(Protocol):
 
     def get_run(self, run_id: str) -> RunResponse | None: ...
 
-    def get_run_json(self, run_id: str) -> bytes | None: ...
+    def iter_run_json(self, run_id: str) -> Generator[bytes, None, None] | None: ...
 
     def stop_run(self, run_id: str) -> RunResponse | None: ...
 
@@ -154,22 +154,25 @@ def read_instrument(symbol: str, request: Request) -> InstrumentMetadata:
 def read_run(run_id: str, request: Request) -> Response:
     """Return the current immutable snapshot and progress for a submitted run."""
 
-    record = _run_service(request).get_run_json(run_id)
+    return _saved_json_response(_run_service(request), run_id)
+
+
+def _saved_json_response(service: RunService, run_id: str) -> StreamingJSONResponse:
+    record = service.iter_run_json(run_id)
     if record is None:
         raise APIException(
             404,
             "run_not_found",
             "api.errors.run_not_found",
         )
-    return Response(record, media_type="application/json")
+    return StreamingJSONResponse(record)
 
 
 @router.post("/runs/{run_id}/stop", response_model=RunResponse)
-def stop_run(run_id: str, request: Request) -> ModelJSONResponse:
-    record = _run_service(request).stop_run(run_id)
-    if record is None:
-        raise APIException(404, "run_not_found", "api.errors.run_not_found")
-    return ModelJSONResponse(record)
+def stop_run(run_id: str, request: Request) -> StreamingJSONResponse:
+    service = _run_service(request)
+    service.stop_run(run_id)
+    return _saved_json_response(service, run_id)
 
 
 @router.get("/runs/{run_id}/candidates/{candidate_id}", response_model=StrategyRun)
